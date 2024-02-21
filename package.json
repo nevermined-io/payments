@@ -12,11 +12,20 @@
   "license": "Apache-2.0",
   "homepage": "https://github.com/nevermined-io/payments",
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "lint": "eslint ./src",
+    "format": "prettier --check ./src"
   },
   "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.11.19",
+    "@typescript-eslint/eslint-plugin": "^7.0.2",
+    "@typescript-eslint/parser": "^7.0.2",
+    "eslint": "^8.56.0",
+    "eslint-config-nevermined": "^0.2.0",
+    "eslint-config-next": "^14.1.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3"

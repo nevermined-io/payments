@@ -1,2 +1,2 @@
-export * from "./payments";
-export * from "./environments";
+export * from './payments'
+export * from './environments'
