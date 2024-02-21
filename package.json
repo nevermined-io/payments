@@ -1,0 +1,24 @@
+{
+  "name": "@nevermined-io/payments",
+  "version": "0.1.0",
+  "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nevermined-io/payments"
+  },
+  "author": "Nevermined <root@nevermined.io>",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/nevermined-io/payments",
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "ts-node": "^10.9.2",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  }
+}
