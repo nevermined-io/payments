@@ -5,6 +5,10 @@ export interface PaymentOptions {
   environment: EnvironmentName
 }
 
+export interface Endpoint {
+  [verb: string]: string
+}
+
 export class Payments {
   public returnUrl: string
   public environment: EnvironmentInfo
@@ -34,19 +38,27 @@ export class Payments {
     window.location.href = url.toString()
   }
 
-  public isLoggedIn(): boolean {
+  get isLoggedIn(): boolean {
     return !!this.sessionKey
   }
 
-  public async createSubscription(
-    name: string,
-    description: string,
-    price: bigint,
-    tokenAddress: string,
-    amountOfCredits?: number,
-    duration?: number,
-    tags?: string[],
-  ): Promise<{ did: string }> {
+  public async createSubscription({
+    name,
+    description,
+    price,
+    tokenAddress,
+    amountOfCredits,
+    duration,
+    tags,
+  }: {
+    name: string
+    description: string
+    price: bigint
+    tokenAddress: string
+    amountOfCredits?: number
+    duration?: number
+    tags?: string[]
+  }): Promise<{ did: string }> {
     const body = {
       sessionKey: this.sessionKey,
       name,
@@ -65,7 +77,98 @@ export class Payments {
       },
       body: JSON.stringify(body),
     }
-    const url = new URL('/api/v1/payments', this.environment.backend)
+    const url = new URL('/api/v1/payments/subscription', this.environment.backend)
+
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  public async createWebservice({
+    subscriptionDid,
+    name,
+    description,
+    price,
+    tokenAddress,
+    amountOfCredits,
+    duration,
+    tags,
+    serviceChargeType,
+    minCreditsToCharge,
+    maxCreditsToCharge,
+    authType,
+    username,
+    password,
+    token,
+    endpoints,
+    openEndpoints,
+    openApiUrl,
+    integration,
+    sampleLink,
+    apiDescription,
+    curation,
+  }: {
+    subscriptionDid: string
+    name: string
+    description: string
+    price: bigint
+    tokenAddress: string
+    serviceChargeType: 'fixed' | 'dynamic'
+    authType: 'none' | 'basic' | 'oauth'
+    amountOfCredits?: number
+    minCreditsToCharge?: number
+    maxCreditsToCharge?: number
+    username?: string
+    password?: string
+    token?: string
+    endpoints?: Endpoint[]
+    openEndpoints?: string[]
+    openApiUrl?: string
+    integration?: string
+    sampleLink?: string
+    apiDescription?: string
+    curation?: object
+    duration?: number
+    tags?: string[]
+  }): Promise<{ did: string }> {
+    const body = {
+      sessionKey: this.sessionKey,
+      name,
+      description,
+      price: price.toString(),
+      tokenAddress,
+      amountOfCredits,
+      duration,
+      tags,
+      subscriptionDid,
+      serviceChargeType,
+      minCreditsToCharge,
+      maxCreditsToCharge,
+      authType,
+      username,
+      password,
+      token,
+      endpoints,
+      openEndpoints,
+      openApiUrl,
+      integration,
+      sampleLink,
+      apiDescription,
+      curation,
+    }
+    console.log(body)
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/webservice', this.environment.backend)
 
     const response = await fetch(url, options)
     if (!response.ok) {
