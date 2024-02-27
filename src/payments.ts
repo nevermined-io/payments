@@ -177,4 +177,98 @@ export class Payments {
 
     return response.json()
   }
+
+  public async createDataset({
+    subscriptionDid,
+    assetType,
+    name,
+    description,
+    files,
+    price,
+    tokenAddress,
+    amountOfCredits,
+    duration,
+    tags,
+    dataSchema,
+    sampleCode,
+    filesFormat,
+    usageExample,
+    programmingLanguage,
+    framework,
+    task,
+    trainingDetails,
+    variations,
+    fineTunable,
+    minCreditsToCharge,
+    maxCreditsToCharge,
+    curation,
+  }: {
+    subscriptionDid: string
+    assetType: string
+    name: string
+    description: string
+    files: object[]
+    price: bigint
+    tokenAddress: string
+    dataSchema?: string
+    sampleCode?: string
+    filesFormat?: string
+    usageExample?: string
+    programmingLanguage?: string
+    framework?: string
+    task?: string
+    trainingDetails?: string
+    variations?: string
+    fineTunable?: boolean
+    amountOfCredits?: number
+    minCreditsToCharge?: number
+    maxCreditsToCharge?: number
+    curation?: object
+    duration?: number
+    tags?: string[]
+  }): Promise<{ did: string }> {
+    const body = {
+      sessionKey: this.sessionKey,
+      assetType,
+      name,
+      description,
+      files,
+      price: price.toString(),
+      tokenAddress,
+      amountOfCredits,
+      duration,
+      tags,
+      subscriptionDid,
+      dataSchema,
+      sampleCode,
+      filesFormat,
+      usageExample,
+      programmingLanguage,
+      framework,
+      task,
+      trainingDetails,
+      variations,
+      fineTunable,
+      minCreditsToCharge,
+      maxCreditsToCharge,
+      curation,
+    }
+    console.log(body)
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/dataset', this.environment.backend)
+
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
 }
