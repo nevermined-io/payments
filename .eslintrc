@@ -1,5 +1,11 @@
 {
   "extends": [
     "nevermined"
-  ]
+  ],
+  "plugins": [
+    "eslint-plugin-tsdoc"
+  ],
+  "rules": {
+    "tsdoc/syntax": "warn"
+  }
 }
