@@ -24,7 +24,6 @@ export class Payments {
     const sessionKey = url.searchParams.get('sessionKey')
     if (sessionKey) {
       this.sessionKey = sessionKey
-      console.log('sessionKey:', sessionKey)
       url.searchParams.delete('sessionKey')
       history.replaceState(history.state, '', url.toString())
     }
@@ -87,7 +86,7 @@ export class Payments {
     return response.json()
   }
 
-  public async createWebservice({
+  public async createService({
     subscriptionDid,
     name,
     description,
@@ -159,7 +158,6 @@ export class Payments {
       apiDescription,
       curation,
     }
-    console.log(body)
     const options = {
       method: 'POST',
       headers: {
@@ -168,7 +166,7 @@ export class Payments {
       },
       body: JSON.stringify(body),
     }
-    const url = new URL('/api/v1/payments/webservice', this.environment.backend)
+    const url = new URL('/api/v1/payments/service', this.environment.backend)
 
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -178,7 +176,7 @@ export class Payments {
     return response.json()
   }
 
-  public async createDataset({
+  public async createFile({
     subscriptionDid,
     assetType,
     name,
@@ -253,7 +251,6 @@ export class Payments {
       maxCreditsToCharge,
       curation,
     }
-    console.log(body)
     const options = {
       method: 'POST',
       headers: {
@@ -262,7 +259,7 @@ export class Payments {
       },
       body: JSON.stringify(body),
     }
-    const url = new URL('/api/v1/payments/dataset', this.environment.backend)
+    const url = new URL('/api/v1/payments/file', this.environment.backend)
 
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -271,4 +268,25 @@ export class Payments {
 
     return response.json()
   }
+
+  public getSubscriptionDetails(did: string) {
+    const url = new URL(`/en/subscription/${did}`, this.environment.frontend)
+    window.location.href = url.toString()
+  }
+
+  public getServiceDetails(did: string) {
+    const url = new URL(`/en/webservice/${did}`, this.environment.frontend)
+    window.location.href = url.toString()
+  }
+
+  public getFileDetails(did: string) {
+    const url = new URL(`/en/file/${did}`, this.environment.frontend)
+    window.location.href = url.toString()
+  }
+
+  public checkoutSubscription(did: string) {
+    const url = new URL(`/en/subscription/checkout/${did}`, this.environment.frontend)
+    window.location.href = url.toString()
+  }
+
 }
