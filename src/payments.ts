@@ -368,56 +368,6 @@ export class Payments {
     files: object[]
     price: bigint
     tokenAddress: string
-    amountOfCredits?: number
-    duration?: number
-    tags?: string[]
-    dataSchema?: string
-    sampleCode?: string
-    filesFormat?: string
-    usageExample?: string
-    programmingLanguage?: string
-    framework?: string
-    task?: string
-    trainingDetails?: string
-    variations?: string
-    fineTunable?: boolean
-    minCreditsToCharge?: number
-    maxCreditsToCharge?: number
-    curation?: object
-  }): Promise<{ did: string }> {
-    // Function implementation goes here
-  }
-    subscriptionDid,
-    assetType,
-    name,
-    description,
-    files,
-    price,
-    tokenAddress,
-    amountOfCredits,
-    duration,
-    tags,
-    dataSchema,
-    sampleCode,
-    filesFormat,
-    usageExample,
-    programmingLanguage,
-    framework,
-    task,
-    trainingDetails,
-    variations,
-    fineTunable,
-    minCreditsToCharge,
-    maxCreditsToCharge,
-    curation,
-  }: {
-    subscriptionDid: string
-    assetType: string
-    name: string
-    description: string
-    files: object[]
-    price: bigint
-    tokenAddress: string
     dataSchema?: string
     sampleCode?: string
     filesFormat?: string
