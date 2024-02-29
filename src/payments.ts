@@ -311,32 +311,82 @@ export class Payments {
   /**
    * Creates a file with the specified parameters.
    *
-   * @param {string} subscriptionDid - The subscription DID.
-   * @param {string} assetType - The type of asset.
-   * @param {string} name - The name of the file.
-   * @param {string} description - The description of the file.
-   * @param {object[]} files - The array of files.
-   * @param {bigint} price - The price of the file.
-   * @param {string} tokenAddress - The token address.
-   * @param {number} [amountOfCredits] - The amount of credits.
-   * @param {number} [duration] - The duration of the file.
-   * @param {string[]} [tags] - The array of tags.
-   * @param {string} [dataSchema] - The data schema.
-   * @param {string} [sampleCode] - The sample code.
-   * @param {string} [filesFormat] - The format of the files.
-   * @param {string} [usageExample] - The usage example.
-   * @param {string} [programmingLanguage] - The programming language.
-   * @param {string} [framework] - The framework.
-   * @param {string} [task] - The task.
-   * @param {string} [trainingDetails] - The training details.
-   * @param {string} [variations] - The variations.
-   * @param {boolean} [fineTunable] - Indicates if the file is fine-tunable.
-   * @param {number} [minCreditsToCharge] - The minimum credits to charge.
-   * @param {number} [maxCreditsToCharge] - The maximum credits to charge.
-   * @param {object} [curation] - The curation object.
-   * @returns {Promise<{ did: string }>} The promise that resolves to the created file's DID.
+   * @param subscriptionDid - The subscription DID.
+   * @param assetType - The type of asset.
+   * @param name - The name of the file.
+   * @param description - The description of the file.
+   * @param files - The array of files.
+   * @param price - The price of the file.
+   * @param tokenAddress - The token address.
+   * @param amountOfCredits - The amount of credits.
+   * @param duration - The duration of the file.
+   * @param tags - The array of tags.
+   * @param dataSchema - The data schema.
+   * @param sampleCode - The sample code.
+   * @param filesFormat - The format of the files.
+   * @param usageExample - The usage example.
+   * @param programmingLanguage - The programming language.
+   * @param framework - The framework.
+   * @param task - The task.
+   * @param trainingDetails - The training details.
+   * @param variations - The variations.
+   * @param fineTunable - Indicates if the file is fine-tunable.
+   * @param minCreditsToCharge - The minimum credits to charge.
+   * @param maxCreditsToCharge - The maximum credits to charge.
+   * @param curation - The curation object.
+   * @returns The promise that resolves to the created file's DID.
    */
   public async createFile({
+    subscriptionDid,
+    assetType,
+    name,
+    description,
+    files,
+    price,
+    tokenAddress,
+    amountOfCredits,
+    duration,
+    tags,
+    dataSchema,
+    sampleCode,
+    filesFormat,
+    usageExample,
+    programmingLanguage,
+    framework,
+    task,
+    trainingDetails,
+    variations,
+    fineTunable,
+    minCreditsToCharge,
+    maxCreditsToCharge,
+    curation,
+  }: {
+    subscriptionDid: string
+    assetType: string
+    name: string
+    description: string
+    files: object[]
+    price: bigint
+    tokenAddress: string
+    amountOfCredits?: number
+    duration?: number
+    tags?: string[]
+    dataSchema?: string
+    sampleCode?: string
+    filesFormat?: string
+    usageExample?: string
+    programmingLanguage?: string
+    framework?: string
+    task?: string
+    trainingDetails?: string
+    variations?: string
+    fineTunable?: boolean
+    minCreditsToCharge?: number
+    maxCreditsToCharge?: number
+    curation?: object
+  }): Promise<{ did: string }> {
+    // Function implementation goes here
+  }
     subscriptionDid,
     assetType,
     name,
