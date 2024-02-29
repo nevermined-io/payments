@@ -191,6 +191,33 @@ export class Payments {
     return response.json()
   }
 
+  /**
+   * Creates a service.
+   *
+   * @param subscriptionDid - The subscription DID.
+   * @param name - The name of the service.
+   * @param description - The description of the service.
+   * @param price - The price of the service.
+   * @param tokenAddress - The token address.
+   * @param amountOfCredits - The amount of credits.
+   * @param duration - The duration of the service.
+   * @param tags - The tags associated with the service.
+   * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
+   * @param minCreditsToCharge - The minimum credits to charge.
+   * @param maxCreditsToCharge - The maximum credits to charge.
+   * @param authType - The authentication type ('none', 'basic', or 'oauth').
+   * @param username - The username for authentication.
+   * @param password - The password for authentication.
+   * @param token - The token for authentication.
+   * @param endpoints - The endpoints of the service.
+   * @param openEndpoints - The open endpoints of the service.
+   * @param openApiUrl - The OpenAPI URL.
+   * @param integration - The integration details.
+   * @param sampleLink - The sample link.
+   * @param apiDescription - The API description.
+   * @param curation - The curation details.
+   * @returns A promise that resolves to the created service DID.
+   */
   public async createService({
     subscriptionDid,
     name,
@@ -281,6 +308,34 @@ export class Payments {
     return response.json()
   }
 
+  /**
+   * Creates a file with the specified parameters.
+   *
+   * @param {string} subscriptionDid - The subscription DID.
+   * @param {string} assetType - The type of asset.
+   * @param {string} name - The name of the file.
+   * @param {string} description - The description of the file.
+   * @param {object[]} files - The array of files.
+   * @param {bigint} price - The price of the file.
+   * @param {string} tokenAddress - The token address.
+   * @param {number} [amountOfCredits] - The amount of credits.
+   * @param {number} [duration] - The duration of the file.
+   * @param {string[]} [tags] - The array of tags.
+   * @param {string} [dataSchema] - The data schema.
+   * @param {string} [sampleCode] - The sample code.
+   * @param {string} [filesFormat] - The format of the files.
+   * @param {string} [usageExample] - The usage example.
+   * @param {string} [programmingLanguage] - The programming language.
+   * @param {string} [framework] - The framework.
+   * @param {string} [task] - The task.
+   * @param {string} [trainingDetails] - The training details.
+   * @param {string} [variations] - The variations.
+   * @param {boolean} [fineTunable] - Indicates if the file is fine-tunable.
+   * @param {number} [minCreditsToCharge] - The minimum credits to charge.
+   * @param {number} [maxCreditsToCharge] - The maximum credits to charge.
+   * @param {object} [curation] - The curation object.
+   * @returns {Promise<{ did: string }>} The promise that resolves to the created file's DID.
+   */
   public async createFile({
     subscriptionDid,
     assetType,
@@ -374,21 +429,37 @@ export class Payments {
     return response.json()
   }
 
+  /**
+   * Redirects the user to the subscription details for a given DID.
+   * @param did - The DID (Decentralized Identifier) of the subscription.
+   */
   public getSubscriptionDetails(did: string) {
     const url = new URL(`/en/subscription/${did}`, this.environment.frontend)
     window.location.href = url.toString()
   }
 
+  /**
+   * Redirects the user to the service details for a given DID.
+   * @param did - The DID (Decentralized Identifier) of the service.
+   */
   public getServiceDetails(did: string) {
     const url = new URL(`/en/webservice/${did}`, this.environment.frontend)
     window.location.href = url.toString()
   }
 
+  /**
+   * Redirects the user to the file details for the specified DID (Decentralized Identifier).
+   * @param did - The DID of the file.
+   */
   public getFileDetails(did: string) {
     const url = new URL(`/en/file/${did}`, this.environment.frontend)
     window.location.href = url.toString()
   }
 
+  /**
+   * Redirects the user to the subscription checkout page for the specified DID.
+   * @param did - The DID (Decentralized Identifier) of the item to be subscribed to.
+   */
   public checkoutSubscription(did: string) {
     const url = new URL(`/en/subscription/checkout/${did}`, this.environment.frontend)
     window.location.href = url.toString()
