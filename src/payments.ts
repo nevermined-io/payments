@@ -288,5 +288,4 @@ export class Payments {
     const url = new URL(`/en/subscription/checkout/${did}`, this.environment.frontend)
     window.location.href = url.toString()
   }
-
 }
