@@ -1,5 +1,5 @@
+import { decodeJwt } from 'jose'
 import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
-
 /**
  * Options to initialize the Payments class.
  */
@@ -12,6 +12,16 @@ export interface PaymentOptions {
    * The environment to connect to.
    */
   environment: EnvironmentName
+
+  /**
+   * The app id.
+   */
+  appId?: string
+
+  /**
+   * The version of the library.
+   */
+  version?: string
 }
 
 export interface Endpoint {
@@ -24,6 +34,8 @@ export interface Endpoint {
 export class Payments {
   public returnUrl: string
   public environment: EnvironmentInfo
+  public appId?: string
+  public version?: string
   private sessionKey?: string
 
   /**
@@ -36,6 +48,8 @@ export class Payments {
    * const payments = new Payments({
    *   returnUrl: 'https://mysite.example'
    *   environment: 'staging'
+   *   appId: 'my-app-id'
+   *   version: '1.0.0'
    * })
    * ```
    *
@@ -44,6 +58,8 @@ export class Payments {
   constructor(options: PaymentOptions) {
     this.returnUrl = options.returnUrl
     this.environment = Environments[options.environment]
+    this.appId = options.appId
+    this.version = options.version
   }
 
   /**
@@ -94,12 +110,29 @@ export class Payments {
    */
   public init() {
     const url = new URL(window.location.href)
-    const sessionKey = url.searchParams.get('sessionKey')
-    if (sessionKey) {
-      this.sessionKey = sessionKey
+    const sessionKeyJwt = url.searchParams.get('sessionKey')
+    if (sessionKeyJwt) {
+      const jwtDecoded = decodeJwt(sessionKeyJwt)
+      this.sessionKey = jwtDecoded.sessionKey as string
       url.searchParams.delete('sessionKey')
       history.replaceState(history.state, '', url.toString())
     }
+  }
+
+  /**
+   * Logout the user by removing the session key.
+   *
+   * @remarks
+   *
+   * This is a browser only function.
+   *
+   * @example
+   * ```
+   * payments.logout()
+   * ```
+   */
+  public logout() {
+    this.sessionKey = undefined
   }
 
   /**
