@@ -37,6 +37,7 @@ export class Payments {
   public appId?: string
   public version?: string
   private sessionKey?: string
+  private marketplaceAuthToken?: string
 
   /**
    * Initialize the payments class.
@@ -114,6 +115,7 @@ export class Payments {
     if (sessionKeyJwt) {
       const jwtDecoded = decodeJwt(sessionKeyJwt)
       this.sessionKey = jwtDecoded.sessionKey as string
+      this.marketplaceAuthToken = jwtDecoded.marketplaceAuthToken as string
       url.searchParams.delete('sessionKey')
       history.replaceState(history.state, '', url.toString())
     }
@@ -454,6 +456,37 @@ export class Payments {
     }
     const url = new URL('/api/v1/payments/file', this.environment.backend)
 
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get the service token for a given DID.
+   *
+   * @param did - The DID of the service.
+   * @returns A promise that resolves to the service token.
+   */
+  public async getServiceToken(did: string): Promise<{
+    accessToken: string
+    neverminedProxyUri: string
+  }> {
+    const body = {
+      did: did,
+      accessToken: this.marketplaceAuthToken,
+    }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL(`/api/v1/payments/service/token`, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(response.statusText)
