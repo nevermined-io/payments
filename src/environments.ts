@@ -3,9 +3,19 @@ export interface EnvironmentInfo {
   backend: string
 }
 
-export type EnvironmentName = 'appStaging' | 'appTesting' | 'appArbitrum' | 'appGnosis' | 'appMatic'
+export type EnvironmentName =
+  | 'local'
+  | 'appStaging'
+  | 'appTesting'
+  | 'appArbitrum'
+  | 'appGnosis'
+  | 'appMatic'
 
 export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
+  local: {
+    frontend: 'http://localhost:3000',
+    backend: 'http://localhost:3200',
+  },
   appStaging: {
     frontend: 'https://staging.nevermined.app',
     backend: 'https://one-backend.staging.nevermined.app',
