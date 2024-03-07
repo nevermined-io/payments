@@ -465,6 +465,55 @@ export class Payments {
   }
 
   /**
+   * Get the DDO for a given DID.
+   *
+   * @param did - The DID of the asset.
+   * @returns A promise that resolves to the DDO.
+   */
+  public async getAssetDDO(did: string) {
+    const url = new URL(`/api/v1/payments/asset/ddo/${did}`, this.environment.backend)
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Get the balance of an account for a subscription.
+   *
+   * @param subscriptionDid - The subscription DID of the service to be published.
+   * @param accountAddress - The address of the account to get the balance.
+   * @returns A promise that resolves to the balance result.
+   */
+  public async getSubscriptionBalance(
+    subscriptionDid: string,
+    accountAddress?: string,
+  ): Promise<{ subscriptionType: string; isOwner: boolean; balance: bigint }> {
+    const body = {
+      subscriptionDid,
+      accountAddress,
+      sessionKey: this.sessionKey,
+    }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/subscription/balance', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  /**
    * Get the service token for a given DID.
    *
    * @param did - The DID of the service.
