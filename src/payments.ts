@@ -464,6 +464,12 @@ export class Payments {
     return response.json()
   }
 
+  /**
+   * Get the service token for a given DID.
+   *
+   * @param did - The DID of the service.
+   * @returns A promise that resolves to the service token.
+   */
   public async getServiceToken(did: string): Promise<{
     accessToken: string
     neverminedProxyUri: string
@@ -488,7 +494,6 @@ export class Payments {
 
     return response.json()
   }
-
 
   /**
    * Redirects the user to the subscription details for a given DID.
