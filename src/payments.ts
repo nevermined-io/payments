@@ -490,7 +490,7 @@ export class Payments {
   public async getSubscriptionBalance(
     subscriptionDid: string,
     accountAddress?: string,
-  ): Promise<{ subscriptionType: string; isOwner: boolean; balance: bigint }> {
+  ): Promise<{ subscriptionType: string; isOwner: boolean; balance: bigint, isSubscriptor: boolean }> {
     const body = {
       subscriptionDid,
       accountAddress,
