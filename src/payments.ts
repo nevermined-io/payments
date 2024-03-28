@@ -525,8 +525,10 @@ export class Payments {
    * @returns A promise that resolves to the service token.
    */
   public async getServiceToken(did: string): Promise<{
-    accessToken: string
-    neverminedProxyUri: string
+    token: {
+      accessToken: string
+      neverminedProxyUri: string
+    }
   }> {
     const body = {
       did: did,
