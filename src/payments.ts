@@ -135,6 +135,7 @@ export class Payments {
    */
   public logout() {
     this.sessionKey = undefined
+    this.marketplaceAuthToken = undefined
   }
 
   /**
@@ -505,6 +506,53 @@ export class Payments {
       body: JSON.stringify(body),
     }
     const url = new URL('/api/v1/payments/subscription/balance', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  public async orderSubscription(subscriptionDid: string, agreementId?: string) {
+    const body = {
+      subscriptionDid,
+      agreementId,
+      sessionKey: this.sessionKey,
+    }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/subscription/order', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  public async downloadFiles(fileDid: string, destination?: string, agreementId?: string) {
+    const body = {
+      fileDid,
+      agreementId,
+      destination,
+      sessionKey: this.sessionKey,
+    }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/file/download', this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(response.statusText)
