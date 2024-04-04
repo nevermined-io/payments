@@ -480,6 +480,37 @@ export class Payments {
     return response.json()
   }
 
+
+  /**
+   * Get array of services DIDs associated with a subscription.
+   *
+   * @param did - The DID of the asset.
+   * @returns A promise that resolves to the array of services DIDs.
+   */
+  public async getSubscriptionAssociatedServices(subscriptionDid: string) {
+    const url = new URL(`/api/v1/payments/subscription/services/${subscriptionDid}`, this.environment.backend)
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+    return response.json()
+  }
+
+  /**
+   * Get array of files DIDs associated with a subscription.
+   *
+   * @param did - The DID of the asset.
+   * @returns A promise that resolves to array of files DIDs.
+   */
+  public async getSubscriptionAssociatedFiles(subscriptionDid: string) {
+    const url = new URL(`/api/v1/payments/subscription/files/${subscriptionDid}`, this.environment.backend)
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+    return response.json()
+  }
+
   /**
    * Get the balance of an account for a subscription.
    *
