@@ -491,7 +491,12 @@ export class Payments {
   public async getSubscriptionBalance(
     subscriptionDid: string,
     accountAddress?: string,
-  ): Promise<{ subscriptionType: string; isOwner: boolean; balance: bigint }> {
+  ): Promise<{
+    subscriptionType: string
+    isOwner: boolean
+    balance: bigint
+    isSubscriptor: boolean
+  }> {
     const body = {
       subscriptionDid,
       accountAddress,
@@ -568,8 +573,10 @@ export class Payments {
    * @returns A promise that resolves to the service token.
    */
   public async getServiceToken(did: string): Promise<{
-    accessToken: string
-    neverminedProxyUri: string
+    token: {
+      accessToken: string
+      neverminedProxyUri: string
+    }
   }> {
     const body = {
       did: did,
