@@ -588,6 +588,52 @@ export class Payments {
   }
 
   /**
+   * Orders a subscription.
+   *
+   * @param subscriptionDid - The subscription DID.
+   * @param agreementId - The agreement ID.
+   * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
+   */
+  public async orderSubscription(subscriptionDid: string, agreementId?: string): Promise<{ agreementId: string, success: boolean }> {
+
+    const body = { subscriptionDid, agreementId,  sessionKey: this.sessionKey }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/subscription/order', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  public async downloadFiles(did: string) {
+    const body = { did, sessionKey: this.sessionKey }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/file/download', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  /**
    * Redirects the user to the subscription details for a given DID.
    * @param did - The DID (Decentralized Identifier) of the subscription.
    */
