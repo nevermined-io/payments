@@ -594,9 +594,11 @@ export class Payments {
    * @param agreementId - The agreement ID.
    * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
    */
-  public async orderSubscription(subscriptionDid: string, agreementId?: string): Promise<{ agreementId: string, success: boolean }> {
-
-    const body = { subscriptionDid, agreementId,  sessionKey: this.sessionKey }
+  public async orderSubscription(
+    subscriptionDid: string,
+    agreementId?: string,
+  ): Promise<{ agreementId: string; success: boolean }> {
+    const body = { subscriptionDid, agreementId, sessionKey: this.sessionKey }
     const options = {
       method: 'POST',
       headers: {
