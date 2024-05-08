@@ -251,6 +251,7 @@ export class Payments {
    * @param sampleLink - The sample link.
    * @param apiDescription - The API description.
    * @param curation - The curation details.
+   * @param sessionKey - The session key.
    * @returns A promise that resolves to the created service DID.
    */
   public async createService({
@@ -276,6 +277,7 @@ export class Payments {
     sampleLink,
     apiDescription,
     curation,
+    sessionKey
   }: {
     subscriptionDid: string
     name: string
@@ -299,9 +301,10 @@ export class Payments {
     curation?: object
     duration?: number
     tags?: string[]
+    sessionKey?: string
   }): Promise<{ did: string }> {
     const body = {
-      sessionKey: this.sessionKey,
+      sessionKey: sessionKey || this.sessionKey,
       name,
       description,
       price: price.toString(),
