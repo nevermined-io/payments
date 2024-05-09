@@ -166,6 +166,7 @@ export class Payments {
    * If `amountOfCredits` and `duration` is left undefined an unlimited time duration subscription
    * will be created.
    * @param tags - An array of tags or keywords that best fit the subscription.
+   * @param sessionKey - The session key.
    *
    * @example
    * ```
@@ -189,6 +190,7 @@ export class Payments {
     amountOfCredits,
     duration,
     tags,
+    sessionKey
   }: {
     name: string
     description: string
@@ -196,10 +198,11 @@ export class Payments {
     tokenAddress: string
     amountOfCredits?: number
     duration?: number
-    tags?: string[]
+    tags?: string[],
+    sessionKey?: string
   }): Promise<{ did: string }> {
     const body = {
-      sessionKey: this.sessionKey,
+      sessionKey: sessionKey || this.sessionKey,
       name,
       description,
       price: price.toString(),
@@ -372,6 +375,7 @@ export class Payments {
    * @param minCreditsToCharge - The minimum credits to charge.
    * @param maxCreditsToCharge - The maximum credits to charge.
    * @param curation - The curation object.
+   * @param sessionKey - The session key. 
    * @returns The promise that resolves to the created file's DID.
    */
   public async createFile({
@@ -398,6 +402,7 @@ export class Payments {
     minCreditsToCharge,
     maxCreditsToCharge,
     curation,
+    sessionKey
   }: {
     subscriptionDid: string
     assetType: string
@@ -422,9 +427,10 @@ export class Payments {
     curation?: object
     duration?: number
     tags?: string[]
+    sessionKey?: string
   }): Promise<{ did: string }> {
     const body = {
-      sessionKey: this.sessionKey,
+      sessionKey: sessionKey || this.sessionKey,
       assetType,
       name,
       description,
@@ -529,6 +535,7 @@ export class Payments {
   public async getSubscriptionBalance(
     subscriptionDid: string,
     accountAddress?: string,
+    sessionKey?: string,
   ): Promise<{
     subscriptionType: string
     isOwner: boolean
@@ -538,7 +545,7 @@ export class Payments {
     const body = {
       subscriptionDid,
       accountAddress,
-      sessionKey: this.sessionKey,
+      sessionKey: sessionKey || this.sessionKey,
     }
     const options = {
       method: 'POST',
@@ -561,9 +568,10 @@ export class Payments {
    * Get the service token for a given DID.
    *
    * @param did - The DID of the service.
+   * @param marketplaceAuthToken - The marketplace auth token.
    * @returns A promise that resolves to the service token.
    */
-  public async getServiceToken(did: string): Promise<{
+  public async getServiceToken(did: string, marketplaceAuthToken?: string): Promise<{
     token: {
       accessToken: string
       neverminedProxyUri: string
@@ -571,7 +579,7 @@ export class Payments {
   }> {
     const body = {
       did: did,
-      accessToken: this.marketplaceAuthToken,
+      accessToken: marketplaceAuthToken || this.marketplaceAuthToken,
     }
     const options = {
       method: 'POST',
@@ -595,13 +603,15 @@ export class Payments {
    *
    * @param subscriptionDid - The subscription DID.
    * @param agreementId - The agreement ID.
+   * @param sessionKey - The session key.
    * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
    */
   public async orderSubscription(
     subscriptionDid: string,
     agreementId?: string,
+    sessionKey?: string,
   ): Promise<{ agreementId: string; success: boolean }> {
-    const body = { subscriptionDid, agreementId, sessionKey: this.sessionKey }
+    const body = { subscriptionDid, agreementId, sessionKey: sessionKey || this.sessionKey }
     const options = {
       method: 'POST',
       headers: {
@@ -619,8 +629,8 @@ export class Payments {
     return response.json()
   }
 
-  public async downloadFiles(did: string) {
-    const body = { did, sessionKey: this.sessionKey }
+  public async downloadFiles(did: string, sessionKey?: string) {
+    const body = { did, sessionKey: sessionKey || this.sessionKey }
     const options = {
       method: 'POST',
       headers: {
