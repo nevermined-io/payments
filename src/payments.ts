@@ -36,8 +36,7 @@ export class Payments {
   public environment: EnvironmentInfo
   public appId?: string
   public version?: string
-  private sessionKey?: string
-  private marketplaceAuthToken?: string
+  private nvmApiKey?: string
 
   /**
    * Initialize the payments class.
@@ -78,7 +77,7 @@ export class Payments {
    */
   public connect() {
     const url = new URL(
-      `/en/login?nvm-export=session-key&returnUrl=${this.returnUrl}`,
+      `/en/login?nvm-export=nvm-api-key&returnUrl=${this.returnUrl}`,
       this.environment.frontend,
     )
     window.location.href = url.toString()
@@ -111,18 +110,17 @@ export class Payments {
    */
   public init() {
     const url = new URL(window.location.href)
-    const sessionKeyJwt = url.searchParams.get('sessionKey')
-    if (sessionKeyJwt) {
-      const jwtDecoded = decodeJwt(sessionKeyJwt)
-      this.sessionKey = jwtDecoded.sessionKey as string
-      this.marketplaceAuthToken = jwtDecoded.marketplaceAuthToken as string
-      url.searchParams.delete('sessionKey')
+    const nvmApiKey = url.searchParams.get('nvmApiKey') as string
+
+    if (nvmApiKey) {
+      this.nvmApiKey = nvmApiKey as string
+      url.searchParams.delete('nvmApiKey')
       history.replaceState(history.state, '', url.toString())
     }
   }
 
   /**
-   * Logout the user by removing the session key.
+   * Logout the user by removing the nvm api key.
    *
    * @remarks
    *
@@ -134,7 +132,7 @@ export class Payments {
    * ```
    */
   public logout() {
-    this.sessionKey = undefined
+    this.nvmApiKey = undefined
   }
 
   /**
@@ -148,7 +146,7 @@ export class Payments {
    * @returns True if the user is logged in.
    */
   get isLoggedIn(): boolean {
-    return !!this.sessionKey
+    return !!this.nvmApiKey
   }
 
   /**
@@ -166,7 +164,7 @@ export class Payments {
    * If `amountOfCredits` and `duration` is left undefined an unlimited time duration subscription
    * will be created.
    * @param tags - An array of tags or keywords that best fit the subscription.
-   * @param sessionKey - The session key.
+   * @param nvmApiKey - The NVM API key to use for the request. 
    *
    * @example
    * ```
@@ -190,7 +188,7 @@ export class Payments {
     amountOfCredits,
     duration,
     tags,
-    sessionKey
+    nvmApiKey
   }: {
     name: string
     description: string
@@ -199,10 +197,9 @@ export class Payments {
     amountOfCredits?: number
     duration?: number
     tags?: string[],
-    sessionKey?: string
+    nvmApiKey?: string
   }): Promise<{ did: string }> {
     const body = {
-      sessionKey: sessionKey || this.sessionKey,
       name,
       description,
       price: price.toString(),
@@ -216,6 +213,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -254,7 +252,7 @@ export class Payments {
    * @param sampleLink - The sample link.
    * @param apiDescription - The API description.
    * @param curation - The curation details.
-   * @param sessionKey - The session key.
+   * @param nvmApiKey - The NVM API key to use for the request. 
    * @returns A promise that resolves to the created service DID.
    */
   public async createService({
@@ -280,7 +278,7 @@ export class Payments {
     sampleLink,
     apiDescription,
     curation,
-    sessionKey
+    nvmApiKey
   }: {
     subscriptionDid: string
     name: string
@@ -304,10 +302,9 @@ export class Payments {
     curation?: object
     duration?: number
     tags?: string[]
-    sessionKey?: string
+    nvmApiKey?: string
   }): Promise<{ did: string }> {
     const body = {
-      sessionKey: sessionKey || this.sessionKey,
       name,
       description,
       price: price.toString(),
@@ -336,6 +333,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -375,7 +373,7 @@ export class Payments {
    * @param minCreditsToCharge - The minimum credits to charge.
    * @param maxCreditsToCharge - The maximum credits to charge.
    * @param curation - The curation object.
-   * @param sessionKey - The session key. 
+   * @param nvmApiKey - The NVM API key to use for the request. 
    * @returns The promise that resolves to the created file's DID.
    */
   public async createFile({
@@ -402,7 +400,7 @@ export class Payments {
     minCreditsToCharge,
     maxCreditsToCharge,
     curation,
-    sessionKey
+    nvmApiKey
   }: {
     subscriptionDid: string
     assetType: string
@@ -427,10 +425,9 @@ export class Payments {
     curation?: object
     duration?: number
     tags?: string[]
-    sessionKey?: string
+    nvmApiKey?: string
   }): Promise<{ did: string }> {
     const body = {
-      sessionKey: sessionKey || this.sessionKey,
       assetType,
       name,
       description,
@@ -460,6 +457,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -534,8 +532,7 @@ export class Payments {
    */
   public async getSubscriptionBalance(
     subscriptionDid: string,
-    accountAddress?: string,
-    sessionKey?: string,
+    accountAddress: string,
   ): Promise<{
     subscriptionType: string
     isOwner: boolean
@@ -545,13 +542,12 @@ export class Payments {
     const body = {
       subscriptionDid,
       accountAddress,
-      sessionKey: sessionKey || this.sessionKey,
     }
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(body),
     }
@@ -571,25 +567,21 @@ export class Payments {
    * @param marketplaceAuthToken - The marketplace auth token.
    * @returns A promise that resolves to the service token.
    */
-  public async getServiceToken(did: string, marketplaceAuthToken?: string): Promise<{
+  public async getServiceToken(did: string, nvmApiKey?: string): Promise<{
     token: {
       accessToken: string
       neverminedProxyUri: string
     }
   }> {
-    const body = {
-      did: did,
-      accessToken: marketplaceAuthToken || this.marketplaceAuthToken,
-    }
     const options = {
-      method: 'POST',
+      method: 'GET',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
+        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
+      }
     }
-    const url = new URL(`/api/v1/payments/service/token`, this.environment.backend)
+    const url = new URL(`/api/v1/payments/service/token/${did}`, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(response.statusText)
@@ -603,20 +595,21 @@ export class Payments {
    *
    * @param subscriptionDid - The subscription DID.
    * @param agreementId - The agreement ID.
-   * @param sessionKey - The session key.
+   * @param nvmApiKey - The NVM API key to use for the request. 
    * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
    */
   public async orderSubscription(
     subscriptionDid: string,
     agreementId?: string,
-    sessionKey?: string,
+    nvmApiKey?: string,
   ): Promise<{ agreementId: string; success: boolean }> {
-    const body = { subscriptionDid, agreementId, sessionKey: sessionKey || this.sessionKey }
+    const body = { subscriptionDid, agreementId }
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -629,13 +622,14 @@ export class Payments {
     return response.json()
   }
 
-  public async downloadFiles(did: string, sessionKey?: string) {
-    const body = { did, sessionKey: sessionKey || this.sessionKey }
+  public async downloadFiles(did: string, nvmApiKey?: string) {
+    const body = { did }
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
