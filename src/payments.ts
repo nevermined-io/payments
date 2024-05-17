@@ -1,4 +1,3 @@
-import { decodeJwt } from 'jose'
 import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
 /**
  * Options to initialize the Payments class.
