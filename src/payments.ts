@@ -163,7 +163,7 @@ export class Payments {
    * If `amountOfCredits` and `duration` is left undefined an unlimited time duration subscription
    * will be created.
    * @param tags - An array of tags or keywords that best fit the subscription.
-   * @param nvmApiKey - The NVM API key to use for the request. 
+   * @param nvmApiKey - The NVM API key to use for the request.
    *
    * @example
    * ```
@@ -187,7 +187,7 @@ export class Payments {
     amountOfCredits,
     duration,
     tags,
-    nvmApiKey
+    nvmApiKey,
   }: {
     name: string
     description: string
@@ -195,7 +195,7 @@ export class Payments {
     tokenAddress: string
     amountOfCredits?: number
     duration?: number
-    tags?: string[],
+    tags?: string[]
     nvmApiKey?: string
   }): Promise<{ did: string }> {
     const body = {
@@ -212,7 +212,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -251,7 +251,7 @@ export class Payments {
    * @param sampleLink - The sample link.
    * @param apiDescription - The API description.
    * @param curation - The curation details.
-   * @param nvmApiKey - The NVM API key to use for the request. 
+   * @param nvmApiKey - The NVM API key to use for the request.
    * @returns A promise that resolves to the created service DID.
    */
   public async createService({
@@ -277,7 +277,7 @@ export class Payments {
     sampleLink,
     apiDescription,
     curation,
-    nvmApiKey
+    nvmApiKey,
   }: {
     subscriptionDid: string
     name: string
@@ -332,7 +332,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -372,7 +372,7 @@ export class Payments {
    * @param minCreditsToCharge - The minimum credits to charge.
    * @param maxCreditsToCharge - The maximum credits to charge.
    * @param curation - The curation object.
-   * @param nvmApiKey - The NVM API key to use for the request. 
+   * @param nvmApiKey - The NVM API key to use for the request.
    * @returns The promise that resolves to the created file's DID.
    */
   public async createFile({
@@ -399,7 +399,7 @@ export class Payments {
     minCreditsToCharge,
     maxCreditsToCharge,
     curation,
-    nvmApiKey
+    nvmApiKey,
   }: {
     subscriptionDid: string
     assetType: string
@@ -456,7 +456,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -546,7 +546,7 @@ export class Payments {
       method: 'POST',
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
     }
@@ -566,7 +566,10 @@ export class Payments {
    * @param marketplaceAuthToken - The marketplace auth token.
    * @returns A promise that resolves to the service token.
    */
-  public async getServiceToken(did: string, nvmApiKey?: string): Promise<{
+  public async getServiceToken(
+    did: string,
+    nvmApiKey?: string,
+  ): Promise<{
     token: {
       accessToken: string
       neverminedProxyUri: string
@@ -577,8 +580,8 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
-      }
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+      },
     }
     const url = new URL(`/api/v1/payments/service/token/${did}`, this.environment.backend)
     const response = await fetch(url, options)
@@ -594,7 +597,7 @@ export class Payments {
    *
    * @param subscriptionDid - The subscription DID.
    * @param agreementId - The agreement ID.
-   * @param nvmApiKey - The NVM API key to use for the request. 
+   * @param nvmApiKey - The NVM API key to use for the request.
    * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
    */
   public async orderSubscription(
@@ -608,7 +611,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -628,7 +631,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
