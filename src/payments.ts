@@ -563,7 +563,6 @@ export class Payments {
    * Get the service token for a given DID.
    *
    * @param did - The DID of the service.
-   * @param marketplaceAuthToken - The marketplace auth token.
    * @returns A promise that resolves to the service token.
    */
   public async getServiceToken(
