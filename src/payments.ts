@@ -160,11 +160,13 @@ export class Payments {
    * @returns Account address when the user is logged in.
    */
   get accountAddress(): string | undefined {
-    if (!this.nvmApiKey) {
+    const marketplaceAuthToken = this.nvmApiKey ? decodeJwt(this.nvmApiKey).marketplaceAuthToken as string : undefined
+
+    if (!marketplaceAuthToken) {
       return undefined
     }
 
-    return decodeJwt(this.nvmApiKey).iss
+    return decodeJwt(marketplaceAuthToken).iss
   }
 
   /**
