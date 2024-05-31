@@ -1,4 +1,5 @@
 import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
+import { decodeJwt } from 'jose'
 /**
  * Options to initialize the Payments class.
  */
@@ -146,6 +147,24 @@ export class Payments {
    */
   get isLoggedIn(): boolean {
     return !!this.nvmApiKey
+  }
+
+  /**
+   * Account address
+   *
+   * @example
+   * ```
+   * payments.accountAddress
+   * ```
+   *
+   * @returns Account address when the user is logged in.
+   */
+  get accountAddress(): string | undefined {
+    if (!this.nvmApiKey) {
+      return undefined
+    }
+
+    return decodeJwt(this.nvmApiKey).iss
   }
 
   /**
