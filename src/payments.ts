@@ -35,6 +35,7 @@ export class Payments {
   public environment: EnvironmentInfo
   public appId?: string
   public version?: string
+  public accountAddress?: string
   private nvmApiKey?: string
 
   /**
@@ -114,8 +115,16 @@ export class Payments {
     if (nvmApiKey) {
       this.nvmApiKey = nvmApiKey as string
       url.searchParams.delete('nvmApiKey')
-      history.replaceState(history.state, '', url.toString())
     }
+
+    const accountAddress = url.searchParams.get('accountAddress') as string
+
+    if (accountAddress) {
+      this.accountAddress = accountAddress
+      url.searchParams.delete('accountAddress')
+    }
+
+    history.replaceState(history.state, '', url.toString())
   }
 
   /**
