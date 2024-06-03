@@ -108,7 +108,7 @@ export class Payments {
    * })
    * ```
    */
-  public async init() {
+  public init() {
     const url = new URL(window.location.href)
     const nvmApiKey = url.searchParams.get('nvmApiKey') as string
 
