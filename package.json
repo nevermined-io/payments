@@ -35,8 +35,5 @@
     "tslib": "^2.6.2",
     "typedoc": "0.25.13",
     "typescript": "^5.3.3"
-  },
-  "dependencies": {
-    "jose": "^4.11.2"
   }
 }

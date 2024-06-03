@@ -1,5 +1,4 @@
 import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
-import { decodeJwt } from 'jose'
 /**
  * Options to initialize the Payments class.
  */
@@ -36,6 +35,7 @@ export class Payments {
   public environment: EnvironmentInfo
   public appId?: string
   public version?: string
+  public accountAddress?: string
   private nvmApiKey?: string
 
   /**
@@ -108,15 +108,23 @@ export class Payments {
    * })
    * ```
    */
-  public init() {
+  public async init() {
     const url = new URL(window.location.href)
     const nvmApiKey = url.searchParams.get('nvmApiKey') as string
 
     if (nvmApiKey) {
       this.nvmApiKey = nvmApiKey as string
       url.searchParams.delete('nvmApiKey')
-      history.replaceState(history.state, '', url.toString())
     }
+
+    const accountAddress = url.searchParams.get('accountAddress') as string
+
+    if (accountAddress) {
+      this.accountAddress = accountAddress
+      url.searchParams.delete('accountAddress')
+    }
+
+    history.replaceState(history.state, '', url.toString())
   }
 
   /**
@@ -147,26 +155,6 @@ export class Payments {
    */
   get isLoggedIn(): boolean {
     return !!this.nvmApiKey
-  }
-
-  /**
-   * Account address
-   *
-   * @example
-   * ```
-   * payments.accountAddress
-   * ```
-   *
-   * @returns Account address when the user is logged in.
-   */
-  get accountAddress(): string | undefined {
-    const marketplaceAuthToken = this.nvmApiKey ? decodeJwt(this.nvmApiKey).marketplaceAuthToken as string : undefined
-
-    if (!marketplaceAuthToken) {
-      return undefined
-    }
-
-    return decodeJwt(marketplaceAuthToken).iss
   }
 
   /**
