@@ -690,4 +690,62 @@ export class Payments {
     const url = new URL(`/en/subscription/checkout/${did}`, this.environment.frontend)
     window.location.href = url.toString()
   }
+
+  /**
+   * Mint credits for a given DID and transfer them to a receiver.
+   * @param did - The DID (Decentralized Identifier) of the asset.
+   * @param nftAmount - The amount of NFT (Non-Fungible Token) credits to mint.
+   * @param receiver - The address of the receiver where the credits will be transferred.
+   * @param nvmApiKey - (Optional) The NVM (Nevermined Vault Manager) API key to use for authorization.
+   * @returns A Promise that resolves to the JSON response from the server.
+   * @throws Error if the server response is not successful.
+   */
+  public async mintCredits(did: string, nftAmount: string, receiver: string, nvmApiKey?: string) {
+    const body = { did, nftAmount, receiver }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/credits/mint', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Burn credits for a given DID.
+   *
+   * @param did - The DID (Decentralized Identifier) of the asset.
+   * @param nftAmount - The amount of NFT (Non-Fungible Token) credits to burn.
+   * @param nvmApiKey - (Optional) The NVM (Nevermined Vault Manager) API key to use for authorization.
+   * @returns A Promise that resolves to the JSON response from the server.
+   * @throws Error if the server response is not successful.
+   */
+  public async burnCredits(did: string, nftAmount: string, nvmApiKey?: string) {
+    const body = { did, nftAmount }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/credits/burn', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
 }

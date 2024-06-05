@@ -3,13 +3,7 @@ export interface EnvironmentInfo {
   backend: string
 }
 
-export type EnvironmentName =
-  | 'local'
-  | 'appStaging'
-  | 'appTesting'
-  | 'appArbitrum'
-  | 'appGnosis'
-  | 'appMatic'
+export type EnvironmentName = 'local' | 'appStaging' | 'appTesting' | 'appArbitrum'
 
 /**
  * Represents the different environments and their corresponding URLs.
@@ -42,19 +36,5 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
   appArbitrum: {
     frontend: 'https://nevermined.app',
     backend: 'https://one-backend.arbitrum.nevermined.app',
-  },
-  /**
-   * The Gnosis environment URLs.
-   */
-  appGnosis: {
-    frontend: 'https://gnosis.nevermined.app',
-    backend: 'https://one-backend.gnosis.nevermined.app',
-  },
-  /**
-   * The Matic environment URLs.
-   */
-  appMatic: {
-    frontend: 'https://matic.nevermined.app',
-    backend: 'https://one-backend.matic.nevermined.app',
   },
 }
