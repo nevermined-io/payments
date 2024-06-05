@@ -35,6 +35,7 @@ export class Payments {
   public environment: EnvironmentInfo
   public appId?: string
   public version?: string
+  public accountAddress?: string
   private nvmApiKey?: string
 
   /**
@@ -114,8 +115,16 @@ export class Payments {
     if (nvmApiKey) {
       this.nvmApiKey = nvmApiKey as string
       url.searchParams.delete('nvmApiKey')
-      history.replaceState(history.state, '', url.toString())
     }
+
+    const accountAddress = url.searchParams.get('accountAddress') as string
+
+    if (accountAddress) {
+      this.accountAddress = accountAddress
+      url.searchParams.delete('accountAddress')
+    }
+
+    history.replaceState(history.state, '', url.toString())
   }
 
   /**
@@ -527,11 +536,13 @@ export class Payments {
    *
    * @param subscriptionDid - The subscription DID of the service to be published.
    * @param accountAddress - The address of the account to get the balance.
+   * @param nvmApiKey - The NVM API key to use for the request.
    * @returns A promise that resolves to the balance result.
    */
   public async getSubscriptionBalance(
     subscriptionDid: string,
-    accountAddress: string,
+    accountAddress?: string,
+    nvmApiKey?: string,
   ): Promise<{
     subscriptionType: string
     isOwner: boolean
@@ -547,6 +558,7 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
