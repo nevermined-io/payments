@@ -241,8 +241,6 @@ export class Payments {
    * @param subscriptionDid - The subscription DID.
    * @param name - The name of the service.
    * @param description - The description of the service.
-   * @param price - The price of the service.
-   * @param tokenAddress - The token address.
    * @param amountOfCredits - The amount of credits.
    * @param duration - The duration of the service.
    * @param tags - The tags associated with the service.
@@ -267,8 +265,6 @@ export class Payments {
     subscriptionDid,
     name,
     description,
-    price,
-    tokenAddress,
     amountOfCredits,
     duration,
     tags,
@@ -291,8 +287,6 @@ export class Payments {
     subscriptionDid: string
     name: string
     description: string
-    price: bigint
-    tokenAddress: string
     serviceChargeType: 'fixed' | 'dynamic'
     authType: 'none' | 'basic' | 'oauth'
     amountOfCredits?: number
@@ -315,8 +309,6 @@ export class Payments {
     const body = {
       name,
       description,
-      price: price.toString(),
-      tokenAddress,
       amountOfCredits,
       duration,
       tags,
@@ -363,8 +355,6 @@ export class Payments {
    * @param name - The name of the file.
    * @param description - The description of the file.
    * @param files - The array of files.
-   * @param price - The price of the file.
-   * @param tokenAddress - The token address.
    * @param amountOfCredits - The amount of credits.
    * @param duration - The duration of the file.
    * @param tags - The array of tags.
@@ -390,8 +380,6 @@ export class Payments {
     name,
     description,
     files,
-    price,
-    tokenAddress,
     amountOfCredits,
     duration,
     tags,
@@ -415,8 +403,6 @@ export class Payments {
     name: string
     description: string
     files: object[]
-    price: bigint
-    tokenAddress: string
     dataSchema?: string
     sampleCode?: string
     filesFormat?: string
@@ -440,8 +426,6 @@ export class Payments {
       name,
       description,
       files,
-      price: price.toString(),
-      tokenAddress,
       amountOfCredits,
       duration,
       tags,
