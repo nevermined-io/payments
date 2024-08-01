@@ -679,10 +679,10 @@ export class Payments {
 
   /**
    * Downloads files for a given DID asset.
-   * 
+   *
    * @param did - The DID of the file.
    * @param nvmApiKey - The NVM API key to use for the request.
-   * @returns A promise that resolves to the JSON response from the server. 
+   * @returns A promise that resolves to the JSON response from the server.
    */
   public async downloadFiles(did: string, nvmApiKey?: string) {
     const body = { did }
