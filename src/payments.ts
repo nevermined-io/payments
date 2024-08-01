@@ -167,10 +167,6 @@ export class Payments {
    * @param tokenAddress - The ERC-20 token address of the currency used to price the subscription.
    * Using the zero address will use the chain's native currency instead.
    * @param amountOfCredits - The amount of credits associated with the credit based subscription.
-   * Leave unset to use time limited time subscriptions instead.
-   * @param duration - The duration of the subscription in days.
-   * If `amountOfCredits` and `duration` is left undefined an unlimited time duration subscription
-   * will be created.
    * @param tags - An array of tags or keywords that best fit the subscription.
    * @param nvmApiKey - The NVM API key to use for the request.
    *
@@ -188,13 +184,12 @@ export class Payments {
    *
    * @returns The DID of the newly created subscription.
    */
-  public async createSubscription({
+  public async createCreditsSubscription({
     name,
     description,
     price,
     tokenAddress,
     amountOfCredits,
-    duration,
     tags,
     nvmApiKey,
   }: {
@@ -202,8 +197,7 @@ export class Payments {
     description: string
     price: bigint
     tokenAddress: string
-    amountOfCredits?: number
-    duration?: number
+    amountOfCredits: number
     tags?: string[]
     nvmApiKey?: string
   }): Promise<{ did: string }> {
@@ -213,6 +207,77 @@ export class Payments {
       price: price.toString(),
       tokenAddress,
       amountOfCredits,
+      tags,
+    }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/subscription', this.environment.backend)
+
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(response.statusText)
+    }
+
+    return response.json()
+  }
+
+  /**
+   *
+   * Create a subscription on Nevermined.
+   *
+   * @param name - The name of the subscription.
+   * @param description - A description of what the subscription offers.
+   * @param price - The price of the subscription.
+   * @param tokenAddress - The ERC-20 token address of the currency used to price the subscription.
+   * Using the zero address will use the chain's native currency instead.
+   * @param duration - The duration of the subscription in days.
+   * If `duration` is left undefined an unlimited time duration subscription will be created.
+   * @param tags - An array of tags or keywords that best fit the subscription.
+   * @param nvmApiKey - The NVM API key to use for the request.
+   *
+   * @example
+   * ```
+   *  const { did } = await payments.createSubscription({
+   *    name: "test subscription",
+   *    description: "test",
+   *    price: 10000000n,
+   *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+   *    duration: 30,
+   *    tags: ["test"]
+   *   }
+   * ```
+   *
+   * @returns The DID of the newly created subscription.
+   */
+  public async createTimeSubscription({
+    name,
+    description,
+    price,
+    tokenAddress,
+    duration,
+    tags,
+    nvmApiKey,
+  }: {
+    name: string
+    description: string
+    price: bigint
+    tokenAddress: string
+    duration?: number
+    tags?: string[]
+    nvmApiKey?: string
+  }): Promise<{ did: string }> {
+    const body = {
+      name,
+      description,
+      price: price.toString(),
+      tokenAddress,
       duration,
       tags,
     }
@@ -242,7 +307,6 @@ export class Payments {
    * @param name - The name of the service.
    * @param description - The description of the service.
    * @param amountOfCredits - The amount of credits.
-   * @param duration - The duration of the service.
    * @param tags - The tags associated with the service.
    * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
    * @param minCreditsToCharge - The minimum credits to charge.
@@ -266,7 +330,6 @@ export class Payments {
     name,
     description,
     amountOfCredits,
-    duration,
     tags,
     serviceChargeType,
     minCreditsToCharge,
@@ -302,7 +365,6 @@ export class Payments {
     sampleLink?: string
     apiDescription?: string
     curation?: object
-    duration?: number
     tags?: string[]
     nvmApiKey?: string
   }): Promise<{ did: string }> {
@@ -310,7 +372,6 @@ export class Payments {
       name,
       description,
       amountOfCredits,
-      duration,
       tags,
       subscriptionDid,
       serviceChargeType,
@@ -381,7 +442,6 @@ export class Payments {
     description,
     files,
     amountOfCredits,
-    duration,
     tags,
     dataSchema,
     sampleCode,
@@ -417,7 +477,6 @@ export class Payments {
     minCreditsToCharge?: number
     maxCreditsToCharge?: number
     curation?: object
-    duration?: number
     tags?: string[]
     nvmApiKey?: string
   }): Promise<{ did: string }> {
@@ -427,7 +486,6 @@ export class Payments {
       description,
       files,
       amountOfCredits,
-      duration,
       tags,
       subscriptionDid,
       dataSchema,
@@ -619,6 +677,13 @@ export class Payments {
     return response.json()
   }
 
+  /**
+   * Downloads files for a given DID asset.
+   *
+   * @param did - The DID of the file.
+   * @param nvmApiKey - The NVM API key to use for the request.
+   * @returns A promise that resolves to the JSON response from the server.
+   */
   public async downloadFiles(did: string, nvmApiKey?: string) {
     const body = { did }
     const options = {
