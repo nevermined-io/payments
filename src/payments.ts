@@ -698,15 +698,14 @@ export class Payments {
       },
       body: JSON.stringify(body),
     }
-    console.log(body)
     const url = new URL('/api/v1/payments/file/download', this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(response.statusText)
     }
 
-    let filename = 'downloaded_file'
-    const contentDisposition = response.headers.get('content-disposition')
+    let filename = 'file'
+    const contentDisposition = response.headers.get('Content-Disposition')
     if (contentDisposition) {
       const filenameMatch = contentDisposition.match(/filename="(.+?)"/)
       if (filenameMatch && filenameMatch[1]) {
