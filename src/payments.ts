@@ -684,8 +684,8 @@ export class Payments {
    * @param nvmApiKey - The NVM API key to use for the request.
    * @returns A promise that resolves to the JSON response from the server.
    */
-  public async downloadFiles(did: string, nvmApiKey?: string) {
-    const body = { did }
+  public async downloadFiles(fileDid: string, nvmApiKey?: string) {
+    const body = { fileDid }
     const options = {
       method: 'POST',
       headers: {
@@ -695,6 +695,7 @@ export class Payments {
       },
       body: JSON.stringify(body),
     }
+    console.log(body)
     const url = new URL('/api/v1/payments/file/download', this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
