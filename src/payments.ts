@@ -1,4 +1,8 @@
 import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
+import * as path from 'path'
+import fileDownload from 'js-file-download'
+import fs from 'fs'
+
 /**
  * Options to initialize the Payments class.
  */
@@ -684,7 +688,7 @@ export class Payments {
    * @param nvmApiKey - The NVM API key to use for the request.
    * @returns A promise that resolves to the JSON response from the server.
    */
-  public async downloadFiles(fileDid: string, nvmApiKey?: string) {
+  public async downloadFiles(fileDid: string, destination?: string, nvmApiKey?: string) {
     const body = { fileDid }
     const options = {
       method: 'POST',
@@ -702,7 +706,35 @@ export class Payments {
       throw Error(response.statusText)
     }
 
-    return response.json()
+    let filename = 'downloaded_file'
+    const contentDisposition = response.headers.get('content-disposition')
+    if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+?)"/)
+        if (filenameMatch && filenameMatch[1]) {
+            filename = filenameMatch[1]
+        }
+    }
+
+    if (destination) {
+      await new Promise((resolve, reject) => {
+        // @ts-expect-error fs is not available in the browser
+        fs.mkdirSync(destination, { recursive: true })
+        const fileStream = fs.createWriteStream(`${destination}${filename}`)
+        // @ts-expect-error tsc doesn't know about pipe
+        response.body?.pipe(fileStream)
+        // @ts-expect-error tsc doesn't know about pipe
+        response.body?.on('error', reject)
+        fileStream.on('finish', resolve)
+        fileStream.on('close', resolve)
+      })
+    } else {
+      const buff = await response.arrayBuffer()
+      fileDownload(buff, filename)
+      destination = process.cwd()
+    }
+    const d = path.join(destination, filename)
+    return d
+    // return response.json()
   }
 
   /**
