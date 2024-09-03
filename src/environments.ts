@@ -3,7 +3,7 @@ export interface EnvironmentInfo {
   backend: string
 }
 
-export type EnvironmentName = 'local' | 'appStaging' | 'appTesting' | 'appArbitrum'
+export type EnvironmentName = 'local' | 'appStaging' | 'appTesting' | 'appArbitrum' | 'appPeaq'
 
 /**
  * Represents the different environments and their corresponding URLs.
@@ -36,5 +36,12 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
   appArbitrum: {
     frontend: 'https://nevermined.app',
     backend: 'https://one-backend.arbitrum.nevermined.app',
+  },
+  /** 
+   * The Peaq network environment URLs.
+   */
+  appPeaq: {
+    frontend: 'https://peaq.nevermined.app',
+    backend: 'https://one-backend.peaq.nevermined.app',
   },
 }
