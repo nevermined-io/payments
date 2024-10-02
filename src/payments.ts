@@ -1,19 +1,27 @@
 import fileDownload from 'js-file-download'
 import * as path from 'path'
 import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
+import { decodeJwt } from 'jose'
+import { PaymentsError } from './common/payments.error'
+import { AIQueryApi } from './api/query-api'
 
 /**
  * Options to initialize the Payments class.
  */
 export interface PaymentOptions {
   /**
-   * The URL to return to the app after a successful login.
-   */
-  returnUrl: string
-  /**
    * The environment to connect to.
    */
   environment: EnvironmentName
+
+  /**
+   * The Nevermined API Key
+   */
+  nvmApiKey?: string
+  /**
+   * The URL to return to the app after a successful login.
+   */
+  returnUrl?: string
 
   /**
    * The app id.
@@ -34,35 +42,101 @@ export interface Endpoint {
  * Main class that interacts with the Nevermined payments API.
  */
 export class Payments {
+  public query: AIQueryApi | undefined
   public returnUrl: string
   public environment: EnvironmentInfo
   public appId?: string
   public version?: string
   public accountAddress?: string
   private nvmApiKey?: string
+  public isBrowserInstance = true
 
   /**
-   * Initialize the payments class.
+   * The options get's an instance of the payments class.
    *
    * @param options - The options to initialize the payments class.
    *
    * @example
    * ```
-   * const payments = new Payments({
-   *   returnUrl: 'https://mysite.example'
-   *   environment: 'staging'
-   *   appId: 'my-app-id'
+   * const payments = Payments.getInstance({
+   *   nvmApiKey: 'kjdfaofakdoasdkoas',
+   *   environment: 'testing'
+   * })
+   * ```
+   *
+   * @returns An instance of {@link Payments}
+   */
+  static getInstance(options: PaymentOptions) {
+    if (!options.nvmApiKey) {
+      throw new PaymentsError('nvmApiKey is required')
+    }
+    return new Payments(options, false)
+  }
+
+  /**
+   * The options get's an instance of the payments class to be used in the browser.
+   *
+   * @remarks
+   *
+   * This is a browser only function.
+   *
+   * @param options - The options to initialize the payments class.
+   *
+   * @example
+   * ```
+   * const payments = Payments.getBrowserInstance({
+   *   returnUrl: 'https://mysite.example',
+   *   environment: 'testing',
+   *   appId: 'my-app-id',
    *   version: '1.0.0'
    * })
    * ```
    *
    * @returns An instance of {@link Payments}
    */
-  constructor(options: PaymentOptions) {
-    this.returnUrl = options.returnUrl
+  static getBrowserInstance(options: PaymentOptions) {
+    if (!options.returnUrl) {
+      throw new PaymentsError('nvmApiKey is required')
+    }
+    return new Payments(options, true)
+  }
+
+  /**
+   * Initialize the payments class.
+   *
+   * @param options - The options to initialize the payments class.
+   *
+   * @returns An instance of {@link Payments}
+   */
+  private constructor(options: PaymentOptions, isBrowserInstance = true) {
+    this.nvmApiKey = options.nvmApiKey
+    this.returnUrl = options.returnUrl || ''
     this.environment = Environments[options.environment]
     this.appId = options.appId
     this.version = options.version
+    this.isBrowserInstance = isBrowserInstance
+    if (!this.isBrowserInstance) {
+      this.parseNvmApiKey()
+      this.initializeApi()
+    }
+  }
+
+  private parseNvmApiKey() {
+    try {
+      const jwt = decodeJwt(this.nvmApiKey!)
+      this.accountAddress = jwt.sub
+    } catch (error) {
+      throw new PaymentsError('Invalid NVM API Key')
+    }
+  }
+
+  private initializeApi() {
+    this.query = new AIQueryApi({
+      backendHost: this.environment.backend,
+      apiKey: this.nvmApiKey!,
+      webSocketHost: this.environment.websocketBackend,
+      proxyHost: this.environment.proxy,
+    })
   }
 
   /**
@@ -79,6 +153,7 @@ export class Payments {
    * ```
    */
   public connect() {
+    if (!this.isBrowserInstance) return
     const url = new URL(
       `/en/login?nvm-export=nvm-api-key&returnUrl=${this.returnUrl}`,
       this.environment.frontend,
@@ -112,6 +187,7 @@ export class Payments {
    * ```
    */
   public init() {
+    if (!this.isBrowserInstance) return
     const url = new URL(window.location.href)
     const nvmApiKey = url.searchParams.get('nvmApiKey') as string
 
@@ -128,6 +204,7 @@ export class Payments {
     }
 
     history.replaceState(history.state, '', url.toString())
+    this.initializeApi()
   }
 
   /**
