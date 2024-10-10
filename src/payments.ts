@@ -4,6 +4,7 @@ import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
 import { decodeJwt } from 'jose'
 import { PaymentsError } from './common/payments.error'
 import { AIQueryApi } from './api/query-api'
+import { isEthereumAddress, jsonReplacer } from './common/utils'
 
 /**
  * Options to initialize the Payments class.
@@ -42,7 +43,7 @@ export interface Endpoint {
  * Main class that interacts with the Nevermined payments API.
  */
 export class Payments {
-  public query: AIQueryApi | undefined
+  public query!: AIQueryApi
   public returnUrl: string
   public environment: EnvironmentInfo
   public appId?: string
@@ -124,6 +125,7 @@ export class Payments {
   private parseNvmApiKey() {
     try {
       const jwt = decodeJwt(this.nvmApiKey!)
+      console.log(jwt)
       this.accountAddress = jwt.sub
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
@@ -205,6 +207,7 @@ export class Payments {
 
     history.replaceState(history.state, '', url.toString())
     this.initializeApi()
+    this.parseNvmApiKey()
   }
 
   /**
@@ -221,6 +224,7 @@ export class Payments {
    */
   public logout() {
     this.nvmApiKey = undefined
+    if (this.query) this.query.disconnect()
   }
 
   /**
@@ -248,7 +252,6 @@ export class Payments {
    * Using the zero address will use the chain's native currency instead.
    * @param amountOfCredits - The amount of credits associated with the credit based subscription.
    * @param tags - An array of tags or keywords that best fit the subscription.
-   * @param nvmApiKey - The NVM API key to use for the request.
    *
    * @example
    * ```
@@ -264,14 +267,13 @@ export class Payments {
    *
    * @returns The DID of the newly created subscription.
    */
-  public async createCreditsSubscription({
+  public async createCreditsPlan({
     name,
     description,
     price,
     tokenAddress,
     amountOfCredits,
     tags,
-    nvmApiKey,
   }: {
     name: string
     description: string
@@ -279,30 +281,62 @@ export class Payments {
     tokenAddress: string
     amountOfCredits: number
     tags?: string[]
-    nvmApiKey?: string
   }): Promise<{ did: string }> {
-    const body = {
-      name,
-      description,
-      price: price.toString(),
-      tokenAddress,
-      amountOfCredits,
-      tags,
+
+    const metadata = {
+      main: {
+          name,
+          type: 'subscription',
+          license: 'No License Specified',
+          files: [],
+          ercType: 1155,
+          nftType: "nft1155-credit",
+          subscription: {
+              subscriptionType: 'credits',
+          },
+      },
+      additionalInformation: {
+          description,
+          tags: tags || [],
+          customData: {
+              dateMeasure: 'days',
+              plan: 'custom',
+              subscriptionLimitType: 'credits'
+          },
+      },
     }
+    const serviceAttributes = [{
+          serviceType: 'nft-sales',
+          price,
+          'nft': {
+              amount: amountOfCredits,
+              nftTransfer: false,
+          },
+        }
+    ]
+    const body = {
+      price,
+      tokenAddress,
+      metadata,
+      serviceAttributes,
+    }
+    console.log(body)
+    console.log(JSON.stringify(body, jsonReplacer))
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body, jsonReplacer),
     }
+    console.log(options)
     const url = new URL('/api/v1/payments/subscription', this.environment.backend)
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -336,14 +370,13 @@ export class Payments {
    *
    * @returns The DID of the newly created subscription.
    */
-  public async createTimeSubscription({
+  public async createTimePlan({
     name,
     description,
     price,
     tokenAddress,
     duration,
     tags,
-    nvmApiKey,
   }: {
     name: string
     description: string
@@ -351,30 +384,59 @@ export class Payments {
     tokenAddress: string
     duration?: number
     tags?: string[]
-    nvmApiKey?: string
   }): Promise<{ did: string }> {
+    const metadata = {
+      main: {
+          name,
+          type: 'subscription',
+          license: 'No License Specified',
+          files: [],
+          ercType: 1155,
+          nftType: "nft1155-credit",
+          subscription: {
+              subscriptionType: 'time',
+          },
+      },
+      additionalInformation: {
+          description,
+          tags: tags || [],
+          customData: {
+              dateMeasure: 'days',
+              plan: 'custom',
+              subscriptionLimitType: 'time'
+          },
+      },
+    }
+    const serviceAttributes = [{
+          serviceType: 'nft-sales',
+          price,
+          'nft': {
+              duration,
+              amount: 1,
+              nftTransfer: false,
+          },
+        }
+    ]
     const body = {
-      name,
-      description,
-      price: price.toString(),
+      price,
       tokenAddress,
-      duration,
-      tags,
+      metadata,
+      serviceAttributes,
     }
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body, jsonReplacer),
     }
     const url = new URL('/api/v1/payments/subscription', this.environment.backend)
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -388,6 +450,7 @@ export class Payments {
    * @param description - The description of the service.
    * @param amountOfCredits - The amount of credits.
    * @param tags - The tags associated with the service.
+   * @param serviceType - The service type ('service', 'agent', or 'assistant').
    * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
    * @param minCreditsToCharge - The minimum credits to charge.
    * @param maxCreditsToCharge - The maximum credits to charge.
@@ -411,6 +474,7 @@ export class Payments {
     description,
     amountOfCredits,
     tags,
+    serviceType,
     serviceChargeType,
     minCreditsToCharge,
     maxCreditsToCharge,
@@ -425,13 +489,13 @@ export class Payments {
     sampleLink,
     apiDescription,
     curation,
-    nvmApiKey,
   }: {
     subscriptionDid: string
     name: string
     description: string
+    serviceType: 'service' | 'agent' | 'assistant'
     serviceChargeType: 'fixed' | 'dynamic'
-    authType: 'none' | 'basic' | 'oauth'
+    authType: 'none' | 'basic' | 'oauth' | 'bearer'
     amountOfCredits?: number
     minCreditsToCharge?: number
     maxCreditsToCharge?: number
@@ -446,43 +510,92 @@ export class Payments {
     apiDescription?: string
     curation?: object
     tags?: string[]
-    nvmApiKey?: string
   }): Promise<{ did: string }> {
-    const body = {
-      name,
-      description,
-      amountOfCredits,
-      tags,
-      subscriptionDid,
-      serviceChargeType,
-      minCreditsToCharge,
-      maxCreditsToCharge,
-      authType,
-      username,
-      password,
-      token,
-      endpoints,
-      openEndpoints,
-      openApiUrl,
-      integration,
-      sampleLink,
-      apiDescription,
-      curation,
+    let authentication = {}
+    let _headers: { Authorization: string }[] = []
+    if (authType === 'basic') {
+      authentication = {
+        type: 'basic',
+        username,
+        password,
+      }
+    } else if (authType === 'oauth' || authType === 'bearer') {
+      authentication = {
+        type: authType,
+        token
+      }
+      _headers = [{'Authorization': `Bearer ${token}`}]
+    } else {
+      authentication = { type: 'none'}
     }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+
+    const metadata = {
+      main: {
+          name,
+          license: 'No License Specified',
+          type: serviceType,
+          files: [],
+          ercType: 'nft1155',
+          nftType: 'nft1155Credit',
+          subscription: {
+              'timeMeasure': 'days',
+              'subscriptionType': 'credits', 
+          },
+          webService: {
+              endpoints: endpoints,
+              openEndpoints: openEndpoints,
+              internalAttributes: {
+                  authentication,
+                  headers: _headers,
+              'chargeType': serviceChargeType,
+          },
       },
-      body: JSON.stringify(body),
+      ...(curation && { curation }),
+      additionalInformation: {
+        description,
+        tags: tags ? tags : [],
+        customData: {
+            openApiUrl,
+            integration,
+            sampleLink,
+            apiDescription,
+            plan: 'custom',
+            serviceChargeType,
+        },
+      }
+      }
     }
+    const serviceAttributes = [{
+      serviceType: 'nft-access',
+      nft: {
+          amount: amountOfCredits ? amountOfCredits : 1,
+          tokenId: subscriptionDid,
+          minCreditsToCharge,
+          minCreditsRequired: minCreditsToCharge,
+          maxCreditsToCharge,
+          nftTransfer: false
+      },
+    }]
+    const body = {
+      metadata,
+      serviceAttributes,
+      subscriptionDid,
+    }
+    console.log(JSON.stringify(body, jsonReplacer))
+    const options = {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.nvmApiKey}`,
+        },
+        body: JSON.stringify(body, jsonReplacer),
+      }
     const url = new URL('/api/v1/payments/service', this.environment.backend)
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -533,10 +646,7 @@ export class Payments {
     trainingDetails,
     variations,
     fineTunable,
-    minCreditsToCharge,
-    maxCreditsToCharge,
     curation,
-    nvmApiKey,
   }: {
     subscriptionDid: string
     assetType: string
@@ -558,36 +668,58 @@ export class Payments {
     maxCreditsToCharge?: number
     curation?: object
     tags?: string[]
-    nvmApiKey?: string
   }): Promise<{ did: string }> {
-    const body = {
-      assetType,
-      name,
-      description,
-      files,
-      amountOfCredits,
-      tags,
-      subscriptionDid,
-      dataSchema,
-      sampleCode,
-      filesFormat,
-      usageExample,
-      programmingLanguage,
-      framework,
-      task,
-      trainingDetails,
-      variations,
-      fineTunable,
-      minCreditsToCharge,
-      maxCreditsToCharge,
-      curation,
+
+    const metadata = {
+      main: {
+          name,
+          license: 'No License Specified',
+          type: assetType,
+          files,
+          ercType: 'nft1155',
+          nftType: 'nft1155Credit',
+      },      
+      ...(curation && { curation }),
+      additionalInformation: {
+          description,
+          tags: tags ? tags : [],
+          customData: {          
+          dataSchema,
+          sampleCode,
+          usageExample,
+          filesFormat,
+          programmingLanguage,
+          framework,
+          task,
+          architecture: task,
+          trainingDetails,
+          variations,
+          fineTunable,
+          plan: 'custom',
+        },
+      },
     }
+    const serviceAttributes = [
+      {
+          serviceType: 'nft-access',
+          nft: {
+              tokenId: subscriptionDid,
+              amount: amountOfCredits ? amountOfCredits : 1,
+              nftTransfer: false
+          },
+      },
+  ]
+  const body = {    
+    metadata,
+    serviceAttributes,
+    subscriptionDid      
+  }
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -595,7 +727,7 @@ export class Payments {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -611,7 +743,7 @@ export class Payments {
     const url = new URL(`/api/v1/payments/asset/ddo/${did}`, this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -630,7 +762,7 @@ export class Payments {
     )
     const response = await fetch(url)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
     return response.json()
   }
@@ -648,7 +780,7 @@ export class Payments {
     )
     const response = await fetch(url)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
     return response.json()
   }
@@ -658,71 +790,69 @@ export class Payments {
    *
    * @param subscriptionDid - The subscription DID of the service to be published.
    * @param accountAddress - The address of the account to get the balance.
-   * @param nvmApiKey - The NVM API key to use for the request.
    * @returns A promise that resolves to the balance result.
    */
   public async getSubscriptionBalance(
     subscriptionDid: string,
     accountAddress?: string,
-    nvmApiKey?: string,
   ): Promise<{
     subscriptionType: string
     isOwner: boolean
     balance: bigint
     isSubscriptor: boolean
   }> {
+    console.log('getSubscriptionBalance', subscriptionDid, accountAddress)
     const body = {
       subscriptionDid,
-      accountAddress,
+      accountAddress: isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress,
     }
+    console.log(body)
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
     const url = new URL('/api/v1/payments/subscription/balance', this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
   }
 
   /**
-   * Get the service token for a given DID.
+   * Get the required configuration for accessing a remote service agent.
+   * This configuration includes the JWT access token and the Proxy url.
    *
    * @param did - The DID of the service.
    * @returns A promise that resolves to the service token.
    */
-  public async getServiceToken(
+  public async getServiceAccessConfig(
     did: string,
-    nvmApiKey?: string,
   ): Promise<{
-    token: {
       accessToken: string
-      neverminedProxyUri: string
-    }
+      neverminedProxyUri: string    
   }> {
     const options = {
       method: 'GET',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
     }
     const url = new URL(`/api/v1/payments/service/token/${did}`, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
-    return response.json()
+    return (await response.json()).token
   }
 
   /**
@@ -730,13 +860,11 @@ export class Payments {
    *
    * @param subscriptionDid - The subscription DID.
    * @param agreementId - The agreement ID.
-   * @param nvmApiKey - The NVM API key to use for the request.
    * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
    */
   public async orderSubscription(
     subscriptionDid: string,
-    agreementId?: string,
-    nvmApiKey?: string,
+    agreementId?: string
   ): Promise<{ agreementId: string; success: boolean }> {
     const body = { subscriptionDid, agreementId }
     const options = {
@@ -744,14 +872,14 @@ export class Payments {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
     const url = new URL('/api/v1/payments/subscription/order', this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -778,7 +906,7 @@ export class Payments {
     const url = new URL('/api/v1/payments/file/download', this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     let filename = 'file'
@@ -857,7 +985,7 @@ export class Payments {
     const url = new URL('/api/v1/payments/credits/mint', this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -886,7 +1014,7 @@ export class Payments {
     const url = new URL('/api/v1/payments/credits/burn', this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(response.statusText)
+      throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()

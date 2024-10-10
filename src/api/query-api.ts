@@ -2,6 +2,7 @@ import { AgentExecutionStatus } from '../common/types'
 import {
   BackendApiOptions,
   DefaultSubscriptionOptions,
+  HTTPRequestOptions,
   NVMBackendApi,
   SubscriptionOptions,
 } from './nvm-backend'
@@ -15,6 +16,11 @@ export const GET_TASK_STEPS_ENDPOINT = '/api/v1/agents/{did}/tasks/{taskId}/step
 export const TASK_ENDPOINT = '/api/v1/agents/{did}/tasks'
 export const GET_TASK_ENDPOINT = '/api/v1/agents/{did}/tasks/{taskId}'
 
+export class AIQueryOptions {
+  accessToken?: string
+  proxyHost?: string
+}
+
 export class AIQueryApi extends NVMBackendApi {
   constructor(opts: BackendApiOptions) {
     super(opts)
@@ -25,10 +31,19 @@ export class AIQueryApi extends NVMBackendApi {
     opts: SubscriptionOptions = DefaultSubscriptionOptions,
   ) {
     await super._subscribe(_callback, opts).then(() => {
-      console.log('query-api:: Connected to the server')
+      console.log('query-api:: Subscribed to server')
     })
-    const pendingSteps = await this.getSteps(AgentExecutionStatus.Pending)
-    await super._emitEvents(pendingSteps)
+    try {
+      const pendingSteps = await this.getSteps(AgentExecutionStatus.Pending, opts.joinAgentRooms)
+      
+      if (pendingSteps.status === 200 && pendingSteps.data) {
+        console.log('query-api:: Pending steps', pendingSteps.data)
+        await super._emitStepEvents(pendingSteps.data.steps)
+      }      
+    } catch {
+      console.warn('query-api:: Unable to get pending events')
+    }
+
   }
 
   /**
@@ -37,10 +52,16 @@ export class AIQueryApi extends NVMBackendApi {
    * @param task - Task object
    * @returns The result of the operation
    */
-  async createTask(did: string, task: any) {
+  async createTask(did: string, task: any, queryOpts: AIQueryOptions) {
     const endpoint = TASK_ENDPOINT.replace('{did}', did)
     console.log('endpoint', endpoint)
-    return this.post(endpoint, task)
+    const reqOptions: HTTPRequestOptions = { 
+      sendThroughProxy: true,
+      ...queryOpts.proxyHost && { proxyHost: queryOpts.proxyHost },
+      ...queryOpts.accessToken && { headers: { Authorization: `Bearer ${queryOpts.accessToken}` } }
+    }
+    console.log('reqOptions', reqOptions)
+    return this.post(endpoint, task, reqOptions)
   }
 
   /**
@@ -52,7 +73,7 @@ export class AIQueryApi extends NVMBackendApi {
    */
   async createSteps(did: string, taskId: string, steps: any) {
     const endpoint = CREATE_STEPS_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId)
-    return this.post(endpoint, steps)
+    return this.post(endpoint, steps, { sendThroughProxy: false })
   }
 
   /**
@@ -67,7 +88,7 @@ export class AIQueryApi extends NVMBackendApi {
     const endpoint = UPDATE_STEP_ENDPOINT.replace('{did}', did)
       .replace('{taskId}', taskId)
       .replace('{stepId}', stepId)
-    return this.put(endpoint, step)
+    return this.put(endpoint, step, { sendThroughProxy: false })
   }
 
   /**
@@ -76,7 +97,7 @@ export class AIQueryApi extends NVMBackendApi {
    * @returns The result of the search query
    */
   async searchTasks(searchParams: any) {
-    return this.post(SEARCH_TASKS_ENDPOINT, searchParams)
+    return this.post(SEARCH_TASKS_ENDPOINT, searchParams, { sendThroughProxy: false })
   }
 
   /**
@@ -99,7 +120,7 @@ export class AIQueryApi extends NVMBackendApi {
   async getStepsFromTask(did: string, taskId: string, status?: string) {
     let endpoint = GET_TASK_STEPS_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId)
     if (status) endpoint += `?status=${status}`
-    return this.get(endpoint)
+    return this.get(endpoint, { sendThroughProxy: false })
   }
 
   /**
@@ -115,7 +136,7 @@ export class AIQueryApi extends NVMBackendApi {
     let endpoint = GET_BUILDER_STEPS_ENDPOINT + '?'
     if (status) endpoint += `&status=${status.toString()}`
     if (dids.length > 0) endpoint += `&dids=${dids.join(',')}`
-    return this.get(endpoint)
+    return this.get(endpoint, { sendThroughProxy: false })
   }
 
   /**
@@ -123,6 +144,6 @@ export class AIQueryApi extends NVMBackendApi {
    * @returns The tasks of the agents
    */
   async getTasksFromAgents() {
-    return this.get(GET_AGENTS_ENDPOINT)
+    return this.get(GET_AGENTS_ENDPOINT, { sendThroughProxy: false })
   }
 }

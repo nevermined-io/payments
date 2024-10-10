@@ -1,4 +1,5 @@
 import { PaymentsError } from "../../src/common/payments.error"
+import { isEthereumAddress } from "../../src/common/utils"
 import { Payments } from "../../src/payments"
 
 describe('Payments (unit)', () => {
@@ -21,6 +22,13 @@ describe('Payments (unit)', () => {
       expect(() => 
         Payments.getInstance({ environment: 'staging'})
       ).toThrow(PaymentsError)
+    })
+
+
+    it('can validate if is a Ethereum Address', () => {      
+      expect(isEthereumAddress('0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d')).toBeTruthy()
+      expect(isEthereumAddress('0x75faf114eafb1BDbe2F0316DF893fd58CE46')).toBeFalsy()
+      expect(isEthereumAddress(undefined)).toBeFalsy()
     })
 
   })
