@@ -230,7 +230,7 @@ describe('Payments API (e2e)', () => {
       const opts = {
         joinAccountRoom: true,
         joinAgentRooms: [],
-        subscribeEventTypes: [],
+        subscribeEventTypes: ['step-updated'],
         getPendingEventsOnSubscribe: false
       }
       await paymentsBuilder.query.subscribe(async (data) => {

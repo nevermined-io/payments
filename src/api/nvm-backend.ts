@@ -29,14 +29,14 @@ export class HTTPRequestOptions {
 export class SubscriptionOptions {
   joinAccountRoom: boolean = true
   joinAgentRooms: string[] = []
-  subscribeEventTypes: string[] = []
+  subscribeEventTypes: string[] = ['step-updated']
   getPendingEventsOnSubscribe: boolean = true
 }
 
 export const DefaultSubscriptionOptions = {
   joinAccountRoom: true,
   joinAgentRooms: [],
-  subscribeEventTypes: [],
+  subscribeEventTypes: ['step-updated'],
   getPendingEventsOnSubscribe: true,
 }
 
@@ -173,29 +173,15 @@ export class NVMBackendApi {
     //   console.log(`RECEIVED TASK data: ${JSON.stringify(data)}`)
     //   _callback(data)
     // })
-    await this.socketClient.on('step-updated', (data: any) => {
-      console.log(`RECEIVED STEP data: ${JSON.stringify(data)}`)
-      _callback(data)
+    opts.subscribeEventTypes.forEach(async (eventType) => {
+      await this.socketClient.on(eventType, (data: any) => {
+        // console.log(`RECEIVED STEP data: ${JSON.stringify(data)}`)
+        _callback(data)
+      })
     })
-
-    // if (opts.joinAccountRoom) {
-    //   // await this.socketClient.on(this.userRoomId, _callback)
-    //   await this.socketClient.on(this.userRoomId, (data: any) => {
-    //     console.log(`RECEIVED Websocket data [${this.userRoomId}] : ${JSON.stringify(data)}`)
-    //     _callback(data)
-    //   })
-    //   console.log(`nvm-backend:: ${this.socketClient.id} Joined room: ${this.userRoomId}`)
-    // }
-
-    // opts.joinAgentRooms.forEach(async (_did) => {
-    //   const room = `room:${_did}`
-    //   await this.socketClient.on(room, _callback)
-    //   console.log(`nvm-backend:: ${this.socketClient.id} Joined room: ${room}`)
-    // })
   }
 
   private async eventHandler(data: any, _callback: (err?: any) => any, _opts: SubscriptionOptions) {
-    console.log('nvm-backend:: Event received', data)
     _callback(data)
     // if (opts.subscribeEventTypes.length > 0) {
     //   if (opts.subscribeEventTypes.includes(data.event)) {
