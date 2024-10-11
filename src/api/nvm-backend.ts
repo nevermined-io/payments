@@ -62,7 +62,8 @@ export class NVMBackendApi {
       ...(opts.apiKey && { Authorization: `Bearer ${opts.apiKey}` }),
     }
 
-    if (opts.webSocketOptions?.bearerToken) { // If the user pass a specific websocketoptions bearer token we use that one
+    if (opts.webSocketOptions?.bearerToken) {
+      // If the user pass a specific websocketoptions bearer token we use that one
       opts.webSocketOptions = {
         ...opts.webSocketOptions,
         transportOptions: {
@@ -71,7 +72,8 @@ export class NVMBackendApi {
           },
         },
       }
-    } else if (opts.apiKey) { // If not use the api key
+    } else if (opts.apiKey) {
+      // If not use the api key
       opts.webSocketOptions = {
         ...opts.webSocketOptions,
         transportOptions: {
@@ -111,13 +113,13 @@ export class NVMBackendApi {
       this.opts.backendHost = backendUrl.origin
     } catch (error) {
       throw new Error(`Invalid URL: ${this.opts.backendHost} - ${(error as Error).message}`)
-    }    
+    }
   }
 
   private async connectSocket() {
     if (!this.hasKey)
       throw new Error('Unable to subscribe to the server becase a key was not provided')
-    
+
     if (this.socketClient && this.socketClient.connected) {
       console.log('nvm-backend:: Already connected to the websocket server')
       return
@@ -162,7 +164,7 @@ export class NVMBackendApi {
     await this.connectSocket()
     // await this.socketClient.emit('subscribe-agent', '')
     await this.socketClient.on('connect', async () => {
-      console.log(`nvm-backend:: On:: ${this.socketClient.id} Connected to the server`)      
+      console.log(`nvm-backend:: On:: ${this.socketClient.id} Connected to the server`)
     })
     console.log(`Subscription Options: ${JSON.stringify(opts)}`)
     await this.socketClient.emit('_join-rooms', JSON.stringify(opts))
@@ -204,11 +206,14 @@ export class NVMBackendApi {
     // }
   }
 
-  protected async _emitStepEvents(status: AgentExecutionStatus = AgentExecutionStatus.Pending, dids: string[] = []) {
+  protected async _emitStepEvents(
+    status: AgentExecutionStatus = AgentExecutionStatus.Pending,
+    dids: string[] = [],
+  ) {
     await this.connectSocket()
     const message = {
       status,
-      dids
+      dids,
     }
     this.socketClient.emit('_emit-steps', JSON.stringify(message))
   }
@@ -220,11 +225,11 @@ export class NVMBackendApi {
 
   parseUrl(uri: string, reqOptions: HTTPRequestOptions) {
     let _host: URL
-    if (reqOptions.sendThroughProxy) {      
+    if (reqOptions.sendThroughProxy) {
       if (reqOptions.proxyHost) _host = new URL(reqOptions.proxyHost)
       else if (this.opts.proxyHost) _host = new URL(this.opts.proxyHost)
       else _host = new URL(this.opts.backendHost)
-    } else _host = new URL(this.opts.backendHost)    
+    } else _host = new URL(this.opts.backendHost)
     return `${_host.origin}${uri}`
   }
 
@@ -232,7 +237,7 @@ export class NVMBackendApi {
     return {
       ...this.opts.headers,
       ...additionalHeaders,
-    }    
+    }
   }
 
   setBearerToken(token: string) {
@@ -242,7 +247,7 @@ export class NVMBackendApi {
     }
   }
 
-  async get(url: string, reqOptions: HTTPRequestOptions = { sendThroughProxy: true }) {    
+  async get(url: string, reqOptions: HTTPRequestOptions = { sendThroughProxy: true }) {
     return axios({
       method: 'GET',
       url: this.parseUrl(url, reqOptions),
@@ -253,7 +258,6 @@ export class NVMBackendApi {
   }
 
   async post(url: string, data: any, reqOptions: HTTPRequestOptions) {
-
     console.log('POST URL', this.parseUrl(url, reqOptions))
     console.log('POST DATA', data)
     console.log('POST HEADERS', this.parseHeaders(reqOptions.headers || {}))

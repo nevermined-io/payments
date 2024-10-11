@@ -282,37 +282,37 @@ export class Payments {
     amountOfCredits: number
     tags?: string[]
   }): Promise<{ did: string }> {
-
     const metadata = {
       main: {
-          name,
-          type: 'subscription',
-          license: 'No License Specified',
-          files: [],
-          ercType: 1155,
-          nftType: "nft1155-credit",
-          subscription: {
-              subscriptionType: 'credits',
-          },
+        name,
+        type: 'subscription',
+        license: 'No License Specified',
+        files: [],
+        ercType: 1155,
+        nftType: 'nft1155-credit',
+        subscription: {
+          subscriptionType: 'credits',
+        },
       },
       additionalInformation: {
-          description,
-          tags: tags || [],
-          customData: {
-              dateMeasure: 'days',
-              plan: 'custom',
-              subscriptionLimitType: 'credits'
-          },
+        description,
+        tags: tags || [],
+        customData: {
+          dateMeasure: 'days',
+          plan: 'custom',
+          subscriptionLimitType: 'credits',
+        },
       },
     }
-    const serviceAttributes = [{
-          serviceType: 'nft-sales',
-          price,
-          'nft': {
-              amount: amountOfCredits,
-              nftTransfer: false,
-          },
-        }
+    const serviceAttributes = [
+      {
+        serviceType: 'nft-sales',
+        price,
+        nft: {
+          amount: amountOfCredits,
+          nftTransfer: false,
+        },
+      },
     ]
     const body = {
       price,
@@ -387,35 +387,36 @@ export class Payments {
   }): Promise<{ did: string }> {
     const metadata = {
       main: {
-          name,
-          type: 'subscription',
-          license: 'No License Specified',
-          files: [],
-          ercType: 1155,
-          nftType: "nft1155-credit",
-          subscription: {
-              subscriptionType: 'time',
-          },
+        name,
+        type: 'subscription',
+        license: 'No License Specified',
+        files: [],
+        ercType: 1155,
+        nftType: 'nft1155-credit',
+        subscription: {
+          subscriptionType: 'time',
+        },
       },
       additionalInformation: {
-          description,
-          tags: tags || [],
-          customData: {
-              dateMeasure: 'days',
-              plan: 'custom',
-              subscriptionLimitType: 'time'
-          },
+        description,
+        tags: tags || [],
+        customData: {
+          dateMeasure: 'days',
+          plan: 'custom',
+          subscriptionLimitType: 'time',
+        },
       },
     }
-    const serviceAttributes = [{
-          serviceType: 'nft-sales',
-          price,
-          'nft': {
-              duration,
-              amount: 1,
-              nftTransfer: false,
-          },
-        }
+    const serviceAttributes = [
+      {
+        serviceType: 'nft-sales',
+        price,
+        nft: {
+          duration,
+          amount: 1,
+          nftTransfer: false,
+        },
+      },
     ]
     const body = {
       price,
@@ -522,60 +523,62 @@ export class Payments {
     } else if (authType === 'oauth' || authType === 'bearer') {
       authentication = {
         type: authType,
-        token
+        token,
       }
-      _headers = [{'Authorization': `Bearer ${token}`}]
+      _headers = [{ Authorization: `Bearer ${token}` }]
     } else {
-      authentication = { type: 'none'}
+      authentication = { type: 'none' }
     }
 
     const metadata = {
       main: {
-          name,
-          license: 'No License Specified',
-          type: serviceType,
-          files: [],
-          ercType: 'nft1155',
-          nftType: 'nft1155Credit',
-          subscription: {
-              'timeMeasure': 'days',
-              'subscriptionType': 'credits', 
+        name,
+        license: 'No License Specified',
+        type: serviceType,
+        files: [],
+        ercType: 'nft1155',
+        nftType: 'nft1155Credit',
+        subscription: {
+          timeMeasure: 'days',
+          subscriptionType: 'credits',
+        },
+        webService: {
+          endpoints: endpoints,
+          openEndpoints: openEndpoints,
+          internalAttributes: {
+            authentication,
+            headers: _headers,
+            chargeType: serviceChargeType,
           },
-          webService: {
-              endpoints: endpoints,
-              openEndpoints: openEndpoints,
-              internalAttributes: {
-                  authentication,
-                  headers: _headers,
-              'chargeType': serviceChargeType,
-          },
-      },
-      ...(curation && { curation }),
-      additionalInformation: {
-        description,
-        tags: tags ? tags : [],
-        customData: {
+        },
+        ...(curation && { curation }),
+        additionalInformation: {
+          description,
+          tags: tags ? tags : [],
+          customData: {
             openApiUrl,
             integration,
             sampleLink,
             apiDescription,
             plan: 'custom',
             serviceChargeType,
+          },
         },
-      }
-      }
+      },
     }
-    const serviceAttributes = [{
-      serviceType: 'nft-access',
-      nft: {
+    const serviceAttributes = [
+      {
+        serviceType: 'nft-access',
+        nft: {
           amount: amountOfCredits ? amountOfCredits : 1,
           tokenId: subscriptionDid,
           minCreditsToCharge,
           minCreditsRequired: minCreditsToCharge,
           maxCreditsToCharge,
-          nftTransfer: false
+          nftTransfer: false,
+        },
       },
-    }]
+    ]
     const body = {
       metadata,
       serviceAttributes,
@@ -583,14 +586,14 @@ export class Payments {
     }
     console.log(JSON.stringify(body, jsonReplacer))
     const options = {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.nvmApiKey}`,
-        },
-        body: JSON.stringify(body, jsonReplacer),
-      }
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.nvmApiKey}`,
+      },
+      body: JSON.stringify(body, jsonReplacer),
+    }
     const url = new URL('/api/v1/payments/service', this.environment.backend)
 
     const response = await fetch(url, options)
@@ -669,21 +672,20 @@ export class Payments {
     curation?: object
     tags?: string[]
   }): Promise<{ did: string }> {
-
     const metadata = {
       main: {
-          name,
-          license: 'No License Specified',
-          type: assetType,
-          files,
-          ercType: 'nft1155',
-          nftType: 'nft1155Credit',
-      },      
+        name,
+        license: 'No License Specified',
+        type: assetType,
+        files,
+        ercType: 'nft1155',
+        nftType: 'nft1155Credit',
+      },
       ...(curation && { curation }),
       additionalInformation: {
-          description,
-          tags: tags ? tags : [],
-          customData: {          
+        description,
+        tags: tags ? tags : [],
+        customData: {
           dataSchema,
           sampleCode,
           usageExample,
@@ -701,19 +703,19 @@ export class Payments {
     }
     const serviceAttributes = [
       {
-          serviceType: 'nft-access',
-          nft: {
-              tokenId: subscriptionDid,
-              amount: amountOfCredits ? amountOfCredits : 1,
-              nftTransfer: false
-          },
+        serviceType: 'nft-access',
+        nft: {
+          tokenId: subscriptionDid,
+          amount: amountOfCredits ? amountOfCredits : 1,
+          nftTransfer: false,
+        },
       },
-  ]
-  const body = {    
-    metadata,
-    serviceAttributes,
-    subscriptionDid      
-  }
+    ]
+    const body = {
+      metadata,
+      serviceAttributes,
+      subscriptionDid,
+    }
     const options = {
       method: 'POST',
       headers: {
@@ -832,11 +834,9 @@ export class Payments {
    * @param did - The DID of the service.
    * @returns A promise that resolves to the service token.
    */
-  public async getServiceAccessConfig(
-    did: string,
-  ): Promise<{
-      accessToken: string
-      neverminedProxyUri: string    
+  public async getServiceAccessConfig(did: string): Promise<{
+    accessToken: string
+    neverminedProxyUri: string
   }> {
     const options = {
       method: 'GET',
@@ -864,7 +864,7 @@ export class Payments {
    */
   public async orderSubscription(
     subscriptionDid: string,
-    agreementId?: string
+    agreementId?: string,
   ): Promise<{ agreementId: string; success: boolean }> {
     const body = { subscriptionDid, agreementId }
     const options = {

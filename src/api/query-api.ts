@@ -36,12 +36,11 @@ export class AIQueryApi extends NVMBackendApi {
     try {
       if (opts.getPendingEventsOnSubscribe) {
         console.log('query-api:: Emitting pending events')
-        await super._emitStepEvents(AgentExecutionStatus.Pending, opts.joinAgentRooms)  
-      }      
+        await super._emitStepEvents(AgentExecutionStatus.Pending, opts.joinAgentRooms)
+      }
     } catch {
       console.warn('query-api:: Unable to get pending events')
     }
-
   }
 
   /**
@@ -53,15 +52,16 @@ export class AIQueryApi extends NVMBackendApi {
   async createTask(did: string, task: any, queryOpts: AIQueryOptions) {
     const endpoint = TASK_ENDPOINT.replace('{did}', did)
     console.log('endpoint', endpoint)
-    const reqOptions: HTTPRequestOptions = { 
+    const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
-      ...queryOpts.proxyHost && { proxyHost: queryOpts.proxyHost },
-      ...queryOpts.accessToken && { headers: { Authorization: `Bearer ${queryOpts.accessToken}` } }
+      ...(queryOpts.proxyHost && { proxyHost: queryOpts.proxyHost }),
+      ...(queryOpts.accessToken && {
+        headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
+      }),
     }
     console.log('reqOptions', reqOptions)
     return this.post(endpoint, task, reqOptions)
   }
-
 
   /**
    * It returns the full task and the steps resulted of the execution of the task
@@ -69,11 +69,13 @@ export class AIQueryApi extends NVMBackendApi {
    * @param taskId - Task ID
    * @returns The task with the steps
    */
-  async getTaskWithSteps(did: string, taskId: string, queryOpts: AIQueryOptions) {    
-    const reqOptions: HTTPRequestOptions = { 
+  async getTaskWithSteps(did: string, taskId: string, queryOpts: AIQueryOptions) {
+    const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
-      ...queryOpts.proxyHost && { proxyHost: queryOpts.proxyHost },
-      ...queryOpts.accessToken && { headers: { Authorization: `Bearer ${queryOpts.accessToken}` } }
+      ...(queryOpts.proxyHost && { proxyHost: queryOpts.proxyHost }),
+      ...(queryOpts.accessToken && {
+        headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
+      }),
     }
     console.log('reqOptions', reqOptions)
     return this.get(GET_TASK_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId), reqOptions)
