@@ -34,11 +34,9 @@ export class AIQueryApi extends NVMBackendApi {
       console.log('query-api:: Subscribed to server')
     })
     try {
-      const pendingSteps = await this.getSteps(AgentExecutionStatus.Pending, opts.joinAgentRooms)
-      
-      if (pendingSteps.status === 200 && pendingSteps.data) {
-        console.log('query-api:: Pending steps', pendingSteps.data)
-        await super._emitStepEvents(pendingSteps.data.steps)
+      if (opts.getPendingEventsOnSubscribe) {
+        console.log('query-api:: Emitting pending events')
+        await super._emitStepEvents(AgentExecutionStatus.Pending, opts.joinAgentRooms)  
       }      
     } catch {
       console.warn('query-api:: Unable to get pending events')
@@ -62,6 +60,23 @@ export class AIQueryApi extends NVMBackendApi {
     }
     console.log('reqOptions', reqOptions)
     return this.post(endpoint, task, reqOptions)
+  }
+
+
+  /**
+   * It returns the full task and the steps resulted of the execution of the task
+   * @param did - Agent DID
+   * @param taskId - Task ID
+   * @returns The task with the steps
+   */
+  async getTaskWithSteps(did: string, taskId: string, queryOpts: AIQueryOptions) {    
+    const reqOptions: HTTPRequestOptions = { 
+      sendThroughProxy: true,
+      ...queryOpts.proxyHost && { proxyHost: queryOpts.proxyHost },
+      ...queryOpts.accessToken && { headers: { Authorization: `Bearer ${queryOpts.accessToken}` } }
+    }
+    console.log('reqOptions', reqOptions)
+    return this.get(GET_TASK_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId), reqOptions)
   }
 
   /**
@@ -98,16 +113,6 @@ export class AIQueryApi extends NVMBackendApi {
    */
   async searchTasks(searchParams: any) {
     return this.post(SEARCH_TASKS_ENDPOINT, searchParams, { sendThroughProxy: false })
-  }
-
-  /**
-   * It returns the full task and the steps resulted of the execution of the task
-   * @param did - Agent DID
-   * @param taskId - Task ID
-   * @returns The task with the steps
-   */
-  async getTaskWithSteps(did: string, taskId: string) {
-    return this.get(GET_TASK_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId))
   }
 
   /**

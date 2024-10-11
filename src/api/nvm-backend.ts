@@ -2,6 +2,7 @@ import axios from 'axios'
 import { io } from 'socket.io-client'
 import { decodeJwt } from 'jose'
 import { isEthereumAddress, sleep } from '../common/utils'
+import { AgentExecutionStatus } from '../common/types'
 
 export interface BackendApiOptions {
   backendHost: string
@@ -29,12 +30,14 @@ export class SubscriptionOptions {
   joinAccountRoom: boolean = true
   joinAgentRooms: string[] = []
   subscribeEventTypes: string[] = []
+  getPendingEventsOnSubscribe: boolean = true
 }
 
 export const DefaultSubscriptionOptions = {
   joinAccountRoom: true,
   joinAgentRooms: [],
   subscribeEventTypes: [],
+  getPendingEventsOnSubscribe: true,
 }
 
 export class NVMBackendApi {
@@ -157,24 +160,36 @@ export class NVMBackendApi {
       throw new Error('No rooms to join in configuration')
     }
     await this.connectSocket()
-    await this.socketClient.on('connect', () => {
-      console.log(`nvm-backend:: Subscribe:: ${this.socketClient.id} Connected to the server`)
+    // await this.socketClient.emit('subscribe-agent', '')
+    await this.socketClient.on('connect', async () => {
+      console.log(`nvm-backend:: On:: ${this.socketClient.id} Connected to the server`)      
     })
-    
-    if (opts.joinAccountRoom) {
-      // await this.socketClient.on(this.userRoomId, _callback)
-      await this.socketClient.on(this.userRoomId, (data: any) => {
-        console.log(`RECEIVED Websocket data [${this.userRoomId}] : ${JSON.stringify(data)}`)
-        _callback(data)
-      })
-      console.log(`nvm-backend:: ${this.socketClient.id} Joined room: ${this.userRoomId}`)
-    }
+    console.log(`Subscription Options: ${JSON.stringify(opts)}`)
+    await this.socketClient.emit('_join-rooms', JSON.stringify(opts))
 
-    opts.joinAgentRooms.forEach(async (_did) => {
-      const room = `room:${_did}`
-      await this.socketClient.on(room, _callback)
-      console.log(`nvm-backend:: ${this.socketClient.id} Joined room: ${room}`)
+    // await this.socketClient.on('task-updated', (data: any) => {
+    //   console.log(`RECEIVED TASK data: ${JSON.stringify(data)}`)
+    //   _callback(data)
+    // })
+    await this.socketClient.on('step-updated', (data: any) => {
+      console.log(`RECEIVED STEP data: ${JSON.stringify(data)}`)
+      _callback(data)
     })
+
+    // if (opts.joinAccountRoom) {
+    //   // await this.socketClient.on(this.userRoomId, _callback)
+    //   await this.socketClient.on(this.userRoomId, (data: any) => {
+    //     console.log(`RECEIVED Websocket data [${this.userRoomId}] : ${JSON.stringify(data)}`)
+    //     _callback(data)
+    //   })
+    //   console.log(`nvm-backend:: ${this.socketClient.id} Joined room: ${this.userRoomId}`)
+    // }
+
+    // opts.joinAgentRooms.forEach(async (_did) => {
+    //   const room = `room:${_did}`
+    //   await this.socketClient.on(room, _callback)
+    //   console.log(`nvm-backend:: ${this.socketClient.id} Joined room: ${room}`)
+    // })
   }
 
   private async eventHandler(data: any, _callback: (err?: any) => any, _opts: SubscriptionOptions) {
@@ -189,28 +204,13 @@ export class NVMBackendApi {
     // }
   }
 
-  protected async _emitStepEvents(steps: any, eventType = 'step-created') {
+  protected async _emitStepEvents(status: AgentExecutionStatus = AgentExecutionStatus.Pending, dids: string[] = []) {
     await this.connectSocket()
-    console.log(steps.length)
-    if (steps.length > 0) {
-      await steps.forEach(async (step: any) => {
-        try {
-          const message = JSON.stringify({
-            event: eventType,
-            data: {
-              step_id: step.step_id,
-              task_id: step.task_id,
-              did: step.did,
-            },
-          })
-          await this.socketClient.emit(this.userRoomId, message)
-          await this.socketClient.emit(`room:${step.did}`, message)
-          console.log(`nvm-backend:: Emitting events to ${this.userRoomId} and room:${step.did}`)
-        } catch {
-          console.error('nvm-backend:: Error emitting events')
-        }
-      })
+    const message = {
+      status,
+      dids
     }
+    this.socketClient.emit('_emit-steps', JSON.stringify(message))
   }
 
   disconnect() {

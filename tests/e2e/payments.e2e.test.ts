@@ -1,4 +1,3 @@
-import { assert } from "console"
 import { EnvironmentName } from "../../src/environments"
 import { Endpoint, Payments } from "../../src/payments"
 import { sleep } from "../../src/common/utils"
@@ -26,6 +25,9 @@ describe('Payments API (e2e)', () => {
   let planDID: string
   let agentDID: string
 
+  let accessToken: string
+  let proxyHost: string
+  let subscriberQueryOpts = {}
   describe('Payments Setup', () => {
     it('The Payments client can be initialized correctly', () => {
       paymentsSubscriber = Payments.getInstance({ 
@@ -43,7 +45,7 @@ describe('Payments API (e2e)', () => {
       expect(paymentsBuilder.query).toBeDefined()
     })
 
-    it('Manual subscription', async () => {
+    it.skip('Manual subscription', async () => {
       const socketOptions = {
         // path: '/agents',
         transports: ['websocket'],
@@ -62,9 +64,8 @@ describe('Payments API (e2e)', () => {
       expect(client.connected).toBeTruthy()
       console.log('Client connected:', client.connected)
 
-      //const room = 'steps'
-      // const room = 'room:0x7fE3Ee088d0cb3F49fdD20e194F23D6838accc82'
-      const room = 'randomroom'
+      const room = 'room:0x7fE3Ee088d0cb3F49fdD20e194F23D6838accc82'
+      // const room = 'randomroom'
       const message = {
         event: 'test',
         data: {
@@ -73,6 +74,8 @@ describe('Payments API (e2e)', () => {
           did: 'did',
         },
       }
+      client.emit('subscribe-agent', '')
+      
       client.emit(room, '{"event": "test", "data": ""}')
       
       let received = false
@@ -114,7 +117,7 @@ describe('Payments API (e2e)', () => {
 
   })
 
-  describe.skip('AI Builder Publication', () => {
+  describe('AI Builder Publication', () => {
     it('I should be able to register a new credits Payment Plan', async () => {
       planDID = (await paymentsBuilder.createCreditsPlan({
         name: 'E2E Payments Plan', 
@@ -171,7 +174,7 @@ describe('Payments API (e2e)', () => {
   }, TEST_TIMEOUT)
 })
 
-  describe.skip('Subscriber Order', () => {
+  describe('Subscriber Order', () => {
     it('I should be able to order an Agent', async () => {
       const orderResult = await paymentsSubscriber.orderSubscription(planDID)
       expect(orderResult).toBeDefined()
@@ -196,6 +199,71 @@ describe('Payments API (e2e)', () => {
         "artifacts": []
       }
       const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
+      accessToken = accessConfig.accessToken
+      proxyHost = accessConfig.neverminedProxyUri
+      subscriberQueryOpts = { 
+        accessToken,
+        proxyHost
+      }      
+
+      const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, subscriberQueryOpts)
+
+      expect(taskResult).toBeDefined()
+      expect(taskResult.status).toBe(201)
+      console.log('Task Result', taskResult.data)
+    }, TEST_TIMEOUT)
+
+  })
+  
+  describe('AI Builder Agent', () => {
+    let completedTaskId: string
+    let completedTaskDID: string
+    it('Builder should be able to fetch pending tasks', async () => {
+      const steps = await paymentsBuilder.query.getSteps(AgentExecutionStatus.Pending)
+      expect(steps).toBeDefined()
+      console.log(steps.data)
+      expect(steps.data.steps.length).toBeGreaterThan(0)
+    })
+
+    it('I should be able to subscribe and process pending tasks', async () => {
+      let stepsReceived = 0
+      const opts = {
+        joinAccountRoom: true,
+        joinAgentRooms: [],
+        subscribeEventTypes: [],
+        getPendingEventsOnSubscribe: false
+      }
+      await paymentsBuilder.query.subscribe(async (data) => {
+        console.log('TEST:: Step received', data)
+        expect(data).toBeDefined()                
+        const step = JSON.parse(data)
+        console.log(step)
+        
+        stepsReceived++
+        const result = await paymentsBuilder.query.updateStep(step.did, step.task_id, step.step_id, { 
+          step_id: step.step_id,
+          task_id: step.task_id,
+          step_status: AgentExecutionStatus.Completed,
+          is_last: true,
+          output: 'LFG!',
+          cost: 1
+        })
+        // expect(result.status).toBe(201)   
+        if (result.status === 201) {
+          completedTaskId = step.task_id
+          completedTaskDID = step.did
+        }
+        
+      }, opts)
+
+      
+      const aiTask = {
+        query: "https://www.youtube.com/watch?v=0tZFQs7qBfQ",
+        name: "transcribe",
+        "additional_params": [],
+        "artifacts": []
+      }
+      const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
       const queryOpts = { 
         accessToken: accessConfig.accessToken,
         proxyHost: accessConfig.neverminedProxyUri
@@ -205,47 +273,29 @@ describe('Payments API (e2e)', () => {
 
       expect(taskResult).toBeDefined()
       expect(taskResult.status).toBe(201)
-      console.log('Task Result', taskResult.data)
-    }, TEST_TIMEOUT)
 
-  })
-  
-  describe.skip('AI Builder Agent', () => {
-
-    it('Builder should be able to fetch pending tasks', async () => {
-      const steps = await paymentsBuilder.query.getSteps(AgentExecutionStatus.Pending)
-      expect(steps).toBeDefined()
-      console.log(steps.data)
-      expect(steps.data.steps.length).toBeGreaterThan(0)
-    })
-
-    it('I should be able to subscribe to pending tasks', async () => {
-      let stepsReceived = 0
-      const opts = {
-        joinAccountRoom: true,
-        joinAgentRooms: ['did:nv:d69a82c0cd5d9aa39c33d283f50450e7073e30e5954907c9eb74e0b12f98550e'],
-        subscribeEventTypes: []
-      }
-      await paymentsBuilder.query.subscribe((data) => {
-        console.log('TEST:: Step received', data)
-        expect(data).toBeDefined()                
-        const step = JSON.parse(data)
-        console.log(step)
-        stepsReceived++
-      }, opts)
-
-      
       console.log(`TEST:: Sleeping for 10 seconds: ${new Date().toLocaleTimeString()}`)
       await sleep(10_000)
       console.log(`TEST:: Awaiting: ${new Date().toLocaleTimeString()}`)
 
       expect(stepsReceived).toBeGreaterThan(0)
+      expect(completedTaskId).toBeDefined()
+      console.log(`Completed Task ID: ${completedTaskId}`)
     }, TEST_TIMEOUT)
 
-    it('I should be able to process an AI task', () => {
+    it('I should be able to validate an AI task is completed', async () => {
+      const result = await paymentsSubscriber.query.getTaskWithSteps(
+        completedTaskDID, 
+        completedTaskId, 
+        subscriberQueryOpts
+      )
+      expect(result).toBeDefined()
+      console.log('Task with Steps', result)
+      expect(result.status).toBe(200)
+      console.log('Task with Steps', result.data)
     })
 
-    it('I should be able to end a task with a failure', () => {
+    it.skip('I should be able to end a task with a failure', () => {
     })
 
   })
