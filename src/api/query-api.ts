@@ -17,16 +17,62 @@ export const GET_TASK_STEPS_ENDPOINT = '/api/v1/agents/{did}/tasks/{taskId}/step
 export const TASK_ENDPOINT = '/api/v1/agents/{did}/tasks'
 export const GET_TASK_ENDPOINT = '/api/v1/agents/{did}/tasks/{taskId}'
 
+export interface SearchTasks {
+  did?: string
+  task_id?: string
+  name?: string
+  task_status?: AgentExecutionStatus
+  page?: number
+  offset?: number
+}
+
+export interface SearchSteps {
+  step_id?: string
+  task_id?: string
+  did?: string
+  name?: string
+  step_status?: AgentExecutionStatus
+  page?: number
+  offset?: number
+}
+
+/**
+ * Options required for interacting with an external AI Agent/Service.
+ */
 export class AIQueryOptions {
+  /**
+   * The access token to interact with the AI Agent/Service.
+   * Only subscribers of the Payment Plan associated with the AI Agent/Service can obtain the access toke.
+   */
   accessToken?: string
+
+  /**
+   * The Nevermined Proxy that needs to be used to interact with the AI Agent/Service.
+   */
   proxyHost?: string
 }
 
+/**
+ * The AI Query API class provides the methods to interact with the AI Query API.
+ * This API implements the Nevermined AI Query Protocol @see https://docs.nevermined.io/docs/protocol/query-protocol.
+ *
+ * @remarks
+ * This API is oriented for AI Builders providing AI Agents and AI Subscribers interacting with them.
+ */
 export class AIQueryApi extends NVMBackendApi {
   constructor(opts: BackendApiOptions) {
     super(opts)
   }
 
+  /**
+   * It subscribes to the Nevermined network to retrieve new AI Tasks requested by other users.
+   *
+   * @remarks
+   * This method is used by AI agents to subscribe and receive new AI Tasks sent by other subscribers
+   *
+   * @param _callback - The callback to execute when a new event is received
+   * @param opts - The subscription options
+   */
   async subscribe(
     _callback: (err?: any) => any,
     opts: SubscriptionOptions = DefaultSubscriptionOptions,
@@ -45,9 +91,40 @@ export class AIQueryApi extends NVMBackendApi {
   }
 
   /**
-   * It creates a new task for the agent (did)
+   * Subscribers can create an AI Task for an Agent. The task must contain the input query that will be used by the AI Agent.
+   * @see https://docs.nevermined.io/docs/protocol/query-protocol
+   *
+   * @remarks
+   * This method is used by subscribers of a Payment Plan required to access a specific AI Agent or Service. Users who are not subscribers won't be able to create AI Tasks for that Agent.
+   *
+   * Because only subscribers can create AI Tasks, the method requires the access token to interact with the AI Agent/Service.
+   * This is given using the `queryOpts` object (accessToken attribute).
+   *
+   * @example
+   * ```
+   * const accessConfig = await payments.getServiceAccessConfig(agentDID)
+   * const queryOpts = {
+   *    accessToken: accessConfig.accessToken,
+   *    proxyHost: accessConfig.neverminedProxyUri
+   * }
+   *
+   * const aiTask = {
+   *     query: "https://www.youtube.com/watch?v=0tZFQs7qBfQ",
+   *     name: "transcribe",
+   *     "additional_params": [],
+   *     "artifacts": []
+   * }
+   *
+   * await payments.query.createTask(
+   *   agentDID,
+   *   aiTask,
+   *   queryOpts
+   * )
+   * ```
+   *
    * @param did - Agent DID
-   * @param task - Task object
+   * @param task - Task object. The task object should contain the query to execute and the name of the task. All the attributes here: @see https://docs.nevermined.io/docs/protocol/query-protocol#tasks-attributes
+   * @param queryOpts - The query options @see {@link Payments.getServiceAccessConfig}
    * @returns The result of the operation
    */
   async createTask(did: string, task: any, queryOpts: AIQueryOptions) {
@@ -65,7 +142,29 @@ export class AIQueryApi extends NVMBackendApi {
   }
 
   /**
-   * It returns the full task and the steps resulted of the execution of the task
+   * It returns the full task and the steps resulted of the execution of the task.
+   * 
+   * @remarks 
+   * This method is used by subscribers of a Payment Plan required to access a specific AI Agent or Service. Users who are not subscribers won't be able to create AI Tasks for that Agent.
+   * 
+   * Because only subscribers get the results of their AI Tasks, the method requires the access token to interact with the AI Agent/Service.
+   * This is given using the `queryOpts` object (accessToken attribute). 
+   * 
+   * @example
+   * ```
+   * const accessConfig = await payments.getServiceAccessConfig(agentDID)
+   * const queryOpts = {
+   *    accessToken: accessConfig.accessToken,
+   *    proxyHost: accessConfig.neverminedProxyUri
+   * }
+   * 
+   * await payments.query.createTask(
+   *   agentDID, 
+   *   taskId, 
+   *   queryOpts
+   * )
+   * ```
+
    * @param did - Agent DID
    * @param taskId - Task ID
    * @returns The task with the steps
@@ -83,6 +182,10 @@ export class AIQueryApi extends NVMBackendApi {
   }
 
   /**
+   * It creates the step/s required to complete an AI Task
+   *
+   * @remarks
+   * This method is used by the AI Agent to create the steps required to complete the AI Task.
    *
    * @param did - Agent DID
    * @param taskId - Task ID
@@ -96,10 +199,25 @@ export class AIQueryApi extends NVMBackendApi {
 
   /**
    * It updates the step with the new information
+   * @remarks
+   * This method is used by the AI Agent to update the status and output of an step. This method can not be called by a subscriber.
+   *
+   * @example
+   * ```
+   * const result = await payments.query.updateStep(step.did, step.task_id, step.step_id, {
+   *         step_id: step.step_id,
+   *         task_id: step.task_id,
+   *         step_status: AgentExecutionStatus.Completed,
+   *         is_last: true,
+   *         output: 'LFG!',
+   *         cost: 1
+   *       })
+   * ```
+   *
    * @param did - Agent DID
    * @param taskId - Task ID
    * @param stepId - Step ID
-   * @param step - The Step object to update
+   * @param step - The Step object to update. @see https://docs.nevermined.io/docs/protocol/query-protocol#steps-attributes
    * @returns The result of the operation
    */
   async updateStep(did: string, taskId: string, stepId: string, step: any) {
@@ -110,25 +228,47 @@ export class AIQueryApi extends NVMBackendApi {
   }
 
   /**
-   * It search tasks based on the search parameters
-   * @param searchParams - The search parameters
+   * It searches tasks based on the search parameters associated to the user
+   *
+   * @remarks
+   * This method is used by the AI Agent to retrieve information about the tasks created by users to the agents owned by the user
+   *
+   * @example
+   * ```
+   * await paymentsBuilder.query.searchTasks({ did: "did:nv:1234" })
+   * ```
+   *
+   * @param searchParams - The search parameters @see {@link SearchTasks}
    * @returns The result of the search query
    */
-  async searchTasks(searchParams: any) {
+  async searchTasks(searchParams: SearchTasks) {
     return this.post(SEARCH_TASKS_ENDPOINT, searchParams, { sendThroughProxy: false })
   }
 
   /**
-   * It search steps based on the search parameters
-   * @param searchParams - The search parameters
+   * It search steps based on the search parameters. The steps belongs to the tasks part of the AI Agents owned by the user.
+   *
+   * @remarks
+   * This method is used by the AI Agent to retrieve information about the steps part of tasks created by users to the agents owned by the user
+   *
+   * @example
+   * ```
+   * await paymentsBuilder.query.searchSteps({ step_id: "my-step-id" })
+   * ```
+   *
+   * @param searchParams - The search parameters @see {@link SearchSteps}
    * @returns The result of the search query
    */
-  async searchSteps(searchParams: any) {
+  async searchSteps(searchParams: SearchSteps) {
     return this.post(SEARCH_STEPS_ENDPOINT, searchParams, { sendThroughProxy: false })
   }
 
   /**
-   * It retrieves all the steps that the agent needs to execute to complete a specific task.
+   * It retrieves all the steps that the agent needs to execute to complete a specific task associated to the user.
+   *
+   * @remarks
+   * This method is used by the AI Agent to retrieve information about the tasks created by users to the agents owned by the user
+   *
    * @param did - Agent DID
    * @param taskId - Task ID
    * @param status - The status of the steps to retrieve
@@ -142,6 +282,10 @@ export class AIQueryApi extends NVMBackendApi {
 
   /**
    * It retrieves all the steps that the agent needs to execute to complete the different tasks assigned.
+   *
+   * @remarks
+   * This method is used by the AI Agent to retrieve information about the steps part of tasks created by users to the agents owned by the user
+   *
    * @param status - The status of the steps to retrieve
    * @param dids - The list of DIDs to filter the steps
    * @returns The steps of the task
@@ -158,6 +302,10 @@ export class AIQueryApi extends NVMBackendApi {
 
   /**
    * It retrieves all the tasks that the agent needs to execute to complete the different tasks assigned.
+   *
+   * @remarks
+   * This method is used by the AI Agent to retrieve information about the tasks created by users to the agents owned by the user
+   *
    * @returns The tasks of the agents
    */
   async getTasksFromAgents() {
