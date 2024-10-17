@@ -1,9 +1,11 @@
 export interface EnvironmentInfo {
   frontend: string
   backend: string
+  websocketBackend: string
+  proxy: string
 }
 
-export type EnvironmentName = 'local' | 'appStaging' | 'appTesting' | 'appArbitrum' | 'appPeaq'
+export type EnvironmentName = 'local' | 'staging' | 'testing' | 'arbitrum' | 'peaq' | 'custom'
 
 /**
  * Represents the different environments and their corresponding URLs.
@@ -14,34 +16,53 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
    */
   local: {
     frontend: 'http://localhost:3000',
-    backend: 'http://localhost:3200',
+    backend: 'http://localhost:3001',
+    websocketBackend: 'ws://localhost:3001',
+    proxy: 'https://localhost:443',
   },
   /**
    * The staging environment URLs.
    */
-  appStaging: {
+  staging: {
     frontend: 'https://staging.nevermined.app',
     backend: 'https://one-backend.staging.nevermined.app',
+    websocketBackend: 'wss://one-backend.staging.nevermined.app',
+    proxy: 'https://proxy.staging.nevermined.app',
   },
   /**
    * The testing environment URLs.
    */
-  appTesting: {
+  testing: {
     frontend: 'https://testing.nevermined.app',
     backend: 'https://one-backend.testing.nevermined.app',
+    websocketBackend: 'wss://one-backend.testing.nevermined.app',
+    proxy: 'https://proxy.testing.nevermined.app',
   },
   /**
    * The Arbitrum environment URLs.
    */
-  appArbitrum: {
+  arbitrum: {
     frontend: 'https://nevermined.app',
     backend: 'https://one-backend.arbitrum.nevermined.app',
+    websocketBackend: 'wss://one-backend.arbitrum.nevermined.app',
+    proxy: 'https://proxy.arbitrum.nevermined.app',
   },
-  /** 
+  /**
    * The Peaq network environment URLs.
    */
-  appPeaq: {
+  peaq: {
     frontend: 'https://peaq.nevermined.app',
     backend: 'https://one-backend.peaq.nevermined.app',
+    websocketBackend: 'wss://one-backend.peaq.nevermined.app',
+    proxy: 'https://proxy.peaq.nevermined.app',
+  },
+  /**
+   * A custom environment URLs.
+   */
+  custom: {
+    frontend: process.env.NVM_FRONTEND_URL || 'http://localhost:3000',
+    backend: process.env.NVM_BACKEND_URL || 'http://localhost:3001',
+    websocketBackend: process.env.NVM_WSBACKEND_URL || 'ws://localhost:3001',
+    proxy: process.env.NVM_PROXY_URL || 'https://localhost:443',
   },
 }
