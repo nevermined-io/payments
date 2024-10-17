@@ -11,26 +11,31 @@ import { isEthereumAddress, jsonReplacer } from './common/utils'
  */
 export interface PaymentOptions {
   /**
-   * The environment to connect to.
+   * The Nevermined environment to connect to. 
+   * If you are developing an agent it's recommended to use the "testing" environment.
+   * When deploying to production use the "arbitrum" environment.
    */
   environment: EnvironmentName
 
   /**
-   * The Nevermined API Key
+   * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
+   * You can get your API key by logging in to the Nevermined App.
+   * @see https://docs.nevermined.app/docs/tutorials/integration/nvm-api-keys
    */
   nvmApiKey?: string
+
   /**
    * The URL to return to the app after a successful login.
    */
   returnUrl?: string
 
   /**
-   * The app id.
+   * The app id. This attribute is optional and helps to associate assets registered into Nevermined with a common identifier.
    */
   appId?: string
 
   /**
-   * The version of the library.
+   * The version of the API to use.
    */
   version?: string
 }
@@ -41,6 +46,7 @@ export interface Endpoint {
 
 /**
  * Main class that interacts with the Nevermined payments API.
+ * To get an instance of this class use the `getInstance` method.
  */
 export class Payments {
   public query!: AIQueryApi
@@ -122,6 +128,9 @@ export class Payments {
     }
   }
 
+  /**
+   * It parses the NVM API Key to get the account address.
+   */
   private parseNvmApiKey() {
     try {
       const jwt = decodeJwt(this.nvmApiKey!)
@@ -132,6 +141,9 @@ export class Payments {
     }
   }
 
+  /**
+   * Initializes the AI Query Protocol API.
+   */
   private initializeApi() {
     this.query = new AIQueryApi({
       backendHost: this.environment.backend,
@@ -243,7 +255,7 @@ export class Payments {
 
   /**
    *
-   * Create a subscription on Nevermined.
+   * Creates a Payment Plan on Nevermined.
    *
    * @param name - The name of the subscription.
    * @param description - A description of what the subscription offers.
