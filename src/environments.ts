@@ -5,6 +5,8 @@ export interface EnvironmentInfo {
   proxy: string
 }
 
+export const ZeroAddress = '0x0000000000000000000000000000000000000000'
+
 export type EnvironmentName = 'local' | 'staging' | 'testing' | 'arbitrum' | 'peaq' | 'custom'
 
 /**

@@ -11,7 +11,7 @@ import { isEthereumAddress, jsonReplacer } from './common/utils'
  */
 export interface PaymentOptions {
   /**
-   * The Nevermined environment to connect to. 
+   * The Nevermined environment to connect to.
    * If you are developing an agent it's recommended to use the "testing" environment.
    * When deploying to production use the "arbitrum" environment.
    */
@@ -255,29 +255,38 @@ export class Payments {
 
   /**
    *
-   * Creates a Payment Plan on Nevermined.
+   * It allows to an AI Builder to create a Payment Plan on Nevermined based on Credits.
+   * A Nevermined Credits Plan limits the access by the access/usage of the Plan.
+   * With them, AI Builders control the number of requests that can be made to an agent or service.
+   * Every time a user accesses any resouce associated to the Payment Plan, the usage consumes from a capped amount of credits.
+   * When the user consumes all the credits, the plan automatically expires and the user needs to top up to continue using the service.
    *
-   * @param name - The name of the subscription.
-   * @param description - A description of what the subscription offers.
-   * @param price - The price of the subscription.
-   * @param tokenAddress - The ERC-20 token address of the currency used to price the subscription.
-   * Using the zero address will use the chain's native currency instead.
-   * @param amountOfCredits - The amount of credits associated with the credit based subscription.
+   * @remarks
+   *
+   * This method is oriented to AI Builders
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   *
+   * @param name - The name of the plan.
+   * @param description - A description of what the plan offers.
+   * @param price - The price of the plan. It must be given in the lowest denomination of the currency.
+   * @param tokenAddress - The address of the ERC20 contract used for the payment. Using the `ZeroAddress` will use the chain's native currency instead.
+   * @param amountOfCredits - The number of credits that are transferred to the user when purchases the plan.
    * @param tags - An array of tags or keywords that best fit the subscription.
    *
    * @example
    * ```
-   *  const { did } = await payments.createSubscription({
-   *    name: "test subscription",
-   *    description: "test",
+   *  const { did } = await payments.createCreditsPlan({
+   *    name: "My AI Payments Plan",
+   *    description: "AI stuff",
    *    price: 10000000n,
    *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-   *    duration: 30,
+   *    amountOfCredits: 30,
    *    tags: ["test"]
    *   }
    * ```
    *
-   * @returns The DID of the newly created subscription.
+   * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
    */
   public async createCreditsPlan({
     name,
@@ -356,22 +365,29 @@ export class Payments {
 
   /**
    *
-   * Create a subscription on Nevermined.
+   * It allows to an AI Builder to create a Payment Plan on Nevermined based on Time.
+   * A Nevermined Time Plan limits the access by the a specific amount of time.
+   * With them, AI Builders can specify the duration of the Payment Plan (1 month, 1 year, etc.).
+   * When the time period is over, the plan automatically expires and the user needs to renew it.
    *
-   * @param name - The name of the subscription.
-   * @param description - A description of what the subscription offers.
-   * @param price - The price of the subscription.
-   * @param tokenAddress - The ERC-20 token address of the currency used to price the subscription.
-   * Using the zero address will use the chain's native currency instead.
-   * @param duration - The duration of the subscription in days.
-   * If `duration` is left undefined an unlimited time duration subscription will be created.
+   * @remarks
+   *
+   * This method is oriented to AI Builders
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   *
+   * @param name - The name of the plan.
+   * @param description - A description of what the plan offers.
+   * @param price - The price of the plan. It must be given in the lowest denomination of the currency.
+   * @param tokenAddress - The address of the ERC20 contract used for the payment. Using the `ZeroAddress` will use the chain's native currency instead.
    * @param tags - An array of tags or keywords that best fit the subscription.
-   * @param nvmApiKey - The NVM API key to use for the request.
+   * @param duration - The duration of the plan in days. If `duration` is left undefined an unlimited time duration subscription will be created.
+   * @param tags - An array of tags or keywords that best fit the subscription.
    *
    * @example
    * ```
-   *  const { did } = await payments.createSubscription({
-   *    name: "test subscription",
+   *  const { did } = await payments.createTimePlan({
+   *    name: "My 1 year Plan",
    *    description: "test",
    *    price: 10000000n,
    *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
@@ -380,7 +396,7 @@ export class Payments {
    *   }
    * ```
    *
-   * @returns The DID of the newly created subscription.
+   * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
    */
   public async createTimePlan({
     name,
@@ -456,33 +472,41 @@ export class Payments {
   }
 
   /**
-   * Creates a service.
+   * It creates a new AI Agent or Service on Nevermined.
+   * The agent/service must be associated to a Payment Plan. Users that are subscribers of a payment plan can access the agent/service.
+   * Depending on the Payment Plan and the configuration of the agent/service, the usage of the agent/service will consume credits.
+   * When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue using the agent/service.
    *
-   * @param subscriptionDid - The subscription DID.
-   * @param name - The name of the service.
-   * @param description - The description of the service.
-   * @param amountOfCredits - The amount of credits.
-   * @param tags - The tags associated with the service.
+   * @remarks
+   *
+   * This method is oriented to AI Builders
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
+   *
+   * @param planDID - The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
+   * @param name - The name of the AI Agent/Service.
+   * @param description - The description of the AI Agent/Service.
+   * @param tags - The tags describing the AI Agent/Service.
    * @param serviceType - The service type ('service', 'agent', or 'assistant').
    * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
+   * @param amountOfCredits - The amount of credits to charge per request to the agent.
    * @param minCreditsToCharge - The minimum credits to charge.
    * @param maxCreditsToCharge - The maximum credits to charge.
-   * @param authType - The authentication type ('none', 'basic', or 'oauth').
-   * @param username - The username for authentication.
-   * @param password - The password for authentication.
-   * @param token - The token for authentication.
-   * @param endpoints - The endpoints of the service.
-   * @param openEndpoints - The open endpoints of the service.
-   * @param openApiUrl - The OpenAPI URL.
-   * @param integration - The integration details.
-   * @param sampleLink - The sample link.
-   * @param apiDescription - The API description.
+   * @param authType - The upstream agent/service authentication type ('none', 'basic', 'bearer' or 'oauth').
+   * @param username - The upstream agent/service username for authentication. Only if `authType` is 'basic'.
+   * @param password - The upstream agent/service password for authentication. Only if `authType` is 'basic'.
+   * @param token - The upstream agent/service bearer token for authentication. Only if `authType` is 'bearer' or 'oauth'.
+   * @param endpoints - The list endpoints of the upstream service. All these endpoints are protected and only accessible to subscribers of the Payment Plan.
+   * @param openEndpoints - The list of endpoints of the upstream service that publicly available. The access to these endpoints don't require subscription to the Payment Plan. They are useful to expose documentation, etc.
+   * @param openApiUrl - The URL to the OpenAPI description of the Upstream API. The access to the OpenAPI definition don't require subscription to the Payment Plan.
+   * @param integration - Some description or instructions about how to integrate the Agent.
+   * @param sampleLink - A link to some same usage of the Agent.
+   * @param apiDescription - Text describing the API of the Agent.
    * @param curation - The curation details.
-   * @param nvmApiKey - The NVM API key to use for the request.
-   * @returns A promise that resolves to the created service DID.
+   * @returns A promise that resolves to the created agent DID.
    */
   public async createService({
-    subscriptionDid,
+    planDID,
     name,
     description,
     amountOfCredits,
@@ -503,7 +527,7 @@ export class Payments {
     apiDescription,
     curation,
   }: {
-    subscriptionDid: string
+    planDID: string
     name: string
     description: string
     serviceType: 'service' | 'agent' | 'assistant'
@@ -583,7 +607,7 @@ export class Payments {
         serviceType: 'nft-access',
         nft: {
           amount: amountOfCredits ? amountOfCredits : 1,
-          tokenId: subscriptionDid,
+          tokenId: planDID,
           minCreditsToCharge,
           minCreditsRequired: minCreditsToCharge,
           maxCreditsToCharge,
@@ -594,7 +618,7 @@ export class Payments {
     const body = {
       metadata,
       serviceAttributes,
-      subscriptionDid,
+      subscriptionDid: planDID,
     }
     console.log(JSON.stringify(body, jsonReplacer))
     const options = {
@@ -617,34 +641,39 @@ export class Payments {
   }
 
   /**
-   * Creates a file with the specified parameters.
+   * It creates a new asset with file associated to it.
+   * The file asset must be associated to a Payment Plan. Users that are subscribers of a payment plan can download the files attached to it.
+   * Depending on the Payment Plan and the configuration of the file asset, the download will consume credits.
+   * When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue downloading the files.
    *
-   * @param subscriptionDid - The subscription DID.
-   * @param assetType - The type of asset.
+   * @remarks
+   *
+   * This method is oriented to AI Builders
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/register-file-asset
+   *
+   * @param planDID - The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
+   * @param assetType - The type of asset ('dataset' | 'algorithm' | 'model' | 'file' | 'other')
    * @param name - The name of the file.
    * @param description - The description of the file.
-   * @param files - The array of files.
-   * @param amountOfCredits - The amount of credits.
-   * @param duration - The duration of the file.
-   * @param tags - The array of tags.
-   * @param dataSchema - The data schema.
-   * @param sampleCode - The sample code.
+   * @param files - The array of files that can be downloaded for users that are subscribers of the Payment Plan.
+   * @param amountOfCredits - The cost in credits of downloading a file. This parameter is only required if the Payment Plan attached to the file is based on credits.
+   * @param tags - The array of tags describing the file.
+   * @param dataSchema - The data schema of the files.
+   * @param sampleCode - Some sample code related to the file.
    * @param filesFormat - The format of the files.
    * @param usageExample - The usage example.
-   * @param programmingLanguage - The programming language.
-   * @param framework - The framework.
-   * @param task - The task.
+   * @param programmingLanguage - The programming language used in the files.
+   * @param framework - The framework used for creating the file.
+   * @param task - The task creating the file.
    * @param trainingDetails - The training details.
    * @param variations - The variations.
    * @param fineTunable - Indicates if the file is fine-tunable.
-   * @param minCreditsToCharge - The minimum credits to charge.
-   * @param maxCreditsToCharge - The maximum credits to charge.
    * @param curation - The curation object.
-   * @param nvmApiKey - The NVM API key to use for the request.
    * @returns The promise that resolves to the created file's DID.
    */
   public async createFile({
-    subscriptionDid,
+    planDID,
     assetType,
     name,
     description,
@@ -663,8 +692,8 @@ export class Payments {
     fineTunable,
     curation,
   }: {
-    subscriptionDid: string
-    assetType: string
+    planDID: string
+    assetType: 'dataset' | 'algorithm' | 'model' | 'file' | 'other'
     name: string
     description: string
     files: object[]
@@ -717,7 +746,7 @@ export class Payments {
       {
         serviceType: 'nft-access',
         nft: {
-          tokenId: subscriptionDid,
+          tokenId: planDID,
           amount: amountOfCredits ? amountOfCredits : 1,
           nftTransfer: false,
         },
@@ -726,7 +755,7 @@ export class Payments {
     const body = {
       metadata,
       serviceAttributes,
-      subscriptionDid,
+      subscriptionDid: planDID,
     }
     const options = {
       method: 'POST',
@@ -748,9 +777,12 @@ export class Payments {
   }
 
   /**
-   * Get the DDO for a given DID.
+   * Get the Metadata (aka Decentralized Document or DDO) for a given asset identifier (DID).
    *
-   * @param did - The DID of the asset.
+   * @see https://docs.nevermined.io/docs/architecture/specs/Spec-DID
+   * @see https://docs.nevermined.io/docs/architecture/specs/Spec-METADATA
+   *
+   * @param did - The unique identifier (aka DID) of the asset (payment plan, agent, file, etc).
    * @returns A promise that resolves to the DDO.
    */
   public async getAssetDDO(did: string) {
@@ -764,14 +796,14 @@ export class Payments {
   }
 
   /**
-   * Get array of services DIDs associated with a subscription.
+   * Get array of services/agent DIDs associated with a payment plan.
    *
-   * @param did - The DID of the asset.
-   * @returns A promise that resolves to the array of services DIDs.
+   * @param planDID - The DID of the Payment Plan.
+   * @returns A promise that resolves to the array of services/agents DIDs.
    */
-  public async getSubscriptionAssociatedServices(subscriptionDid: string) {
+  public async getPlanAssociatedServices(planDID: string) {
     const url = new URL(
-      `/api/v1/payments/subscription/services/${subscriptionDid}`,
+      `/api/v1/payments/subscription/services/${planDID}`,
       this.environment.backend,
     )
     const response = await fetch(url)
@@ -782,16 +814,13 @@ export class Payments {
   }
 
   /**
-   * Get array of files DIDs associated with a subscription.
+   * Get array of files DIDs associated with a payment plan.
    *
-   * @param did - The DID of the asset.
+   * @param planDID - The DID of the Payment Plan.
    * @returns A promise that resolves to array of files DIDs.
    */
-  public async getSubscriptionAssociatedFiles(subscriptionDid: string) {
-    const url = new URL(
-      `/api/v1/payments/subscription/files/${subscriptionDid}`,
-      this.environment.backend,
-    )
+  public async getPlanAssociatedFiles(planDID: string) {
+    const url = new URL(`/api/v1/payments/subscription/files/${planDID}`, this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
@@ -800,14 +829,14 @@ export class Payments {
   }
 
   /**
-   * Get the balance of an account for a subscription.
+   * Get the balance of an account for a Payment Plan.
    *
-   * @param subscriptionDid - The subscription DID of the service to be published.
+   * @param planDID - The Payment Plan DID of the service to be published.
    * @param accountAddress - The address of the account to get the balance.
    * @returns A promise that resolves to the balance result.
    */
-  public async getSubscriptionBalance(
-    subscriptionDid: string,
+  public async getPlanBalance(
+    planDID: string,
     accountAddress?: string,
   ): Promise<{
     subscriptionType: string
@@ -815,9 +844,9 @@ export class Payments {
     balance: bigint
     isSubscriptor: boolean
   }> {
-    console.log('getSubscriptionBalance', subscriptionDid, accountAddress)
+    console.log('getSubscriptionBalance', planDID, accountAddress)
     const body = {
-      subscriptionDid,
+      subscriptionDid: planDID,
       accountAddress: isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress,
     }
     console.log(body)
@@ -841,9 +870,18 @@ export class Payments {
 
   /**
    * Get the required configuration for accessing a remote service agent.
-   * This configuration includes the JWT access token and the Proxy url.
+   * This configuration includes:
+   * - The JWT access token
+   * - The Proxy url that can be used to query the agent/service.
    *
-   * @param did - The DID of the service.
+   * @example
+   * ```
+   * const accessConfig = await payments.getServiceAccessConfig(agentDID)
+   * console.log(`Agent JWT Token: ${accessConfig.accessToken}`)
+   * console.log(`Agent Proxy URL: ${accessConfig.neverminedProxyUri}`)
+   * ```
+   *
+   * @param did - The DID of the agent/service.
    * @returns A promise that resolves to the service token.
    */
   public async getServiceAccessConfig(did: string): Promise<{
@@ -868,17 +906,20 @@ export class Payments {
   }
 
   /**
-   * Orders a subscription.
+   * Orders a Payment Plan. The user needs to have enough balance in the token selected by the owner of the Payment Plan.
    *
-   * @param subscriptionDid - The subscription DID.
-   * @param agreementId - The agreement ID.
+   * @remarks
+   * The payment is done using Crypto. Payments using Fiat can be done via the Nevermined App.
+   *
+   * @param planDID - The Payment Plan DID of the service to be published.
+   * @param agreementId - The unique identifier of the purchase transaction (aka agreement ID). When this parameter is given, it assumes there is a previous payment step and will request the payment plan.
    * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
    */
   public async orderSubscription(
-    subscriptionDid: string,
+    planDID: string,
     agreementId?: string,
   ): Promise<{ agreementId: string; success: boolean }> {
-    const body = { subscriptionDid, agreementId }
+    const body = { subscriptionDid: planDID, agreementId }
     const options = {
       method: 'POST',
       headers: {
@@ -901,17 +942,16 @@ export class Payments {
    * Downloads files for a given DID asset.
    *
    * @param did - The DID of the file.
-   * @param nvmApiKey - The NVM API key to use for the request.
    * @returns A promise that resolves to the JSON response from the server.
    */
-  public async downloadFiles(fileDid: string, nvmApiKey?: string) {
+  public async downloadFiles(fileDid: string) {
     const body = { fileDid }
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -933,22 +973,29 @@ export class Payments {
     fileDownload(buff, filename)
     const destination = process.cwd()
 
-    const d = path.join(destination, filename)
-    return d
-    // return response.json()
+    return path.join(destination, filename)
   }
 
   /**
    * Redirects the user to the subscription details for a given DID.
-   * @param did - The DID (Decentralized Identifier) of the subscription.
+   * @remarks
+   *
+   * This method is only for browser instances.
+   *
+   * @param planDID - The DID (Decentralized Identifier) of the plan.
    */
-  public getSubscriptionDetails(did: string) {
-    const url = new URL(`/en/subscription/${did}`, this.environment.frontend)
+  public getPlanDetails(planDID: string) {
+    const url = new URL(`/en/subscription/${planDID}`, this.environment.frontend)
     window.location.href = url.toString()
   }
 
   /**
    * Redirects the user to the service details for a given DID.
+   *
+   * @remarks
+   *
+   * This method is only for browser instances.
+   *
    * @param did - The DID (Decentralized Identifier) of the service.
    */
   public getServiceDetails(did: string) {
@@ -958,6 +1005,11 @@ export class Payments {
 
   /**
    * Redirects the user to the file details for the specified DID (Decentralized Identifier).
+   *
+   * @remarks
+   *
+   * This method is only for browser instances.
+   *
    * @param did - The DID of the file.
    */
   public getFileDetails(did: string) {
@@ -967,6 +1019,11 @@ export class Payments {
 
   /**
    * Redirects the user to the subscription checkout page for the specified DID.
+   *
+   * @remarks
+   *
+   * This method is only for browser instances.
+   *
    * @param did - The DID (Decentralized Identifier) of the item to be subscribed to.
    */
   public checkoutSubscription(did: string) {
@@ -975,22 +1032,26 @@ export class Payments {
   }
 
   /**
-   * Mint credits for a given DID and transfer them to a receiver.
-   * @param did - The DID (Decentralized Identifier) of the asset.
-   * @param nftAmount - The amount of NFT (Non-Fungible Token) credits to mint.
+   * Mint credits for a given Payment Plan DID and transfer them to a receiver.
+   *
+   * @remarks
+   *
+   * This method is only can be called by the owner of the Payment Plan.
+   *
+   * @param planDID - The DID (Decentralized Identifier) of the asset.
+   * @param creditsAmount - The amount of NFT (Non-Fungible Token) credits to mint.
    * @param receiver - The address of the receiver where the credits will be transferred.
-   * @param nvmApiKey - (Optional) The NVM (Nevermined Vault Manager) API key to use for authorization.
    * @returns A Promise that resolves to the JSON response from the server.
    * @throws Error if the server response is not successful.
    */
-  public async mintCredits(did: string, nftAmount: string, receiver: string, nvmApiKey?: string) {
-    const body = { did, nftAmount, receiver }
+  public async mintCredits(planDID: string, creditsAmount: string, receiver: string) {
+    const body = { did: planDID, nftAmount: creditsAmount, receiver }
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }
@@ -1004,22 +1065,25 @@ export class Payments {
   }
 
   /**
-   * Burn credits for a given DID.
+   * Burn credits for a given Payment Plan DID.
    *
-   * @param did - The DID (Decentralized Identifier) of the asset.
-   * @param nftAmount - The amount of NFT (Non-Fungible Token) credits to burn.
-   * @param nvmApiKey - (Optional) The NVM (Nevermined Vault Manager) API key to use for authorization.
+   * @remarks
+   *
+   * This method is only can be called by the owner of the Payment Plan.
+   *
+   * @param planDID - The DID (Decentralized Identifier) of the asset.
+   * @param creditsAmount - The amount of NFT (Non-Fungible Token) credits to burn.
    * @returns A Promise that resolves to the JSON response from the server.
    * @throws Error if the server response is not successful.
    */
-  public async burnCredits(did: string, nftAmount: string, nvmApiKey?: string) {
-    const body = { did, nftAmount }
+  public async burnCredits(planDID: string, creditsAmount: string) {
+    const body = { did: planDID, nftAmount: creditsAmount }
     const options = {
       method: 'POST',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${nvmApiKey || this.nvmApiKey}`,
+        Authorization: `Bearer ${this.nvmApiKey}`,
       },
       body: JSON.stringify(body),
     }

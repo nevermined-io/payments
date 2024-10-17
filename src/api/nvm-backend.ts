@@ -5,18 +5,58 @@ import { isEthereumAddress, sleep } from '../common/utils'
 import { AgentExecutionStatus } from '../common/types'
 
 export interface BackendApiOptions {
+  /**
+   * The host of the backend server
+   */
   backendHost: string
+
+  /**
+   * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
+   * You can get your API key by logging in to the Nevermined App.
+   * @see https://docs.nevermined.app/docs/tutorials/integration/nvm-api-keys
+   */
   apiKey?: string
+
+  /**
+   * The host of the websocket server
+   */
   webSocketHost?: string
+
+  /**
+   * The host of the Nevermined Proxy
+   */
   proxyHost?: string
+
+  /**
+   * Additional headers to send with the requests
+   */
   headers?: { [key: string]: string }
+
+  /**
+   * Configuration of the websocket connection
+   */
   webSocketOptions?: BackendWebSocketOptions
 }
 
 export interface BackendWebSocketOptions {
+  /**
+   * The path to connect to the websocket server
+   */
   path?: string
+
+  /**
+   * The websocket transports to use
+   */
   transports?: string[]
+
+  /**
+   * The bearer token to use in the websocket connection
+   */
   bearerToken?: string
+
+  /**
+   * Additional options to pass to the websocket transport
+   */
   transportOptions?: { [key: string]: any }
 }
 
