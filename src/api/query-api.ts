@@ -7,7 +7,8 @@ import {
   SubscriptionOptions,
 } from './nvm-backend'
 
-export const SEARCH_TASKS_ENDPOINT = '/api/v1/agents/search'
+export const SEARCH_TASKS_ENDPOINT = '/api/v1/agents/search/tasks'
+export const SEARCH_STEPS_ENDPOINT = '/api/v1/agents/search/steps'
 export const CREATE_STEPS_ENDPOINT = '/api/v1/agents/{did}/tasks/{taskId}/steps'
 export const UPDATE_STEP_ENDPOINT = '/api/v1/agents/{did}/tasks/{taskId}/step/{stepId}'
 export const GET_AGENTS_ENDPOINT = '/api/v1/agents'
@@ -115,6 +116,15 @@ export class AIQueryApi extends NVMBackendApi {
    */
   async searchTasks(searchParams: any) {
     return this.post(SEARCH_TASKS_ENDPOINT, searchParams, { sendThroughProxy: false })
+  }
+
+  /**
+   * It search steps based on the search parameters
+   * @param searchParams - The search parameters
+   * @returns The result of the search query
+   */
+  async searchSteps(searchParams: any) {
+    return this.post(SEARCH_STEPS_ENDPOINT, searchParams, { sendThroughProxy: false })
   }
 
   /**

@@ -28,6 +28,11 @@ describe('Payments API (e2e)', () => {
   let accessToken: string
   let proxyHost: string
   let subscriberQueryOpts = {}
+  let balanceBefore: bigint
+  let completedTaskId: string
+  let completedTaskDID: string
+  let failedTaskId: string
+  let failedTaskDID: string
   describe('Payments Setup', () => {
     it('The Payments client can be initialized correctly', () => {
       paymentsSubscriber = Payments.getInstance({ 
@@ -189,6 +194,7 @@ describe('Payments API (e2e)', () => {
       console.log('Balance Result', balanceResult)
       expect(balanceResult.isSubscriptor).toBeTruthy()
       expect(BigInt(balanceResult.balance)).toBeGreaterThan(0)
+      balanceBefore = BigInt(balanceResult.balance)
     })
 
     it('I should be able to create a AI Task', async () => {
@@ -216,8 +222,8 @@ describe('Payments API (e2e)', () => {
   })
   
   describe('AI Builder Agent', () => {
-    let completedTaskId: string
-    let completedTaskDID: string
+
+    let taskCost: bigint
     it('Builder should be able to fetch pending tasks', async () => {
       const steps = await paymentsBuilder.query.getSteps(AgentExecutionStatus.Pending)
       expect(steps).toBeDefined()
@@ -235,23 +241,42 @@ describe('Payments API (e2e)', () => {
       }
       await paymentsBuilder.query.subscribe(async (data) => {
         console.log('TEST:: Step received', data)
-        expect(data).toBeDefined()                
-        const step = JSON.parse(data)
-        console.log(step)
+        expect(data).toBeDefined()
+        const eventData = JSON.parse(data)
+        expect(eventData.step_id).toBeDefined()
+        
+        
         
         stepsReceived++
-        const result = await paymentsBuilder.query.updateStep(step.did, step.task_id, step.step_id, { 
-          step_id: step.step_id,
-          task_id: step.task_id,
-          step_status: AgentExecutionStatus.Completed,
-          is_last: true,
-          output: 'LFG!',
-          cost: 1
-        })
-        // expect(result.status).toBe(201)   
-        if (result.status === 201) {
-          completedTaskId = step.task_id
-          completedTaskDID = step.did
+        let result
+        const searchResult = await paymentsBuilder.query.searchSteps({ step_id: eventData.step_id })
+        expect(searchResult.data.steps).toBeDefined()
+        const step = searchResult.data.steps[0]
+        if (step.input_query.startsWith('http')) {
+          console.log(`LISTENER :: Received URL ${step.input_query}`)
+          result = await paymentsBuilder.query.updateStep(step.did, step.task_id, step.step_id, { 
+            step_id: step.step_id,
+            task_id: step.task_id,
+            step_status: AgentExecutionStatus.Completed,
+            is_last: true,
+            output: 'LFG!',
+            cost: 1
+          })
+          // expect(result.status).toBe(201)   
+          if (result.status === 201) {
+            completedTaskId = step.task_id
+            completedTaskDID = step.did
+          }
+        } else {
+          console.log(`LISTENER :: Received Invalid URL ${step.input_query}`)
+          result = await paymentsBuilder.query.updateStep(step.did, step.task_id, step.step_id, { 
+            step_id: step.step_id,
+            task_id: step.task_id,
+            step_status: AgentExecutionStatus.Failed,
+            is_last: true,
+            output: 'Invalid URL',
+            cost: 0
+          })          
         }
         
       }, opts)
@@ -290,9 +315,27 @@ describe('Payments API (e2e)', () => {
         subscriberQueryOpts
       )
       expect(result).toBeDefined()
-      console.log('Task with Steps', result)
+      // console.log('Task with Steps', result)
       expect(result.status).toBe(200)
       console.log('Task with Steps', result.data)
+      expect(result.data.task.cost).toBeDefined()
+      taskCost = BigInt(result.data.task.cost)
+      expect(taskCost).toBeGreaterThan(0)
+    })
+
+    it('I should be able to check that I consumed some credits', async () => {
+      const balanceResult = await paymentsSubscriber.getSubscriptionBalance(planDID)
+      expect(balanceResult).toBeDefined()
+      const balanceAfter = BigInt(balanceResult.balance)
+
+
+      expect(balanceAfter).toBeDefined()
+
+      console.log(`Balance Before: ${balanceBefore}`)
+      console.log(`Balance After: ${balanceAfter}`)
+      console.log(`Task Cost: ${taskCost}`)
+
+      expect(balanceAfter).toBeLessThan(balanceBefore)    
     })
 
     it.skip('I should be able to end a task with a failure', () => {
@@ -302,11 +345,56 @@ describe('Payments API (e2e)', () => {
 
 
   
-  describe.skip('Subscriber validates Results', () => {
-    it('I should be able to receive the results of a Task created', () => {
+  describe('Failed tasks are free of charge', () => {
+    it('I should be able to create a wrong AI Task', async () => {
+      const aiTask = {
+        query: "this is not a URL !!!!",
+        name: "transcribe",
+        "additional_params": [],
+        "artifacts": []
+      }
+      const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
+      accessToken = accessConfig.accessToken
+      proxyHost = accessConfig.neverminedProxyUri
+      subscriberQueryOpts = { 
+        accessToken,
+        proxyHost
+      }      
+
+      const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, subscriberQueryOpts)
+
+      expect(taskResult).toBeDefined()
+      expect(taskResult.status).toBe(201)
+      console.log('Task Result', taskResult.data)
+      failedTaskDID = taskResult.data.task.did
+      failedTaskId = taskResult.data.task.task_id
+      console.log(`Failed Task DID: ${failedTaskDID}`)
+      console.log(`Failed TaskId: ${failedTaskId}`)
+    }, TEST_TIMEOUT)
+
+    it('I should be able to validate an AI task Failed', async () => {
+      const result = await paymentsSubscriber.query.getTaskWithSteps(
+        failedTaskDID, 
+        failedTaskId, 
+        subscriberQueryOpts
+      )
+      expect(result).toBeDefined()
+      console.log('Task with Steps', result)      
+      expect(result.status).toBe(200)
+      // console.log('Task with Steps', result.data)
+      // expect(result.data.task.cost).toBeDefined()
+      // taskCost = BigInt(result.data.task.cost)
+      // expect(taskCost).toBeGreaterThan(0)
     })
 
-    it('I should be charged only by the exact number of credits consumed', () => {
+    it('I should be charged only by the exact number of credits consumed', async () => {
+      const balanceResult = await paymentsSubscriber.getSubscriptionBalance(planDID)
+      expect(balanceResult).toBeDefined()
+      const balanceAfter = BigInt(balanceResult.balance)
+      expect(balanceAfter).toBeDefined()
+
+      console.log(`Balance Before: ${balanceBefore}`)
+      console.log(`Balance After: ${balanceBefore}`)
     })
   })
 
