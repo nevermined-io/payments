@@ -53,7 +53,7 @@ The `init()` method should be called immediately after the app returns the user 
 
 ### Create a Payments Plan
 
-Once the app is initialized we can create a subscription:
+Once the app is initialized we can create a payment plan:
 
 ```typescript
 const planDID = await payments.createCreditsPlan({
