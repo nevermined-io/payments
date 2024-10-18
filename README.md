@@ -16,7 +16,16 @@ yarn add @nevermined-io/payments
 npm install @nevermined-io/payments
 ```
 
-### Initialize the payments library
+### Initialize the payments library (standalone)
+
+```typescript
+const payments = Payments.getInstance({ 
+        nvmApiKey: myBuilderNvmApiKey,
+        environment: "testing",        
+      })
+```
+
+### Initialize the payments library (browser)
 
 This is a browser only method. Here we have an example using react.
 For a full example please refer to [payments-nextjs-example](https://github.com/nevermined-io/tutorials/tree/main/payments-nextjs-example)
@@ -51,21 +60,16 @@ export default function Home() {
 
 The `init()` method should be called immediately after the app returns the user to `returnUrl`.
 
-### Create a subscription
+### Create a plan
 
-Once the app is initialized we can create a subscription:
+Once the app is initialized we can create a credits plan:
 
 ```typescript
-async function createSubscription() {
-  if (payments.isLoggedIn) {
-    const { did } = await payments.createSubscription({
-      name: 'test subscription',
-      description: 'test',
-      price: 10000000n,
-      tokenAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
-      duration: 30,
-      tags: ['test'],
-    })
-  }
-}
+await paymentsBuilder.createCreditsPlan({
+        name: 'E2E Payments Plan', 
+        description: 'description', 
+        price: 0n, 
+        tokenAddress: ERC20_ADDRESS,
+        amountOfCredits: 100
+      })
 ```

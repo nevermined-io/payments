@@ -140,7 +140,7 @@ describe('Payments API (e2e)', () => {
 
     it('I should be able to register a new Agent running on NVM Infrastructure', async () => {
       agentDID = (await paymentsBuilder.createService({
-        subscriptionDid: planDID,
+        planDID: planDID,
         name: 'E2E Payments Agent',
         description: 'description', 
         serviceType: 'agent',
@@ -165,7 +165,7 @@ describe('Payments API (e2e)', () => {
       url: 'https://storage.googleapis.com/nvm-static-assets/files/ci/ddo-example.json',
     }
     const fileDID = (await paymentsBuilder.createFile({
-      subscriptionDid: planDID,
+      planDID: planDID,
       name: 'E2E Payments File',
       description: 'description', 
       assetType: 'dataset',
@@ -189,7 +189,7 @@ describe('Payments API (e2e)', () => {
     }, TEST_TIMEOUT * 2)
 
     it('I should be able to check the credits I own', async () => {
-      const balanceResult = await paymentsSubscriber.getSubscriptionBalance(planDID)
+      const balanceResult = await paymentsSubscriber.getPlanBalance(planDID)
       expect(balanceResult).toBeDefined()
       console.log('Balance Result', balanceResult)
       expect(balanceResult.isSubscriptor).toBeTruthy()
@@ -324,7 +324,7 @@ describe('Payments API (e2e)', () => {
     })
 
     it('I should be able to check that I consumed some credits', async () => {
-      const balanceResult = await paymentsSubscriber.getSubscriptionBalance(planDID)
+      const balanceResult = await paymentsSubscriber.getPlanBalance(planDID)
       expect(balanceResult).toBeDefined()
       const balanceAfter = BigInt(balanceResult.balance)
 
@@ -388,7 +388,7 @@ describe('Payments API (e2e)', () => {
     })
 
     it('I should be charged only by the exact number of credits consumed', async () => {
-      const balanceResult = await paymentsSubscriber.getSubscriptionBalance(planDID)
+      const balanceResult = await paymentsSubscriber.getPlanBalance(planDID)
       expect(balanceResult).toBeDefined()
       const balanceAfter = BigInt(balanceResult.balance)
       expect(balanceAfter).toBeDefined()
