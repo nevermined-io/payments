@@ -492,7 +492,7 @@ export class Payments {
    * const agentDID = await paymentsBuilder.createService({
    *     planDID,
    *     name: 'E2E Payments Agent',
-   *     description: 'description', 
+   *     description: 'description',
    *     serviceType: 'agent',
    *     serviceChargeType: 'fixed',
    *     authType: 'bearer',
@@ -502,7 +502,7 @@ export class Payments {
    *     openEndpoints: ['https://example.com/api/v1/rest/docs-json']
    *   })
    * ```
-   * 
+   *
    * @param planDID - The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
    * @param name - The name of the AI Agent/Service.
    * @param description - The description of the AI Agent/Service.
