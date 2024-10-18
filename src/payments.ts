@@ -283,7 +283,7 @@ export class Payments {
    *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
    *    amountOfCredits: 30,
    *    tags: ["test"]
-   *   }
+   *   })
    * ```
    *
    * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
@@ -393,7 +393,7 @@ export class Payments {
    *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
    *    duration: 30,
    *    tags: ["test"]
-   *   }
+   *   })
    * ```
    *
    * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
@@ -483,6 +483,26 @@ export class Payments {
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
    *
+   * @example
+   * ```typescript
+   * const agentEndpoints: Endpoint[] = [
+   *   { 'POST': `https://example.com/api/v1/agents/(.*)/tasks` },
+   *   { 'GET': `https://example.com/api/v1/agents/(.*)/tasks/(.*)` }
+   * ]
+   * const agentDID = await paymentsBuilder.createService({
+   *     planDID,
+   *     name: 'E2E Payments Agent',
+   *     description: 'description', 
+   *     serviceType: 'agent',
+   *     serviceChargeType: 'fixed',
+   *     authType: 'bearer',
+   *     token: 'changeme',
+   *     amountOfCredits: 1,
+   *     endpoints: agentEndpoints,
+   *     openEndpoints: ['https://example.com/api/v1/rest/docs-json']
+   *   })
+   * ```
+   * 
    * @param planDID - The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
    * @param name - The name of the AI Agent/Service.
    * @param description - The description of the AI Agent/Service.
@@ -915,7 +935,7 @@ export class Payments {
    * @param agreementId - The unique identifier of the purchase transaction (aka agreement ID). When this parameter is given, it assumes there is a previous payment step and will request the payment plan.
    * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
    */
-  public async orderSubscription(
+  public async orderPlan(
     planDID: string,
     agreementId?: string,
   ): Promise<{ agreementId: string; success: boolean }> {

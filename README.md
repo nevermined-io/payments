@@ -16,16 +16,7 @@ yarn add @nevermined-io/payments
 npm install @nevermined-io/payments
 ```
 
-### Initialize the payments library (standalone)
-
-```typescript
-const payments = Payments.getInstance({ 
-        nvmApiKey: myBuilderNvmApiKey,
-        environment: "testing",        
-      })
-```
-
-### Initialize the payments library (browser)
+### Initialize the payments library
 
 This is a browser only method. Here we have an example using react.
 For a full example please refer to [payments-nextjs-example](https://github.com/nevermined-io/tutorials/tree/main/payments-nextjs-example)
@@ -60,16 +51,40 @@ export default function Home() {
 
 The `init()` method should be called immediately after the app returns the user to `returnUrl`.
 
-### Create a plan
+### Create a Payments Plan
 
-Once the app is initialized we can create a credits plan:
+Once the app is initialized we can create a subscription:
 
 ```typescript
-await paymentsBuilder.createCreditsPlan({
-        name: 'E2E Payments Plan', 
-        description: 'description', 
-        price: 0n, 
-        tokenAddress: ERC20_ADDRESS,
-        amountOfCredits: 100
-      })
+const planDID = await payments.createCreditsPlan({
+    name: "My AI Payments Plan",
+    description: "AI stuff",
+    price: 10000000n,
+    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    amountOfCredits: 30,
+    tags: ["test"]
+  })
 ```
+
+### Create an AI Agent/Service
+
+```typescript
+const agentEndpoints: Endpoint[] = [
+  { 'POST': `https://example.com/api/v1/agents/(.*)/tasks` },
+  { 'GET': `https://example.com/api/v1/agents/(.*)/tasks/(.*)` }
+]
+   
+const agentDID = await paymentsBuilder.createService({
+  planDID,
+  name: 'E2E Payments Agent',
+  description: 'description', 
+  serviceType: 'agent',
+  serviceChargeType: 'fixed',
+  authType: 'bearer',
+  token: 'changeme',
+  amountOfCredits: 1,
+  endpoints: agentEndpoints,
+  openEndpoints: ['https://example.com/api/v1/rest/docs-json']
+})
+```
+
