@@ -181,7 +181,7 @@ describe('Payments API (e2e)', () => {
 
   describe('Subscriber Order', () => {
     it('I should be able to order an Agent', async () => {
-      const orderResult = await paymentsSubscriber.orderSubscription(planDID)
+      const orderResult = await paymentsSubscriber.orderPlan(planDID)
       expect(orderResult).toBeDefined()
       expect(orderResult.success).toBeTruthy()
       expect(orderResult.agreementId).toBeDefined()

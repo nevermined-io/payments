@@ -29,6 +29,10 @@ jobs:
           yarn
           npm pack
 
+      - name: Update Docs
+        run: |
+          yarn run doc      
+
       - name: Update CHANGELOG.md
         id: changelog
         run: |
@@ -51,7 +55,16 @@ jobs:
             commit_branch=${commit_branch//[[:blank:]]/}
           fi
           commit_branch="${commit_branch//remotes\/origin\//}"
-          echo "COMMIT_BRANCH=${commit_branch}" >> $GITHUB_ENV
+          echo "COMMIT_BRANCH=${commit_branch}" >> $GITHUB_ENV    
+
+      - name: Commit Documentation
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Automated docs update
+          commit_options: '--no-verify --signoff'
+          file_pattern: docs/*
+          disable_globbing: true
+          branch: ${{ env.COMMIT_BRANCH }}
 
       - name: Commit CHANGELOG.md
         uses: stefanzweifel/git-auto-commit-action@v4
