@@ -501,6 +501,7 @@ export class Payments {
    * @param name - The name of the AI Agent/Service.
    * @param description - The description of the AI Agent/Service.
    * @param tags - The tags describing the AI Agent/Service.
+   * @param usesAIHub - If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
    * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
    * @param amountOfCredits - The amount of credits to charge per request to the agent.
    * @param minCreditsToCharge - The minimum credits to charge.
@@ -512,6 +513,9 @@ export class Payments {
    * @param endpoints - The list endpoints of the upstream service. All these endpoints are protected and only accessible to subscribers of the Payment Plan.
    * @param openEndpoints - The list of endpoints of the upstream service that publicly available. The access to these endpoints don't require subscription to the Payment Plan. They are useful to expose documentation, etc.
    * @param openApiUrl - The URL to the OpenAPI description of the Upstream API. The access to the OpenAPI definition don't require subscription to the Payment Plan.
+   * @param integration - Some description or instructions about how to integrate the Agent.
+   * @param sampleLink - A link to some same usage of the Agent.
+   * @param apiDescription - Text describing the API of the Agent.
    * @param curation - The curation details.
    * @returns A promise that resolves to the created agent DID.
    */
