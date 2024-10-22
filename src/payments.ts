@@ -4,7 +4,8 @@ import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
 import { decodeJwt } from 'jose'
 import { PaymentsError } from './common/payments.error'
 import { AIQueryApi } from './api/query-api'
-import { isEthereumAddress, jsonReplacer } from './common/helper'
+import { jsonReplacer } from './common/helper'
+import { isEthereumAddress } from './utils'
 import { getAIHubOpenApiUrl, getQueryProtocolEndpoints } from './utils'
 
 /**

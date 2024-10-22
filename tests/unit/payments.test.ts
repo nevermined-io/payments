@@ -1,5 +1,6 @@
+import { isEthereumAddress } from "../../src/utils"
 import { PaymentsError } from "../../src/common/payments.error"
-import { isEthereumAddress } from "../../src/common/utils"
+
 import { Payments } from "../../src/payments"
 
 describe('Payments (unit)', () => {

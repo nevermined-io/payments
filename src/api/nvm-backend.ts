@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { io } from 'socket.io-client'
 import { decodeJwt } from 'jose'
-import { isEthereumAddress, sleep } from '../common/helper'
 import { AgentExecutionStatus } from '../common/types'
+import { isEthereumAddress } from '../utils'
+import { sleep } from '../common/helper'
 
 export interface BackendApiOptions {
   /**

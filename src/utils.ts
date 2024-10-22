@@ -1,6 +1,11 @@
 import { v4 as uuidv4, validate as uuidValidate } from 'uuid'
 import { Endpoint } from './payments'
 
+export const isEthereumAddress = (address: string | undefined): boolean => {
+  if (address && address.match(/^0x[a-fA-F0-9]{40}$/) !== null) return true
+  return false
+}
+
 export const generateStepId = () => {
   return `step-${uuidv4()}`
 }
