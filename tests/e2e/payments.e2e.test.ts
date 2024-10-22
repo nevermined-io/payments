@@ -1,6 +1,6 @@
 import { EnvironmentName } from "../../src/environments"
 import { Endpoint, Payments } from "../../src/payments"
-import { sleep } from "../../src/common/utils"
+import { sleep } from "../../src/common/helper"
 import { AgentExecutionStatus } from "../../src/common/types"
 import { io } from "socket.io-client"
 
@@ -131,7 +131,7 @@ describe('Payments API (e2e)', () => {
         tokenAddress: ERC20_ADDRESS,
         amountOfCredits: 100
       })).did
-
+      
       expect(planDID).toBeDefined()
       expect(planDID.startsWith('did:nv:')).toBeTruthy()
       console.log('Plan DID', planDID)
@@ -204,13 +204,13 @@ describe('Payments API (e2e)', () => {
         "additional_params": [],
         "artifacts": []
       }
-      const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
-      accessToken = accessConfig.accessToken
-      proxyHost = accessConfig.neverminedProxyUri
-      subscriberQueryOpts = { 
-        accessToken,
-        proxyHost
-      }      
+      subscriberQueryOpts = await paymentsSubscriber.getServiceAccessConfig(agentDID)
+      // accessToken = accessConfig.accessToken
+      // proxyHost = accessConfig.neverminedProxyUri
+      // subscriberQueryOpts = { 
+      //   accessToken,
+      //   proxyHost
+      // }      
 
       const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, subscriberQueryOpts)
 
@@ -244,9 +244,7 @@ describe('Payments API (e2e)', () => {
         expect(data).toBeDefined()
         const eventData = JSON.parse(data)
         expect(eventData.step_id).toBeDefined()
-        
-        
-        
+                
         stepsReceived++
         let result
         const searchResult = await paymentsBuilder.query.searchSteps({ step_id: eventData.step_id })

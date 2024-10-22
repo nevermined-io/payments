@@ -4,7 +4,7 @@ import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
 import { decodeJwt } from 'jose'
 import { PaymentsError } from './common/payments.error'
 import { AIQueryApi } from './api/query-api'
-import { isEthereumAddress, jsonReplacer } from './common/utils'
+import { isEthereumAddress, jsonReplacer } from './common/helper'
 
 /**
  * Options to initialize the Payments class.
@@ -133,8 +133,7 @@ export class Payments {
    */
   private parseNvmApiKey() {
     try {
-      const jwt = decodeJwt(this.nvmApiKey!)
-      console.log(jwt)
+      const jwt = decodeJwt(this.nvmApiKey!)      
       this.accountAddress = jwt.sub
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
@@ -341,8 +340,7 @@ export class Payments {
       metadata,
       serviceAttributes,
     }
-    console.log(body)
-    console.log(JSON.stringify(body, jsonReplacer))
+
     const options = {
       method: 'POST',
       headers: {
@@ -352,7 +350,6 @@ export class Payments {
       },
       body: JSON.stringify(body, jsonReplacer),
     }
-    console.log(options)
     const url = new URL('/api/v1/payments/subscription', this.environment.backend)
 
     const response = await fetch(url, options)
@@ -387,7 +384,7 @@ export class Payments {
    * @example
    * ```
    *  const { did } = await payments.createTimePlan({
-   *    name: "My 1 year Plan",
+   *    name: "My 1 Month Plan",
    *    description: "test",
    *    price: 10000000n,
    *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
@@ -640,7 +637,6 @@ export class Payments {
       serviceAttributes,
       subscriptionDid: planDID,
     }
-    console.log(JSON.stringify(body, jsonReplacer))
     const options = {
       method: 'POST',
       headers: {
@@ -864,12 +860,10 @@ export class Payments {
     balance: bigint
     isSubscriptor: boolean
   }> {
-    console.log('getSubscriptionBalance', planDID, accountAddress)
     const body = {
       subscriptionDid: planDID,
       accountAddress: isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress,
     }
-    console.log(body)
     const options = {
       method: 'POST',
       headers: {
