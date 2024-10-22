@@ -165,7 +165,7 @@ export class NVMBackendApi {
       return
     }
     try {
-      // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}      
+      // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}
       this.socketClient = io(this.opts.webSocketHost!, this.opts.webSocketOptions)
       await this.socketClient.connect()
       for (let i = 0; i < 5; i++) {
@@ -176,7 +176,7 @@ export class NVMBackendApi {
       }
       if (!this.socketClient.connected) {
         throw new Error('Unable to connect to the websocket server')
-      }      
+      }
     } catch (error) {
       throw new Error(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
@@ -203,7 +203,7 @@ export class NVMBackendApi {
     // await this.socketClient.emit('subscribe-agent', '')
     await this.socketClient.on('connect', async () => {
       // nvm-backend:: On:: ${this.socketClient.id} Connected to the server
-    })    
+    })
     await this.socketClient.emit('_join-rooms', JSON.stringify(opts))
 
     // await this.socketClient.on('task-updated', (data: any) => {
@@ -211,7 +211,7 @@ export class NVMBackendApi {
     //   _callback(data)
     // })
     opts.subscribeEventTypes.forEach(async (eventType) => {
-      await this.socketClient.on(eventType, (data: any) => {        
+      await this.socketClient.on(eventType, (data: any) => {
         _callback(data)
       })
     })

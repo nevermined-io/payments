@@ -133,7 +133,7 @@ export class Payments {
    */
   private parseNvmApiKey() {
     try {
-      const jwt = decodeJwt(this.nvmApiKey!)      
+      const jwt = decodeJwt(this.nvmApiKey!)
       this.accountAddress = jwt.sub
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')

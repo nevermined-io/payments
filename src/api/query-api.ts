@@ -128,14 +128,14 @@ export class AIQueryApi extends NVMBackendApi {
    * @returns The result of the operation
    */
   async createTask(did: string, task: any, queryOpts: AIQueryOptions) {
-    const endpoint = TASK_ENDPOINT.replace('{did}', did)    
+    const endpoint = TASK_ENDPOINT.replace('{did}', did)
     const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
       ...(queryOpts.neverminedProxyUri && { proxyHost: queryOpts.neverminedProxyUri }),
       ...(queryOpts.accessToken && {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
-    }    
+    }
     return this.post(endpoint, task, reqOptions)
   }
 
@@ -262,7 +262,7 @@ export class AIQueryApi extends NVMBackendApi {
 
   /**
    * It retrieves the complete information of a specific step given a stepId
-   * 
+   *
    * @remarks
    * This method is used by the AI Agent to retrieve information about the steps part of tasks created by users to the agents owned by the user
    *
@@ -270,7 +270,7 @@ export class AIQueryApi extends NVMBackendApi {
    * ```
    * await paymentsBuilder.query.getStep('step-1234')
    * ```
-   * 
+   *
    * @param stepId - the id of the step to retrieve
    * @returns The complete step information
    */
