@@ -503,6 +503,7 @@ export class Payments {
    * @param description - The description of the AI Agent/Service.
    * @param tags - The tags describing the AI Agent/Service.
    * @param usesAIHub - If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
+   * @param implementsQueryProtocol - It the agent implements the Nevermined Query Protocol. @see https://docs.nevermined.io/docs/protocol/query-protocol
    * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
    * @param amountOfCredits - The amount of credits to charge per request to the agent.
    * @param minCreditsToCharge - The minimum credits to charge.
@@ -639,6 +640,8 @@ export class Payments {
    * @param name - The name of the AI Agent/Service.
    * @param description - The description of the AI Agent/Service.
    * @param tags - The tags describing the AI Agent/Service.
+   * @param usesAIHub - If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
+   * @param implementsQueryProtocol - It the agent implements the Nevermined Query Protocol. @see https://docs.nevermined.io/docs/protocol/query-protocol
    * @param serviceType - The service type ('service', 'agent', or 'assistant').
    * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
    * @param amountOfCredits - The amount of credits to charge per request to the agent.
@@ -737,6 +740,7 @@ export class Payments {
         webService: {
           endpoints: endpoints,
           openEndpoints: openEndpoints,
+          chargeType: serviceChargeType,
           isNeverminedHosted: usesAIHub,
           implementsQueryProtocol,
           ...(implementsQueryProtocol && { queryProtocolVersion: 'v1' }),
