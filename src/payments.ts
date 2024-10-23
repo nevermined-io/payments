@@ -4,7 +4,7 @@ import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
 import { decodeJwt } from 'jose'
 import { PaymentsError } from './common/payments.error'
 import { AIQueryApi } from './api/query-api'
-import { jsonReplacer } from './common/helper'
+import { getServiceHostFromEndpoints, jsonReplacer } from './common/helper'
 import { isEthereumAddress } from './utils'
 import { getAIHubOpenApiUrl, getQueryProtocolEndpoints } from './utils'
 
@@ -527,6 +527,7 @@ export class Payments {
     amountOfCredits,
     tags,
     usesAIHub,
+    implementsQueryProtocol,
     serviceChargeType,
     minCreditsToCharge,
     maxCreditsToCharge,
@@ -546,6 +547,7 @@ export class Payments {
     name: string
     description: string
     usesAIHub?: boolean
+    implementsQueryProtocol?: boolean
     serviceChargeType: 'fixed' | 'dynamic'
     authType?: 'none' | 'basic' | 'oauth' | 'bearer'
     amountOfCredits?: number
@@ -568,12 +570,19 @@ export class Payments {
       token = ''
       endpoints = getQueryProtocolEndpoints(this.environment.backend)
       openApiUrl = getAIHubOpenApiUrl(this.environment.backend)
+      implementsQueryProtocol = true
+    } else {
+      if (!endpoints) {
+        throw new PaymentsError('endpoints are required')
+      }
     }
 
     return this.createService({
       planDID,
       name,
       description,
+      usesAIHub,
+      implementsQueryProtocol,
       serviceType: 'agent',
       serviceChargeType,
       authType,
@@ -652,6 +661,8 @@ export class Payments {
     planDID,
     name,
     description,
+    usesAIHub,
+    implementsQueryProtocol,
     amountOfCredits,
     tags,
     serviceType,
@@ -673,6 +684,8 @@ export class Payments {
     planDID: string
     name: string
     description: string
+    usesAIHub?: boolean
+    implementsQueryProtocol?: boolean
     serviceType: 'service' | 'agent' | 'assistant'
     serviceChargeType: 'fixed' | 'dynamic'
     authType?: 'none' | 'basic' | 'oauth' | 'bearer'
@@ -724,6 +737,10 @@ export class Payments {
         webService: {
           endpoints: endpoints,
           openEndpoints: openEndpoints,
+          isNeverminedHosted: usesAIHub,
+          implementsQueryProtocol,
+          ...(implementsQueryProtocol && { queryProtocolVersion: 'v1' }),
+          serviceHost: getServiceHostFromEndpoints(endpoints!),
           internalAttributes: {
             authentication,
             headers: _headers,

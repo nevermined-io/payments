@@ -251,7 +251,7 @@ describe('Payments API (e2e)', () => {
         const step = searchResult.data.steps[0]
         if (step.input_query.startsWith('http')) {
           console.log(`LISTENER :: Received URL ${step.input_query}`)
-          result = await paymentsBuilder.query.updateStep(step.did, step.task_id, step.step_id, { 
+          result = await paymentsBuilder.query.updateStep(step.did, { 
             step_id: step.step_id,
             task_id: step.task_id,
             step_status: AgentExecutionStatus.Completed,
@@ -266,7 +266,7 @@ describe('Payments API (e2e)', () => {
           }
         } else {
           console.log(`LISTENER :: Received Invalid URL ${step.input_query}`)
-          result = await paymentsBuilder.query.updateStep(step.did, step.task_id, step.step_id, { 
+          result = await paymentsBuilder.query.updateStep(step.did, { 
             step_id: step.step_id,
             task_id: step.task_id,
             step_status: AgentExecutionStatus.Failed,

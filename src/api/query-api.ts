@@ -1,4 +1,4 @@
-import { AgentExecutionStatus } from '../common/types'
+import { AgentExecutionStatus, Step } from '../common/types'
 import {
   BackendApiOptions,
   DefaultSubscriptionOptions,
@@ -204,6 +204,7 @@ export class AIQueryApi extends NVMBackendApi {
    * const result = await payments.query.updateStep(step.did, step.task_id, step.step_id, {
    *         step_id: step.step_id,
    *         task_id: step.task_id,
+   *         did: step.did,
    *         step_status: AgentExecutionStatus.Completed,
    *         is_last: true,
    *         output: 'LFG!',
@@ -212,12 +213,14 @@ export class AIQueryApi extends NVMBackendApi {
    * ```
    *
    * @param did - Agent DID
-   * @param taskId - Task ID
-   * @param stepId - Step ID
    * @param step - The Step object to update. @see https://docs.nevermined.io/docs/protocol/query-protocol#steps-attributes
    * @returns The result of the operation
    */
-  async updateStep(did: string, taskId: string, stepId: string, step: any) {
+  async updateStep(did: string, step: Partial<Step>) {
+    const { task_id: taskId, step_id: stepId } = step
+    if (!taskId || !stepId)
+      throw new Error('The step object must contain the task_id and step_id attributes')
+
     const endpoint = UPDATE_STEP_ENDPOINT.replace('{did}', did)
       .replace('{taskId}', taskId)
       .replace('{stepId}', stepId)
