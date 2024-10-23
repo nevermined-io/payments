@@ -1,6 +1,6 @@
 {
   "name": "@nevermined-io/payments",
-  "version": "0.5.1",
+  "version": "0.5.3",
   "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.19",
+    "@types/uuid": "10.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.2",
     "@typescript-eslint/parser": "^7.0.2",
     "eslint": "^8.56.0",
@@ -51,6 +52,7 @@
     "socket.io-client": "4.7.5",
     "axios": "^1.7.7",
     "jose": "^5.2.4",
-    "js-file-download": "^0.4.12"
+    "js-file-download": "^0.4.12",
+    "uuid": "^10.0.0"
   }
 }

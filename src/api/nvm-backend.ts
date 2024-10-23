@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { io } from 'socket.io-client'
 import { decodeJwt } from 'jose'
-import { isEthereumAddress, sleep } from '../common/utils'
 import { AgentExecutionStatus } from '../common/types'
+import { isEthereumAddress } from '../utils'
+import { sleep } from '../common/helper'
 
 export interface BackendApiOptions {
   /**
@@ -161,12 +162,11 @@ export class NVMBackendApi {
       throw new Error('Unable to subscribe to the server becase a key was not provided')
 
     if (this.socketClient && this.socketClient.connected) {
-      console.log('nvm-backend:: Already connected to the websocket server')
+      // nvm-backend:: Already connected to the websocket server
       return
     }
     try {
-      console.log(`nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}`)
-      console.log(JSON.stringify(this.opts.webSocketOptions))
+      // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}
       this.socketClient = io(this.opts.webSocketHost!, this.opts.webSocketOptions)
       await this.socketClient.connect()
       for (let i = 0; i < 5; i++) {
@@ -178,7 +178,6 @@ export class NVMBackendApi {
       if (!this.socketClient.connected) {
         throw new Error('Unable to connect to the websocket server')
       }
-      console.log('is connected: ', this.socketClient.connected)
     } catch (error) {
       throw new Error(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
@@ -204,9 +203,8 @@ export class NVMBackendApi {
     await this.connectSocket()
     // await this.socketClient.emit('subscribe-agent', '')
     await this.socketClient.on('connect', async () => {
-      console.log(`nvm-backend:: On:: ${this.socketClient.id} Connected to the server`)
+      // nvm-backend:: On:: ${this.socketClient.id} Connected to the server
     })
-    console.log(`Subscription Options: ${JSON.stringify(opts)}`)
     await this.socketClient.emit('_join-rooms', JSON.stringify(opts))
 
     // await this.socketClient.on('task-updated', (data: any) => {
@@ -215,7 +213,6 @@ export class NVMBackendApi {
     // })
     opts.subscribeEventTypes.forEach(async (eventType) => {
       await this.socketClient.on(eventType, (data: any) => {
-        // console.log(`RECEIVED STEP data: ${JSON.stringify(data)}`)
         _callback(data)
       })
     })
@@ -223,13 +220,6 @@ export class NVMBackendApi {
 
   private async eventHandler(data: any, _callback: (err?: any) => any, _opts: SubscriptionOptions) {
     _callback(data)
-    // if (opts.subscribeEventTypes.length > 0) {
-    //   if (opts.subscribeEventTypes.includes(data.event)) {
-    //     _callback(data)
-    //   }
-    // } else {
-    //   _callback(data)
-    // }
   }
 
   protected async _emitStepEvents(
@@ -246,7 +236,7 @@ export class NVMBackendApi {
 
   disconnect() {
     this.disconnectSocket()
-    console.log('nvm-backend:: Disconnected from the server')
+    // nvm-backend:: Disconnected from the server
   }
 
   parseUrl(uri: string, reqOptions: HTTPRequestOptions) {
@@ -284,9 +274,6 @@ export class NVMBackendApi {
   }
 
   async post(url: string, data: any, reqOptions: HTTPRequestOptions) {
-    console.log('POST URL', this.parseUrl(url, reqOptions))
-    console.log('POST DATA', data)
-    console.log('POST HEADERS', this.parseHeaders(reqOptions.headers || {}))
     return axios({
       method: 'POST',
       url: this.parseUrl(url, reqOptions),

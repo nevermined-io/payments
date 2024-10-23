@@ -1,6 +1,8 @@
+import { isEthereumAddress } from "../../src/utils"
 import { PaymentsError } from "../../src/common/payments.error"
-import { isEthereumAddress } from "../../src/common/utils"
-import { Payments } from "../../src/payments"
+
+import { Endpoint, Payments } from "../../src/payments"
+import { getServiceHostFromEndpoints } from "../../src/common/helper"
 
 describe('Payments (unit)', () => {
 
@@ -31,6 +33,14 @@ describe('Payments (unit)', () => {
       expect(isEthereumAddress(undefined)).toBeFalsy()
     })
 
+    it('can get the service host from Endpoints[]', () => {    
+      const endpoints: Endpoint[] = [
+       { 'POST': `https://one-backend.testing.nevermined.app/api/v1/agents/(.*)/tasks` },
+       { 'GET': `https://one-backend.testing.nevermined.app/api/v1/agents/(.*)/tasks/(.*)` }
+      ]  
+      const serviceHost = getServiceHostFromEndpoints(endpoints)
+      expect(serviceHost).toEqual('https://one-backend.testing.nevermined.app')
+    })
   })
   
 })

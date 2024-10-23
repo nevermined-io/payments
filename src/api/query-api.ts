@@ -1,4 +1,4 @@
-import { AgentExecutionStatus } from '../common/types'
+import { AgentExecutionStatus, Step } from '../common/types'
 import {
   BackendApiOptions,
   DefaultSubscriptionOptions,
@@ -49,7 +49,7 @@ export class AIQueryOptions {
   /**
    * The Nevermined Proxy that needs to be used to interact with the AI Agent/Service.
    */
-  proxyHost?: string
+  neverminedProxyUri?: string
 }
 
 /**
@@ -78,15 +78,15 @@ export class AIQueryApi extends NVMBackendApi {
     opts: SubscriptionOptions = DefaultSubscriptionOptions,
   ) {
     await super._subscribe(_callback, opts).then(() => {
-      console.log('query-api:: Subscribed to server')
+      // query-api:: Subscribed to server
     })
     try {
       if (opts.getPendingEventsOnSubscribe) {
-        console.log('query-api:: Emitting pending events')
+        // query-api:: Emitting pending events
         await super._emitStepEvents(AgentExecutionStatus.Pending, opts.joinAgentRooms)
       }
     } catch {
-      console.warn('query-api:: Unable to get pending events')
+      // query-api:: Unable to get pending events
     }
   }
 
@@ -129,15 +129,13 @@ export class AIQueryApi extends NVMBackendApi {
    */
   async createTask(did: string, task: any, queryOpts: AIQueryOptions) {
     const endpoint = TASK_ENDPOINT.replace('{did}', did)
-    console.log('endpoint', endpoint)
     const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
-      ...(queryOpts.proxyHost && { proxyHost: queryOpts.proxyHost }),
+      ...(queryOpts.neverminedProxyUri && { proxyHost: queryOpts.neverminedProxyUri }),
       ...(queryOpts.accessToken && {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
     }
-    console.log('reqOptions', reqOptions)
     return this.post(endpoint, task, reqOptions)
   }
 
@@ -172,12 +170,11 @@ export class AIQueryApi extends NVMBackendApi {
   async getTaskWithSteps(did: string, taskId: string, queryOpts: AIQueryOptions) {
     const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
-      ...(queryOpts.proxyHost && { proxyHost: queryOpts.proxyHost }),
+      ...(queryOpts.neverminedProxyUri && { proxyHost: queryOpts.neverminedProxyUri }),
       ...(queryOpts.accessToken && {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
     }
-    console.log('reqOptions', reqOptions)
     return this.get(GET_TASK_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId), reqOptions)
   }
 
@@ -207,6 +204,7 @@ export class AIQueryApi extends NVMBackendApi {
    * const result = await payments.query.updateStep(step.did, step.task_id, step.step_id, {
    *         step_id: step.step_id,
    *         task_id: step.task_id,
+   *         did: step.did,
    *         step_status: AgentExecutionStatus.Completed,
    *         is_last: true,
    *         output: 'LFG!',
@@ -215,12 +213,14 @@ export class AIQueryApi extends NVMBackendApi {
    * ```
    *
    * @param did - Agent DID
-   * @param taskId - Task ID
-   * @param stepId - Step ID
    * @param step - The Step object to update. @see https://docs.nevermined.io/docs/protocol/query-protocol#steps-attributes
    * @returns The result of the operation
    */
-  async updateStep(did: string, taskId: string, stepId: string, step: any) {
+  async updateStep(did: string, step: Partial<Step>) {
+    const { task_id: taskId, step_id: stepId } = step
+    if (!taskId || !stepId)
+      throw new Error('The step object must contain the task_id and step_id attributes')
+
     const endpoint = UPDATE_STEP_ENDPOINT.replace('{did}', did)
       .replace('{taskId}', taskId)
       .replace('{stepId}', stepId)
@@ -261,6 +261,28 @@ export class AIQueryApi extends NVMBackendApi {
    */
   async searchSteps(searchParams: SearchSteps) {
     return this.post(SEARCH_STEPS_ENDPOINT, searchParams, { sendThroughProxy: false })
+  }
+
+  /**
+   * It retrieves the complete information of a specific step given a stepId
+   *
+   * @remarks
+   * This method is used by the AI Agent to retrieve information about the steps part of tasks created by users to the agents owned by the user
+   *
+   * @example
+   * ```
+   * await paymentsBuilder.query.getStep('step-1234')
+   * ```
+   *
+   * @param stepId - the id of the step to retrieve
+   * @returns The complete step information
+   */
+  async getStep(stepId: string) {
+    const result = await this.searchSteps({ step_id: stepId })
+    if (result.status === 200 && result.data && result.data.steps && result.data.steps.length > 0) {
+      return result.data.steps[0]
+    }
+    throw new Error(`Step with id ${stepId} not found`)
   }
 
   /**

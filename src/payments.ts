@@ -4,7 +4,9 @@ import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
 import { decodeJwt } from 'jose'
 import { PaymentsError } from './common/payments.error'
 import { AIQueryApi } from './api/query-api'
-import { isEthereumAddress, jsonReplacer } from './common/utils'
+import { getServiceHostFromEndpoints, jsonReplacer } from './common/helper'
+import { isEthereumAddress } from './utils'
+import { getAIHubOpenApiUrl, getQueryProtocolEndpoints } from './utils'
 
 /**
  * Options to initialize the Payments class.
@@ -134,7 +136,6 @@ export class Payments {
   private parseNvmApiKey() {
     try {
       const jwt = decodeJwt(this.nvmApiKey!)
-      console.log(jwt)
       this.accountAddress = jwt.sub
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
@@ -341,8 +342,7 @@ export class Payments {
       metadata,
       serviceAttributes,
     }
-    console.log(body)
-    console.log(JSON.stringify(body, jsonReplacer))
+
     const options = {
       method: 'POST',
       headers: {
@@ -352,7 +352,6 @@ export class Payments {
       },
       body: JSON.stringify(body, jsonReplacer),
     }
-    console.log(options)
     const url = new URL('/api/v1/payments/subscription', this.environment.backend)
 
     const response = await fetch(url, options)
@@ -387,7 +386,7 @@ export class Payments {
    * @example
    * ```
    *  const { did } = await payments.createTimePlan({
-   *    name: "My 1 year Plan",
+   *    name: "My 1 Month Plan",
    *    description: "test",
    *    price: 10000000n,
    *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
@@ -472,6 +471,140 @@ export class Payments {
   }
 
   /**
+   * It creates a new AI Agent on Nevermined.
+   * The agent must be associated to a Payment Plan. Users that are subscribers of a payment plan can access the agent.
+   * Depending on the Payment Plan and the configuration of the agent, the usage of the agent/service will consume credits.
+   * When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue using the agent.
+   *
+   * @remarks
+   *
+   * This method is oriented to AI Builders
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
+   *
+   * @example
+   * ```typescript
+   * const agentDID = await paymentsBuilder.createService({
+   *     planDID,
+   *     name: 'E2E Payments Agent',
+   *     description: 'description',
+   *     serviceType: 'agent',
+   *     serviceChargeType: 'fixed',
+   *     authType: 'bearer',
+   *     token: 'changeme',
+   *     amountOfCredits: 1,
+   *     endpoints: agentEndpoints,
+   *     openEndpoints: ['https://example.com/api/v1/rest/docs-json']
+   *   })
+   * ```
+   *
+   * @param planDID - The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
+   * @param name - The name of the AI Agent/Service.
+   * @param description - The description of the AI Agent/Service.
+   * @param tags - The tags describing the AI Agent/Service.
+   * @param usesAIHub - If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
+   * @param implementsQueryProtocol - It the agent implements the Nevermined Query Protocol. @see https://docs.nevermined.io/docs/protocol/query-protocol
+   * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
+   * @param amountOfCredits - The amount of credits to charge per request to the agent.
+   * @param minCreditsToCharge - The minimum credits to charge.
+   * @param maxCreditsToCharge - The maximum credits to charge.
+   * @param authType - The upstream agent/service authentication type ('none', 'basic', 'bearer' or 'oauth').
+   * @param username - The upstream agent/service username for authentication. Only if `authType` is 'basic'.
+   * @param password - The upstream agent/service password for authentication. Only if `authType` is 'basic'.
+   * @param token - The upstream agent/service bearer token for authentication. Only if `authType` is 'bearer' or 'oauth'.
+   * @param endpoints - The list endpoints of the upstream service. All these endpoints are protected and only accessible to subscribers of the Payment Plan.
+   * @param openEndpoints - The list of endpoints of the upstream service that publicly available. The access to these endpoints don't require subscription to the Payment Plan. They are useful to expose documentation, etc.
+   * @param openApiUrl - The URL to the OpenAPI description of the Upstream API. The access to the OpenAPI definition don't require subscription to the Payment Plan.
+   * @param integration - Some description or instructions about how to integrate the Agent.
+   * @param sampleLink - A link to some same usage of the Agent.
+   * @param apiDescription - Text describing the API of the Agent.
+   * @param curation - The curation details.
+   * @returns A promise that resolves to the created agent DID.
+   */
+  public async createAgent({
+    planDID,
+    name,
+    description,
+    amountOfCredits,
+    tags,
+    usesAIHub,
+    implementsQueryProtocol,
+    serviceChargeType,
+    minCreditsToCharge,
+    maxCreditsToCharge,
+    authType,
+    username,
+    password,
+    token,
+    endpoints,
+    openEndpoints,
+    openApiUrl,
+    integration,
+    sampleLink,
+    apiDescription,
+    curation,
+  }: {
+    planDID: string
+    name: string
+    description: string
+    usesAIHub?: boolean
+    implementsQueryProtocol?: boolean
+    serviceChargeType: 'fixed' | 'dynamic'
+    authType?: 'none' | 'basic' | 'oauth' | 'bearer'
+    amountOfCredits?: number
+    minCreditsToCharge?: number
+    maxCreditsToCharge?: number
+    username?: string
+    password?: string
+    token?: string
+    endpoints?: Endpoint[]
+    openEndpoints?: string[]
+    openApiUrl?: string
+    integration?: string
+    sampleLink?: string
+    apiDescription?: string
+    curation?: object
+    tags?: string[]
+  }): Promise<{ did: string }> {
+    if (usesAIHub) {
+      authType = 'bearer'
+      token = ''
+      endpoints = getQueryProtocolEndpoints(this.environment.backend)
+      openApiUrl = getAIHubOpenApiUrl(this.environment.backend)
+      implementsQueryProtocol = true
+    } else {
+      if (!endpoints) {
+        throw new PaymentsError('endpoints are required')
+      }
+    }
+
+    return this.createService({
+      planDID,
+      name,
+      description,
+      usesAIHub,
+      implementsQueryProtocol,
+      serviceType: 'agent',
+      serviceChargeType,
+      authType,
+      amountOfCredits,
+      minCreditsToCharge,
+      maxCreditsToCharge,
+      username,
+      password,
+      token,
+      endpoints,
+      openEndpoints,
+      openApiUrl,
+      integration,
+      sampleLink,
+      apiDescription,
+      curation,
+      tags,
+    })
+  }
+
+  /**
    * It creates a new AI Agent or Service on Nevermined.
    * The agent/service must be associated to a Payment Plan. Users that are subscribers of a payment plan can access the agent/service.
    * Depending on the Payment Plan and the configuration of the agent/service, the usage of the agent/service will consume credits.
@@ -507,6 +640,8 @@ export class Payments {
    * @param name - The name of the AI Agent/Service.
    * @param description - The description of the AI Agent/Service.
    * @param tags - The tags describing the AI Agent/Service.
+   * @param usesAIHub - If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
+   * @param implementsQueryProtocol - It the agent implements the Nevermined Query Protocol. @see https://docs.nevermined.io/docs/protocol/query-protocol
    * @param serviceType - The service type ('service', 'agent', or 'assistant').
    * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
    * @param amountOfCredits - The amount of credits to charge per request to the agent.
@@ -529,6 +664,8 @@ export class Payments {
     planDID,
     name,
     description,
+    usesAIHub,
+    implementsQueryProtocol,
     amountOfCredits,
     tags,
     serviceType,
@@ -550,9 +687,11 @@ export class Payments {
     planDID: string
     name: string
     description: string
+    usesAIHub?: boolean
+    implementsQueryProtocol?: boolean
     serviceType: 'service' | 'agent' | 'assistant'
     serviceChargeType: 'fixed' | 'dynamic'
-    authType: 'none' | 'basic' | 'oauth' | 'bearer'
+    authType?: 'none' | 'basic' | 'oauth' | 'bearer'
     amountOfCredits?: number
     minCreditsToCharge?: number
     maxCreditsToCharge?: number
@@ -601,6 +740,11 @@ export class Payments {
         webService: {
           endpoints: endpoints,
           openEndpoints: openEndpoints,
+          chargeType: serviceChargeType,
+          isNeverminedHosted: usesAIHub,
+          implementsQueryProtocol,
+          ...(implementsQueryProtocol && { queryProtocolVersion: 'v1' }),
+          serviceHost: getServiceHostFromEndpoints(endpoints!),
           internalAttributes: {
             authentication,
             headers: _headers,
@@ -640,7 +784,6 @@ export class Payments {
       serviceAttributes,
       subscriptionDid: planDID,
     }
-    console.log(JSON.stringify(body, jsonReplacer))
     const options = {
       method: 'POST',
       headers: {
@@ -864,12 +1007,10 @@ export class Payments {
     balance: bigint
     isSubscriptor: boolean
   }> {
-    console.log('getSubscriptionBalance', planDID, accountAddress)
     const body = {
       subscriptionDid: planDID,
       accountAddress: isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress,
     }
-    console.log(body)
     const options = {
       method: 'POST',
       headers: {

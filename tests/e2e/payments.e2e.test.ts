@@ -1,7 +1,8 @@
 import { EnvironmentName } from "../../src/environments"
-import { Endpoint, Payments } from "../../src/payments"
-import { sleep } from "../../src/common/utils"
+import { Payments } from "../../src/payments"
+import { sleep } from "../../src/common/helper"
 import { AgentExecutionStatus } from "../../src/common/types"
+// import { getQueryProtocolEndpoints } from "../../src/utils"
 import { io } from "socket.io-client"
 
 describe('Payments API (e2e)', () => {
@@ -13,10 +14,10 @@ describe('Payments API (e2e)', () => {
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'
-  const ENDPOINTS: Endpoint[] = [
-    { 'POST': `https://one-backend.${testingEnvironment}.nevermined.app/api/v1/agents/(.*)/tasks` },
-    { 'GET': `https://one-backend.${testingEnvironment}.nevermined.app/api/v1/agents/(.*)/tasks/(.*)` }
-  ]
+  // const ENDPOINTS: Endpoint[] = [
+  //   // { 'POST': `https://one-backend.${testingEnvironment}.nevermined.app/api/v1/agents/(.*)/tasks` },
+  //   // { 'GET': `https://one-backend.${testingEnvironment}.nevermined.app/api/v1/agents/(.*)/tasks/(.*)` }
+  // ]
 
 
   let paymentsSubscriber: Payments
@@ -25,8 +26,8 @@ describe('Payments API (e2e)', () => {
   let planDID: string
   let agentDID: string
 
-  let accessToken: string
-  let proxyHost: string
+  // let accessToken: string
+  // let proxyHost: string
   let subscriberQueryOpts = {}
   let balanceBefore: bigint
   let completedTaskId: string
@@ -131,7 +132,7 @@ describe('Payments API (e2e)', () => {
         tokenAddress: ERC20_ADDRESS,
         amountOfCredits: 100
       })).did
-
+      
       expect(planDID).toBeDefined()
       expect(planDID.startsWith('did:nv:')).toBeTruthy()
       console.log('Plan DID', planDID)
@@ -139,17 +140,15 @@ describe('Payments API (e2e)', () => {
     }, TEST_TIMEOUT)
 
     it('I should be able to register a new Agent running on NVM Infrastructure', async () => {
-      agentDID = (await paymentsBuilder.createService({
-        planDID: planDID,
+      // const endpoints = getQueryProtocolEndpoints('https://one-backend.staging.nevermined.app')
+
+      agentDID = (await paymentsBuilder.createAgent({
+        planDID,
         name: 'E2E Payments Agent',
-        description: 'description', 
-        serviceType: 'agent',
+        description: 'description',         
         serviceChargeType: 'fixed',
-        authType: 'bearer',
-        token: 'changeme',
-        amountOfCredits: 1,
-        endpoints: ENDPOINTS,
-        openEndpoints: ['https://one-backend.staging.nevermined.app/api/v1/rest/docs-json']
+        amountOfCredits: 1,            
+        usesAIHub: true,
       })).did
 
       expect(agentDID).toBeDefined()
@@ -204,13 +203,13 @@ describe('Payments API (e2e)', () => {
         "additional_params": [],
         "artifacts": []
       }
-      const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
-      accessToken = accessConfig.accessToken
-      proxyHost = accessConfig.neverminedProxyUri
-      subscriberQueryOpts = { 
-        accessToken,
-        proxyHost
-      }      
+      subscriberQueryOpts = await paymentsSubscriber.getServiceAccessConfig(agentDID)
+      // accessToken = accessConfig.accessToken
+      // proxyHost = accessConfig.neverminedProxyUri
+      // subscriberQueryOpts = { 
+      //   accessToken,
+      //   proxyHost
+      // }      
 
       const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, subscriberQueryOpts)
 
@@ -244,9 +243,7 @@ describe('Payments API (e2e)', () => {
         expect(data).toBeDefined()
         const eventData = JSON.parse(data)
         expect(eventData.step_id).toBeDefined()
-        
-        
-        
+                
         stepsReceived++
         let result
         const searchResult = await paymentsBuilder.query.searchSteps({ step_id: eventData.step_id })
@@ -254,7 +251,7 @@ describe('Payments API (e2e)', () => {
         const step = searchResult.data.steps[0]
         if (step.input_query.startsWith('http')) {
           console.log(`LISTENER :: Received URL ${step.input_query}`)
-          result = await paymentsBuilder.query.updateStep(step.did, step.task_id, step.step_id, { 
+          result = await paymentsBuilder.query.updateStep(step.did, { 
             step_id: step.step_id,
             task_id: step.task_id,
             step_status: AgentExecutionStatus.Completed,
@@ -269,7 +266,7 @@ describe('Payments API (e2e)', () => {
           }
         } else {
           console.log(`LISTENER :: Received Invalid URL ${step.input_query}`)
-          result = await paymentsBuilder.query.updateStep(step.did, step.task_id, step.step_id, { 
+          result = await paymentsBuilder.query.updateStep(step.did, { 
             step_id: step.step_id,
             task_id: step.task_id,
             step_status: AgentExecutionStatus.Failed,
@@ -309,15 +306,16 @@ describe('Payments API (e2e)', () => {
     }, TEST_TIMEOUT)
 
     it('I should be able to validate an AI task is completed', async () => {
+      console.log(`@@@@@ getting task with steps: ${completedTaskDID} - ${completedTaskId}`)
+      console.log(JSON.stringify(subscriberQueryOpts))
       const result = await paymentsSubscriber.query.getTaskWithSteps(
         completedTaskDID, 
         completedTaskId, 
         subscriberQueryOpts
       )
       expect(result).toBeDefined()
-      // console.log('Task with Steps', result)
-      expect(result.status).toBe(200)
       console.log('Task with Steps', result.data)
+      expect(result.status).toBe(200)      
       expect(result.data.task.cost).toBeDefined()
       taskCost = BigInt(result.data.task.cost)
       expect(taskCost).toBeGreaterThan(0)
@@ -353,14 +351,6 @@ describe('Payments API (e2e)', () => {
         "additional_params": [],
         "artifacts": []
       }
-      const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
-      accessToken = accessConfig.accessToken
-      proxyHost = accessConfig.neverminedProxyUri
-      subscriberQueryOpts = { 
-        accessToken,
-        proxyHost
-      }      
-
       const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, subscriberQueryOpts)
 
       expect(taskResult).toBeDefined()
