@@ -1,4 +1,5 @@
 import { AgentExecutionStatus, Step } from '../common/types'
+import { isStepIdValid } from '../utils'
 import {
   BackendApiOptions,
   DefaultSubscriptionOptions,
@@ -216,7 +217,13 @@ export class AIQueryApi extends NVMBackendApi {
    * @param step - The Step object to update. @see https://docs.nevermined.io/docs/protocol/query-protocol#steps-attributes
    * @returns The result of the operation
    */
-  async updateStep(did: string, step: Partial<Step>) {
+  async updateStep(did: string, step: Step) {
+    try {
+      delete (step as { did?: string }).did
+    } catch {
+      // no did attribute to delete
+    }
+
     const { task_id: taskId, step_id: stepId } = step
     if (!taskId || !stepId)
       throw new Error('The step object must contain the task_id and step_id attributes')
@@ -224,6 +231,7 @@ export class AIQueryApi extends NVMBackendApi {
     const endpoint = UPDATE_STEP_ENDPOINT.replace('{did}', did)
       .replace('{taskId}', taskId)
       .replace('{stepId}', stepId)
+
     return this.put(endpoint, step, { sendThroughProxy: false })
   }
 
@@ -278,7 +286,10 @@ export class AIQueryApi extends NVMBackendApi {
    * @returns The complete step information
    */
   async getStep(stepId: string) {
+    if (!isStepIdValid(stepId)) throw new Error('Invalid step id')
+
     const result = await this.searchSteps({ step_id: stepId })
+
     if (result.status === 200 && result.data && result.data.steps && result.data.steps.length > 0) {
       return result.data.steps[0]
     }

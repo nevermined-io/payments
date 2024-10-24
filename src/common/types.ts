@@ -37,19 +37,24 @@ export interface Step extends ExecutionOptions {
   task_id: string
 
   /**
+   * The name of the step
+   */
+  name?: string
+
+  /**
    * The status of the execution
    */
   step_status: AgentExecutionStatus
 
   /**
+   * The step preceeding the current step if any
+   */
+  predecessor?: string
+
+  /**
    * Whether this is the last step in the task.
    */
   is_last?: boolean
-
-  /**
-   * The name of the step
-   */
-  name?: string
 }
 
 export interface ExecutionOptions extends ExecutionInput, ExecutionOutput {
