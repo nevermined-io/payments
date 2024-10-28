@@ -1,9 +1,9 @@
 import axios from 'axios'
-import { io } from 'socket.io-client'
 import { decodeJwt } from 'jose'
+import { io } from 'socket.io-client'
+import { sleep } from '../common/helper'
 import { AgentExecutionStatus } from '../common/types'
 import { isEthereumAddress } from '../utils'
-import { sleep } from '../common/helper'
 
 export interface BackendApiOptions {
   /**
@@ -217,7 +217,6 @@ export class NVMBackendApi {
     //   console.log(`RECEIVED TASK data: ${JSON.stringify(data)}`)
     //   _callback(data)
     // })
-
   }
 
   private async eventHandler(data: any, _callback: (err?: any) => any, _opts: SubscriptionOptions) {
