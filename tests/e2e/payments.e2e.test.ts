@@ -1,7 +1,7 @@
 import { EnvironmentName } from "../../src/environments"
 import { Payments } from "../../src/payments"
 import { sleep } from "../../src/common/helper"
-import { AgentExecutionStatus } from "../../src/common/types"
+import { AgentExecutionStatus, Step } from "../../src/common/types"
 // import { getQueryProtocolEndpoints } from "../../src/utils"
 import { io } from "socket.io-client"
 
@@ -258,7 +258,7 @@ describe('Payments API (e2e)', () => {
             is_last: true,
             output: 'LFG!',
             cost: 1
-          })
+          } as Step)
           // expect(result.status).toBe(201)   
           if (result.status === 201) {
             completedTaskId = step.task_id
@@ -273,7 +273,7 @@ describe('Payments API (e2e)', () => {
             is_last: true,
             output: 'Invalid URL',
             cost: 0
-          })          
+          }  as Step)          
         }
         
       }, opts)
