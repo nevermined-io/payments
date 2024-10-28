@@ -202,20 +202,22 @@ export class NVMBackendApi {
     }
     await this.connectSocket()
     // await this.socketClient.emit('subscribe-agent', '')
-    await this.socketClient.on('connect', async () => {
+    await this.socketClient.on('_connected', async () => {
+      await this.socketClient.emit('_join-rooms', JSON.stringify(opts))
+
+      opts.subscribeEventTypes.forEach(async (eventType) => {
+        await this.socketClient.on(eventType, (data: any) => {
+          _callback(data)
+        })
+      })
       // nvm-backend:: On:: ${this.socketClient.id} Connected to the server
     })
-    await this.socketClient.emit('_join-rooms', JSON.stringify(opts))
 
     // await this.socketClient.on('task-updated', (data: any) => {
     //   console.log(`RECEIVED TASK data: ${JSON.stringify(data)}`)
     //   _callback(data)
     // })
-    opts.subscribeEventTypes.forEach(async (eventType) => {
-      await this.socketClient.on(eventType, (data: any) => {
-        _callback(data)
-      })
-    })
+
   }
 
   private async eventHandler(data: any, _callback: (err?: any) => any, _opts: SubscriptionOptions) {
