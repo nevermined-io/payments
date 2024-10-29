@@ -78,17 +78,7 @@ export class AIQueryApi extends NVMBackendApi {
     _callback: (err?: any) => any,
     opts: SubscriptionOptions = DefaultSubscriptionOptions,
   ) {
-    await super._subscribe(_callback, opts).then(() => {
-      // query-api:: Subscribed to server
-    })
-    try {
-      if (opts.getPendingEventsOnSubscribe) {
-        // query-api:: Emitting pending events
-        await super._emitStepEvents(AgentExecutionStatus.Pending, opts.joinAgentRooms)
-      }
-    } catch {
-      // query-api:: Unable to get pending events
-    }
+    await super.connectSocket(_callback, opts)
   }
 
   /**
