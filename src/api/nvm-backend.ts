@@ -1,9 +1,9 @@
 import axios from 'axios'
-import { decodeJwt } from 'jose'
 import { io } from 'socket.io-client'
-import { sleep } from '../common/helper'
+import { decodeJwt } from 'jose'
 import { AgentExecutionStatus } from '../common/types'
 import { isEthereumAddress } from '../utils'
+import { sleep } from '../common/helper'
 
 export interface BackendApiOptions {
   /**
@@ -157,7 +157,7 @@ export class NVMBackendApi {
     }
   }
 
-  private async connectSocket() {
+  public async connectSocket(_callback: (err?: any) => any, opts: SubscriptionOptions) {
     if (!this.hasKey)
       throw new Error('Unable to subscribe to the server becase a key was not provided')
 
@@ -169,6 +169,9 @@ export class NVMBackendApi {
       // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}
       this.socketClient = io(this.opts.webSocketHost!, this.opts.webSocketOptions)
       await this.socketClient.connect()
+      await this.socketClient.on('_connected', async () => {
+        this._subscribe(_callback, opts)
+      })
       for (let i = 0; i < 5; i++) {
         await sleep(1_000)
         if (this.socketClient.connected) {
@@ -200,23 +203,18 @@ export class NVMBackendApi {
     if (!opts.joinAccountRoom && opts.joinAgentRooms.length === 0) {
       throw new Error('No rooms to join in configuration')
     }
-    await this.connectSocket()
-    // await this.socketClient.emit('subscribe-agent', '')
-    await this.socketClient.on('_connected', async () => {
-      await this.socketClient.emit('_join-rooms', JSON.stringify(opts))
 
-      opts.subscribeEventTypes.forEach(async (eventType) => {
-        await this.socketClient.on(eventType, (data: any) => {
-          _callback(data)
-        })
+    await this.socketClient.emit('_join-rooms', JSON.stringify(opts))
+
+    opts.subscribeEventTypes.forEach(async (eventType) => {
+      await this.socketClient.on(eventType, (data: any) => {
+        _callback(data)
       })
-      // nvm-backend:: On:: ${this.socketClient.id} Connected to the server
     })
+    if(opts.getPendingEventsOnSubscribe){
+      await this._emitStepEvents(AgentExecutionStatus.Pending, opts.joinAgentRooms)
+    }
 
-    // await this.socketClient.on('task-updated', (data: any) => {
-    //   console.log(`RECEIVED TASK data: ${JSON.stringify(data)}`)
-    //   _callback(data)
-    // })
   }
 
   private async eventHandler(data: any, _callback: (err?: any) => any, _opts: SubscriptionOptions) {
@@ -227,7 +225,6 @@ export class NVMBackendApi {
     status: AgentExecutionStatus = AgentExecutionStatus.Pending,
     dids: string[] = [],
   ) {
-    await this.connectSocket()
     const message = {
       status,
       dids,
