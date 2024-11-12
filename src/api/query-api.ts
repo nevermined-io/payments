@@ -37,6 +37,14 @@ export interface SearchSteps {
   offset?: number
 }
 
+export interface TaskLogMessage {
+  level: 'info' | 'error' | 'warning' | 'debug'
+  task_id: string
+  task_status: AgentExecutionStatus
+  message: string
+  step_id?: string
+}
+
 /**
  * Options required for interacting with an external AI Agent/Service.
  */
@@ -78,7 +86,20 @@ export class AIQueryApi extends NVMBackendApi {
     _callback: (err?: any) => any,
     opts: SubscriptionOptions = DefaultSubscriptionOptions,
   ) {
-    await super.connectSocket(_callback, opts)
+    await super.connectSocketSubscriber(_callback, opts)
+  }
+
+  /**
+   * It subscribes to receive the logs generated during the execution of a task/s
+   *
+   * @remarks
+   * This method is used by users/subscribers of AI agents after they create a task on them
+   *
+   * @param _callback - The callback to execute when a new task log event is received
+   * @param tasks - The list of tasks to subscribe to
+   */
+  async subscribeTasksLogs(_callback: (err?: any) => any, tasks: string[]) {
+    await super.connectTasksSocket(_callback, tasks)
   }
 
   /**
@@ -333,5 +354,16 @@ export class AIQueryApi extends NVMBackendApi {
    */
   async getTasksFromAgents() {
     return this.get(GET_AGENTS_ENDPOINT, { sendThroughProxy: false })
+  }
+
+  /**
+   * It emits a log message related to a task
+   *
+   * @remarks
+   * This method is used by the AI Agent to emit log messages
+   *
+   */
+  async logTask(logMessage: TaskLogMessage) {
+    super._emitTaskLog(logMessage)
   }
 }

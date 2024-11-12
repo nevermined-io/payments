@@ -4,6 +4,8 @@ import { io } from 'socket.io-client'
 import { sleep } from '../common/helper'
 import { AgentExecutionStatus } from '../common/types'
 import { isEthereumAddress } from '../utils'
+import { PaymentsError } from '../common/payments.error'
+import { TaskLogMessage } from './query-api'
 
 export interface BackendApiOptions {
   /**
@@ -156,35 +158,73 @@ export class NVMBackendApi {
     }
   }
 
-  public async connectSocket(_callback: (err?: any) => any, opts: SubscriptionOptions) {
+  private async _connectInternalSocketClient() {
     if (!this.hasKey)
       throw new Error('Unable to subscribe to the server becase a key was not provided')
 
-    if (this.socketClient && this.socketClient.connected) {
-      // nvm-backend:: Already connected to the websocket server
+    if (this.isWebSocketConnected()) {
+      console.log(
+        `_connectInternalSocketClient:: Already connected to the websocket server with id ${this.socketClient.id}`,
+      )
       return
     }
+
+    this.socketClient = io(this.opts.webSocketHost!, this.opts.webSocketOptions)
+    await this.socketClient.connect()
+    for (let i = 0; i < 10; i++) {
+      if (this.isWebSocketConnected()) return
+      await sleep(500)
+    }
+    if (!this.isWebSocketConnected()) {
+      throw new Error('Unable to connect to the websocket server')
+    }
+  }
+
+  protected async connectSocketSubscriber(
+    _callback: (err?: any) => any,
+    opts: SubscriptionOptions,
+  ) {
     try {
       // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}
       console.log(
         `nvm-backend:: Connecting to websocket server: ${JSON.stringify(this.opts.webSocketOptions)}`,
       )
-      this.socketClient = io(this.opts.webSocketHost!, this.opts.webSocketOptions)
-      await this.socketClient.connect()
+      this._connectInternalSocketClient()
+
       await this.socketClient.on('_connected', async () => {
         this._subscribe(_callback, opts)
       })
-      for (let i = 0; i < 5; i++) {
-        await sleep(1_000)
-        if (this.socketClient.connected) {
-          break
-        }
-      }
-      if (!this.socketClient.connected) {
-        throw new Error('Unable to connect to the websocket server')
-      }
     } catch (error) {
-      throw new Error(
+      throw new PaymentsError(
+        `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
+      )
+    }
+  }
+
+  protected async connectTasksSocket(_callback: (err?: any) => any, tasks: string[]) {
+    try {
+      if (tasks.length === 0) {
+        throw new Error('No task rooms to join in configuration')
+      }
+
+      console.log(
+        `connectTasksSocket:: Connecting to websocket server: ${JSON.stringify(this.opts.webSocketOptions)}`,
+      )
+      this._connectInternalSocketClient()
+
+      console.log(`connectTasksSocket:: Is connected? ${this.isWebSocketConnected()}`)
+
+      await this.socketClient.on('_connected', async () => {
+        console.log(`connectTasksSocket:: Joining tasks: ${JSON.stringify(tasks)}`)
+        await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks }))
+        await this.socketClient.on('task-log', (data: any) => {
+          _callback(data)
+        })
+      })
+
+      console.log(`connectTasksSocket:: ending`)
+    } catch (error) {
+      throw new PaymentsError(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
       )
     }
@@ -231,6 +271,10 @@ export class NVMBackendApi {
       dids,
     }
     this.socketClient.emit('_emit-steps', JSON.stringify(message))
+  }
+
+  protected async _emitTaskLog(logMessage: TaskLogMessage) {
+    this.socketClient.emit('task-log', JSON.stringify(logMessage))
   }
 
   disconnect() {
