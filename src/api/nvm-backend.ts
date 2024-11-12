@@ -41,14 +41,19 @@ export interface BackendApiOptions {
 
 export interface BackendWebSocketOptions {
   /**
+   * The websocket transports to use
+   */
+  transports: string[]
+
+  /**
+   * Authentication parameters
+   */
+  auth: { token: string }
+
+  /**
    * The path to connect to the websocket server
    */
   path?: string
-
-  /**
-   * The websocket transports to use
-   */
-  transports?: string[]
 
   /**
    * The bearer token to use in the websocket connection
@@ -89,11 +94,12 @@ export class NVMBackendApi {
   private _defaultSocketOptions: BackendWebSocketOptions = {
     // path: '',
     transports: ['websocket'],
-    transportOptions: {
-      websocket: {
-        extraHeaders: {},
-      },
-    },
+    auth: { token: '' },
+    // transportOptions: {
+    //   websocket: {
+    //     extraHeaders: {},
+    //   },
+    // },
   }
 
   constructor(opts: BackendApiOptions) {
@@ -106,22 +112,16 @@ export class NVMBackendApi {
     if (opts.webSocketOptions?.bearerToken) {
       // If the user pass a specific websocketoptions bearer token we use that one
       opts.webSocketOptions = {
+        ...this._defaultSocketOptions,
         ...opts.webSocketOptions,
-        transportOptions: {
-          websocket: {
-            extraHeaders: { Authorization: `Bearer ${opts.webSocketOptions!.bearerToken}` },
-          },
-        },
+        auth: { token: `Bearer ${opts.webSocketOptions!.bearerToken}` },
       }
     } else if (opts.apiKey) {
       // If not use the api key
       opts.webSocketOptions = {
+        ...this._defaultSocketOptions,
         ...opts.webSocketOptions,
-        transportOptions: {
-          websocket: {
-            extraHeaders: { Authorization: `Bearer ${opts.apiKey}` },
-          },
-        },
+        auth: { token: `Bearer ${opts.apiKey}` },
       }
     }
 
@@ -137,7 +137,6 @@ export class NVMBackendApi {
     try {
       if (this.opts.apiKey && this.opts.apiKey.length > 0) {
         const jwt = decodeJwt(this.opts.apiKey)
-        // if (jwt.sub && !jwt.sub.match(/^0x[a-fA-F0-9]{40}$/)) {
         if (isEthereumAddress(jwt.sub)) {
           this.userRoomId = `room:${jwt.sub}`
           this.hasKey = true
@@ -167,6 +166,9 @@ export class NVMBackendApi {
     }
     try {
       // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}
+      console.log(
+        `nvm-backend:: Connecting to websocket server: ${JSON.stringify(this.opts.webSocketOptions)}`,
+      )
       this.socketClient = io(this.opts.webSocketHost!, this.opts.webSocketOptions)
       await this.socketClient.connect()
       await this.socketClient.on('_connected', async () => {

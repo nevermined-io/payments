@@ -13,7 +13,8 @@ describe('Payments API (e2e)', () => {
     'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDFCMDZDRkIyMkYwODMyZmI5MjU1NDE1MmRiYjVGOWM5NzU2ZTkzN2QiLCJqdGkiOiIweDlmMGRkNmZhODNkMDY3ZDRiYzFkNzEyN2Q3ZWE0M2EwYmUwNzc1NWJmNjMxMTVmYzJhODhmOTQwZmY4MjQ1NGQiLCJleHAiOjE3NTk4NzQwMDEsImlhdCI6MTcyODMxNjQwMn0.SqlcnMvdIjpZdBDs8FBsruYUIVpS75My-l5VfVwsFdU_3Xz5DuYt1frdF0QZq8isx9NOsNgRSeG8sBVtvAl-vRw'
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDdmRTNFZTA4OGQwY2IzRjQ5ZmREMjBlMTk0RjIzRDY4MzhhY2NjODIiLCJqdGkiOiIweGY2ZDcyMmIzYWY5ZmNhOWY2MTQ2OGI5YjlhNGNmZjk3Yjg5NjE5Yzc1ZjRkYWEyMmY4NTA3Yjc2ODQzM2JkYWQiLCJleHAiOjE3NTk2MDU0MTMsImlhdCI6MTcyODA0NzgxNn0.1JDNV7yT8i1_1DXxC4z_jzMLJQns4XqujaJOEFmLdtwFam7bi-3s8oOF-dbTBObzNY98ddZZFifaCEvJUImYOBw'
+    // 'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDdmRTNFZTA4OGQwY2IzRjQ5ZmREMjBlMTk0RjIzRDY4MzhhY2NjODIiLCJqdGkiOiIweGY2ZDcyMmIzYWY5ZmNhOWY2MTQ2OGI5YjlhNGNmZjk3Yjg5NjE5Yzc1ZjRkYWEyMmY4NTA3Yjc2ODQzM2JkYWQiLCJleHAiOjE3NTk2MDU0MTMsImlhdCI6MTcyODA0NzgxNn0.1JDNV7yT8i1_1DXxC4z_jzMLJQns4XqujaJOEFmLdtwFam7bi-3s8oOF-dbTBObzNY98ddZZFifaCEvJUImYOBw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDdmRTNFZTA4OGQwY2IzRjQ5ZmREMjBlMTk0RjIzRDY4MzhhY2NjODIiLCJqdGkiOiIweGRhMWNmYTFjMzQ5NTE3MDkwOWQ2ZjY1Mjk3MzlhNWMyZDQ3NTNiMzE4N2JhZDc2ZjU3NGU4ZjQ1NTA0ZGUxYjIiLCJleHAiOjE3NjI5NTYwNjksImlhdCI6MTczMTM5ODQ3MH0.3fHX0Ngptob__kXC8CVUwuVJ-TyMEdxRJwohXCNLO9UzCQOIxwHK9c6uIwUkF-vls4oC2G9lNiqPgVey3KnMSRs'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'
@@ -387,7 +388,7 @@ describe('Payments API (e2e)', () => {
 
         expect(taskResult).toBeDefined()
         expect(taskResult.status).toBe(201)
-        console.log('Task Result', taskResult.data)
+        //console.log('Task Result', taskResult.data)
         failedTaskDID = taskResult.data.task.did
         failedTaskId = taskResult.data.task.task_id
         console.log(`Failed Task DID: ${failedTaskDID}`)
@@ -403,7 +404,7 @@ describe('Payments API (e2e)', () => {
         subscriberQueryOpts,
       )
       expect(result).toBeDefined()
-      console.log('Task with Steps', result)
+      //console.log('Task with Steps', result)
       expect(result.status).toBe(200)
       // console.log('Task with Steps', result.data)
       // expect(result.data.task.cost).toBeDefined()
@@ -435,6 +436,6 @@ describe('Payments API (e2e)', () => {
   })
 })
 
-const stepReceived = (data: any) => {
-  console.log('Step received', data)
-}
+// const stepReceived = (data: any) => {
+//   console.log('Step received', data)
+// }
