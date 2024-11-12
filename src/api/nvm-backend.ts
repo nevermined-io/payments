@@ -274,7 +274,7 @@ export class NVMBackendApi {
   }
 
   protected async _emitTaskLog(logMessage: TaskLogMessage) {
-    this.socketClient.emit('task-log', JSON.stringify(logMessage))
+    this.socketClient.emit('_task-log', JSON.stringify(logMessage))
   }
 
   disconnect() {

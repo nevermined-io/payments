@@ -139,7 +139,12 @@ export class AIQueryApi extends NVMBackendApi {
    * @param queryOpts - The query options @see {@link Payments.getServiceAccessConfig}
    * @returns The result of the operation
    */
-  async createTask(did: string, task: any, queryOpts: AIQueryOptions) {
+  async createTask(
+    did: string,
+    task: any,
+    queryOpts: AIQueryOptions,
+    _callback?: (err?: any) => any,
+  ) {
     const endpoint = TASK_ENDPOINT.replace('{did}', did)
     const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
@@ -148,7 +153,11 @@ export class AIQueryApi extends NVMBackendApi {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
     }
-    return this.post(endpoint, task, reqOptions)
+    const result = await this.post(endpoint, task, reqOptions)
+    if (result.status === 201 && _callback) {
+      await this.subscribeTasksLogs(_callback, [result.data.task.task_id])
+    }
+    return result
   }
 
   /**

@@ -1,3 +1,4 @@
+import { log } from 'console'
 import { TaskLogMessage } from '../../src/api/query-api'
 import { sleep } from '../../src/common/helper'
 import { AgentExecutionStatus, Step } from '../../src/common/types'
@@ -39,6 +40,8 @@ describe('Payments API (e2e)', () => {
   let completedTaskDID: string
   let failedTaskId: string
   let failedTaskDID: string
+  let logsReceived = 0
+
   describe('Payments Setup', () => {
     it('The Payments client can be initialized correctly', () => {
       paymentsSubscriber = Payments.getInstance({
@@ -230,17 +233,15 @@ describe('Payments API (e2e)', () => {
           artifacts: [],
         }
         subscriberQueryOpts = await paymentsSubscriber.getServiceAccessConfig(agentDID)
-        // accessToken = accessConfig.accessToken
-        // proxyHost = accessConfig.neverminedProxyUri
-        // subscriberQueryOpts = {
-        //   accessToken,
-        //   proxyHost
-        // }
 
         const taskResult = await paymentsSubscriber.query.createTask(
           agentDID,
           aiTask,
           subscriberQueryOpts,
+          async (data) => {
+            console.log('Task Log received', data)
+            logsReceived++
+          }
         )
 
         expect(taskResult).toBeDefined()
@@ -259,7 +260,7 @@ describe('Payments API (e2e)', () => {
     it('Builder should be able to fetch pending tasks', async () => {
       const steps = await paymentsBuilder.query.getSteps(AgentExecutionStatus.Pending)
       expect(steps).toBeDefined()
-      console.log(steps.data)
+      //console.log(steps.data)
       expect(steps.data.steps.length).toBeGreaterThan(0)
     })
 
@@ -354,19 +355,14 @@ describe('Payments API (e2e)', () => {
     )
 
     it('Subscriber should be able to receive logs', async () => {
-      let logsReceived = 0
-      await paymentsSubscriber.query.subscribeTasksLogs(async (data) => {
-        console.log('Task Log received', data)
-        logsReceived++
-      }, [completedTaskId])
-      await sleep(5_000)
-
+            
       const logMessage: TaskLogMessage = {
         level: 'info',
         task_status: AgentExecutionStatus.Completed,
-        task_id: completedTaskId,
+        task_id: createdTaskId,
         message: 'This is a log message',
       }
+      console.log(`Sending log message for task ${logMessage.task_id}`)
       await paymentsBuilder.query.logTask(logMessage)
 
       await sleep(2_000)
@@ -374,7 +370,7 @@ describe('Payments API (e2e)', () => {
 
     }, TEST_TIMEOUT)
 
-    it.skip('Subscriber should be able to validate an AI task is completed', async () => {
+    it('Subscriber should be able to validate an AI task is completed', async () => {
       console.log(`@@@@@ getting task with steps: ${completedTaskDID} - ${completedTaskId}`)
       console.log(JSON.stringify(subscriberQueryOpts))
       const result = await paymentsSubscriber.query.getTaskWithSteps(
@@ -390,7 +386,7 @@ describe('Payments API (e2e)', () => {
       expect(taskCost).toBeGreaterThan(0)
     })
 
-    it.skip('Subscriber should be able to check that I consumed some credits', async () => {
+    it('Subscriber should be able to check that I consumed some credits', async () => {
       const balanceResult = await paymentsSubscriber.getPlanBalance(planDID)
       expect(balanceResult).toBeDefined()
       const balanceAfter = BigInt(balanceResult.balance)
@@ -407,7 +403,7 @@ describe('Payments API (e2e)', () => {
     // it.skip('I should be able to end a task with a failure', () => {})
   })
 
-  describe.skip('Failed tasks are free of charge', () => {
+  describe('Failed tasks are free of charge', () => {
     it(
       'I should be able to create a wrong AI Task',
       async () => {
