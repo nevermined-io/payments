@@ -164,3 +164,52 @@ export interface Artifact {
    */
   url: string
 }
+
+export interface TaskLogMessage {
+  /**
+   * Log level
+   */
+  level: 'info' | 'error' | 'warning' | 'debug'
+
+  /**
+   * The log message
+   */
+  message: string
+
+  /**
+   * Identifier of the task associated with the log
+   */
+  task_id: string
+
+  /**
+   * The status of the task
+   */
+  task_status?: AgentExecutionStatus
+
+  /**
+   * The step id associated with the log message if any
+   */
+  step_id?: string
+}
+
+export interface CreateTaskDto {
+  /**
+   * The query parameter for the task
+   */
+  query: string
+
+  /**
+   * The name of the task
+   */
+  name?: string
+
+  /**
+   * Additional parameters required for the task
+   */
+  additional_params?: { [name: string]: string }[]
+
+  /**
+   * Additional artifacts required for the task
+   */
+  artifacts?: Artifact[]
+}

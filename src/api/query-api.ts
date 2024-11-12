@@ -1,4 +1,4 @@
-import { AgentExecutionStatus, Step } from '../common/types'
+import { AgentExecutionStatus, CreateTaskDto, Step, TaskLogMessage } from '../common/types'
 import { isStepIdValid } from '../utils'
 import {
   BackendApiOptions,
@@ -35,14 +35,6 @@ export interface SearchSteps {
   step_status?: AgentExecutionStatus
   page?: number
   offset?: number
-}
-
-export interface TaskLogMessage {
-  level: 'info' | 'error' | 'warning' | 'debug'
-  task_id: string
-  task_status: AgentExecutionStatus
-  message: string
-  step_id?: string
 }
 
 /**
@@ -142,7 +134,7 @@ export class AIQueryApi extends NVMBackendApi {
    */
   async createTask(
     did: string,
-    task: any,
+    task: CreateTaskDto,
     queryOpts: AIQueryOptions,
     _callback?: (err?: any) => any,
   ) {

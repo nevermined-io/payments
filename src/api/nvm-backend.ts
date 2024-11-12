@@ -2,10 +2,9 @@ import axios from 'axios'
 import { decodeJwt } from 'jose'
 import { io } from 'socket.io-client'
 import { sleep } from '../common/helper'
-import { AgentExecutionStatus } from '../common/types'
+import { AgentExecutionStatus, TaskLogMessage } from '../common/types'
 import { isEthereumAddress } from '../utils'
 import { PaymentsError } from '../common/payments.error'
-import { TaskLogMessage } from './query-api'
 
 export interface BackendApiOptions {
   /**
@@ -97,11 +96,6 @@ export class NVMBackendApi {
     // path: '',
     transports: ['websocket'],
     auth: { token: '' },
-    // transportOptions: {
-    //   websocket: {
-    //     extraHeaders: {},
-    //   },
-    // },
   }
 
   constructor(opts: BackendApiOptions) {

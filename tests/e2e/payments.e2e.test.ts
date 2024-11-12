@@ -1,7 +1,5 @@
-import { log } from 'console'
-import { TaskLogMessage } from '../../src/api/query-api'
 import { sleep } from '../../src/common/helper'
-import { AgentExecutionStatus, Step } from '../../src/common/types'
+import { AgentExecutionStatus, CreateTaskDto, Step, TaskLogMessage } from '../../src/common/types'
 import { EnvironmentName } from '../../src/environments'
 import { Payments } from '../../src/payments'
 // import { getQueryProtocolEndpoints } from "../../src/utils"
@@ -326,7 +324,7 @@ describe('Payments API (e2e)', () => {
           }
         }, opts)
 
-        const aiTask = {
+        const aiTask: CreateTaskDto = {
           query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
           name: 'transcribe',
           additional_params: [],
