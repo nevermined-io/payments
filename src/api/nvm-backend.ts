@@ -163,9 +163,7 @@ export class NVMBackendApi {
       throw new Error('Unable to subscribe to the server becase a key was not provided')
 
     if (this.isWebSocketConnected()) {
-      console.log(
-        `_connectInternalSocketClient:: Already connected to the websocket server with id ${this.socketClient.id}`,
-      )
+      //   `_connectInternalSocketClient:: Already connected to the websocket server with id ${this.socketClient.id}`,
       return
     }
 
@@ -186,9 +184,6 @@ export class NVMBackendApi {
   ) {
     try {
       // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}
-      console.log(
-        `nvm-backend:: Connecting to websocket server: ${JSON.stringify(this.opts.webSocketOptions)}`,
-      )
       this._connectInternalSocketClient()
 
       await this.socketClient.on('_connected', async () => {
@@ -207,22 +202,17 @@ export class NVMBackendApi {
         throw new Error('No task rooms to join in configuration')
       }
 
-      console.log(
-        `connectTasksSocket:: Connecting to websocket server: ${JSON.stringify(this.opts.webSocketOptions)}`,
-      )
       this._connectInternalSocketClient()
 
-      console.log(`connectTasksSocket:: Is connected? ${this.isWebSocketConnected()}`)
+      // `connectTasksSocket:: Is connected? ${this.isWebSocketConnected()}`
 
       await this.socketClient.on('_connected', async () => {
-        console.log(`connectTasksSocket:: Joining tasks: ${JSON.stringify(tasks)}`)
+        // `connectTasksSocket:: Joining tasks: ${JSON.stringify(tasks)}`
         await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks }))
         await this.socketClient.on('task-log', (data: any) => {
           _callback(data)
         })
       })
-
-      console.log(`connectTasksSocket:: ending`)
     } catch (error) {
       throw new PaymentsError(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
