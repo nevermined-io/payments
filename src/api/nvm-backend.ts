@@ -2,8 +2,9 @@ import axios from 'axios'
 import { decodeJwt } from 'jose'
 import { io } from 'socket.io-client'
 import { sleep } from '../common/helper'
-import { AgentExecutionStatus } from '../common/types'
+import { AgentExecutionStatus, TaskLogMessage } from '../common/types'
 import { isEthereumAddress } from '../utils'
+import { PaymentsError } from '../common/payments.error'
 
 export interface BackendApiOptions {
   /**
@@ -41,14 +42,19 @@ export interface BackendApiOptions {
 
 export interface BackendWebSocketOptions {
   /**
+   * The websocket transports to use
+   */
+  transports: string[]
+
+  /**
+   * Authentication parameters
+   */
+  auth: { token: string }
+
+  /**
    * The path to connect to the websocket server
    */
   path?: string
-
-  /**
-   * The websocket transports to use
-   */
-  transports?: string[]
 
   /**
    * The bearer token to use in the websocket connection
@@ -89,11 +95,7 @@ export class NVMBackendApi {
   private _defaultSocketOptions: BackendWebSocketOptions = {
     // path: '',
     transports: ['websocket'],
-    transportOptions: {
-      websocket: {
-        extraHeaders: {},
-      },
-    },
+    auth: { token: '' },
   }
 
   constructor(opts: BackendApiOptions) {
@@ -106,22 +108,16 @@ export class NVMBackendApi {
     if (opts.webSocketOptions?.bearerToken) {
       // If the user pass a specific websocketoptions bearer token we use that one
       opts.webSocketOptions = {
+        ...this._defaultSocketOptions,
         ...opts.webSocketOptions,
-        transportOptions: {
-          websocket: {
-            extraHeaders: { Authorization: `Bearer ${opts.webSocketOptions!.bearerToken}` },
-          },
-        },
+        auth: { token: `Bearer ${opts.webSocketOptions!.bearerToken}` },
       }
     } else if (opts.apiKey) {
       // If not use the api key
       opts.webSocketOptions = {
+        ...this._defaultSocketOptions,
         ...opts.webSocketOptions,
-        transportOptions: {
-          websocket: {
-            extraHeaders: { Authorization: `Bearer ${opts.apiKey}` },
-          },
-        },
+        auth: { token: `Bearer ${opts.apiKey}` },
       }
     }
 
@@ -137,7 +133,6 @@ export class NVMBackendApi {
     try {
       if (this.opts.apiKey && this.opts.apiKey.length > 0) {
         const jwt = decodeJwt(this.opts.apiKey)
-        // if (jwt.sub && !jwt.sub.match(/^0x[a-fA-F0-9]{40}$/)) {
         if (isEthereumAddress(jwt.sub)) {
           this.userRoomId = `room:${jwt.sub}`
           this.hasKey = true
@@ -157,32 +152,63 @@ export class NVMBackendApi {
     }
   }
 
-  public async connectSocket(_callback: (err?: any) => any, opts: SubscriptionOptions) {
+  private async _connectInternalSocketClient() {
     if (!this.hasKey)
       throw new Error('Unable to subscribe to the server becase a key was not provided')
 
-    if (this.socketClient && this.socketClient.connected) {
-      // nvm-backend:: Already connected to the websocket server
+    if (this.isWebSocketConnected()) {
+      //   `_connectInternalSocketClient:: Already connected to the websocket server with id ${this.socketClient.id}`,
       return
     }
+
+    this.socketClient = io(this.opts.webSocketHost!, this.opts.webSocketOptions)
+    await this.socketClient.connect()
+    for (let i = 0; i < 10; i++) {
+      if (this.isWebSocketConnected()) return
+      await sleep(500)
+    }
+    if (!this.isWebSocketConnected()) {
+      throw new Error('Unable to connect to the websocket server')
+    }
+  }
+
+  protected async connectSocketSubscriber(
+    _callback: (err?: any) => any,
+    opts: SubscriptionOptions,
+  ) {
     try {
       // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}
-      this.socketClient = io(this.opts.webSocketHost!, this.opts.webSocketOptions)
-      await this.socketClient.connect()
+      this._connectInternalSocketClient()
+
       await this.socketClient.on('_connected', async () => {
         this._subscribe(_callback, opts)
       })
-      for (let i = 0; i < 5; i++) {
-        await sleep(1_000)
-        if (this.socketClient.connected) {
-          break
-        }
-      }
-      if (!this.socketClient.connected) {
-        throw new Error('Unable to connect to the websocket server')
-      }
     } catch (error) {
-      throw new Error(
+      throw new PaymentsError(
+        `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
+      )
+    }
+  }
+
+  protected async connectTasksSocket(_callback: (err?: any) => any, tasks: string[]) {
+    try {
+      if (tasks.length === 0) {
+        throw new Error('No task rooms to join in configuration')
+      }
+
+      this._connectInternalSocketClient()
+
+      // `connectTasksSocket:: Is connected? ${this.isWebSocketConnected()}`
+
+      await this.socketClient.on('_connected', async () => {
+        // `connectTasksSocket:: Joining tasks: ${JSON.stringify(tasks)}`
+        await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks }))
+        await this.socketClient.on('task-log', (data: any) => {
+          _callback(data)
+        })
+      })
+    } catch (error) {
+      throw new PaymentsError(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
       )
     }
@@ -229,6 +255,10 @@ export class NVMBackendApi {
       dids,
     }
     this.socketClient.emit('_emit-steps', JSON.stringify(message))
+  }
+
+  protected async _emitTaskLog(logMessage: TaskLogMessage) {
+    this.socketClient.emit('_task-log', JSON.stringify(logMessage))
   }
 
   disconnect() {

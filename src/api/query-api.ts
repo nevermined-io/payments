@@ -1,4 +1,4 @@
-import { AgentExecutionStatus, Step } from '../common/types'
+import { AgentExecutionStatus, CreateTaskDto, Step, TaskLogMessage } from '../common/types'
 import { isStepIdValid } from '../utils'
 import {
   BackendApiOptions,
@@ -78,7 +78,20 @@ export class AIQueryApi extends NVMBackendApi {
     _callback: (err?: any) => any,
     opts: SubscriptionOptions = DefaultSubscriptionOptions,
   ) {
-    await super.connectSocket(_callback, opts)
+    await super.connectSocketSubscriber(_callback, opts)
+  }
+
+  /**
+   * It subscribes to receive the logs generated during the execution of a task/s
+   *
+   * @remarks
+   * This method is used by users/subscribers of AI agents after they create a task on them
+   *
+   * @param _callback - The callback to execute when a new task log event is received
+   * @param tasks - The list of tasks to subscribe to
+   */
+  async subscribeTasksLogs(_callback: (err?: any) => any, tasks: string[]) {
+    await super.connectTasksSocket(_callback, tasks)
   }
 
   /**
@@ -116,9 +129,15 @@ export class AIQueryApi extends NVMBackendApi {
    * @param did - Agent DID
    * @param task - Task object. The task object should contain the query to execute and the name of the task. All the attributes here: @see https://docs.nevermined.io/docs/protocol/query-protocol#tasks-attributes
    * @param queryOpts - The query options @see {@link Payments.getServiceAccessConfig}
+   * @param _callback - The callback to execute when a new task log event is received (optional)
    * @returns The result of the operation
    */
-  async createTask(did: string, task: any, queryOpts: AIQueryOptions) {
+  async createTask(
+    did: string,
+    task: CreateTaskDto,
+    queryOpts: AIQueryOptions,
+    _callback?: (err?: any) => any,
+  ) {
     const endpoint = TASK_ENDPOINT.replace('{did}', did)
     const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
@@ -127,7 +146,11 @@ export class AIQueryApi extends NVMBackendApi {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
     }
-    return this.post(endpoint, task, reqOptions)
+    const result = await this.post(endpoint, task, reqOptions)
+    if (result.status === 201 && _callback) {
+      await this.subscribeTasksLogs(_callback, [result.data.task.task_id])
+    }
+    return result
   }
 
   /**
@@ -333,5 +356,16 @@ export class AIQueryApi extends NVMBackendApi {
    */
   async getTasksFromAgents() {
     return this.get(GET_AGENTS_ENDPOINT, { sendThroughProxy: false })
+  }
+
+  /**
+   * It emits a log message related to a task
+   *
+   * @remarks
+   * This method is used by the AI Agent to emit log messages
+   *
+   */
+  async logTask(logMessage: TaskLogMessage) {
+    super._emitTaskLog(logMessage)
   }
 }
