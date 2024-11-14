@@ -190,7 +190,11 @@ export class NVMBackendApi {
     }
   }
 
-  protected async connectTasksSocket(_callback: (err?: any) => any, tasks: string[]) {
+  protected async connectTasksSocket(
+    _callback: (err?: any) => any,
+    tasks: string[],
+    history = true,
+  ) {
     try {
       if (tasks.length === 0) {
         throw new Error('No task rooms to join in configuration')
@@ -202,7 +206,7 @@ export class NVMBackendApi {
 
       await this.socketClient.on('_connected', async () => {
         // `connectTasksSocket:: Joining tasks: ${JSON.stringify(tasks)}`
-        await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks }))
+        await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks, history }))
         await this.socketClient.on('task-log', (data: any) => {
           _callback(data)
         })

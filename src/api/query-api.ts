@@ -89,9 +89,10 @@ export class AIQueryApi extends NVMBackendApi {
    *
    * @param _callback - The callback to execute when a new task log event is received
    * @param tasks - The list of tasks to subscribe to
+   * @param history - If true, it retrieves the history of the logs emitted before the subscription
    */
-  async subscribeTasksLogs(_callback: (err?: any) => any, tasks: string[]) {
-    await super.connectTasksSocket(_callback, tasks)
+  async subscribeTasksLogs(_callback: (err?: any) => any, tasks: string[], history = true) {
+    await super.connectTasksSocket(_callback, tasks, history)
   }
 
   /**
