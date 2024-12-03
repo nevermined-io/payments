@@ -91,6 +91,7 @@ export class NVMBackendApi {
   private opts: BackendApiOptions
   private socketClient: any
   private userRoomId: string | undefined = undefined
+  private taskCallbacks: Map<string, Function>
   private hasKey = false
   private _defaultSocketOptions: BackendWebSocketOptions = {
     // path: '',
@@ -150,6 +151,8 @@ export class NVMBackendApi {
     } catch (error) {
       throw new Error(`Invalid URL: ${this.opts.backendHost} - ${(error as Error).message}`)
     }
+
+    this.taskCallbacks = new Map()
   }
 
   private async _connectInternalSocketClient() {
@@ -204,17 +207,51 @@ export class NVMBackendApi {
 
       // `connectTasksSocket:: Is connected? ${this.isWebSocketConnected()}`
 
-      await this.socketClient.on('_connected', async () => {
-        // `connectTasksSocket:: Joining tasks: ${JSON.stringify(tasks)}`
-        await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks, history }))
-        await this.socketClient.on('task-log', (data: any) => {
-          _callback(data)
-        })
+      // `connectTasksSocket:: Joining tasks: ${JSON.stringify(tasks)}`
+
+      tasks.forEach((task) => {
+        this.taskCallbacks.set(task, _callback)
       })
+
+      await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks, history }))
+      await this.socketClient.on('task-log', this.handleTaskLog.bind(this))
     } catch (error) {
       throw new PaymentsError(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
       )
+    }
+  }
+
+  /**
+   * Handles the 'task-log' event from the websocket.
+   * Parses the incoming data, retrieves the corresponding callback,
+   * executes it, and removes the callback if the task is completed or failed.
+   *
+   * @param {any} data - The data received from the websocket event.
+   */
+  private handleTaskLog(data: any): void {
+    const parsedData = JSON.parse(data)
+    const { task_id: taskId } = parsedData
+    const callback = this.taskCallbacks.get(taskId)
+    if (callback) {
+      // Execute the stored callback
+      callback(data)
+      if (['Completed', 'Failed'].includes(parsedData.task_status)) {
+        // Remove the callback from the map once the task is completed
+        this.removeTaskCallback(taskId)
+      }
+    }
+  }
+
+  /**
+   * Removes the callback associated with the given task ID.
+   * Logs the removal of the callback.
+   *
+   * @param {string} taskId - The ID of the task whose callback is to be removed.
+   */
+  private removeTaskCallback(taskId: string) {
+    if (this.taskCallbacks.has(taskId)) {
+      this.taskCallbacks.delete(taskId)
     }
   }
 
