@@ -192,6 +192,8 @@ export interface TaskLogMessage {
   step_id?: string
 }
 
+export type TaskCallback = (data: any) => void
+
 export interface CreateTaskDto {
   /**
    * The query parameter for the task
