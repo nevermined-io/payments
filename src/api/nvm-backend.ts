@@ -214,7 +214,7 @@ export class NVMBackendApi {
       })
 
       await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks, history }))
-      await this.socketClient.on('task-log', this.handleTaskLog.bind(this, tasks))
+      await this.socketClient.on('_task-log', this.handleTaskLog.bind(this, tasks))
     } catch (error) {
       throw new PaymentsError(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
@@ -223,7 +223,7 @@ export class NVMBackendApi {
   }
 
   /**
-   * Handles the 'task-log' event from the websocket.
+   * Handles the '_task-log' event from the websocket.
    * Parses the incoming data, checks if it matches the bound tasks,
    * retrieves the corresponding callback, executes it, and removes the callback if the task is completed or failed.
    *
