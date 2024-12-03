@@ -224,17 +224,17 @@ export class NVMBackendApi {
 
   /**
    * Handles the '_task-log' event from the websocket.
-   * Parses the incoming data, checks if it matches the bound tasks,
-   * retrieves the corresponding callback, executes it, and removes the callback if the task is completed or failed.
+   * Parses the incoming data, retrieves the corresponding callback,
+   * executes it, and removes the callback if the task is completed or failed.
    *
-   * @param boundTasks - The tasks bound to this handler.
+   * @param boundTasks - The list of task IDs that the callback is bound to.
    * @param data - The data received from the websocket event.
    */
   private handleTaskLog(boundTasks: string[], data: any): void {
     const parsedData = JSON.parse(data)
     const { task_id: taskId } = parsedData
 
-    //Verify if the task is bound to this handler
+    // If the task ID is not in the list of bound tasks, ignore the event
     if (!boundTasks.includes(taskId)) {
       return
     }
