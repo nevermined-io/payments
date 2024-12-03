@@ -2,7 +2,7 @@ import axios from 'axios'
 import { decodeJwt } from 'jose'
 import { io } from 'socket.io-client'
 import { sleep } from '../common/helper'
-import { AgentExecutionStatus, TaskLogMessage } from '../common/types'
+import { AgentExecutionStatus, TaskLogMessage, TaskCallback } from '../common/types'
 import { isEthereumAddress } from '../utils'
 import { PaymentsError } from '../common/payments.error'
 
@@ -91,7 +91,7 @@ export class NVMBackendApi {
   private opts: BackendApiOptions
   private socketClient: any
   private userRoomId: string | undefined = undefined
-  private taskCallbacks: Map<string, Function>
+  private taskCallbacks: Map<string, TaskCallback> = new Map()
   private hasKey = false
   private _defaultSocketOptions: BackendWebSocketOptions = {
     // path: '',
@@ -227,7 +227,7 @@ export class NVMBackendApi {
    * Parses the incoming data, retrieves the corresponding callback,
    * executes it, and removes the callback if the task is completed or failed.
    *
-   * @param {any} data - The data received from the websocket event.
+   * @param data - The data received from the websocket event.
    */
   private handleTaskLog(data: any): void {
     const parsedData = JSON.parse(data)
@@ -247,7 +247,7 @@ export class NVMBackendApi {
    * Removes the callback associated with the given task ID.
    * Logs the removal of the callback.
    *
-   * @param {string} taskId - The ID of the task whose callback is to be removed.
+   * @param taskId - The ID of the task whose callback is to be removed.
    */
   private removeTaskCallback(taskId: string) {
     if (this.taskCallbacks.has(taskId)) {
