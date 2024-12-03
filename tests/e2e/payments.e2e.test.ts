@@ -38,7 +38,6 @@ describe('Payments API (e2e)', () => {
   let completedTaskDID: string
   let failedTaskId: string
   let failedTaskDID: string
-  let logsReceived = 0
 
   describe('Payments Setup', () => {
     it('The Payments client can be initialized correctly', () => {
@@ -238,7 +237,6 @@ describe('Payments API (e2e)', () => {
           subscriberQueryOpts,
           async (data) => {
             console.log('Task Log received', data)
-            logsReceived++
           }
         )
 
@@ -353,17 +351,38 @@ describe('Payments API (e2e)', () => {
     )
 
     it('Subscriber should be able to receive logs', async () => {
-            
+      
+      const aiTask: CreateTaskDto = {
+        query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
+        name: 'transcribe',
+        additional_params: [],
+        artifacts: [],
+      }
+      const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
+      const queryOpts = {
+        accessToken: accessConfig.accessToken,
+        proxyHost: accessConfig.neverminedProxyUri,
+      }
+
+      let logsReceived = 0
+      const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, queryOpts, async (data) => {
+        console.log('New Task Log received', data)
+        logsReceived++
+      })
+      const taskId = taskResult.data.task.task_id
       const logMessage: TaskLogMessage = {
         level: 'info',
         task_status: AgentExecutionStatus.Completed,
-        task_id: createdTaskId,
+        task_id: taskId,
         message: 'This is a log message',
       }
+
       console.log(`Sending log message for task ${logMessage.task_id}`)
+
       await paymentsBuilder.query.logTask(logMessage)
 
-      await sleep(2_000)
+      await sleep(5_000)
+      console.log(`# Logs received: ${logsReceived}`)
       expect(logsReceived).toBeGreaterThan(0)
 
     }, TEST_TIMEOUT)
