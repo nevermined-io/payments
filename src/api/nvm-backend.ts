@@ -214,7 +214,7 @@ export class NVMBackendApi {
       })
 
       await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks, history }))
-      await this.socketClient.on('task-log', this.handleTaskLog.bind(this))
+      await this.socketClient.on('task-log', this.handleTaskLog.bind(this, tasks))
     } catch (error) {
       throw new PaymentsError(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
@@ -223,15 +223,22 @@ export class NVMBackendApi {
   }
 
   /**
-   * Handles the 'task-log' event from the websocket.
+   * Handles the '_task-log' event from the websocket.
    * Parses the incoming data, retrieves the corresponding callback,
    * executes it, and removes the callback if the task is completed or failed.
    *
+   * @param boundTasks - The list of task IDs that the callback is bound to.
    * @param data - The data received from the websocket event.
    */
-  private handleTaskLog(data: any): void {
+  private handleTaskLog(boundTasks: string[], data: any): void {
     const parsedData = JSON.parse(data)
     const { task_id: taskId } = parsedData
+
+    // If the task ID is not in the list of bound tasks, ignore the event
+    if (!boundTasks.includes(taskId)) {
+      return
+    }
+
     const callback = this.taskCallbacks.get(taskId)
     if (callback) {
       // Execute the stored callback
