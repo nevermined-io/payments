@@ -114,7 +114,7 @@ describe('Payments API (e2e)', () => {
     //     "artifacts": []
     //   }
 
-    //   const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
+    //   const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
     //   const queryOpts = {
     //     accessToken: accessConfig.accessToken,
     //     proxyHost: accessConfig.neverminedProxyUri
@@ -229,7 +229,7 @@ describe('Payments API (e2e)', () => {
           additional_params: [],
           artifacts: [],
         }
-        subscriberQueryOpts = await paymentsSubscriber.getServiceAccessConfig(agentDID)
+        subscriberQueryOpts = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
 
         const taskResult = await paymentsSubscriber.query.createTask(
           agentDID,
@@ -328,13 +328,13 @@ describe('Payments API (e2e)', () => {
           additional_params: [],
           artifacts: [],
         }
-        const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
-        const queryOpts = {
-          accessToken: accessConfig.accessToken,
-          proxyHost: accessConfig.neverminedProxyUri,
-        }
+        // const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
+        // const queryOpts = {
+        //   accessToken: accessConfig.accessToken,
+        //   proxyHost: accessConfig.neverminedProxyUri,
+        // }
 
-        const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, queryOpts)
+        const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask) //, queryOpts)
 
         expect(taskResult).toBeDefined()
         expect(taskResult.status).toBe(201)
@@ -358,14 +358,14 @@ describe('Payments API (e2e)', () => {
         additional_params: [],
         artifacts: [],
       }
-      const accessConfig = await paymentsSubscriber.getServiceAccessConfig(agentDID)
-      const queryOpts = {
-        accessToken: accessConfig.accessToken,
-        proxyHost: accessConfig.neverminedProxyUri,
-      }
+      // const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
+      // const queryOpts = {
+      //   accessToken: accessConfig.accessToken,
+      //   proxyHost: accessConfig.neverminedProxyUri,
+      // }
 
       let logsReceived = 0
-      const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, queryOpts, async (data) => {
+      const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, undefined, async (data) => {
         console.log('New Task Log received', data)
         logsReceived++
       })

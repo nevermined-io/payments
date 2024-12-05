@@ -88,7 +88,7 @@ export const DefaultSubscriptionOptions = {
 }
 
 export class NVMBackendApi {
-  private opts: BackendApiOptions
+  protected opts: BackendApiOptions
   private socketClient: any
   private userRoomId: string | undefined = undefined
   private taskCallbacks: Map<string, TaskCallback> = new Map()

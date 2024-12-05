@@ -61,6 +61,8 @@ export class AIQueryOptions {
  * This API is oriented for AI Builders providing AI Agents and AI Subscribers interacting with them.
  */
 export class AIQueryApi extends NVMBackendApi {
+  queryOptionsCache = new Map<string, AIQueryOptions>()
+
   constructor(opts: BackendApiOptions) {
     super(opts)
   }
@@ -96,6 +98,43 @@ export class AIQueryApi extends NVMBackendApi {
   }
 
   /**
+   * Get the required configuration for accessing a remote service agent.
+   * This configuration includes:
+   * - The JWT access token
+   * - The Proxy url that can be used to query the agent/service.
+   *
+   * @example
+   * ```
+   * const accessConfig = await payments.query.getServiceAccessConfig(agentDID)
+   * console.log(`Agent JWT Token: ${accessConfig.accessToken}`)
+   * console.log(`Agent Proxy URL: ${accessConfig.neverminedProxyUri}`)
+   * ```
+   *
+   * @param did - The DID of the agent/service.
+   * @returns A promise that resolves to the service token.
+   */
+  public async getServiceAccessConfig(did: string): Promise<{
+    accessToken: string
+    neverminedProxyUri: string
+  }> {
+    const options = {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.opts.apiKey}`,
+      },
+    }
+    const url = new URL(`/api/v1/payments/service/token/${did}`, this.opts.backendHost)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(`${response.statusText} - ${await response.text()}`)
+    }
+
+    return (await response.json()).token
+  }
+
+  /**
    * Subscribers can create an AI Task for an Agent. The task must contain the input query that will be used by the AI Agent.
    * @see https://docs.nevermined.io/docs/protocol/query-protocol
    *
@@ -107,7 +146,7 @@ export class AIQueryApi extends NVMBackendApi {
    *
    * @example
    * ```
-   * const accessConfig = await payments.getServiceAccessConfig(agentDID)
+   * const accessConfig = await payments.query.getServiceAccessConfig(agentDID)
    * const queryOpts = {
    *    accessToken: accessConfig.accessToken,
    *    proxyHost: accessConfig.neverminedProxyUri
@@ -129,21 +168,26 @@ export class AIQueryApi extends NVMBackendApi {
    *
    * @param did - Agent DID
    * @param task - Task object. The task object should contain the query to execute and the name of the task. All the attributes here: @see https://docs.nevermined.io/docs/protocol/query-protocol#tasks-attributes
-   * @param queryOpts - The query options @see {@link Payments.getServiceAccessConfig}
+   * @param queryOpts - The query options @see {@link Payments.query.getServiceAccessConfig}
    * @param _callback - The callback to execute when a new task log event is received (optional)
    * @returns The result of the operation
    */
   async createTask(
     did: string,
     task: CreateTaskDto,
-    queryOpts: AIQueryOptions,
+    queryOpts?: AIQueryOptions,
     _callback?: (err?: any) => any,
   ) {
+    if (!queryOpts || !queryOpts.accessToken) {
+      queryOpts = this.queryOptionsCache.has(did)
+        ? this.queryOptionsCache.get(did)
+        : await this.getServiceAccessConfig(did)
+    }
     const endpoint = TASK_ENDPOINT.replace('{did}', did)
     const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
-      ...(queryOpts.neverminedProxyUri && { proxyHost: queryOpts.neverminedProxyUri }),
-      ...(queryOpts.accessToken && {
+      ...(queryOpts?.neverminedProxyUri && { proxyHost: queryOpts.neverminedProxyUri }),
+      ...(queryOpts?.accessToken && {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
     }
@@ -165,7 +209,7 @@ export class AIQueryApi extends NVMBackendApi {
    * 
    * @example
    * ```
-   * const accessConfig = await payments.getServiceAccessConfig(agentDID)
+   * const accessConfig = await payments.query.getServiceAccessConfig(agentDID)
    * const queryOpts = {
    *    accessToken: accessConfig.accessToken,
    *    proxyHost: accessConfig.neverminedProxyUri
@@ -182,11 +226,16 @@ export class AIQueryApi extends NVMBackendApi {
    * @param taskId - Task ID
    * @returns The task with the steps
    */
-  async getTaskWithSteps(did: string, taskId: string, queryOpts: AIQueryOptions) {
+  async getTaskWithSteps(did: string, taskId: string, queryOpts?: AIQueryOptions) {
+    if (!queryOpts || !queryOpts.accessToken) {
+      queryOpts = this.queryOptionsCache.has(did)
+        ? this.queryOptionsCache.get(did)
+        : await this.getServiceAccessConfig(did)
+    }
     const reqOptions: HTTPRequestOptions = {
       sendThroughProxy: true,
-      ...(queryOpts.neverminedProxyUri && { proxyHost: queryOpts.neverminedProxyUri }),
-      ...(queryOpts.accessToken && {
+      ...(queryOpts?.neverminedProxyUri && { proxyHost: queryOpts.neverminedProxyUri }),
+      ...(queryOpts?.accessToken && {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
     }
