@@ -1030,43 +1030,6 @@ export class Payments {
   }
 
   /**
-   * Get the required configuration for accessing a remote service agent.
-   * This configuration includes:
-   * - The JWT access token
-   * - The Proxy url that can be used to query the agent/service.
-   *
-   * @example
-   * ```
-   * const accessConfig = await payments.getServiceAccessConfig(agentDID)
-   * console.log(`Agent JWT Token: ${accessConfig.accessToken}`)
-   * console.log(`Agent Proxy URL: ${accessConfig.neverminedProxyUri}`)
-   * ```
-   *
-   * @param did - The DID of the agent/service.
-   * @returns A promise that resolves to the service token.
-   */
-  public async getServiceAccessConfig(did: string): Promise<{
-    accessToken: string
-    neverminedProxyUri: string
-  }> {
-    const options = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-    }
-    const url = new URL(`/api/v1/payments/service/token/${did}`, this.environment.backend)
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
-    }
-
-    return (await response.json()).token
-  }
-
-  /**
    * Orders a Payment Plan. The user needs to have enough balance in the token selected by the owner of the Payment Plan.
    *
    * @remarks
