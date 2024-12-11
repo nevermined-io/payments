@@ -2,9 +2,9 @@ import axios from 'axios'
 import { decodeJwt } from 'jose'
 import { io } from 'socket.io-client'
 import { sleep } from '../common/helper'
-import { AgentExecutionStatus, TaskLogMessage, TaskCallback } from '../common/types'
-import { isEthereumAddress } from '../utils'
 import { PaymentsError } from '../common/payments.error'
+import { AgentExecutionStatus, TaskCallback, TaskLogMessage } from '../common/types'
+import { isEthereumAddress } from '../utils'
 
 export interface BackendApiOptions {
   /**
@@ -214,7 +214,9 @@ export class NVMBackendApi {
       })
 
       await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks, history }))
-      await this.socketClient.on('task-log', this.handleTaskLog.bind(this, tasks))
+      this.socketClient.on('_join-tasks_', async () => {
+        this.socketClient.on('task-log', this.handleTaskLog.bind(this, tasks))
+      })
     } catch (error) {
       throw new PaymentsError(
         `Unable to initialize websocket client: ${this.opts.webSocketHost} - ${(error as Error).message}`,
