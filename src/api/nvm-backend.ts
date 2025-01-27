@@ -98,6 +98,7 @@ export class NVMBackendApi {
     transports: ['websocket'],
     auth: { token: '' },
   }
+  private did = ''
 
   constructor(opts: BackendApiOptions) {
     const defaultHeaders = {
@@ -205,17 +206,13 @@ export class NVMBackendApi {
 
       this._connectInternalSocketClient()
 
-      // `connectTasksSocket:: Is connected? ${this.isWebSocketConnected()}`
-
-      // `connectTasksSocket:: Joining tasks: ${JSON.stringify(tasks)}`
-
       tasks.forEach((task) => {
         this.taskCallbacks.set(task, _callback)
       })
 
       await this.socketClient.emit('_join-tasks', JSON.stringify({ tasks, history }))
       this.socketClient.on('_join-tasks_', async () => {
-        this.socketClient.on('task-log', this.handleTaskLog.bind(this, tasks))
+        this.socketClient.on('task-updated', this.handleTaskUpdateEvent.bind(this, tasks))
       })
     } catch (error) {
       throw new PaymentsError(
@@ -225,14 +222,14 @@ export class NVMBackendApi {
   }
 
   /**
-   * Handles the '_task-log' event from the websocket.
+   * Handles the 'task-updated' event from the websocket.
    * Parses the incoming data, retrieves the corresponding callback,
    * executes it, and removes the callback if the task is completed or failed.
    *
    * @param boundTasks - The list of task IDs that the callback is bound to.
    * @param data - The data received from the websocket event.
    */
-  private handleTaskLog(boundTasks: string[], data: any): void {
+  private handleTaskUpdateEvent(boundTasks: string[], data: any): void {
     const parsedData = JSON.parse(data)
     const { task_id: taskId } = parsedData
 
@@ -242,7 +239,7 @@ export class NVMBackendApi {
     }
 
     const callback = this.taskCallbacks.get(taskId)
-    if (callback) {
+    if (callback && parsedData.did !== this.did) {
       // Execute the stored callback
       callback(data)
       if (['Completed', 'Failed'].includes(parsedData.task_status)) {
@@ -284,7 +281,7 @@ export class NVMBackendApi {
 
     opts.subscribeEventTypes.forEach(async (eventType) => {
       await this.socketClient.on(eventType, (data: any) => {
-        _callback(data)
+        this.eventHandler(data, _callback, opts)
       })
     })
     if (opts.getPendingEventsOnSubscribe) {
@@ -293,7 +290,12 @@ export class NVMBackendApi {
   }
 
   private async eventHandler(data: any, _callback: (err?: any) => any, _opts: SubscriptionOptions) {
-    _callback(data)
+    try {
+      _callback(data)
+      this.did = JSON.parse(data).did
+    } catch (error) {
+      throw new Error(`Unable to parse data: ${(error as Error).message}`)
+    }
   }
 
   protected async _emitStepEvents(
