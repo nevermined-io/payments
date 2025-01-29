@@ -93,7 +93,7 @@ export class AIQueryApi extends NVMBackendApi {
    * @param tasks - The list of tasks to subscribe to
    * @param history - If true, it retrieves the history of the logs emitted before the subscription
    */
-  async subscribeTasksLogs(_callback: (err?: any) => any, tasks: string[], history = true) {
+  async subscribeTasksUpdated(_callback: (err?: any) => any, tasks: string[], history = true) {
     await super.connectTasksSocket(_callback, tasks, history)
   }
 
@@ -193,7 +193,7 @@ export class AIQueryApi extends NVMBackendApi {
     }
     const result = await this.post(endpoint, task, reqOptions)
     if (result.status === 201 && _callback) {
-      await this.subscribeTasksLogs(_callback, [result.data.task.task_id])
+      await this.subscribeTasksUpdated(_callback, [result.data.task.task_id])
     }
     return result
   }
