@@ -1,12 +1,11 @@
+import { decodeJwt } from 'jose'
 import fileDownload from 'js-file-download'
 import * as path from 'path'
-import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
-import { decodeJwt } from 'jose'
-import { PaymentsError } from './common/payments.error'
 import { AIQueryApi } from './api/query-api'
 import { getServiceHostFromEndpoints, jsonReplacer } from './common/helper'
-import { isEthereumAddress } from './utils'
-import { getAIHubOpenApiUrl, getQueryProtocolEndpoints } from './utils'
+import { PaymentsError } from './common/payments.error'
+import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
+import { getAIHubOpenApiUrl, getQueryProtocolEndpoints, isEthereumAddress } from './utils'
 
 /**
  * Options to initialize the Payments class.
@@ -1217,6 +1216,67 @@ export class Payments {
       throw Error(`${response.statusText} - ${await response.text()}`)
     }
 
+    return response.json()
+  }
+
+  /**
+   *
+   * Search for Payment Plans based on a text query.
+   *
+   * @param text - The text query to search for Payment Plans.
+   * @param page - The page number for pagination.
+   * @param offset - The number of items per page.
+   * @returns A Promise that resolves to the JSON response from the server.
+   * @throws Error if the server response is not successful.
+   *
+   */
+  public async searchPlans({ text, page = 1, offset = 10 }: { text: string; page?: number; offset?: number }) {
+    const body = { text: text, page: page, offset: offset }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.nvmApiKey}`,
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/search/plan', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(`${response.statusText} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  /**
+   *
+   * Search for AI Agents based on a text query.
+   *
+   *
+   * @param text - The text query to search for Payment Plans.
+   * @param page - The page number for pagination.
+   * @param offset - The number of items per page.
+   * @returns A Promise that resolves to the JSON response from the server.
+   * @throws Error if the server response is not successful.
+   *
+   */
+  public async searchAgents({ text, page = 1, offset = 10 }: { text: string; page?: number; offset?: number }) {
+    const body = { text: text, page: page, offset: offset }
+    const options = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.nvmApiKey}`,
+      },
+      body: JSON.stringify(body),
+    }
+    const url = new URL('/api/v1/payments/search/agent', this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(`${response.statusText} - ${await response.text()}`)
+    }
     return response.json()
   }
 }
