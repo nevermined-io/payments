@@ -1230,7 +1230,15 @@ export class Payments {
    * @throws Error if the server response is not successful.
    *
    */
-  public async searchPlans({ text, page = 1, offset = 10 }: { text: string; page?: number; offset?: number }) {
+  public async searchPlans({
+    text,
+    page = 1,
+    offset = 10,
+  }: {
+    text: string
+    page?: number
+    offset?: number
+  }) {
     const body = { text: text, page: page, offset: offset }
     const options = {
       method: 'POST',
@@ -1261,7 +1269,15 @@ export class Payments {
    * @throws Error if the server response is not successful.
    *
    */
-  public async searchAgents({ text, page = 1, offset = 10 }: { text: string; page?: number; offset?: number }) {
+  public async searchAgents({
+    text,
+    page = 1,
+    offset = 10,
+  }: {
+    text: string
+    page?: number
+    offset?: number
+  }) {
     const body = { text: text, page: page, offset: offset }
     const options = {
       method: 'POST',
