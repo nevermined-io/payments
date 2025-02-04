@@ -56,6 +56,13 @@ describe('Payments API (e2e)', () => {
       expect(paymentsBuilder.query).toBeDefined()
     })
 
+    it('Search for an agent and plans', async () => { 
+      const plan = await paymentsBuilder.searchPlans({text: 'AI'})
+      expect(plan).toBeDefined()
+      const agent = await paymentsBuilder.searchPlans({text: 'AI'})
+      expect(agent).toBeDefined()
+    })
+
     it.skip('Manual subscription', async () => {
       const socketOptions = {
         // path: '/agents',
