@@ -1,12 +1,11 @@
+import { decodeJwt } from 'jose'
 import fileDownload from 'js-file-download'
 import * as path from 'path'
-import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
-import { decodeJwt } from 'jose'
-import { PaymentsError } from './common/payments.error'
 import { AIQueryApi } from './api/query-api'
 import { getServiceHostFromEndpoints, jsonReplacer } from './common/helper'
-import { isEthereumAddress } from './utils'
-import { getAIHubOpenApiUrl, getQueryProtocolEndpoints } from './utils'
+import { PaymentsError } from './common/payments.error'
+import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
+import { getAIHubOpenApiUrl, getQueryProtocolEndpoints, isEthereumAddress } from './utils'
 
 /**
  * Options to initialize the Payments class.

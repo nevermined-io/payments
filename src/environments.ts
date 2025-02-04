@@ -18,8 +18,8 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
    */
   local: {
     frontend: 'http://localhost:3000',
-    backend: 'http://localhost:3001',
-    websocketBackend: 'ws://localhost:3001',
+    backend: 'http://localhost:3200',
+    websocketBackend: 'ws://localhost:3200',
     proxy: 'https://localhost:443',
   },
   /**
