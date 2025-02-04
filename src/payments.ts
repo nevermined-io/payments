@@ -1223,6 +1223,11 @@ export class Payments {
    *
    * Search for Payment Plans based on a text query.
    *
+   * @example
+   * ```
+   * const plans = await payments.searchPlans({ text: 'test' })
+   * ```
+   *
    * @param text - The text query to search for Payment Plans.
    * @param page - The page number for pagination.
    * @param offset - The number of items per page.
@@ -1261,6 +1266,10 @@ export class Payments {
    *
    * Search for AI Agents based on a text query.
    *
+   * @example
+   * ```
+   * const agents = await payments.searchAgents({ text: 'test' })
+   * ```
    *
    * @param text - The text query to search for Payment Plans.
    * @param page - The page number for pagination.
