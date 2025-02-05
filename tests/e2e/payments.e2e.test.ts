@@ -181,18 +181,22 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to register an agent and a plan in one step',
       async () => {
-        const { planDID, agentDID } = await paymentsBuilder.createAgentAndPlan({
-          planName: 'E2E Payments Agent',
-          planDescription: 'description',
-          planPrice: 0n,
-          planAmountOfCredits: 100,
-          planTokenAddress: ERC20_ADDRESS,
-          agentName: 'Agent e2e name',
-          agentDescription: 'description',
-          agentAmountOfCredits: 1,
-          agentUsesAIHub: true,
-          agentServiceChargeType: 'fixed',
-        })
+        const { planDID, agentDID } = await paymentsBuilder.createAgentAndPlan(
+          {
+            name: 'E2E Payments Agent',
+            description: 'description',
+            price: 0n,
+            amountOfCredits: 100,
+            tokenAddress: ERC20_ADDRESS,
+          },
+          {
+            name: 'Agent e2e name',
+            description: 'description',
+            amountOfCredits: 1,
+            usesAIHub: true,
+            serviceChargeType: 'fixed',
+          },
+        )
         expect(agentDID).toBeDefined()
         expect(planDID).toBeDefined()
       },
