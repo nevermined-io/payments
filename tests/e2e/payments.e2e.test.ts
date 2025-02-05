@@ -56,10 +56,10 @@ describe('Payments API (e2e)', () => {
       expect(paymentsBuilder.query).toBeDefined()
     })
 
-    it('Search for an agent and plans', async () => { 
-      const plan = await paymentsBuilder.searchPlans({text: 'AI'})
+    it('Search for an agent and plans', async () => {
+      const plan = await paymentsBuilder.searchPlans({ text: 'AI' })
       expect(plan).toBeDefined()
-      const agent = await paymentsBuilder.searchPlans({text: 'AI'})
+      const agent = await paymentsBuilder.searchPlans({ text: 'AI' })
       expect(agent).toBeDefined()
     })
 
@@ -178,6 +178,27 @@ describe('Payments API (e2e)', () => {
       TEST_TIMEOUT,
     )
 
+    it(
+      'I should be able to register an agent and a plan in one step',
+      async () => {
+        const { planDID, agentDID } = await paymentsBuilder.createAgentAndPlan({
+          planName: 'E2E Payments Agent',
+          planDescription: 'description',
+          planPrice: 0n,
+          planAmountOfCredits: 100,
+          planTokenAddress: ERC20_ADDRESS,
+          agentName: 'Agent e2e name',
+          agentDescription: 'description',
+          agentAmountOfCredits: 1,
+          agentUsesAIHub: true,
+          agentServiceChargeType: 'fixed',
+        })
+        expect(agentDID).toBeDefined()
+        expect(planDID).toBeDefined()
+      },
+      TEST_TIMEOUT,
+    )
+
     it.skip(
       'I should be able to register a new File',
       async () => {
@@ -244,7 +265,7 @@ describe('Payments API (e2e)', () => {
           subscriberQueryOpts,
           async (data) => {
             console.log('Task Log received', data)
-          }
+          },
         )
 
         expect(taskResult).toBeDefined()
@@ -252,7 +273,6 @@ describe('Payments API (e2e)', () => {
         console.log('Task Result', taskResult.data)
         createdTaskId = taskResult.data.task.task_id
         expect(createdTaskId).toBeDefined()
-
       },
       TEST_TIMEOUT,
     )
@@ -357,42 +377,49 @@ describe('Payments API (e2e)', () => {
       TEST_TIMEOUT,
     )
 
-    it('Subscriber should be able to receive logs', async () => {
-      
-      const aiTask: CreateTaskDto = {
-        query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
-        name: 'transcribe',
-        additional_params: [],
-        artifacts: [],
-      }
-      // const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
-      // const queryOpts = {
-      //   accessToken: accessConfig.accessToken,
-      //   proxyHost: accessConfig.neverminedProxyUri,
-      // }
+    it(
+      'Subscriber should be able to receive logs',
+      async () => {
+        const aiTask: CreateTaskDto = {
+          query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
+          name: 'transcribe',
+          additional_params: [],
+          artifacts: [],
+        }
+        // const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
+        // const queryOpts = {
+        //   accessToken: accessConfig.accessToken,
+        //   proxyHost: accessConfig.neverminedProxyUri,
+        // }
 
-      let logsReceived = 0
-      const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask, undefined, async (data) => {
-        console.log('New Task Log received', data)
-        logsReceived++
-      })
-      const taskId = taskResult.data.task.task_id
-      const logMessage: TaskLogMessage = {
-        level: 'info',
-        task_status: AgentExecutionStatus.Completed,
-        task_id: taskId,
-        message: 'This is a log message',
-      }
+        let logsReceived = 0
+        const taskResult = await paymentsSubscriber.query.createTask(
+          agentDID,
+          aiTask,
+          undefined,
+          async (data) => {
+            console.log('New Task Log received', data)
+            logsReceived++
+          },
+        )
+        const taskId = taskResult.data.task.task_id
+        const logMessage: TaskLogMessage = {
+          level: 'info',
+          task_status: AgentExecutionStatus.Completed,
+          task_id: taskId,
+          message: 'This is a log message',
+        }
 
-      console.log(`Sending log message for task ${logMessage.task_id}`)
+        console.log(`Sending log message for task ${logMessage.task_id}`)
 
-      await paymentsBuilder.query.logTask(logMessage)
+        await paymentsBuilder.query.logTask(logMessage)
 
-      await sleep(5_000)
-      console.log(`# Logs received: ${logsReceived}`)
-      expect(logsReceived).toBeGreaterThan(0)
-
-    }, TEST_TIMEOUT)
+        await sleep(5_000)
+        console.log(`# Logs received: ${logsReceived}`)
+        expect(logsReceived).toBeGreaterThan(0)
+      },
+      TEST_TIMEOUT,
+    )
 
     it('Subscriber should be able to validate an AI task is completed', async () => {
       console.log(`@@@@@ getting task with steps: ${completedTaskDID} - ${completedTaskId}`)

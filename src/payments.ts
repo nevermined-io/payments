@@ -604,6 +604,160 @@ export class Payments {
   }
 
   /**
+   *
+   * It creates a new AI Agent and a Payment Plan on Nevermined.
+   *
+   * @remarks
+   *
+   * This method is oriented to AI Builders
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
+   *
+   * @param planName - The name of the Payment Plan.
+   * @param planDescription - The description of the Payment Plan.
+   * @param planPrice - The price of the Payment Plan. It must be given in the lowest denomination of the currency.
+   * @param planTokenAddress - The address of the ERC20 contract used for the payment. Using the `ZeroAddress` will use the chain's native currency instead.
+   * @param planAmountOfCredits - The number of credits that are transferred to the user when purchases the plan.
+   * @param agentName - The name of the AI Agent/Service.
+   * @param agentDescription - The description of the AI Agent/Service.
+   * @param agentAmountOfCredits - The amount of credits to charge per request to the agent.
+   * @param agentTags - The tags describing the AI Agent/Service.
+   * @param agentUsesAIHub - If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
+   * @param agentImplementsQueryProtocol - It the agent implements the Nevermined Query Protocol. @see https://docs.nevermined.io/docs/protocol/query-protocol
+   * @param agentServiceChargeType - The service charge type ('fixed' or 'dynamic').
+   * @param agentMinCreditsToCharge - The minimum credits to charge.
+   * @param agentMaxCreditsToCharge - The maximum credits to charge.
+   * @param agentAuthType - The upstream agent/service authentication type ('none', 'basic
+   * @param agentUsername - The upstream agent/service username for authentication. Only if `authType` is 'basic'.
+   * @param agentPassword - The upstream agent/service password for authentication. Only if `authType` is 'basic'.
+   * @param agentToken - The upstream agent/service bearer token for authentication. Only if `authType` is 'bearer' or 'oauth'.
+   * @param agentEndpoints - The list endpoints of the upstream service. All these endpoints are protected and only accessible to subscribers of the Payment Plan.
+   * @param agentOpenEndpoints - The list of endpoints of the upstream service that publicly available. The access to these endpoints don't require subscription to the Payment Plan. They are useful to expose documentation, etc.
+   * @param agentOpenApiUrl - The URL to the OpenAPI description of the Upstream API. The access to the OpenAPI definition don't require subscription to the Payment Plan.
+   * @param agentIntegration - Some description or instructions about how to integrate the Agent.
+   * @param agentSampleLink - A link to some same usage of the Agent.
+   * @param agentApiDescription - Text describing the API of the Agent.
+   * @param agentCuration - The curation details.
+   * @returns A promise that resolves to the Plan DID and Agent DID.
+   *
+   * @example
+   * ```
+   * const { planDID, agentDID } = await paymentsBuilder.createAgentAndPlan({
+   * planName: 'My AI Payments Plan',
+   * planDescription: 'AI stuff',
+   * planPrice: 10000000n,
+   * planTokenAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+   * planAmountOfCredits: 30,
+   * agentName: 'Payments Agent name',
+   * agentDescription: 'description',
+   * agentAmountOfCredits: 1,
+   * agentTags: ['test'],
+   * agentUsesAIHub: true,
+   * agentImplementsQueryProtocol: true,
+   * agentServiceChargeType: 'fixed',
+   * agentAuthType: 'bearer',
+   * agentToken,
+   * agentEndpoints,
+   * agentIntegration: 'integration details',
+   * agentApiDescription: 'description',
+   * agentCuration: {}
+   * })
+   * ```
+   *
+   * @returns A promise that resolves to the Plan DID and Agent DID.
+   */
+  public async createAgentAndPlan({
+    planName,
+    planDescription,
+    planPrice,
+    planTokenAddress,
+    planAmountOfCredits,
+    planTags,
+    agentName,
+    agentDescription,
+    agentAmountOfCredits,
+    agentTags,
+    agentUsesAIHub,
+    agentImplementsQueryProtocol,
+    agentServiceChargeType,
+    agentMinCreditsToCharge,
+    agentMaxCreditsToCharge,
+    agentAuthType,
+    agentUsername,
+    agentPassword,
+    agentToken,
+    agentEndpoints,
+    agentOpenEndpoints,
+    agentOpenApiUrl,
+    agentIntegration,
+    agentSampleLink,
+    agentApiDescription,
+    agentCuration,
+  }: {
+    planName: string
+    planDescription: string
+    planPrice: bigint
+    planTokenAddress: string
+    planAmountOfCredits: number
+    planTags?: string[]
+    agentName: string
+    agentDescription: string
+    agentAmountOfCredits: number
+    agentTags?: string[]
+    agentUsesAIHub?: boolean
+    agentImplementsQueryProtocol?: boolean
+    agentServiceChargeType: 'fixed' | 'dynamic'
+    agentMinCreditsToCharge?: number
+    agentMaxCreditsToCharge?: number
+    agentAuthType?: 'none' | 'basic' | 'oauth' | 'bearer'
+    agentUsername?: string
+    agentPassword?: string
+    agentToken?: string
+    agentEndpoints?: Endpoint[]
+    agentOpenEndpoints?: string[]
+    agentOpenApiUrl?: string
+    agentIntegration?: string
+    agentSampleLink?: string
+    agentApiDescription?: string
+    agentCuration?: object
+  }): Promise<{ planDID: string; agentDID: string }> {
+    const { did: planDID } = await this.createCreditsPlan({
+      name: planName,
+      description: planDescription,
+      price: planPrice,
+      tokenAddress: planTokenAddress,
+      amountOfCredits: planAmountOfCredits,
+      tags: planTags,
+    })
+
+    const { did: agentDID } = await this.createAgent({
+      planDID,
+      name: agentName,
+      description: agentDescription,
+      amountOfCredits: agentAmountOfCredits,
+      tags: agentTags,
+      usesAIHub: agentUsesAIHub,
+      implementsQueryProtocol: agentImplementsQueryProtocol,
+      serviceChargeType: agentServiceChargeType,
+      minCreditsToCharge: agentMinCreditsToCharge,
+      maxCreditsToCharge: agentMaxCreditsToCharge,
+      authType: agentAuthType,
+      username: agentUsername,
+      password: agentPassword,
+      token: agentToken,
+      endpoints: agentEndpoints,
+      openEndpoints: agentOpenEndpoints,
+      openApiUrl: agentOpenApiUrl,
+      integration: agentIntegration,
+      sampleLink: agentSampleLink,
+      apiDescription: agentApiDescription,
+      curation: agentCuration,
+    })
+
+    return { planDID, agentDID }
+  }
+
+  /**
    * It creates a new AI Agent or Service on Nevermined.
    * The agent/service must be associated to a Payment Plan. Users that are subscribers of a payment plan can access the agent/service.
    * Depending on the Payment Plan and the configuration of the agent/service, the usage of the agent/service will consume credits.
