@@ -1,8 +1,9 @@
 import { isEthereumAddress } from "../../src/utils"
 import { PaymentsError } from "../../src/common/payments.error"
 
-import { Endpoint, Payments } from "../../src/payments"
+import { Payments } from "../../src/payments"
 import { getServiceHostFromEndpoints } from "../../src/common/helper"
+import { Endpoint } from "../../src/common/types"
 
 describe('Payments (unit)', () => {
 
