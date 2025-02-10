@@ -234,6 +234,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to order an Agent',
       async () => {
+        console.log(planDID)
         const orderResult = await paymentsSubscriber.orderPlan(planDID)
         expect(orderResult).toBeDefined()
         expect(orderResult.success).toBeTruthy()

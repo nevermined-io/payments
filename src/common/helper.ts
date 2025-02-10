@@ -1,4 +1,4 @@
-import { Endpoint } from "./types"
+import { Endpoint } from './types'
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
