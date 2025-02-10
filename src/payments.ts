@@ -4,46 +4,16 @@ import * as path from 'path'
 import { AIQueryApi } from './api/query-api'
 import { getServiceHostFromEndpoints, jsonReplacer } from './common/helper'
 import { PaymentsError } from './common/payments.error'
-import { EnvironmentInfo, EnvironmentName, Environments } from './environments'
+import {
+  CreateAgentDto,
+  CreateFileDto,
+  CreatePlanCreditsDto,
+  CreatePlanTimeDto,
+  CreateServiceDto,
+  PaymentOptions,
+} from './common/types'
+import { EnvironmentInfo, Environments } from './environments'
 import { getAIHubOpenApiUrl, getQueryProtocolEndpoints, isEthereumAddress } from './utils'
-
-/**
- * Options to initialize the Payments class.
- */
-export interface PaymentOptions {
-  /**
-   * The Nevermined environment to connect to.
-   * If you are developing an agent it's recommended to use the "testing" environment.
-   * When deploying to production use the "arbitrum" environment.
-   */
-  environment: EnvironmentName
-
-  /**
-   * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
-   * You can get your API key by logging in to the Nevermined App.
-   * @see https://docs.nevermined.app/docs/tutorials/integration/nvm-api-keys
-   */
-  nvmApiKey?: string
-
-  /**
-   * The URL to return to the app after a successful login.
-   */
-  returnUrl?: string
-
-  /**
-   * The app id. This attribute is optional and helps to associate assets registered into Nevermined with a common identifier.
-   */
-  appId?: string
-
-  /**
-   * The version of the API to use.
-   */
-  version?: string
-}
-
-export interface Endpoint {
-  [verb: string]: string
-}
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -267,12 +237,7 @@ export class Payments {
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
-   * @param name - The name of the plan.
-   * @param description - A description of what the plan offers.
-   * @param price - The price of the plan. It must be given in the lowest denomination of the currency.
-   * @param tokenAddress - The address of the ERC20 contract used for the payment. Using the `ZeroAddress` will use the chain's native currency instead.
-   * @param amountOfCredits - The number of credits that are transferred to the user when purchases the plan.
-   * @param tags - An array of tags or keywords that best fit the subscription.
+   * @param createPlanCreditsDto - @see {@link CreatePlanCreditsDto}
    *
    * @example
    * ```
@@ -288,24 +253,12 @@ export class Payments {
    *
    * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
    */
-  public async createCreditsPlan({
-    name,
-    description,
-    price,
-    tokenAddress,
-    amountOfCredits,
-    tags,
-  }: {
-    name: string
-    description: string
-    price: bigint
-    tokenAddress: string
-    amountOfCredits: number
-    tags?: string[]
-  }): Promise<{ did: string }> {
+  public async createCreditsPlan(
+    createPlanCreditsDto: CreatePlanCreditsDto,
+  ): Promise<{ did: string }> {
     const metadata = {
       main: {
-        name,
+        name: createPlanCreditsDto.name,
         type: 'subscription',
         license: 'No License Specified',
         files: [],
@@ -316,8 +269,8 @@ export class Payments {
         },
       },
       additionalInformation: {
-        description,
-        tags: tags || [],
+        description: createPlanCreditsDto.description,
+        tags: createPlanCreditsDto.tags || [],
         customData: {
           dateMeasure: 'days',
           plan: 'custom',
@@ -328,16 +281,16 @@ export class Payments {
     const serviceAttributes = [
       {
         serviceType: 'nft-sales',
-        price,
+        price: createPlanCreditsDto.price,
         nft: {
-          amount: amountOfCredits,
+          amount: createPlanCreditsDto.amountOfCredits,
           nftTransfer: false,
         },
       },
     ]
     const body = {
-      price,
-      tokenAddress,
+      price: createPlanCreditsDto.price,
+      tokenAddress: createPlanCreditsDto.tokenAddress,
       metadata,
       serviceAttributes,
     }
@@ -374,13 +327,7 @@ export class Payments {
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
-   * @param name - The name of the plan.
-   * @param description - A description of what the plan offers.
-   * @param price - The price of the plan. It must be given in the lowest denomination of the currency.
-   * @param tokenAddress - The address of the ERC20 contract used for the payment. Using the `ZeroAddress` will use the chain's native currency instead.
-   * @param tags - An array of tags or keywords that best fit the subscription.
-   * @param duration - The duration of the plan in days. If `duration` is left undefined an unlimited time duration subscription will be created.
-   * @param tags - An array of tags or keywords that best fit the subscription.
+   * @param createPlanTimeDto - @see {@link CreatePlanTimeDto}
    *
    * @example
    * ```
@@ -396,24 +343,10 @@ export class Payments {
    *
    * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
    */
-  public async createTimePlan({
-    name,
-    description,
-    price,
-    tokenAddress,
-    duration,
-    tags,
-  }: {
-    name: string
-    description: string
-    price: bigint
-    tokenAddress: string
-    duration?: number
-    tags?: string[]
-  }): Promise<{ did: string }> {
+  public async createTimePlan(createPlanTimeDto: CreatePlanTimeDto): Promise<{ did: string }> {
     const metadata = {
       main: {
-        name,
+        name: createPlanTimeDto.name,
         type: 'subscription',
         license: 'No License Specified',
         files: [],
@@ -424,8 +357,8 @@ export class Payments {
         },
       },
       additionalInformation: {
-        description,
-        tags: tags || [],
+        description: createPlanTimeDto.description,
+        tags: createPlanTimeDto.tags || [],
         customData: {
           dateMeasure: 'days',
           plan: 'custom',
@@ -436,17 +369,17 @@ export class Payments {
     const serviceAttributes = [
       {
         serviceType: 'nft-sales',
-        price,
+        price: createPlanTimeDto.price,
         nft: {
-          duration,
+          duration: createPlanTimeDto.duration,
           amount: 1,
           nftTransfer: false,
         },
       },
     ]
     const body = {
-      price,
-      tokenAddress,
+      price: createPlanTimeDto.price,
+      tokenAddress: createPlanTimeDto.tokenAddress,
       metadata,
       serviceAttributes,
     }
@@ -497,110 +430,129 @@ export class Payments {
    *   })
    * ```
    *
-   * @param planDID - The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
-   * @param name - The name of the AI Agent/Service.
-   * @param description - The description of the AI Agent/Service.
-   * @param tags - The tags describing the AI Agent/Service.
-   * @param usesAIHub - If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
-   * @param implementsQueryProtocol - It the agent implements the Nevermined Query Protocol. @see https://docs.nevermined.io/docs/protocol/query-protocol
-   * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
-   * @param amountOfCredits - The amount of credits to charge per request to the agent.
-   * @param minCreditsToCharge - The minimum credits to charge.
-   * @param maxCreditsToCharge - The maximum credits to charge.
-   * @param authType - The upstream agent/service authentication type ('none', 'basic', 'bearer' or 'oauth').
-   * @param username - The upstream agent/service username for authentication. Only if `authType` is 'basic'.
-   * @param password - The upstream agent/service password for authentication. Only if `authType` is 'basic'.
-   * @param token - The upstream agent/service bearer token for authentication. Only if `authType` is 'bearer' or 'oauth'.
-   * @param endpoints - The list endpoints of the upstream service. All these endpoints are protected and only accessible to subscribers of the Payment Plan.
-   * @param openEndpoints - The list of endpoints of the upstream service that publicly available. The access to these endpoints don't require subscription to the Payment Plan. They are useful to expose documentation, etc.
-   * @param openApiUrl - The URL to the OpenAPI description of the Upstream API. The access to the OpenAPI definition don't require subscription to the Payment Plan.
-   * @param integration - Some description or instructions about how to integrate the Agent.
-   * @param sampleLink - A link to some same usage of the Agent.
-   * @param apiDescription - Text describing the API of the Agent.
-   * @param curation - The curation details.
+   * @param createAgentDto - @see {@link CreateAgentDto}
    * @returns A promise that resolves to the created agent DID.
    */
-  public async createAgent({
-    planDID,
-    name,
-    description,
-    amountOfCredits,
-    tags,
-    usesAIHub,
-    implementsQueryProtocol,
-    serviceChargeType,
-    minCreditsToCharge,
-    maxCreditsToCharge,
-    authType,
-    username,
-    password,
-    token,
-    endpoints,
-    openEndpoints,
-    openApiUrl,
-    integration,
-    sampleLink,
-    apiDescription,
-    curation,
-  }: {
-    planDID: string
-    name: string
-    description: string
-    usesAIHub?: boolean
-    implementsQueryProtocol?: boolean
-    serviceChargeType: 'fixed' | 'dynamic'
-    authType?: 'none' | 'basic' | 'oauth' | 'bearer'
-    amountOfCredits?: number
-    minCreditsToCharge?: number
-    maxCreditsToCharge?: number
-    username?: string
-    password?: string
-    token?: string
-    endpoints?: Endpoint[]
-    openEndpoints?: string[]
-    openApiUrl?: string
-    integration?: string
-    sampleLink?: string
-    apiDescription?: string
-    curation?: object
-    tags?: string[]
-  }): Promise<{ did: string }> {
-    if (usesAIHub) {
-      authType = 'bearer'
-      token = ''
-      endpoints = getQueryProtocolEndpoints(this.environment.backend)
-      openApiUrl = getAIHubOpenApiUrl(this.environment.backend)
-      implementsQueryProtocol = true
+  public async createAgent(createAgentDto: CreateAgentDto): Promise<{ did: string }> {
+    if (createAgentDto.usesAIHub) {
+      createAgentDto.authType = 'bearer'
+      createAgentDto.token = ''
+      createAgentDto.endpoints = getQueryProtocolEndpoints(this.environment.backend)
+      createAgentDto.openApiUrl = getAIHubOpenApiUrl(this.environment.backend)
+      createAgentDto.implementsQueryProtocol = true
     } else {
-      if (!endpoints) {
+      if (!createAgentDto.endpoints) {
         throw new PaymentsError('endpoints are required')
       }
     }
 
     return this.createService({
-      planDID,
-      name,
-      description,
-      usesAIHub,
-      implementsQueryProtocol,
+      planDID: createAgentDto.planDID,
+      name: createAgentDto.name,
+      description: createAgentDto.description,
+      usesAIHub: createAgentDto.usesAIHub,
+      implementsQueryProtocol: createAgentDto.implementsQueryProtocol,
       serviceType: 'agent',
-      serviceChargeType,
-      authType,
-      amountOfCredits,
-      minCreditsToCharge,
-      maxCreditsToCharge,
-      username,
-      password,
-      token,
-      endpoints,
-      openEndpoints,
-      openApiUrl,
-      integration,
-      sampleLink,
-      apiDescription,
-      curation,
-      tags,
+      serviceChargeType: createAgentDto.serviceChargeType,
+      authType: createAgentDto.authType,
+      amountOfCredits: createAgentDto.amountOfCredits,
+      minCreditsToCharge: createAgentDto.minCreditsToCharge,
+      maxCreditsToCharge: createAgentDto.maxCreditsToCharge,
+      username: createAgentDto.username,
+      password: createAgentDto.password,
+      token: createAgentDto.token,
+      endpoints: createAgentDto.endpoints,
+      openEndpoints: createAgentDto.openEndpoints,
+      openApiUrl: createAgentDto.openApiUrl,
+      integration: createAgentDto.integration,
+      sampleLink: createAgentDto.sampleLink,
+      apiDescription: createAgentDto.apiDescription,
+      curation: createAgentDto.curation,
+      tags: createAgentDto.tags,
     })
+  }
+
+  /**
+   *
+   * It creates a new AI Agent and a Payment Plan on Nevermined.
+   *
+   * @remarks
+   *
+   * This method is oriented to AI Builders
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
+   *
+   * @param plan - @see {@link CreatePlanCreditsDto}
+   * @param agent - @see {@link CreateAgentDto} PlanDID is generated automatically.
+   * @returns A promise that resolves to the Plan DID and Agent DID.
+   *
+   * @example
+   * ```
+   * const { planDID, agentDID } = await paymentsBuilder.createAgentAndPlan(
+   * {
+   * name: 'My AI Payments Plan',
+   * description: 'AI stuff',
+   * price: 10000000n,
+   * tokenAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
+   * amountOfCredits: 30,
+   * },
+   * {
+   * name: 'Payments Agent name',
+   * description: 'description',
+   * amountOfCredits: 1,
+   * tags: ['test'],
+   * usesAIHub: true,
+   * implementsQueryProtocol: true,
+   * serviceChargeType: 'fixed',
+   * authType: 'bearer',
+   * token,
+   * endpoints,
+   * integration: 'integration details',
+   * apiDescription: 'description',
+   * curation: {}
+   * })
+   * ```
+   *
+   * @returns A promise that resolves to the Plan DID and Agent DID.
+   */
+  public async createAgentAndPlan(
+    plan: CreatePlanCreditsDto,
+    agent: Omit<CreateAgentDto, 'planDID'>,
+  ): Promise<{ planDID: string; agentDID: string }> {
+    const { did: planDID } = await this.createCreditsPlan({
+      name: plan.name,
+      description: plan.description,
+      price: plan.price,
+      tokenAddress: plan.tokenAddress,
+      amountOfCredits: plan.amountOfCredits,
+      tags: plan.tags,
+    })
+
+    const { did: agentDID } = await this.createAgent({
+      planDID,
+      name: agent.name,
+      description: agent.description,
+      amountOfCredits: agent.amountOfCredits,
+      tags: agent.tags,
+      usesAIHub: agent.usesAIHub,
+      implementsQueryProtocol: agent.implementsQueryProtocol,
+      serviceChargeType: agent.serviceChargeType,
+      minCreditsToCharge: agent.minCreditsToCharge,
+      maxCreditsToCharge: agent.maxCreditsToCharge,
+      authType: agent.authType,
+      username: agent.username,
+      password: agent.password,
+      token: agent.token,
+      endpoints: agent.endpoints,
+      openEndpoints: agent.openEndpoints,
+      openApiUrl: agent.openApiUrl,
+      integration: agent.integration,
+      sampleLink: agent.sampleLink,
+      apiDescription: agent.apiDescription,
+      curation: agent.curation,
+    })
+
+    return { planDID, agentDID }
   }
 
   /**
@@ -635,100 +587,33 @@ export class Payments {
    *   })
    * ```
    *
-   * @param planDID - The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
-   * @param name - The name of the AI Agent/Service.
-   * @param description - The description of the AI Agent/Service.
-   * @param tags - The tags describing the AI Agent/Service.
-   * @param usesAIHub - If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
-   * @param implementsQueryProtocol - It the agent implements the Nevermined Query Protocol. @see https://docs.nevermined.io/docs/protocol/query-protocol
-   * @param serviceType - The service type ('service', 'agent', or 'assistant').
-   * @param serviceChargeType - The service charge type ('fixed' or 'dynamic').
-   * @param amountOfCredits - The amount of credits to charge per request to the agent.
-   * @param minCreditsToCharge - The minimum credits to charge.
-   * @param maxCreditsToCharge - The maximum credits to charge.
-   * @param authType - The upstream agent/service authentication type ('none', 'basic', 'bearer' or 'oauth').
-   * @param username - The upstream agent/service username for authentication. Only if `authType` is 'basic'.
-   * @param password - The upstream agent/service password for authentication. Only if `authType` is 'basic'.
-   * @param token - The upstream agent/service bearer token for authentication. Only if `authType` is 'bearer' or 'oauth'.
-   * @param endpoints - The list endpoints of the upstream service. All these endpoints are protected and only accessible to subscribers of the Payment Plan.
-   * @param openEndpoints - The list of endpoints of the upstream service that publicly available. The access to these endpoints don't require subscription to the Payment Plan. They are useful to expose documentation, etc.
-   * @param openApiUrl - The URL to the OpenAPI description of the Upstream API. The access to the OpenAPI definition don't require subscription to the Payment Plan.
-   * @param integration - Some description or instructions about how to integrate the Agent.
-   * @param sampleLink - A link to some same usage of the Agent.
-   * @param apiDescription - Text describing the API of the Agent.
-   * @param curation - The curation details.
+   * @param createServiceDto - @see {@link CreateServiceDto}
    * @returns A promise that resolves to the created agent DID.
    */
-  public async createService({
-    planDID,
-    name,
-    description,
-    usesAIHub,
-    implementsQueryProtocol,
-    amountOfCredits,
-    tags,
-    serviceType,
-    serviceChargeType,
-    minCreditsToCharge,
-    maxCreditsToCharge,
-    authType,
-    username,
-    password,
-    token,
-    endpoints,
-    openEndpoints,
-    openApiUrl,
-    integration,
-    sampleLink,
-    apiDescription,
-    curation,
-  }: {
-    planDID: string
-    name: string
-    description: string
-    usesAIHub?: boolean
-    implementsQueryProtocol?: boolean
-    serviceType: 'service' | 'agent' | 'assistant'
-    serviceChargeType: 'fixed' | 'dynamic'
-    authType?: 'none' | 'basic' | 'oauth' | 'bearer'
-    amountOfCredits?: number
-    minCreditsToCharge?: number
-    maxCreditsToCharge?: number
-    username?: string
-    password?: string
-    token?: string
-    endpoints?: Endpoint[]
-    openEndpoints?: string[]
-    openApiUrl?: string
-    integration?: string
-    sampleLink?: string
-    apiDescription?: string
-    curation?: object
-    tags?: string[]
-  }): Promise<{ did: string }> {
+  public async createService(createServiceDto: CreateServiceDto): Promise<{ did: string }> {
     let authentication = {}
     let _headers: { Authorization: string }[] = []
-    if (authType === 'basic') {
+    if (createServiceDto.authType === 'basic') {
       authentication = {
         type: 'basic',
-        username,
-        password,
+        username: createServiceDto.username,
+        password: createServiceDto.password,
       }
-    } else if (authType === 'oauth' || authType === 'bearer') {
+    } else if (createServiceDto.authType === 'oauth' || createServiceDto.authType === 'bearer') {
       authentication = {
-        type: authType,
-        token,
+        type: createServiceDto.authType,
+        token: createServiceDto.token,
       }
-      _headers = [{ Authorization: `Bearer ${token}` }]
+      _headers = [{ Authorization: `Bearer ${createServiceDto.token}` }]
     } else {
       authentication = { type: 'none' }
     }
 
     const metadata = {
       main: {
-        name,
+        name: createServiceDto.name,
         license: 'No License Specified',
-        type: serviceType,
+        type: createServiceDto.serviceType,
         files: [],
         ercType: 'nft1155',
         nftType: 'nft1155Credit',
@@ -737,30 +622,30 @@ export class Payments {
           subscriptionType: 'credits',
         },
         webService: {
-          endpoints: endpoints,
-          openEndpoints: openEndpoints,
-          chargeType: serviceChargeType,
-          isNeverminedHosted: usesAIHub,
-          implementsQueryProtocol,
-          ...(implementsQueryProtocol && { queryProtocolVersion: 'v1' }),
-          serviceHost: getServiceHostFromEndpoints(endpoints!),
+          endpoints: createServiceDto.endpoints,
+          openEndpoints: createServiceDto.openEndpoints,
+          chargeType: createServiceDto.serviceChargeType,
+          isNeverminedHosted: createServiceDto.usesAIHub,
+          implementsQueryProtocol: createServiceDto.implementsQueryProtocol,
+          ...(createServiceDto.implementsQueryProtocol && { queryProtocolVersion: 'v1' }),
+          serviceHost: getServiceHostFromEndpoints(createServiceDto.endpoints!),
           internalAttributes: {
             authentication,
             headers: _headers,
-            chargeType: serviceChargeType,
+            chargeType: createServiceDto.serviceChargeType,
           },
         },
-        ...(curation && { curation }),
+        ...(createServiceDto.curation && { curation: createServiceDto.curation }),
         additionalInformation: {
-          description,
-          tags: tags ? tags : [],
+          description: createServiceDto.description,
+          tags: createServiceDto.tags ? createServiceDto.tags : [],
           customData: {
-            openApiUrl,
-            integration,
-            sampleLink,
-            apiDescription,
+            openApiUrl: createServiceDto.openApiUrl,
+            integration: createServiceDto.integration,
+            sampleLink: createServiceDto.sampleLink,
+            apiDescription: createServiceDto.apiDescription,
             plan: 'custom',
-            serviceChargeType,
+            serviceChargeType: createServiceDto.serviceChargeType,
           },
         },
       },
@@ -769,11 +654,11 @@ export class Payments {
       {
         serviceType: 'nft-access',
         nft: {
-          amount: amountOfCredits ? amountOfCredits : 1,
-          tokenId: planDID,
-          minCreditsToCharge,
-          minCreditsRequired: minCreditsToCharge,
-          maxCreditsToCharge,
+          amount: createServiceDto.amountOfCredits ? createServiceDto.amountOfCredits : 1,
+          tokenId: createServiceDto.planDID,
+          minCreditsToCharge: createServiceDto.minCreditsToCharge,
+          minCreditsRequired: createServiceDto.minCreditsToCharge,
+          maxCreditsToCharge: createServiceDto.maxCreditsToCharge,
           nftTransfer: false,
         },
       },
@@ -781,7 +666,7 @@ export class Payments {
     const body = {
       metadata,
       serviceAttributes,
-      subscriptionDid: planDID,
+      subscriptionDid: createServiceDto.planDID,
     }
     const options = {
       method: 'POST',
@@ -814,92 +699,35 @@ export class Payments {
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/register-file-asset
    *
-   * @param planDID - The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
-   * @param assetType - The type of asset ('dataset' | 'algorithm' | 'model' | 'file' | 'other')
-   * @param name - The name of the file.
-   * @param description - The description of the file.
-   * @param files - The array of files that can be downloaded for users that are subscribers of the Payment Plan.
-   * @param amountOfCredits - The cost in credits of downloading a file. This parameter is only required if the Payment Plan attached to the file is based on credits.
-   * @param tags - The array of tags describing the file.
-   * @param dataSchema - The data schema of the files.
-   * @param sampleCode - Some sample code related to the file.
-   * @param filesFormat - The format of the files.
-   * @param usageExample - The usage example.
-   * @param programmingLanguage - The programming language used in the files.
-   * @param framework - The framework used for creating the file.
-   * @param task - The task creating the file.
-   * @param trainingDetails - The training details.
-   * @param variations - The variations.
-   * @param fineTunable - Indicates if the file is fine-tunable.
-   * @param curation - The curation object.
+   * @param createFileDto - @see {@link CreateFileDto}
    * @returns The promise that resolves to the created file's DID.
    */
-  public async createFile({
-    planDID,
-    assetType,
-    name,
-    description,
-    files,
-    amountOfCredits,
-    tags,
-    dataSchema,
-    sampleCode,
-    filesFormat,
-    usageExample,
-    programmingLanguage,
-    framework,
-    task,
-    trainingDetails,
-    variations,
-    fineTunable,
-    curation,
-  }: {
-    planDID: string
-    assetType: 'dataset' | 'algorithm' | 'model' | 'file' | 'other'
-    name: string
-    description: string
-    files: object[]
-    dataSchema?: string
-    sampleCode?: string
-    filesFormat?: string
-    usageExample?: string
-    programmingLanguage?: string
-    framework?: string
-    task?: string
-    trainingDetails?: string
-    variations?: string
-    fineTunable?: boolean
-    amountOfCredits?: number
-    minCreditsToCharge?: number
-    maxCreditsToCharge?: number
-    curation?: object
-    tags?: string[]
-  }): Promise<{ did: string }> {
+  public async createFile(createFileDto: CreateFileDto): Promise<{ did: string }> {
     const metadata = {
       main: {
-        name,
+        name: createFileDto.name,
         license: 'No License Specified',
-        type: assetType,
-        files,
+        type: createFileDto.assetType,
+        files: createFileDto.files,
         ercType: 'nft1155',
         nftType: 'nft1155Credit',
       },
-      ...(curation && { curation }),
+      ...(createFileDto.curation && { curation: createFileDto.curation }),
       additionalInformation: {
-        description,
-        tags: tags ? tags : [],
+        description: createFileDto.description,
+        tags: createFileDto.tags ? createFileDto.tags : [],
         customData: {
-          dataSchema,
-          sampleCode,
-          usageExample,
-          filesFormat,
-          programmingLanguage,
-          framework,
-          task,
-          architecture: task,
-          trainingDetails,
-          variations,
-          fineTunable,
+          dataSchema: createFileDto.dataSchema,
+          sampleCode: createFileDto.sampleCode,
+          usageExample: createFileDto.usageExample,
+          filesFormat: createFileDto.filesFormat,
+          programmingLanguage: createFileDto.programmingLanguage,
+          framework: createFileDto.framework,
+          task: createFileDto.task,
+          architecture: createFileDto.task,
+          trainingDetails: createFileDto.trainingDetails,
+          variations: createFileDto.variations,
+          fineTunable: createFileDto.fineTunable,
           plan: 'custom',
         },
       },
@@ -908,8 +736,8 @@ export class Payments {
       {
         serviceType: 'nft-access',
         nft: {
-          tokenId: planDID,
-          amount: amountOfCredits ? amountOfCredits : 1,
+          tokenId: createFileDto.planDID,
+          amount: createFileDto.amountOfCredits ? createFileDto.amountOfCredits : 1,
           nftTransfer: false,
         },
       },
@@ -917,7 +745,7 @@ export class Payments {
     const body = {
       metadata,
       serviceAttributes,
-      subscriptionDid: planDID,
+      subscriptionDid: createFileDto.planDID,
     }
     const options = {
       method: 'POST',
@@ -1054,6 +882,7 @@ export class Payments {
     }
     const url = new URL('/api/v1/payments/subscription/order', this.environment.backend)
     const response = await fetch(url, options)
+    console.log(response)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
     }

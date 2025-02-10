@@ -1,3 +1,5 @@
+import { EnvironmentName } from '../environments'
+
 export const FIRST_STEP_NAME = 'init'
 
 /**
@@ -194,6 +196,40 @@ export interface TaskLogMessage {
 
 export type TaskCallback = (data: any) => void
 
+/**
+ * Options to initialize the Payments class.
+ */
+export interface PaymentOptions {
+  /**
+   * The Nevermined environment to connect to.
+   * If you are developing an agent it's recommended to use the "testing" environment.
+   * When deploying to production use the "arbitrum" environment.
+   */
+  environment: EnvironmentName
+
+  /**
+   * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
+   * You can get your API key by logging in to the Nevermined App.
+   * @see https://docs.nevermined.app/docs/tutorials/integration/nvm-api-keys
+   */
+  nvmApiKey?: string
+
+  /**
+   * The URL to return to the app after a successful login.
+   */
+  returnUrl?: string
+
+  /**
+   * The app id. This attribute is optional and helps to associate assets registered into Nevermined with a common identifier.
+   */
+  appId?: string
+
+  /**
+   * The version of the API to use.
+   */
+  version?: string
+}
+
 export interface CreateTaskDto {
   /**
    * The query parameter for the task
@@ -214,4 +250,231 @@ export interface CreateTaskDto {
    * Additional artifacts required for the task
    */
   artifacts?: Artifact[]
+}
+
+export interface Endpoint {
+  [verb: string]: string
+}
+
+export interface CreatePlanTimeDto {
+  /**
+   * The name of the plan.
+   */
+  name: string
+  /**
+   * A description of what the plan offers.
+   */
+  description: string
+  /**
+   * The price of the plan. It must be given in the lowest denomination of the currency.
+   */
+  price: bigint
+  /**
+   * The address of the ERC20 contract used for the payment. Using the `ZeroAddress` will use the chain's native currency instead.
+   */
+  tokenAddress: string
+  /**
+   * The duration of the plan in days. If `duration` is left undefined an unlimited time duration subscription will be created.
+   */
+  duration?: number
+  /**
+   * An array of tags or keywords that best fit the subscription.
+   */
+  tags?: string[]
+}
+
+export interface CreatePlanCreditsDto {
+  /**
+   * The name of the plan.
+   */
+  name: string
+  /**
+   *  A description of what the plan offers.
+   */
+  description: string
+  /**
+   * The price of the plan. It must be given in the lowest denomination of the currency.
+   */
+  price: bigint
+  /**
+   * The address of the ERC20 contract used for the payment. Using the `ZeroAddress` will use the chain's native currency instead.
+   */
+  tokenAddress: string
+  /**
+   * The number of credits that are transferred to the user when purchases the plan.
+   */
+  amountOfCredits: number
+  /**
+   *  An array of tags or keywords that best fit the subscription.
+   */
+  tags?: string[]
+}
+
+export interface CreateServiceDto {
+  /**
+   * The service type ('service', 'agent', or 'assistant').
+   */
+  serviceType: string
+  /**
+   * The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
+   */
+  planDID: string
+  /**
+   * The name of the AI Agent/Service.
+   */
+  name: string
+  /**
+   * The description of the AI Agent/Service.
+   */
+  description: string
+  /**
+   * If the agent is using the AI Hub. If true, the agent will be configured to use the AI Hub endpoints.
+   */
+  usesAIHub?: boolean
+  /**
+   * It the agent implements the Nevermined Query Protocol. @see https://docs.nevermined.io/docs/protocol/query-protocol
+   */
+  implementsQueryProtocol?: boolean
+  /**
+   *  The service charge type ('fixed' or 'dynamic').
+   */
+  serviceChargeType: 'fixed' | 'dynamic'
+  /**
+   * The upstream agent/service authentication type ('none', 'basic', 'bearer' or 'oauth').
+   */
+  authType?: 'none' | 'basic' | 'oauth' | 'bearer'
+  /**
+   * The amount of credits to charge per request to the agent.
+   */
+  amountOfCredits?: number
+  /**
+   * The minimum credits to charge.
+   */
+  minCreditsToCharge?: number
+  /**
+   * The maximum credits to charge.
+   */
+  maxCreditsToCharge?: number
+  /**
+   * The upstream agent/service username for authentication. Only if `authType` is 'basic'.
+   */
+  username?: string
+  /**
+   * The upstream agent/service password for authentication. Only if `authType` is 'basic'.
+   */
+  password?: string
+  /**
+   * The upstream agent/service bearer token for authentication. Only if `authType` is 'bearer' or 'oauth'.
+   */
+  token?: string
+  /**
+   * The list endpoints of the upstream service. All these endpoints are protected and only accessible to subscribers of the Payment Plan.
+   */
+  endpoints?: Endpoint[]
+  /**
+   * The list of endpoints of the upstream service that publicly available. The access to these endpoints don't require subscription to the Payment Plan. They are useful to expose documentation, etc.
+   */
+  openEndpoints?: string[]
+  /**
+   * The URL to the OpenAPI description of the Upstream API. The access to the OpenAPI definition don't require subscription to the Payment Plan.
+   */
+  openApiUrl?: string
+  /**
+   * Some description or instructions about how to integrate the Agent.
+   */
+  integration?: string
+  /**
+   * A link to some same usage of the Agent.
+   */
+  sampleLink?: string
+  /**
+   * Text describing the API of the Agent.
+   */
+  apiDescription?: string
+  /**
+   * The curation details.
+   */
+  curation?: object
+  /**
+   * The tags describing the AI Agent/Service.
+   */
+  tags?: string[]
+}
+
+export type CreateAgentDto = Omit<CreateServiceDto, 'serviceType'>
+
+export type CreateFileDto = {
+  /**
+   * The plan unique identifier of the Plan (DID). @see {@link createCreditsPlan} or {@link createTimePlan}
+   */
+  planDID: string
+  /**
+   * @param assetType - The type of asset ('dataset' | 'algorithm' | 'model' | 'file' | 'other')
+   *
+   */
+  assetType: 'dataset' | 'algorithm' | 'model' | 'file' | 'other'
+  /**
+   *  The name of the file.
+   */
+  name: string
+  /**
+   * The description of the file.
+   */
+  description: string
+  /**
+   * The array of files that can be downloaded for users that are subscribers of the Payment Plan.
+   */
+  files: object[]
+  /**
+   * The data schema of the files.
+   */
+  dataSchema?: string
+  /**
+   * Some sample code related to the file.
+   */
+  sampleCode?: string
+  /**
+   * The format of the files.
+   */
+  filesFormat?: string
+  /**
+   * The usage example.
+   */
+  usageExample?: string
+  /**
+   * The programming language used in the files.
+   */
+  programmingLanguage?: string
+  /**
+   * The framework used for creating the file.
+   */
+  framework?: string
+  /**
+   * The task creating the file.
+   */
+  task?: string
+  /**
+   * The training details.
+   */
+  trainingDetails?: string
+  /**
+   *  The variations.
+   */
+  variations?: string
+  /**
+   * Indicates if the file is fine-tunable.
+   */
+  fineTunable?: boolean
+  /**
+   * The cost in credits of downloading a file. This parameter is only required if the Payment Plan attached to the file is based on credits.
+   */
+  amountOfCredits?: number
+  /**
+   * The curation object.
+   */
+  curation?: object
+  /**
+   * The array of tags describing the file.
+   */
+  tags?: string[]
 }
