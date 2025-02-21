@@ -347,7 +347,7 @@ export class NVMBackendApi {
     url: string,
     data?: any,
     reqOptions: HTTPRequestOptions = {
-      sendThroughProxy: false
+      sendThroughProxy: false,
     },
   ) {
     try {
