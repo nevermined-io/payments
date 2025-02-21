@@ -478,3 +478,112 @@ export type CreateFileDto = {
    */
   tags?: string[]
 }
+
+export interface BaseStepDto {
+  task_id: string
+  input_query?: string
+  input_additional?: { [name: string]: unknown }
+  input_artifacts?: Artifact[]
+  name?: string
+  order?: number
+  cost?: number
+  predecessor?: string
+  is_last?: boolean
+}
+
+export interface UpdateStepDto extends BaseStepDto {
+  step_id: string
+  did?: string
+  step_status: AgentExecutionStatus
+  output: string
+  output_additional?: { [name: string]: unknown }
+  output_artifacts?: Artifact[]
+}
+
+export type CreateTaskResultDto = {
+  task: AgentTaskEntity
+  steps: AgentStepEntity
+}
+
+export type FullTaskDto = {
+  task: AgentTaskEntity
+  steps: AgentStepEntity
+  logs: AgentTaskLogsEntity
+}
+
+export type AgentTaskEntity = {
+  task_id: string
+  did: string
+  user: string
+  task_status: AgentExecutionStatus
+  name: string
+  input_params: string
+  input_artifacts: string
+  output: string
+  output_additional: string
+  output_artifacts: string
+  cost: number
+  createdAt: Date
+  updatedAt: Date
+}
+export type AgentStepEntity = {
+  step_id: string
+  step_status: AgentExecutionStatus
+  retries: number
+  is_waiting: boolean
+  is_last: boolean
+  order: number
+  input_query: string
+  input_artifacts: string
+  input_params: string
+  output: string
+  output_additional: string
+  output_artifacts: string
+  cost: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type AgentTaskLogsEntity = {
+  tl_id: string
+  task_id: string
+  task_status: AgentExecutionStatus
+  level: TaskLogLevel
+  message: string
+  step_id: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export enum TaskLogLevel {
+  debug = 'debug',
+  info = 'info',
+  warn = 'warn',
+  error = 'error',
+}
+
+export interface SearchTasks {
+  did?: string
+  task_id?: string
+  name?: string
+  task_status?: AgentExecutionStatus
+  page?: number
+  offset?: number
+}
+
+export interface SearchSteps {
+  step_id?: string
+  task_id?: string
+  did?: string
+  name?: string
+  step_status?: AgentExecutionStatus
+  page?: number
+  offset?: number
+}
+
+export interface SearchStepsDtoResult {
+  steps: UpdateStepDto[]
+  totalResults: number
+  page?: number
+  offset?: number
+}

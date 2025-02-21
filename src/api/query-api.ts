@@ -1,4 +1,15 @@
-import { AgentExecutionStatus, CreateTaskDto, Step, TaskLogMessage } from '../common/types'
+import {
+  AgentExecutionStatus,
+  CreateTaskDto,
+  CreateTaskResultDto,
+  FullTaskDto,
+  SearchSteps,
+  SearchStepsDtoResult,
+  SearchTasks,
+  Step,
+  TaskLogMessage,
+  UpdateStepDto,
+} from '../common/types'
 import { isStepIdValid } from '../utils'
 import {
   BackendApiOptions,
@@ -17,25 +28,6 @@ export const GET_BUILDER_STEPS_ENDPOINT = '/api/v1/agents/steps'
 export const GET_TASK_STEPS_ENDPOINT = '/api/v1/agents/{did}/tasks/{taskId}/steps'
 export const TASK_ENDPOINT = '/api/v1/agents/{did}/tasks'
 export const GET_TASK_ENDPOINT = '/api/v1/agents/{did}/tasks/{taskId}'
-
-export interface SearchTasks {
-  did?: string
-  task_id?: string
-  name?: string
-  task_status?: AgentExecutionStatus
-  page?: number
-  offset?: number
-}
-
-export interface SearchSteps {
-  step_id?: string
-  task_id?: string
-  did?: string
-  name?: string
-  step_status?: AgentExecutionStatus
-  page?: number
-  offset?: number
-}
 
 /**
  * Options required for interacting with an external AI Agent/Service.
@@ -177,7 +169,7 @@ export class AIQueryApi extends NVMBackendApi {
     task: CreateTaskDto,
     queryOpts?: AIQueryOptions,
     _callback?: (err?: any) => any,
-  ) {
+  ): Promise<CreateTaskResultDto> {
     if (!queryOpts || !queryOpts.accessToken) {
       queryOpts = this.queryOptionsCache.has(did)
         ? this.queryOptionsCache.get(did)
@@ -195,7 +187,7 @@ export class AIQueryApi extends NVMBackendApi {
     if (result.status === 201 && _callback) {
       await this.subscribeTasksUpdated(_callback, [result.data.task.task_id])
     }
-    return result
+    return result.data as CreateTaskResultDto
   }
 
   /**
@@ -226,7 +218,11 @@ export class AIQueryApi extends NVMBackendApi {
    * @param taskId - Task ID
    * @returns The task with the steps
    */
-  async getTaskWithSteps(did: string, taskId: string, queryOpts?: AIQueryOptions) {
+  async getTaskWithSteps(
+    did: string,
+    taskId: string,
+    queryOpts?: AIQueryOptions,
+  ): Promise<FullTaskDto> {
     if (!queryOpts || !queryOpts.accessToken) {
       queryOpts = this.queryOptionsCache.has(did)
         ? this.queryOptionsCache.get(did)
@@ -239,7 +235,11 @@ export class AIQueryApi extends NVMBackendApi {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
     }
-    return this.get(GET_TASK_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId), reqOptions)
+    const result = await this.get(
+      GET_TASK_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId),
+      reqOptions,
+    )
+    return result.data as FullTaskDto
   }
 
   /**
@@ -330,8 +330,14 @@ export class AIQueryApi extends NVMBackendApi {
    * @param searchParams - The search parameters @see {@link SearchSteps}
    * @returns The result of the search query
    */
-  async searchSteps(searchParams: SearchSteps) {
-    return this.post(SEARCH_STEPS_ENDPOINT, searchParams, { sendThroughProxy: false })
+  async searchSteps(searchParams: SearchSteps): Promise<SearchStepsDtoResult> {
+    const result = await this.post(SEARCH_STEPS_ENDPOINT, searchParams, { sendThroughProxy: false })
+    if (!result.status || result.status >= 400) {
+      throw new Error(
+        `Error searching steps (status ${result.status}): ${JSON.stringify(result.data)}`,
+      )
+    }
+    return result.data as SearchStepsDtoResult
   }
 
   /**
@@ -348,15 +354,26 @@ export class AIQueryApi extends NVMBackendApi {
    * @param stepId - the id of the step to retrieve
    * @returns The complete step information
    */
-  async getStep(stepId: string) {
-    if (!isStepIdValid(stepId)) throw new Error('Invalid step id')
-
-    const result = await this.searchSteps({ step_id: stepId })
-
-    if (result.status === 200 && result.data && result.data.steps && result.data.steps.length > 0) {
-      return result.data.steps[0]
+  async getStep(stepId: string): Promise<UpdateStepDto> {
+    if (!isStepIdValid(stepId)) {
+      throw new Error('Invalid step ID')
     }
-    throw new Error(`Step with id ${stepId} not found`)
+
+    try {
+      const result = await this.searchSteps({ step_id: stepId })
+
+      if (result?.steps?.length > 0) {
+        return result.steps[0]
+      }
+
+      throw new Error(`Step not found for ID: ${stepId}`)
+    } catch (error) {
+      throw new Error(
+        error instanceof Error
+          ? `Error getting step: ${error.message}`
+          : 'Unknown error getting step',
+      )
+    }
   }
 
   /**
@@ -370,10 +387,20 @@ export class AIQueryApi extends NVMBackendApi {
    * @param status - The status of the steps to retrieve
    * @returns The steps of the task
    */
-  async getStepsFromTask(did: string, taskId: string, status?: string) {
+  async getStepsFromTask(
+    did: string,
+    taskId: string,
+    status?: string,
+  ): Promise<SearchStepsDtoResult> {
     let endpoint = GET_TASK_STEPS_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId)
     if (status) endpoint += `?status=${status}`
-    return this.get(endpoint, { sendThroughProxy: false })
+    const result = await this.get(endpoint, { sendThroughProxy: false })
+    if (!result.status || result.status >= 400) {
+      throw new Error(
+        `Error getting steps from task (status ${result.status}): ${JSON.stringify(result.data)}`,
+      )
+    }
+    return result.data as SearchStepsDtoResult
   }
 
   /**
@@ -387,13 +414,27 @@ export class AIQueryApi extends NVMBackendApi {
    * @returns The steps of the task
    */
   async getSteps(
-    status: AgentExecutionStatus | undefined = AgentExecutionStatus.Pending,
+    status: AgentExecutionStatus = AgentExecutionStatus.Pending,
     dids: string[] = [],
-  ) {
-    let endpoint = GET_BUILDER_STEPS_ENDPOINT + '?'
-    if (status) endpoint += `&status=${status.toString()}`
-    if (dids.length > 0) endpoint += `&dids=${dids.join(',')}`
-    return this.get(endpoint, { sendThroughProxy: false })
+  ): Promise<SearchStepsDtoResult> {
+    const queryParams = new URLSearchParams()
+    if (status) queryParams.set('status', status.toString())
+    if (dids.length > 0) queryParams.set('dids', dids.join(','))
+
+    const endpoint = `${GET_BUILDER_STEPS_ENDPOINT}?${queryParams.toString()}`
+
+    try {
+      const result = await this.get(endpoint, { sendThroughProxy: false })
+
+      if (!result.data || typeof result.data !== 'object') {
+        throw new Error('Invalid response format from API.')
+      }
+
+      return result.data as SearchStepsDtoResult
+    } catch (error) {
+      console.error('Error fetching steps:', error)
+      throw error // Rethrow for higher-level handling
+    }
   }
 
   /**
