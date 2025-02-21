@@ -234,7 +234,7 @@ export interface CreateTaskDto {
   /**
    * The query parameter for the task
    */
-  query: string
+  input_query: string
 
   /**
    * The name of the task
@@ -244,12 +244,12 @@ export interface CreateTaskDto {
   /**
    * Additional parameters required for the task
    */
-  additional_params?: { [name: string]: string }[]
+  input_additional?: { [name: string]: unknown }
 
   /**
    * Additional artifacts required for the task
    */
-  artifacts?: Artifact[]
+  input_artifacts?: Artifact[]
 }
 
 export interface Endpoint {

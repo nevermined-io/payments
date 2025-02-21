@@ -257,10 +257,10 @@ describe('Payments API (e2e)', () => {
       'I should be able to create a AI Task',
       async () => {
         const aiTask = {
-          query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
+          input_query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
           name: 'transcribe',
-          additional_params: [],
-          artifacts: [],
+          input_additional: {},
+          input_artifacts: [],
         }
         subscriberQueryOpts = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
 
@@ -354,10 +354,10 @@ describe('Payments API (e2e)', () => {
         }, opts)
 
         const aiTask: CreateTaskDto = {
-          query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
+          input_query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
           name: 'transcribe',
-          additional_params: [],
-          artifacts: [],
+          input_additional: {},
+          input_artifacts: [],
         }
         // const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
         // const queryOpts = {
@@ -384,10 +384,10 @@ describe('Payments API (e2e)', () => {
       'Subscriber should be able to receive logs',
       async () => {
         const aiTask: CreateTaskDto = {
-          query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
+          input_query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
           name: 'transcribe',
-          additional_params: [],
-          artifacts: [],
+          input_additional: {},
+          input_artifacts: [],
         }
         // const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
         // const queryOpts = {
@@ -461,10 +461,10 @@ describe('Payments API (e2e)', () => {
       'I should be able to create a wrong AI Task',
       async () => {
         const aiTask = {
-          query: 'this is not a URL !!!!',
+          input_query: 'this is not a URL !!!!',
           name: 'transcribe',
-          additional_params: [],
-          artifacts: [],
+          input_additional: {},
+          input_artifacts: [],
         }
         const taskResult = await paymentsSubscriber.query.createTask(
           agentDID,
