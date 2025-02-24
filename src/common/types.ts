@@ -481,7 +481,7 @@ export type CreateFileDto = {
 
 export interface BaseStepDto {
   task_id: string
-  input_query?: string
+  input_query: string
   input_additional?: { [name: string]: unknown }
   input_artifacts?: Artifact[]
   name?: string
@@ -493,7 +493,7 @@ export interface BaseStepDto {
 
 export interface UpdateStepDto extends BaseStepDto {
   step_id: string
-  did?: string
+  did: string
   step_status: AgentExecutionStatus
   output: string
   output_additional?: { [name: string]: unknown }
@@ -517,6 +517,7 @@ export type AgentTaskEntity = {
   user: string
   task_status: AgentExecutionStatus
   name: string
+  input_query: string
   input_params: string
   input_artifacts: string
   output: string
