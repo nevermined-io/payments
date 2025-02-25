@@ -1,5 +1,5 @@
 import { sleep } from '../../src/common/helper'
-import { AgentExecutionStatus, CreateTaskDto, Step, TaskLogMessage } from '../../src/common/types'
+import { AgentExecutionStatus, ApiResponse, CreateTaskDto, Step, TaskLogMessage } from '../../src/common/types'
 import { EnvironmentName } from '../../src/environments'
 import { Payments } from '../../src/payments'
 // import { getQueryProtocolEndpoints } from "../../src/utils"
@@ -336,7 +336,7 @@ describe('Payments API (e2e)', () => {
               cost: 1,
             } as Step)
             // expect(result.status).toBe(201)
-            if (result.status === 201) {
+            if (result.success) {
               completedTaskId = step.task_id
               completedTaskDID = step.did
             }
