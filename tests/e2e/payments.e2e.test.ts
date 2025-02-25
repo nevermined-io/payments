@@ -1,5 +1,5 @@
 import { sleep } from '../../src/common/helper'
-import { AgentExecutionStatus, ApiResponse, CreateTaskDto, Step, TaskLogMessage } from '../../src/common/types'
+import { AgentExecutionStatus, CreateTaskDto, Step, TaskLogMessage } from '../../src/common/types'
 import { EnvironmentName } from '../../src/environments'
 import { Payments } from '../../src/payments'
 // import { getQueryProtocolEndpoints } from "../../src/utils"
