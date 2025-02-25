@@ -275,7 +275,7 @@ describe('Payments API (e2e)', () => {
 
         expect(taskResult).toBeDefined()
         console.log('Task Result', taskResult)
-        createdTaskId = taskResult.task.task_id
+        createdTaskId = taskResult.data?.task.task_id as string
         expect(createdTaskId).toBeDefined()
       },
       TEST_TIMEOUT,
@@ -405,11 +405,11 @@ describe('Payments API (e2e)', () => {
             logsReceived++
           },
         )
-        const taskId = taskResult.task.task_id
+        const taskId = taskResult.data?.task.task_id
         const logMessage: TaskLogMessage = {
           level: 'info',
           task_status: AgentExecutionStatus.Completed,
-          task_id: taskId,
+          task_id: taskId!,
           message: 'This is a log message',
         }
 
@@ -474,8 +474,8 @@ describe('Payments API (e2e)', () => {
 
         expect(taskResult).toBeDefined()
         //console.log('Task Result', taskResult.data)
-        failedTaskDID = taskResult.task.did
-        failedTaskId = taskResult.task.task_id
+        failedTaskDID = taskResult.data?.task.did as string
+        failedTaskId = taskResult.data?.task.task_id as string
         console.log(`Failed Task DID: ${failedTaskDID}`)
         console.log(`Failed TaskId: ${failedTaskId}`)
       },

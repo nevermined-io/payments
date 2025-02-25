@@ -1,5 +1,7 @@
+import axios from 'axios'
 import {
   AgentExecutionStatus,
+  ApiResponse,
   CreateTaskDto,
   CreateTaskResultDto,
   FullTaskDto,
@@ -169,7 +171,7 @@ export class AIQueryApi extends NVMBackendApi {
     task: CreateTaskDto,
     queryOpts?: AIQueryOptions,
     _callback?: (err?: any) => any,
-  ): Promise<CreateTaskResultDto> {
+  ): Promise<ApiResponse<CreateTaskResultDto>> {
     if (!queryOpts || !queryOpts.accessToken) {
       queryOpts = this.queryOptionsCache.has(did)
         ? this.queryOptionsCache.get(did)
@@ -183,11 +185,29 @@ export class AIQueryApi extends NVMBackendApi {
         headers: { Authorization: `Bearer ${queryOpts.accessToken}` },
       }),
     }
-    const result = await this.post(endpoint, task, reqOptions)
-    if (result.status === 201 && _callback) {
-      await this.subscribeTasksUpdated(_callback, [result.data.task.task_id])
+    try {
+      const response = await this.post(endpoint, task, reqOptions)
+      if (response.status === 201 && _callback) {
+        await this.subscribeTasksUpdated(_callback, [response.data.task.task_id])
+      }
+      return {
+        success: response.status >= 200 && response.status < 300,
+        data: response.data as CreateTaskResultDto,
+      }
+    } catch (error: unknown) {
+      let errorMessage = 'Unknown error'
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      }
     }
-    return result.data as CreateTaskResultDto
   }
 
   /**
@@ -253,9 +273,27 @@ export class AIQueryApi extends NVMBackendApi {
    * @param steps - The list of Steps to create
    * @returns The result of the operation
    */
-  async createSteps(did: string, taskId: string, steps: any) {
-    const endpoint = CREATE_STEPS_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId)
-    return this.post(endpoint, steps, { sendThroughProxy: false })
+  async createSteps(did: string, taskId: string, steps: any): Promise<ApiResponse<string>> {
+    try {
+      const endpoint = CREATE_STEPS_ENDPOINT.replace('{did}', did).replace('{taskId}', taskId)
+      const response = await this.post(endpoint, steps, { sendThroughProxy: false })
+      return {
+        success: response.status >= 200 && response.status < 300,
+        data: response.data.task_id,
+      }
+    } catch (error) {
+      let errorMessage = 'Unknown error'
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      }
+    }
   }
 
   /**
@@ -280,22 +318,35 @@ export class AIQueryApi extends NVMBackendApi {
    * @param step - The Step object to update. @see https://docs.nevermined.io/docs/protocol/query-protocol#steps-attributes
    * @returns The result of the operation
    */
-  async updateStep(did: string, step: Step) {
+  async updateStep(did: string, step: Step): Promise<ApiResponse<string>> {
     try {
       delete (step as { did?: string }).did
-    } catch {
-      // no did attribute to delete
+
+      const { task_id: taskId, step_id: stepId } = step
+      if (!taskId || !stepId)
+        throw new Error('The step object must contain the task_id and step_id attributes')
+
+      const endpoint = UPDATE_STEP_ENDPOINT.replace('{did}', did)
+        .replace('{taskId}', taskId)
+        .replace('{stepId}', stepId)
+
+      const response = await this.put(endpoint, step, { sendThroughProxy: false })
+
+      return { success: response.status >= 200 && response.status < 300, data: stepId }
+    } catch (error) {
+      let errorMessage = 'Unknown error'
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      }
     }
-
-    const { task_id: taskId, step_id: stepId } = step
-    if (!taskId || !stepId)
-      throw new Error('The step object must contain the task_id and step_id attributes')
-
-    const endpoint = UPDATE_STEP_ENDPOINT.replace('{did}', did)
-      .replace('{taskId}', taskId)
-      .replace('{stepId}', stepId)
-
-    return this.put(endpoint, step, { sendThroughProxy: false })
   }
 
   /**
