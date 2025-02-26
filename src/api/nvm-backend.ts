@@ -342,46 +342,46 @@ export class NVMBackendApi {
     }
   }
 
+  async request(
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    url: string,
+    data?: any,
+    reqOptions: HTTPRequestOptions = {
+      sendThroughProxy: false,
+    },
+  ) {
+    try {
+      const response = await axios({
+        method,
+        url: this.parseUrl(url, reqOptions),
+        headers: this.parseHeaders(reqOptions.headers || {}),
+        ...(data && { data }), // Only include `data` for methods that support it
+      })
+
+      return response
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        throw new Error(
+          `HTTP ${err.response.status}: ${err.response.data?.message || 'Request failed'}`,
+        )
+      }
+      throw new Error('Network error or request failed without a response.')
+    }
+  }
+
   async get(url: string, reqOptions: HTTPRequestOptions = { sendThroughProxy: true }) {
-    return axios({
-      method: 'GET',
-      url: this.parseUrl(url, reqOptions),
-      headers: this.parseHeaders(reqOptions.headers || {}),
-    }).catch((err) => {
-      return { data: err.response.data, status: err.response.status, headers: err.response.headers }
-    })
+    return this.request('GET', url, undefined, reqOptions)
   }
 
   async post(url: string, data: any, reqOptions: HTTPRequestOptions) {
-    return axios({
-      method: 'POST',
-      url: this.parseUrl(url, reqOptions),
-      headers: this.parseHeaders(reqOptions.headers || {}),
-      data: data,
-    }).catch((err) => {
-      return { data: err.response.data, status: err.response.status, headers: err.response.headers }
-    })
+    return this.request('POST', url, data, reqOptions)
   }
 
   async put(url: string, data: any, reqOptions: HTTPRequestOptions) {
-    return axios({
-      method: 'PUT',
-      url: this.parseUrl(url, reqOptions),
-      headers: this.parseHeaders(reqOptions.headers || {}),
-      data: data,
-    }).catch((err) => {
-      return { data: err.response.data, status: err.response.status, headers: err.response.headers }
-    })
+    return this.request('PUT', url, data, reqOptions)
   }
 
   async delete(url: string, data: any, reqOptions: HTTPRequestOptions) {
-    return axios({
-      method: 'DELETE',
-      url: this.parseUrl(url, reqOptions),
-      headers: this.parseHeaders(reqOptions.headers || {}),
-      data: data,
-    }).catch((err) => {
-      return { data: err.response.data, status: err.response.status, headers: err.response.headers }
-    })
+    return this.request('DELETE', url, data, reqOptions)
   }
 }
