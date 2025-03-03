@@ -7,7 +7,7 @@ export interface EnvironmentInfo {
 
 export const ZeroAddress = '0x0000000000000000000000000000000000000000'
 
-export type EnvironmentName = 'local' | 'staging' | 'testing' | 'arbitrum' | 'peaq' | 'custom'
+export type EnvironmentName = 'local' | 'staging' | 'testing' | 'arbitrum' | 'peaq' |  'base' | 'custom'
 
 /**
  * Represents the different environments and their corresponding URLs.
@@ -57,6 +57,12 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     backend: 'https://one-backend.peaq.nevermined.app',
     websocketBackend: 'wss://one-backend.peaq.nevermined.app',
     proxy: 'https://proxy.peaq.nevermined.app',
+  },
+  base: {
+    frontend: 'https://base.nevermined.app',
+    backend: 'https://one-backend.base.nevermined.app',
+    websocketBackend: 'wss://one-backend.base.nevermined.app',
+    proxy: 'https://proxy.base.nevermined.app',
   },
   /**
    * A custom environment URLs.
