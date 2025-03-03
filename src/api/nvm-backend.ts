@@ -3,7 +3,13 @@ import { decodeJwt } from 'jose'
 import { io } from 'socket.io-client'
 import { sleep } from '../common/helper'
 import { PaymentsError } from '../common/payments.error'
-import { AgentExecutionStatus, StepEvent, TaskCallback, TaskEvent, TaskLogMessage } from '../common/types'
+import {
+  AgentExecutionStatus,
+  StepEvent,
+  TaskCallback,
+  TaskEvent,
+  TaskLogMessage,
+} from '../common/types'
 import { isEthereumAddress } from '../utils'
 
 export interface BackendApiOptions {
@@ -86,7 +92,6 @@ export const DefaultSubscriptionOptions = {
   subscribeEventTypes: ['step-updated'],
   getPendingEventsOnSubscribe: true,
 }
-
 
 export class NVMBackendApi {
   protected opts: BackendApiOptions

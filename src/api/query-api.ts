@@ -73,7 +73,7 @@ export class AIQueryApi extends NVMBackendApi {
    * @param opts - The subscription options
    */
   async subscribe(
-    _callback:(event: StepEvent) => void,
+    _callback: (event: StepEvent) => void,
     opts: SubscriptionOptions = DefaultSubscriptionOptions,
   ) {
     await super.connectSocketSubscriber(_callback, opts)
@@ -89,7 +89,11 @@ export class AIQueryApi extends NVMBackendApi {
    * @param tasks - The list of tasks to subscribe to
    * @param history - If true, it retrieves the history of the logs emitted before the subscription
    */
-  async subscribeTasksUpdated(_callback: (event: TaskEvent) => void, tasks: string[], history = true) {
+  async subscribeTasksUpdated(
+    _callback: (event: TaskEvent) => void,
+    tasks: string[],
+    history = true,
+  ) {
     await super.connectTasksSocket(_callback, tasks, history)
   }
 
