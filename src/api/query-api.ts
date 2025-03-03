@@ -169,14 +169,14 @@ export class AIQueryApi extends NVMBackendApi {
    * @param did - Agent DID
    * @param task - Task object. The task object should contain the query to execute and the name of the task. All the attributes here: @see https://docs.nevermined.io/docs/protocol/query-protocol#tasks-attributes
    * @param queryOpts - The query options @see {@link Payments.query.getServiceAccessConfig}
-   * @param _callback - The callback to execute when a new task log event is received (optional)
+   * @param _callback - The callback to execute when a new task updated event is received (optional)
    * @returns The result of the operation
    */
   async createTask(
     did: string,
     task: CreateTaskDto,
     queryOpts?: AIQueryOptions,
-    _callback?: (err?: any) => any,
+    _callback?: (event: TaskEvent) => void,
   ): Promise<ApiResponse<CreateTaskResultDto>> {
     if (!queryOpts || !queryOpts.accessToken) {
       queryOpts = this.queryOptionsCache.has(did)
