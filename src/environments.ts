@@ -7,7 +7,14 @@ export interface EnvironmentInfo {
 
 export const ZeroAddress = '0x0000000000000000000000000000000000000000'
 
-export type EnvironmentName = 'local' | 'staging' | 'testing' | 'arbitrum' | 'peaq' |  'base' | 'custom'
+export type EnvironmentName =
+  | 'local'
+  | 'staging'
+  | 'testing'
+  | 'arbitrum'
+  | 'peaq'
+  | 'base'
+  | 'custom'
 
 /**
  * Represents the different environments and their corresponding URLs.
