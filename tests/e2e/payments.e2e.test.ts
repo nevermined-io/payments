@@ -315,7 +315,8 @@ describe('Payments API (e2e)', () => {
         await paymentsBuilder.query.subscribe(async (data) => {
           console.log('TEST:: Step received', data)
           expect(data).toBeDefined()
-          const eventData = JSON.parse(data)
+          // const eventData = JSON.parse(data)
+          const eventData = data
           expect(eventData.step_id).toBeDefined()
 
           stepsReceived++
