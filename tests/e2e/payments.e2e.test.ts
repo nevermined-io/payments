@@ -257,10 +257,10 @@ describe('Payments API (e2e)', () => {
       'I should be able to create a AI Task',
       async () => {
         const aiTask = {
-          query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
+          input_query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
           name: 'transcribe',
-          additional_params: [],
-          artifacts: [],
+          input_additional: {},
+          input_artifacts: [],
         }
         subscriberQueryOpts = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
 
@@ -274,9 +274,8 @@ describe('Payments API (e2e)', () => {
         )
 
         expect(taskResult).toBeDefined()
-        expect(taskResult.status).toBe(201)
-        console.log('Task Result', taskResult.data)
-        createdTaskId = taskResult.data.task.task_id
+        console.log('Task Result', taskResult)
+        createdTaskId = taskResult.data?.task.task_id as string
         expect(createdTaskId).toBeDefined()
       },
       TEST_TIMEOUT,
@@ -289,7 +288,7 @@ describe('Payments API (e2e)', () => {
       const steps = await paymentsBuilder.query.getSteps(AgentExecutionStatus.Pending)
       expect(steps).toBeDefined()
       //console.log(steps.data)
-      expect(steps.data.steps.length).toBeGreaterThan(0)
+      expect(steps.steps.length).toBeGreaterThan(0)
     })
 
     it.skip('Builder should be able to send logs', async () => {
@@ -324,9 +323,9 @@ describe('Payments API (e2e)', () => {
           const searchResult = await paymentsBuilder.query.searchSteps({
             step_id: eventData.step_id,
           })
-          expect(searchResult.data.steps).toBeDefined()
-          const step = searchResult.data.steps[0]
-          if (step.input_query.startsWith('http')) {
+          expect(searchResult.steps).toBeDefined()
+          const step = searchResult.steps[0]
+          if (step.did && step.input_query && step.input_query.startsWith('http')) {
             console.log(`LISTENER :: Received URL ${step.input_query}`)
             result = await paymentsBuilder.query.updateStep(step.did, {
               step_id: step.step_id,
@@ -337,13 +336,13 @@ describe('Payments API (e2e)', () => {
               cost: 1,
             } as Step)
             // expect(result.status).toBe(201)
-            if (result.status === 201) {
+            if (result.success) {
               completedTaskId = step.task_id
               completedTaskDID = step.did
             }
           } else {
             console.log(`LISTENER :: Received Invalid URL ${step.input_query}`)
-            result = await paymentsBuilder.query.updateStep(step.did, {
+            result = await paymentsBuilder.query.updateStep(step.did!, {
               step_id: step.step_id,
               task_id: step.task_id,
               step_status: AgentExecutionStatus.Failed,
@@ -355,10 +354,10 @@ describe('Payments API (e2e)', () => {
         }, opts)
 
         const aiTask: CreateTaskDto = {
-          query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
+          input_query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
           name: 'transcribe',
-          additional_params: [],
-          artifacts: [],
+          input_additional: {},
+          input_artifacts: [],
         }
         // const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
         // const queryOpts = {
@@ -369,7 +368,6 @@ describe('Payments API (e2e)', () => {
         const taskResult = await paymentsSubscriber.query.createTask(agentDID, aiTask) //, queryOpts)
 
         expect(taskResult).toBeDefined()
-        expect(taskResult.status).toBe(201)
 
         console.log(`TEST:: Sleeping for 10 seconds: ${new Date().toLocaleTimeString()}`)
         await sleep(10_000)
@@ -386,10 +384,10 @@ describe('Payments API (e2e)', () => {
       'Subscriber should be able to receive logs',
       async () => {
         const aiTask: CreateTaskDto = {
-          query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
+          input_query: 'https://www.youtube.com/watch?v=0tZFQs7qBfQ',
           name: 'transcribe',
-          additional_params: [],
-          artifacts: [],
+          input_additional: {},
+          input_artifacts: [],
         }
         // const accessConfig = await paymentsSubscriber.query.getServiceAccessConfig(agentDID)
         // const queryOpts = {
@@ -407,11 +405,11 @@ describe('Payments API (e2e)', () => {
             logsReceived++
           },
         )
-        const taskId = taskResult.data.task.task_id
+        const taskId = taskResult.data?.task.task_id
         const logMessage: TaskLogMessage = {
           level: 'info',
           task_status: AgentExecutionStatus.Completed,
-          task_id: taskId,
+          task_id: taskId!,
           message: 'This is a log message',
         }
 
@@ -435,10 +433,9 @@ describe('Payments API (e2e)', () => {
         subscriberQueryOpts,
       )
       expect(result).toBeDefined()
-      console.log('Task with Steps', result.data)
-      expect(result.status).toBe(200)
-      expect(result.data.task.cost).toBeDefined()
-      taskCost = BigInt(result.data.task.cost)
+      console.log('Task with Steps', result)
+      expect(result.task.cost).toBeDefined()
+      taskCost = BigInt(result.task.cost)
       expect(taskCost).toBeGreaterThan(0)
     })
 
@@ -464,10 +461,10 @@ describe('Payments API (e2e)', () => {
       'I should be able to create a wrong AI Task',
       async () => {
         const aiTask = {
-          query: 'this is not a URL !!!!',
+          input_query: 'this is not a URL !!!!',
           name: 'transcribe',
-          additional_params: [],
-          artifacts: [],
+          input_additional: {},
+          input_artifacts: [],
         }
         const taskResult = await paymentsSubscriber.query.createTask(
           agentDID,
@@ -476,10 +473,9 @@ describe('Payments API (e2e)', () => {
         )
 
         expect(taskResult).toBeDefined()
-        expect(taskResult.status).toBe(201)
         //console.log('Task Result', taskResult.data)
-        failedTaskDID = taskResult.data.task.did
-        failedTaskId = taskResult.data.task.task_id
+        failedTaskDID = taskResult.data?.task.did as string
+        failedTaskId = taskResult.data?.task.task_id as string
         console.log(`Failed Task DID: ${failedTaskDID}`)
         console.log(`Failed TaskId: ${failedTaskId}`)
       },
@@ -494,7 +490,6 @@ describe('Payments API (e2e)', () => {
       )
       expect(result).toBeDefined()
       //console.log('Task with Steps', result)
-      expect(result.status).toBe(200)
       // console.log('Task with Steps', result.data)
       // expect(result.data.task.cost).toBeDefined()
       // taskCost = BigInt(result.data.task.cost)
