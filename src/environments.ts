@@ -65,6 +65,9 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     websocketBackend: 'wss://one-backend.peaq.nevermined.app',
     proxy: 'https://proxy.peaq.nevermined.app',
   },
+  /**
+   * The Base environment URLs.
+   */
   base: {
     frontend: 'https://base.nevermined.app',
     backend: 'https://one-backend.base.nevermined.app',

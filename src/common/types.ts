@@ -194,7 +194,19 @@ export interface TaskLogMessage {
   step_id?: string
 }
 
-export type TaskCallback = (data: any) => void
+export interface StepEvent {
+  step_id: string
+  task_id: string
+  did: string
+}
+
+export interface TaskEvent {
+  task_id: string
+  did: string
+  task_status: AgentExecutionStatus
+}
+
+export type TaskCallback = (data: TaskEvent) => void
 
 /**
  * Options to initialize the Payments class.

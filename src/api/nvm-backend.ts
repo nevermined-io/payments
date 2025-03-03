@@ -3,7 +3,13 @@ import { decodeJwt } from 'jose'
 import { io } from 'socket.io-client'
 import { sleep } from '../common/helper'
 import { PaymentsError } from '../common/payments.error'
-import { AgentExecutionStatus, TaskCallback, TaskLogMessage } from '../common/types'
+import {
+  AgentExecutionStatus,
+  StepEvent,
+  TaskCallback,
+  TaskEvent,
+  TaskLogMessage,
+} from '../common/types'
 import { isEthereumAddress } from '../utils'
 
 export interface BackendApiOptions {
@@ -177,11 +183,10 @@ export class NVMBackendApi {
   }
 
   protected async connectSocketSubscriber(
-    _callback: (err?: any) => any,
+    _callback: (event: StepEvent) => void,
     opts: SubscriptionOptions,
   ) {
     try {
-      // nvm-backend:: Connecting to websocket server: ${this.opts.webSocketHost}
       this._connectInternalSocketClient()
 
       await this.socketClient.on('_connected', async () => {
@@ -195,7 +200,7 @@ export class NVMBackendApi {
   }
 
   protected async connectTasksSocket(
-    _callback: (err?: any) => any,
+    _callback: (event: TaskEvent) => void,
     tasks: string[],
     history = true,
   ) {
@@ -272,7 +277,7 @@ export class NVMBackendApi {
     return false
   }
 
-  protected async _subscribe(_callback: (err?: any) => any, opts: SubscriptionOptions) {
+  protected async _subscribe(_callback: (event: StepEvent) => void, opts: SubscriptionOptions) {
     if (!opts.joinAccountRoom && opts.joinAgentRooms.length === 0) {
       throw new Error('No rooms to join in configuration')
     }
@@ -289,10 +294,15 @@ export class NVMBackendApi {
     }
   }
 
-  private async eventHandler(data: any, _callback: (err?: any) => any, _opts: SubscriptionOptions) {
+  private async eventHandler(
+    data: string,
+    _callback: (event: StepEvent) => void,
+    _opts: SubscriptionOptions,
+  ) {
     try {
-      _callback(data)
-      this.did = JSON.parse(data).did
+      const parsedData: StepEvent = JSON.parse(data)
+      _callback(parsedData)
+      this.did = parsedData.did
     } catch (error) {
       throw new Error(`Unable to parse data: ${(error as Error).message}`)
     }

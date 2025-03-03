@@ -9,6 +9,8 @@ import {
   SearchStepsDtoResult,
   SearchTasks,
   Step,
+  StepEvent,
+  TaskEvent,
   TaskLogMessage,
   UpdateStepDto,
 } from '../common/types'
@@ -71,7 +73,7 @@ export class AIQueryApi extends NVMBackendApi {
    * @param opts - The subscription options
    */
   async subscribe(
-    _callback: (err?: any) => any,
+    _callback: (event: StepEvent) => void,
     opts: SubscriptionOptions = DefaultSubscriptionOptions,
   ) {
     await super.connectSocketSubscriber(_callback, opts)
@@ -87,7 +89,11 @@ export class AIQueryApi extends NVMBackendApi {
    * @param tasks - The list of tasks to subscribe to
    * @param history - If true, it retrieves the history of the logs emitted before the subscription
    */
-  async subscribeTasksUpdated(_callback: (err?: any) => any, tasks: string[], history = true) {
+  async subscribeTasksUpdated(
+    _callback: (event: TaskEvent) => void,
+    tasks: string[],
+    history = true,
+  ) {
     await super.connectTasksSocket(_callback, tasks, history)
   }
 
@@ -163,14 +169,14 @@ export class AIQueryApi extends NVMBackendApi {
    * @param did - Agent DID
    * @param task - Task object. The task object should contain the query to execute and the name of the task. All the attributes here: @see https://docs.nevermined.io/docs/protocol/query-protocol#tasks-attributes
    * @param queryOpts - The query options @see {@link Payments.query.getServiceAccessConfig}
-   * @param _callback - The callback to execute when a new task log event is received (optional)
+   * @param _callback - The callback to execute when a new task updated event is received (optional)
    * @returns The result of the operation
    */
   async createTask(
     did: string,
     task: CreateTaskDto,
     queryOpts?: AIQueryOptions,
-    _callback?: (err?: any) => any,
+    _callback?: (event: TaskEvent) => void,
   ): Promise<ApiResponse<CreateTaskResultDto>> {
     if (!queryOpts || !queryOpts.accessToken) {
       queryOpts = this.queryOptionsCache.has(did)
