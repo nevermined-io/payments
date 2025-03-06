@@ -14,6 +14,7 @@ export type EnvironmentName =
   | 'arbitrum'
   | 'peaq'
   | 'base'
+  | 'base-sepolia'
   | 'custom'
 
 /**
@@ -73,6 +74,15 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     backend: 'https://one-backend.base.nevermined.app',
     websocketBackend: 'wss://one-backend.base.nevermined.app',
     proxy: 'https://proxy.base.nevermined.app',
+  },
+  /**
+   * The Base Sepolia environment URLs.
+   */
+  'base-sepolia': {
+    frontend: 'https://base-sepolia.nevermined.app',
+    backend: 'https://one-backend.base-sepolia.nevermined.app',
+    websocketBackend: 'wss://one-backend.base-sepolia.nevermined.app',
+    proxy: 'https://proxy.base-sepolia.nevermined.app',
   },
   /**
    * A custom environment URLs.
