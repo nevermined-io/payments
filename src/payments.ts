@@ -882,7 +882,6 @@ export class Payments {
     }
     const url = new URL('/api/v1/payments/subscription/order', this.environment.backend)
     const response = await fetch(url, options)
-    console.log(response)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
     }
