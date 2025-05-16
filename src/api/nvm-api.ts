@@ -38,39 +38,8 @@ export interface BackendApiOptions {
    * Additional headers to send with the requests
    */
   headers?: { [key: string]: string }
-
-  /**
-   * Configuration of the websocket connection
-   */
-  webSocketOptions?: BackendWebSocketOptions
 }
 
-export interface BackendWebSocketOptions {
-  /**
-   * The websocket transports to use
-   */
-  transports: string[]
-
-  /**
-   * Authentication parameters
-   */
-  auth: { token: string }
-
-  /**
-   * The path to connect to the websocket server
-   */
-  path?: string
-
-  /**
-   * The bearer token to use in the websocket connection
-   */
-  bearerToken?: string
-
-  /**
-   * Additional options to pass to the websocket transport
-   */
-  transportOptions?: { [key: string]: any }
-}
 
 export class HTTPRequestOptions {
   sendThroughProxy: boolean = true
