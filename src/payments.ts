@@ -1,19 +1,31 @@
 import { decodeJwt } from 'jose'
-import fileDownload from 'js-file-download'
-import * as path from 'path'
 import { AIQueryApi } from './api/query-api'
-import { getServiceHostFromEndpoints, jsonReplacer } from './common/helper'
+import { jsonReplacer } from './common/helper'
 import { PaymentsError } from './common/payments.error'
 import {
-  CreateAgentDto,
-  CreateFileDto,
-  CreatePlanCreditsDto,
-  CreatePlanTimeDto,
-  CreateServiceDto,
   PaymentOptions,
+  PlanPriceConfig,
+  PlanCreditsConfig,
+  PlanCreditsType,
+  AgentMetadata,
+  AgentAPIAttributes,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
-import { getAIHubOpenApiUrl, getQueryProtocolEndpoints, isEthereumAddress } from './utils'
+import { getRandomBigInt, isEthereumAddress } from './utils'
+import {
+  API_URL_ADD_PLAN_AGENT,
+  API_URL_BURN_PLAN,
+  API_URL_GET_AGENT,
+  API_URL_GET_PLAN,
+  API_URL_MINT_EXPIRABLE_PLAN,
+  API_URL_MINT_PLAN,
+  API_URL_ORDER_PLAN,
+  API_URL_PLAN_BALANCE,
+  API_URL_REGISTER_AGENT,
+  API_URL_REGISTER_PLAN,
+  API_URL_REMOVE_PLAN_AGENT,
+  API_URL_SEARCH_AGENTS,
+} from './api/nvm-api'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -118,7 +130,6 @@ export class Payments {
     this.query = new AIQueryApi({
       backendHost: this.environment.backend,
       apiKey: this.nvmApiKey!,
-      webSocketHost: this.environment.websocketBackend,
       proxyHost: this.environment.proxy,
     })
   }
@@ -206,7 +217,6 @@ export class Payments {
    */
   public logout() {
     this.nvmApiKey = undefined
-    if (this.query) this.query.disconnect()
   }
 
   /**
@@ -225,459 +235,192 @@ export class Payments {
 
   /**
    *
+   * It allows to an AI Builder to create a Payment Plan on Nevermined in a flexible manner.
+   * A Nevermined Credits Plan limits the access by the access/usage of the Plan.
+   * With them, AI Builders control the number of requests that can be made to an agent or service.
+   * Every time a user accesses any resouce associated to the Payment Plan, the usage consumes from a capped amount of credits.
+   * When the user consumes all the credits, the plan automatically expires and the user needs to top up to continue using the service.
+   *
+   * @remarks This method is oriented to AI Builders
+   * @remarks To call this method, the NVM API Key must have publication permissions
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   *
+   * @param priceConfig - @see {@link PlanPriceConfig}
+   * @param creditsConfig - @see {@link PlanCreditsConfig}
+   *
+   * @example
+   * ```
+   *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
+   *  const creditsConfig = getFixedCreditsConfig(100n)
+   *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, creditsConfig)
+   * ```
+   *
+   * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
+   */
+  public async registerPlan(
+    priceConfig: PlanPriceConfig,
+    creditsConfig: PlanCreditsConfig,
+    nonce = getRandomBigInt(),
+  ): Promise<{ planId: string }> {
+    const body = {
+      priceConfig,
+      creditsConfig,
+      nonce,
+    }
+
+    const options = this.getHTTPOptions('POST', body)
+    const url = new URL(API_URL_REGISTER_PLAN, this.environment.backend)
+
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(`${response.statusText} - ${await response.text()}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   *
    * It allows to an AI Builder to create a Payment Plan on Nevermined based on Credits.
    * A Nevermined Credits Plan limits the access by the access/usage of the Plan.
    * With them, AI Builders control the number of requests that can be made to an agent or service.
    * Every time a user accesses any resouce associated to the Payment Plan, the usage consumes from a capped amount of credits.
    * When the user consumes all the credits, the plan automatically expires and the user needs to top up to continue using the service.
    *
-   * @remarks
-   *
-   * This method is oriented to AI Builders
+   * @remarks This method is oriented to AI Builders
+   * @remarks To call this method, the NVM API Key must have publication permissions
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
-   * @param createPlanCreditsDto - @see {@link CreatePlanCreditsDto}
+   * @param priceConfig - @see {@link PlanPriceConfig}
+   * @param creditsConfig - @see {@link PlanCreditsConfig}
    *
    * @example
    * ```
-   *  const { did } = await payments.createCreditsPlan({
-   *    name: "My AI Payments Plan",
-   *    description: "AI stuff",
-   *    price: 10000000n,
-   *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-   *    amountOfCredits: 30,
-   *    tags: ["test"]
-   *   })
+   *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
+   *  const creditsConfig = getFixedCreditsConfig(100n)
+   *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, creditsConfig)
    * ```
    *
    * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
    */
-  public async createCreditsPlan(
-    createPlanCreditsDto: CreatePlanCreditsDto,
-  ): Promise<{ did: string }> {
-    const metadata = {
-      main: {
-        name: createPlanCreditsDto.name,
-        type: 'subscription',
-        license: 'No License Specified',
-        files: [],
-        ercType: 1155,
-        nftType: 'nft1155-credit',
-        subscription: {
-          subscriptionType: 'credits',
-        },
-      },
-      additionalInformation: {
-        description: createPlanCreditsDto.description,
-        tags: createPlanCreditsDto.tags || [],
-        customData: {
-          dateMeasure: 'days',
-          plan: 'custom',
-          subscriptionLimitType: 'credits',
-        },
-      },
-    }
-    const serviceAttributes = [
-      {
-        serviceType: 'nft-sales',
-        price: createPlanCreditsDto.price,
-        nft: {
-          amount: createPlanCreditsDto.amountOfCredits,
-          nftTransfer: false,
-        },
-      },
-    ]
-    const body = {
-      price: createPlanCreditsDto.price,
-      tokenAddress: createPlanCreditsDto.tokenAddress,
-      metadata,
-      serviceAttributes,
-    }
+  public async registerCreditsPlan(
+    priceConfig: PlanPriceConfig,
+    creditsConfig: PlanCreditsConfig,
+  ): Promise<{ planId: string }> {
+    if (
+      creditsConfig.creditsType != PlanCreditsType.FIXED &&
+      creditsConfig.creditsType != PlanCreditsType.DYNAMIC
+    )
+      throw new PaymentsError('The creditsConfig.creditsType must be FIXED or DYNAMIC')
 
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body, jsonReplacer),
-    }
-    const url = new URL('/api/v1/payments/subscription', this.environment.backend)
+    if (creditsConfig.minAmount > creditsConfig.maxAmount)
+      throw new PaymentsError(
+        'The creditsConfig.minAmount can not be more than creditsConfig.maxAmount',
+      )
 
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
-    }
-
-    return response.json()
+    return this.registerPlan(priceConfig, creditsConfig)
   }
 
   /**
    *
-   * It allows to an AI Builder to create a Payment Plan on Nevermined based on Time.
-   * A Nevermined Time Plan limits the access by the a specific amount of time.
-   * With them, AI Builders can specify the duration of the Payment Plan (1 month, 1 year, etc.).
-   * When the time period is over, the plan automatically expires and the user needs to renew it.
+   * It allows to an AI Builder to create a Payment Plan on Nevermined limited by duration.
+   * A Nevermined Credits Plan limits the access by the access/usage of the Plan.
+   * With them, AI Builders control the number of requests that can be made to an agent or service.
+   * Every time a user accesses any resouce associated to the Payment Plan, the usage consumes from a capped amount of credits.
+   * When the user consumes all the credits, the plan automatically expires and the user needs to top up to continue using the service.
    *
-   * @remarks
-   *
-   * This method is oriented to AI Builders
+   * @remarks This method is oriented to AI Builders
+   * @remarks To call this method, the NVM API Key must have publication permissions
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
-   * @param createPlanTimeDto - @see {@link CreatePlanTimeDto}
+   * @param priceConfig - @see {@link PlanPriceConfig}
+   * @param creditsConfig - @see {@link PlanCreditsConfig}
    *
    * @example
    * ```
-   *  const { did } = await payments.createTimePlan({
-   *    name: "My 1 Month Plan",
-   *    description: "test",
-   *    price: 10000000n,
-   *    tokenAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-   *    duration: 30,
-   *    tags: ["test"]
-   *   })
+   *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
+   *  const 1dayCreditsPlan = getExpirableCreditsConfig(86400n)
+   *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, 1dayCreditsPlan)
    * ```
    *
    * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
    */
-  public async createTimePlan(createPlanTimeDto: CreatePlanTimeDto): Promise<{ did: string }> {
-    const metadata = {
-      main: {
-        name: createPlanTimeDto.name,
-        type: 'subscription',
-        license: 'No License Specified',
-        files: [],
-        ercType: 1155,
-        nftType: 'nft1155-credit',
-        subscription: {
-          subscriptionType: 'time',
-        },
-      },
-      additionalInformation: {
-        description: createPlanTimeDto.description,
-        tags: createPlanTimeDto.tags || [],
-        customData: {
-          dateMeasure: 'days',
-          plan: 'custom',
-          subscriptionLimitType: 'time',
-        },
-      },
-    }
-    const serviceAttributes = [
-      {
-        serviceType: 'nft-sales',
-        price: createPlanTimeDto.price,
-        nft: {
-          duration: createPlanTimeDto.duration,
-          amount: 1,
-          nftTransfer: false,
-        },
-      },
-    ]
-    const body = {
-      price: createPlanTimeDto.price,
-      tokenAddress: createPlanTimeDto.tokenAddress,
-      metadata,
-      serviceAttributes,
-    }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body, jsonReplacer),
-    }
-    const url = new URL('/api/v1/payments/subscription', this.environment.backend)
+  public async registerTimePlan(
+    priceConfig: PlanPriceConfig,
+    creditsConfig: PlanCreditsConfig,
+  ): Promise<{ planId: string }> {
+    if (creditsConfig.creditsType != PlanCreditsType.EXPIRABLE)
+      throw new PaymentsError('The creditsConfig.creditsType must be EXPIRABLE')
 
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
-    }
-
-    return response.json()
+    return this.registerPlan(priceConfig, creditsConfig)
   }
 
   /**
-   * It creates a new AI Agent on Nevermined.
-   * The agent must be associated to a Payment Plan. Users that are subscribers of a payment plan can access the agent.
+   *
+   * It registers a new AI Agent on Nevermined.
+   * The agent must be associated to one or multiple Payment Plans. Users that are subscribers of a payment plan can access the agent.
    * Depending on the Payment Plan and the configuration of the agent, the usage of the agent/service will consume credits.
    * When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue using the agent.
    *
-   * @remarks
-   *
-   * This method is oriented to AI Builders
-   *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
-   *
-   * @example
-   * ```typescript
-   * const agentDID = await paymentsBuilder.createService({
-   *     planDID,
-   *     name: 'E2E Payments Agent',
-   *     description: 'description',
-   *     serviceType: 'agent',
-   *     serviceChargeType: 'fixed',
-   *     authType: 'bearer',
-   *     token: 'changeme',
-   *     amountOfCredits: 1,
-   *     endpoints: agentEndpoints,
-   *     openEndpoints: ['https://example.com/api/v1/rest/docs-json']
-   *   })
-   * ```
-   *
-   * @param createAgentDto - @see {@link CreateAgentDto}
-   * @returns A promise that resolves to the created agent DID.
-   */
-  public async createAgent(createAgentDto: CreateAgentDto): Promise<{ did: string }> {
-    if (createAgentDto.usesAIHub) {
-      createAgentDto.authType = 'bearer'
-      createAgentDto.token = ''
-      createAgentDto.endpoints = getQueryProtocolEndpoints(this.environment.backend)
-      createAgentDto.openApiUrl = getAIHubOpenApiUrl(this.environment.backend)
-      createAgentDto.implementsQueryProtocol = true
-    } else {
-      if (!createAgentDto.endpoints) {
-        throw new PaymentsError('endpoints are required')
-      }
-    }
-
-    return this.createService({
-      planDID: createAgentDto.planDID,
-      name: createAgentDto.name,
-      description: createAgentDto.description,
-      usesAIHub: createAgentDto.usesAIHub,
-      implementsQueryProtocol: createAgentDto.implementsQueryProtocol,
-      serviceType: 'agent',
-      serviceChargeType: createAgentDto.serviceChargeType,
-      authType: createAgentDto.authType,
-      amountOfCredits: createAgentDto.amountOfCredits,
-      minCreditsToCharge: createAgentDto.minCreditsToCharge,
-      maxCreditsToCharge: createAgentDto.maxCreditsToCharge,
-      username: createAgentDto.username,
-      password: createAgentDto.password,
-      token: createAgentDto.token,
-      endpoints: createAgentDto.endpoints,
-      openEndpoints: createAgentDto.openEndpoints,
-      openApiUrl: createAgentDto.openApiUrl,
-      integration: createAgentDto.integration,
-      sampleLink: createAgentDto.sampleLink,
-      apiDescription: createAgentDto.apiDescription,
-      curation: createAgentDto.curation,
-      tags: createAgentDto.tags,
-    })
-  }
-
-  /**
-   *
-   * It creates a new AI Agent and a Payment Plan on Nevermined.
-   *
-   * @remarks
-   *
-   * This method is oriented to AI Builders
+   * @remarks This method is oriented to AI Builders
+   * @remarks To call this method, the NVM API Key must have publication permissions
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
    *
-   * @param plan - @see {@link CreatePlanCreditsDto}
-   * @param agent - @see {@link CreateAgentDto} PlanDID is generated automatically.
-   * @returns A promise that resolves to the Plan DID and Agent DID.
+   * @param agentMetadata - @see {@link AgentMetadata}
+   * @param agentApi - @see {@link AgentAPIAttributes}
+   * @param paymentPlans - the list of payment plans giving access to the agent.
    *
    * @example
    * ```
-   * const { planDID, agentDID } = await paymentsBuilder.createAgentAndPlan(
-   * {
-   * name: 'My AI Payments Plan',
-   * description: 'AI stuff',
-   * price: 10000000n,
-   * tokenAddress: '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d',
-   * amountOfCredits: 30,
-   * },
-   * {
-   * name: 'Payments Agent name',
-   * description: 'description',
-   * amountOfCredits: 1,
-   * tags: ['test'],
-   * usesAIHub: true,
-   * implementsQueryProtocol: true,
-   * serviceChargeType: 'fixed',
-   * authType: 'bearer',
-   * token,
-   * endpoints,
-   * integration: 'integration details',
-   * apiDescription: 'description',
-   * curation: {}
-   * })
+   *  const agentMetadata = { name: 'My AI Payments Agent', tags: ['test'] }
+   *  const agentApi { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
+   *  const paymentPlans = [planId]
+   *
+   *  const { did } = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)
    * ```
    *
-   * @returns A promise that resolves to the Plan DID and Agent DID.
+   * @returns The unique identifier of the newly created agent (Agent DID).
    */
-  public async createAgentAndPlan(
-    plan: CreatePlanCreditsDto,
-    agent: Omit<CreateAgentDto, 'planDID'>,
-  ): Promise<{ planDID: string; agentDID: string }> {
-    const { did: planDID } = await this.createCreditsPlan({
-      name: plan.name,
-      description: plan.description,
-      price: plan.price,
-      tokenAddress: plan.tokenAddress,
-      amountOfCredits: plan.amountOfCredits,
-      tags: plan.tags,
-    })
-
-    const { did: agentDID } = await this.createAgent({
-      planDID,
-      name: agent.name,
-      description: agent.description,
-      amountOfCredits: agent.amountOfCredits,
-      tags: agent.tags,
-      usesAIHub: agent.usesAIHub,
-      implementsQueryProtocol: agent.implementsQueryProtocol,
-      serviceChargeType: agent.serviceChargeType,
-      minCreditsToCharge: agent.minCreditsToCharge,
-      maxCreditsToCharge: agent.maxCreditsToCharge,
-      authType: agent.authType,
-      username: agent.username,
-      password: agent.password,
-      token: agent.token,
-      endpoints: agent.endpoints,
-      openEndpoints: agent.openEndpoints,
-      openApiUrl: agent.openApiUrl,
-      integration: agent.integration,
-      sampleLink: agent.sampleLink,
-      apiDescription: agent.apiDescription,
-      curation: agent.curation,
-    })
-
-    return { planDID, agentDID }
-  }
-
-  /**
-   * It creates a new AI Agent or Service on Nevermined.
-   * The agent/service must be associated to a Payment Plan. Users that are subscribers of a payment plan can access the agent/service.
-   * Depending on the Payment Plan and the configuration of the agent/service, the usage of the agent/service will consume credits.
-   * When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue using the agent/service.
-   *
-   * @remarks
-   *
-   * This method is oriented to AI Builders
-   *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
-   *
-   * @example
-   * ```typescript
-   * const agentEndpoints: Endpoint[] = [
-   *   { 'POST': `https://example.com/api/v1/agents/(.*)/tasks` },
-   *   { 'GET': `https://example.com/api/v1/agents/(.*)/tasks/(.*)` }
-   * ]
-   * const agentDID = await paymentsBuilder.createService({
-   *     planDID,
-   *     name: 'E2E Payments Agent',
-   *     description: 'description',
-   *     serviceType: 'agent',
-   *     serviceChargeType: 'fixed',
-   *     authType: 'bearer',
-   *     token: 'changeme',
-   *     amountOfCredits: 1,
-   *     endpoints: agentEndpoints,
-   *     openEndpoints: ['https://example.com/api/v1/rest/docs-json']
-   *   })
-   * ```
-   *
-   * @param createServiceDto - @see {@link CreateServiceDto}
-   * @returns A promise that resolves to the created agent DID.
-   */
-  public async createService(createServiceDto: CreateServiceDto): Promise<{ did: string }> {
+  public async registerAgent(
+    agentMetadata: AgentMetadata,
+    agentApi: AgentAPIAttributes,
+    paymentPlans: string[],
+  ): Promise<{ did: string }> {
     let authentication = {}
     let _headers: { Authorization: string }[] = []
-    if (createServiceDto.authType === 'basic') {
+    if (agentApi.authType === 'basic') {
       authentication = {
         type: 'basic',
-        username: createServiceDto.username,
-        password: createServiceDto.password,
+        username: agentApi.username,
+        password: agentApi.password,
       }
-    } else if (createServiceDto.authType === 'oauth' || createServiceDto.authType === 'bearer') {
+    } else if (agentApi.authType === 'oauth' || agentApi.authType === 'bearer') {
       authentication = {
-        type: createServiceDto.authType,
-        token: createServiceDto.token,
+        type: agentApi.authType,
+        token: agentApi.token,
       }
-      _headers = [{ Authorization: `Bearer ${createServiceDto.token}` }]
+      _headers = [{ Authorization: `Bearer ${agentApi.token}` }]
     } else {
       authentication = { type: 'none' }
     }
 
-    const metadata = {
-      main: {
-        name: createServiceDto.name,
-        license: 'No License Specified',
-        type: createServiceDto.serviceType,
-        files: [],
-        ercType: 'nft1155',
-        nftType: 'nft1155Credit',
-        subscription: {
-          timeMeasure: 'days',
-          subscriptionType: 'credits',
-        },
-        webService: {
-          endpoints: createServiceDto.endpoints,
-          openEndpoints: createServiceDto.openEndpoints,
-          chargeType: createServiceDto.serviceChargeType,
-          isNeverminedHosted: createServiceDto.usesAIHub,
-          implementsQueryProtocol: createServiceDto.implementsQueryProtocol,
-          ...(createServiceDto.implementsQueryProtocol && { queryProtocolVersion: 'v1' }),
-          serviceHost: getServiceHostFromEndpoints(createServiceDto.endpoints!),
-          internalAttributes: {
-            authentication,
-            headers: _headers,
-            chargeType: createServiceDto.serviceChargeType,
-          },
-        },
-        ...(createServiceDto.curation && { curation: createServiceDto.curation }),
-        additionalInformation: {
-          description: createServiceDto.description,
-          tags: createServiceDto.tags ? createServiceDto.tags : [],
-          customData: {
-            openApiUrl: createServiceDto.openApiUrl,
-            integration: createServiceDto.integration,
-            sampleLink: createServiceDto.sampleLink,
-            apiDescription: createServiceDto.apiDescription,
-            plan: 'custom',
-            serviceChargeType: createServiceDto.serviceChargeType,
-          },
-        },
-      },
+    agentMetadata.internalAttributes = {
+      authentication,
+      headers: _headers,
     }
-    const serviceAttributes = [
-      {
-        serviceType: 'nft-access',
-        nft: {
-          amount: createServiceDto.amountOfCredits ? createServiceDto.amountOfCredits : 1,
-          tokenId: createServiceDto.planDID,
-          minCreditsToCharge: createServiceDto.minCreditsToCharge,
-          minCreditsRequired: createServiceDto.minCreditsToCharge,
-          maxCreditsToCharge: createServiceDto.maxCreditsToCharge,
-          nftTransfer: false,
-        },
-      },
-    ]
+
     const body = {
-      metadata,
-      serviceAttributes,
-      subscriptionDid: createServiceDto.planDID,
+      metadataAttributes: agentMetadata,
+      agentApiAttributes: agentApi,
+      plans: paymentPlans,
     }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body, jsonReplacer),
-    }
-    const url = new URL('/api/v1/payments/service', this.environment.backend)
+
+    const options = this.getHTTPOptions('POST', body)
+    const url = new URL(API_URL_REGISTER_AGENT, this.environment.backend)
 
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -688,95 +431,58 @@ export class Payments {
   }
 
   /**
-   * It creates a new asset with file associated to it.
-   * The file asset must be associated to a Payment Plan. Users that are subscribers of a payment plan can download the files attached to it.
-   * Depending on the Payment Plan and the configuration of the file asset, the download will consume credits.
-   * When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue downloading the files.
    *
-   * @remarks
+   * It registers a new AI Agent and a Payment Plan associated to this new agent.
+   * Depending on the Payment Plan and the configuration of the agent, the usage of the agent/service will consume credits.
+   * When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue using the agent.
    *
-   * This method is oriented to AI Builders
+   * @remarks This method is oriented to AI Builders
+   * @remarks To call this method, the NVM API Key must have publication permissions
    *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/register-file-asset
+   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
    *
-   * @param createFileDto - @see {@link CreateFileDto}
-   * @returns The promise that resolves to the created file's DID.
+   * @param agentMetadata - @see {@link AgentMetadata}
+   * @param agentApi - @see {@link AgentAPIAttributes}
+   * @param priceConfig - @see {@link PlanPriceConfig}
+   * @param creditsConfig - @see {@link PlanCreditsConfig}
+   *
+   * @example
+   * ```
+   *  const agentMetadata = { name: 'My AI Payments Agent', tags: ['test'] }
+   *  const agentApi { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
+   *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
+   *  const 1dayCreditsPlan = getExpirableCreditsConfig(86400n)
+   *  const { did, planId } = await payments.registerAgentAndPlan(
+   *    agentMetadata,
+   *    agentApi,
+   *    cryptoPriceConfig,
+   *    1dayCreditsPlan
+   *  )
+   * ```
+   *
+   * @returns The unique identifier of the newly created agent (Agent DID).
+   * @returns The unique identifier of the newly created plan (planId).
    */
-  public async createFile(createFileDto: CreateFileDto): Promise<{ did: string }> {
-    const metadata = {
-      main: {
-        name: createFileDto.name,
-        license: 'No License Specified',
-        type: createFileDto.assetType,
-        files: createFileDto.files,
-        ercType: 'nft1155',
-        nftType: 'nft1155Credit',
-      },
-      ...(createFileDto.curation && { curation: createFileDto.curation }),
-      additionalInformation: {
-        description: createFileDto.description,
-        tags: createFileDto.tags ? createFileDto.tags : [],
-        customData: {
-          dataSchema: createFileDto.dataSchema,
-          sampleCode: createFileDto.sampleCode,
-          usageExample: createFileDto.usageExample,
-          filesFormat: createFileDto.filesFormat,
-          programmingLanguage: createFileDto.programmingLanguage,
-          framework: createFileDto.framework,
-          task: createFileDto.task,
-          architecture: createFileDto.task,
-          trainingDetails: createFileDto.trainingDetails,
-          variations: createFileDto.variations,
-          fineTunable: createFileDto.fineTunable,
-          plan: 'custom',
-        },
-      },
-    }
-    const serviceAttributes = [
-      {
-        serviceType: 'nft-access',
-        nft: {
-          tokenId: createFileDto.planDID,
-          amount: createFileDto.amountOfCredits ? createFileDto.amountOfCredits : 1,
-          nftTransfer: false,
-        },
-      },
-    ]
-    const body = {
-      metadata,
-      serviceAttributes,
-      subscriptionDid: createFileDto.planDID,
-    }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body),
-    }
-    const url = new URL('/api/v1/payments/file', this.environment.backend)
+  public async registerAgentAndPlan(
+    agentMetadata: AgentMetadata,
+    agentApi: AgentAPIAttributes,
+    priceConfig: PlanPriceConfig,
+    creditsConfig: PlanCreditsConfig,
+  ): Promise<{ did: string; planId: string }> {
+    const { planId } = await this.registerPlan(priceConfig, creditsConfig)
+    const { did } = await this.registerAgent(agentMetadata, agentApi, [planId])
 
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
-    }
-
-    return response.json()
+    return { did, planId }
   }
 
   /**
-   * Get the Metadata (aka Decentralized Document or DDO) for a given asset identifier (DID).
+   * Get the Metadata (aka Decentralized Document or DDO) for a given Agent identifier (DID).
    *
-   * @see https://docs.nevermined.io/docs/architecture/specs/Spec-DID
-   * @see https://docs.nevermined.io/docs/architecture/specs/Spec-METADATA
-   *
-   * @param did - The unique identifier (aka DID) of the asset (payment plan, agent, file, etc).
+   * @param did - The unique identifier (aka DID) of the agent .
    * @returns A promise that resolves to the DDO.
    */
-  public async getAssetDDO(did: string) {
-    const url = new URL(`/api/v1/payments/asset/ddo/${did}`, this.environment.backend)
+  public async getAgent(did: string) {
+    const url = new URL(API_URL_GET_AGENT.replace(':did', did), this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
@@ -786,68 +492,51 @@ export class Payments {
   }
 
   /**
-   * Get array of services/agent DIDs associated with a payment plan.
+   * Get the information about a Payment Plan giving it's plan identifier (planId).
    *
-   * @param planDID - The DID of the Payment Plan.
-   * @returns A promise that resolves to the array of services/agents DIDs.
+   * @param planId - The unique identifier of the plan.
+   * @returns A promise that resolves to the description of the plan.
    */
-  public async getPlanAssociatedServices(planDID: string) {
-    const url = new URL(
-      `/api/v1/payments/subscription/services/${planDID}`,
-      this.environment.backend,
-    )
+  public async getPlan(planId: string) {
+    const url = new URL(API_URL_GET_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
     }
-    return response.json()
-  }
 
-  /**
-   * Get array of files DIDs associated with a payment plan.
-   *
-   * @param planDID - The DID of the Payment Plan.
-   * @returns A promise that resolves to array of files DIDs.
-   */
-  public async getPlanAssociatedFiles(planDID: string) {
-    const url = new URL(`/api/v1/payments/subscription/files/${planDID}`, this.environment.backend)
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
-    }
     return response.json()
   }
 
   /**
    * Get the balance of an account for a Payment Plan.
    *
-   * @param planDID - The Payment Plan DID of the service to be published.
+   * @param planId - The identifier of the Payment Plan
    * @param accountAddress - The address of the account to get the balance.
    * @returns A promise that resolves to the balance result.
    */
   public async getPlanBalance(
-    planDID: string,
+    planId: string,
     accountAddress?: string,
   ): Promise<{
-    subscriptionType: string
-    isOwner: boolean
+    // subscriptionType: string
+    // isOwner: boolean
     balance: bigint
-    isSubscriptor: boolean
+    // isSubscriptor: boolean
   }> {
-    const body = {
-      subscriptionDid: planDID,
-      accountAddress: isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress,
-    }
+    const holderAddress = isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress
+    const balanceUrl = API_URL_PLAN_BALANCE.replace(':planId', planId).replace(
+      ':holderAddress',
+      holderAddress!,
+    )
+
     const options = {
-      method: 'POST',
+      method: 'GET',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
       },
-      body: JSON.stringify(body),
     }
-    const url = new URL('/api/v1/payments/subscription/balance', this.environment.backend)
+    const url = new URL(balanceUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
@@ -862,25 +551,12 @@ export class Payments {
    * @remarks
    * The payment is done using Crypto. Payments using Fiat can be done via the Nevermined App.
    *
-   * @param planDID - The Payment Plan DID of the service to be published.
-   * @param agreementId - The unique identifier of the purchase transaction (aka agreement ID). When this parameter is given, it assumes there is a previous payment step and will request the payment plan.
-   * @returns A promise that resolves to the agreement ID and a boolean indicating if the operation was successful.
+   * @param planId - The unique identifier of the plan.
+   * @returns A promise that resolves indicating if the operation was successful.
    */
-  public async orderPlan(
-    planDID: string,
-    agreementId?: string,
-  ): Promise<{ agreementId: string; success: boolean }> {
-    const body = { subscriptionDid: planDID, agreementId }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body),
-    }
-    const url = new URL('/api/v1/payments/subscription/order', this.environment.backend)
+  public async orderPlan(planId: string): Promise<{ success: boolean }> {
+    const options = this.getHTTPOptions('POST')
+    const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
@@ -889,124 +565,41 @@ export class Payments {
     return response.json()
   }
 
-  /**
-   * Downloads files for a given DID asset.
-   *
-   * @param did - The DID of the file.
-   * @returns A promise that resolves to the JSON response from the server.
-   */
-  public async downloadFiles(fileDid: string) {
-    const body = { fileDid }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body),
-    }
-    const url = new URL('/api/v1/payments/file/download', this.environment.backend)
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
-    }
-
-    let filename = 'file'
-    const contentDisposition = response.headers.get('Content-Disposition')
-    if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="(.+?)"/)
-      if (filenameMatch && filenameMatch[1]) {
-        filename = filenameMatch[1]
-      }
-    }
-    const buff = await response.arrayBuffer()
-    fileDownload(buff, filename)
-    const destination = process.cwd()
-
-    return path.join(destination, filename)
-  }
+  // /**
+  //  * Get array of services/agent DIDs associated with a payment plan.
+  //  *
+  //  * @param planDID - The DID of the Payment Plan.
+  //  * @returns A promise that resolves to the array of services/agents DIDs.
+  //  */
+  // public async getPlanAssociatedServices(planDID: string) {
+  //   const url = new URL(
+  //     `/api/v1/payments/subscription/services/${planDID}`,
+  //     this.environment.backend,
+  //   )
+  //   const response = await fetch(url)
+  //   if (!response.ok) {
+  //     throw Error(`${response.statusText} - ${await response.text()}`)
+  //   }
+  //   return response.json()
+  // }
 
   /**
-   * Redirects the user to the subscription details for a given DID.
-   * @remarks
-   *
-   * This method is only for browser instances.
-   *
-   * @param planDID - The DID (Decentralized Identifier) of the plan.
-   */
-  public getPlanDetails(planDID: string) {
-    const url = new URL(`/en/subscription/${planDID}`, this.environment.frontend)
-    window.location.href = url.toString()
-  }
-
-  /**
-   * Redirects the user to the service details for a given DID.
-   *
-   * @remarks
-   *
-   * This method is only for browser instances.
-   *
-   * @param did - The DID (Decentralized Identifier) of the service.
-   */
-  public getServiceDetails(did: string) {
-    const url = new URL(`/en/webservice/${did}`, this.environment.frontend)
-    window.location.href = url.toString()
-  }
-
-  /**
-   * Redirects the user to the file details for the specified DID (Decentralized Identifier).
-   *
-   * @remarks
-   *
-   * This method is only for browser instances.
-   *
-   * @param did - The DID of the file.
-   */
-  public getFileDetails(did: string) {
-    const url = new URL(`/en/file/${did}`, this.environment.frontend)
-    window.location.href = url.toString()
-  }
-
-  /**
-   * Redirects the user to the subscription checkout page for the specified DID.
-   *
-   * @remarks
-   *
-   * This method is only for browser instances.
-   *
-   * @param did - The DID (Decentralized Identifier) of the item to be subscribed to.
-   */
-  public checkoutSubscription(did: string) {
-    const url = new URL(`/en/subscription/checkout/${did}`, this.environment.frontend)
-    window.location.href = url.toString()
-  }
-
-  /**
-   * Mint credits for a given Payment Plan DID and transfer them to a receiver.
+   * Mint credits for a given Payment Plan and transfer them to a receiver.
    *
    * @remarks
    *
    * This method is only can be called by the owner of the Payment Plan.
    *
-   * @param planDID - The DID (Decentralized Identifier) of the asset.
-   * @param creditsAmount - The amount of NFT (Non-Fungible Token) credits to mint.
-   * @param receiver - The address of the receiver where the credits will be transferred.
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param creditsAmount - The number of credits to mint.
+   * @param creditsReceiver - The address of the receiver where the credits will be transferred.
    * @returns A Promise that resolves to the JSON response from the server.
    * @throws Error if the server response is not successful.
    */
-  public async mintCredits(planDID: string, creditsAmount: string, receiver: string) {
-    const body = { did: planDID, nftAmount: creditsAmount, receiver }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body),
-    }
-    const url = new URL('/api/v1/payments/credits/mint', this.environment.backend)
+  public async mintPlanCredits(planId: string, creditsAmount: bigint, creditsReceiver: string) {
+    const body = { planId, amount: creditsAmount, creditsReceiver }
+    const options = this.getHTTPOptions('POST', body)
+    const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
@@ -1016,29 +609,29 @@ export class Payments {
   }
 
   /**
-   * Burn credits for a given Payment Plan DID.
+   * Mint credits for a given Payment Plan and transfer them to a receiver.
+   * The credits minted will expire after a given duration (in seconds).
    *
    * @remarks
    *
    * This method is only can be called by the owner of the Payment Plan.
    *
-   * @param planDID - The DID (Decentralized Identifier) of the asset.
-   * @param creditsAmount - The amount of NFT (Non-Fungible Token) credits to burn.
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param creditsAmount - The number of credits to mint.
+   * @param creditsReceiver - The address of the receiver where the credits will be transferred.
+   * @param creditsDuration - The duration of the credits in seconds. Default is 0 (no expiration).
    * @returns A Promise that resolves to the JSON response from the server.
    * @throws Error if the server response is not successful.
    */
-  public async burnCredits(planDID: string, creditsAmount: string) {
-    const body = { did: planDID, nftAmount: creditsAmount }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body),
-    }
-    const url = new URL('/api/v1/payments/credits/burn', this.environment.backend)
+  public async mintPlanExpirable(
+    planId: string,
+    creditsAmount: bigint,
+    creditsReceiver: string,
+    creditsDuration = 0n,
+  ) {
+    const body = { planId, amount: creditsAmount, creditsReceiver, duration: creditsDuration }
+    const options = this.getHTTPOptions('POST', body)
+    const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
@@ -1048,45 +641,76 @@ export class Payments {
   }
 
   /**
+   * Burn credits for a given Payment Plan.
    *
-   * Search for Payment Plans based on a text query.
+   * @remarks
    *
-   * @example
-   * ```
-   * const plans = await payments.searchPlans({ text: 'test' })
-   * ```
+   * This method is only can be called by the owner of the Payment Plan.
    *
-   * @param text - The text query to search for Payment Plans.
-   * @param page - The page number for pagination.
-   * @param offset - The number of items per page.
+   * @param planId - The DID (Decentralized Identifier) of the asset.
+   * @param creditsAmountToBurn - The amount of credits to burn.
    * @returns A Promise that resolves to the JSON response from the server.
    * @throws Error if the server response is not successful.
-   *
    */
-  public async searchPlans({
-    text,
-    page = 1,
-    offset = 10,
-  }: {
-    text: string
-    page?: number
-    offset?: number
-  }) {
-    const body = { text: text, page: page, offset: offset }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body),
-    }
-    const url = new URL('/api/v1/payments/search/plan', this.environment.backend)
+  public async burnCredits(planId: string, creditsAmountToBurn: string) {
+    const body = { planId, creditsAmountToBurn }
+    const options = this.getHTTPOptions('DELETE', body)
+    const url = new URL(API_URL_BURN_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
     }
+
+    return response.json()
+  }
+
+  /**
+   * Adds an existing Payment Plan to an AI Agent.
+   * After this operation, users having access to the Payment Plan will be able to access the AI Agent.
+   *
+   * @remarks
+   *
+   * This method is only can be called by the owner of the Payment Plan.
+   *
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param agentDid - The unique identifier of the AI Agent.
+   * @returns A Promise that resolves to the JSON response from the server.
+   * @throws Error if the server response is not successful.
+   */
+  public async addPlanToAgent(planId: string, agentDid: string) {
+    const options = this.getHTTPOptions('POST')
+    const endpoint = API_URL_ADD_PLAN_AGENT.replace(':planId', planId).replace(':did', agentDid)
+    const url = new URL(endpoint, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(`${response.statusText} - ${await response.text()}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Removes a Payment Plan from an AI Agent.
+   * After this operation, users having access to the Payment Plan will not longer be able to access the AI Agent.
+   *
+   * @remarks
+   *
+   * This method is only can be called by the owner of the Payment Plan.
+   *
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param agentDid - The unique identifier of the AI Agent.
+   * @returns A Promise that resolves to the JSON response from the server.
+   * @throws Error if the server response is not successful.
+   */
+  public async removePlanFromAgent(planId: string, agentDid: string) {
+    const options = this.getHTTPOptions('DELETE')
+    const endpoint = API_URL_REMOVE_PLAN_AGENT.replace(':planId', planId).replace(':did', agentDid)
+    const url = new URL(endpoint, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw Error(`${response.statusText} - ${await response.text()}`)
+    }
+
     return response.json()
   }
 
@@ -1116,20 +740,24 @@ export class Payments {
     offset?: number
   }) {
     const body = { text: text, page: page, offset: offset }
-    const options = {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
-      body: JSON.stringify(body),
-    }
-    const url = new URL('/api/v1/payments/search/agent', this.environment.backend)
+    const options = this.getHTTPOptions('POST', body)
+    const url = new URL(API_URL_SEARCH_AGENTS, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)
     }
     return response.json()
+  }
+
+  private getHTTPOptions(method: string, body?: any) {
+    return {
+      method,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.nvmApiKey}`,
+      },
+      ...(body && { body: JSON.stringify(body, jsonReplacer) }),
+    }
   }
 }
