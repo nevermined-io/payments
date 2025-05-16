@@ -35,6 +35,7 @@ describe('Payments API (e2e)', () => {
         nvmApiKey: subscriberNvmApiKeyHash,
         environment: testingEnvironment as EnvironmentName,
       })
+      
       expect(paymentsSubscriber).toBeDefined()
       expect(paymentsSubscriber.query).toBeDefined()
 
