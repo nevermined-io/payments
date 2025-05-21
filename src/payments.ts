@@ -117,7 +117,7 @@ export class Payments {
   private parseNvmApiKey() {
     try {
       const jwt = decodeJwt(this.nvmApiKey!)
-      this.accountAddress = jwt.sub
+      this.accountAddress = jwt.iss
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
     }
@@ -268,7 +268,6 @@ export class Payments {
       creditsConfig,
       nonce,
     }
-
     const options = this.getHTTPOptions('POST', body)
     const url = new URL(API_URL_REGISTER_PLAN, this.environment.backend)
 
@@ -390,31 +389,9 @@ export class Payments {
     agentApi: AgentAPIAttributes,
     paymentPlans: string[],
   ): Promise<{ did: string }> {
-    let authentication = {}
-    let _headers: { Authorization: string }[] = []
-    if (agentApi.authType === 'basic') {
-      authentication = {
-        type: 'basic',
-        username: agentApi.username,
-        password: agentApi.password,
-      }
-    } else if (agentApi.authType === 'oauth' || agentApi.authType === 'bearer') {
-      authentication = {
-        type: agentApi.authType,
-        token: agentApi.token,
-      }
-      _headers = [{ Authorization: `Bearer ${agentApi.token}` }]
-    } else {
-      authentication = { type: 'none' }
-    }
-
-    agentMetadata.internalAttributes = {
-      authentication,
-      headers: _headers,
-    }
 
     const body = {
-      metadataAttributes: agentMetadata,
+      metadataAttributes: agentMetadata, 
       agentApiAttributes: agentApi,
       plans: paymentPlans,
     }

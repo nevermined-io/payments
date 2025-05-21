@@ -194,7 +194,7 @@ export interface AgentMetadata {
    */
   dateCreated?: Date
 
-  internalAttributes?: any
+  // internalAttributes?: any
 }
 
 /**

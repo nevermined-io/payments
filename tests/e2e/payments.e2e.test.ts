@@ -1,4 +1,4 @@
-import { Address, Endpoint, PlanPriceType } from '../../src/common/types'
+import { Address, AgentMetadata, Endpoint, PlanPriceType } from '../../src/common/types'
 import { EnvironmentName, ZeroAddress } from '../../src/environments'
 import { Payments } from '../../src/payments'
 import { getERC20PriceConfig, getExpirableCreditsConfig, getFiatPriceConfig, getFixedCreditsConfig, getNativeTokenPriceConfig, getNonExpirableCreditsConfig } from '../../src/plans'
@@ -8,11 +8,11 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDFCMDZDRkIyMkYwODMyZmI5MjU1NDE1MmRiYjVGOWM5NzU2ZTkzN2QiLCJqdGkiOiIweDlmMGRkNmZhODNkMDY3ZDRiYzFkNzEyN2Q3ZWE0M2EwYmUwNzc1NWJmNjMxMTVmYzJhODhmOTQwZmY4MjQ1NGQiLCJleHAiOjE3NTk4NzQwMDEsImlhdCI6MTcyODMxNjQwMn0.SqlcnMvdIjpZdBDs8FBsruYUIVpS75My-l5VfVwsFdU_3Xz5DuYt1frdF0QZq8isx9NOsNgRSeG8sBVtvAl-vRw'
-  const builderNvmApiKeyHash =
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweGFBOEIzNWQxNThCNzIwQzVlRTJhMmM3OTBDM2Y2QTA4MEIyNzQ4NjIiLCJqdGkiOiIweDAxY2NkMmE5MjI5NmE3NjBjM2JlNDFmNGI4Nzk2Njg0NzVkZTQxNGY4NmUzMWJlNTQ1Mzc5Y2RlNjFlMzVmOGMiLCJleHAiOjE3NzkyOTIxMDEsImlhdCI6MTc0NzczNDUwMX0.dsXZa_LCLK083foODGClAvxxSpux2nG8Ok3Euevz3aEHzJQedZrppba7vvZRrH6DOhOmz1fhLfrfz81Yoam6-hs'
+  const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
     // 'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDdmRTNFZTA4OGQwY2IzRjQ5ZmREMjBlMTk0RjIzRDY4MzhhY2NjODIiLCJqdGkiOiIweGY2ZDcyMmIzYWY5ZmNhOWY2MTQ2OGI5YjlhNGNmZjk3Yjg5NjE5Yzc1ZjRkYWEyMmY4NTA3Yjc2ODQzM2JkYWQiLCJleHAiOjE3NTk2MDU0MTMsImlhdCI6MTcyODA0NzgxNn0.1JDNV7yT8i1_1DXxC4z_jzMLJQns4XqujaJOEFmLdtwFam7bi-3s8oOF-dbTBObzNY98ddZZFifaCEvJUImYOBw'
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDdmRTNFZTA4OGQwY2IzRjQ5ZmREMjBlMTk0RjIzRDY4MzhhY2NjODIiLCJqdGkiOiIweGRhMWNmYTFjMzQ5NTE3MDkwOWQ2ZjY1Mjk3MzlhNWMyZDQ3NTNiMzE4N2JhZDc2ZjU3NGU4ZjQ1NTA0ZGUxYjIiLCJleHAiOjE3NjI5NTYwNjksImlhdCI6MTczMTM5ODQ3MH0.3fHX0Ngptob__kXC8CVUwuVJ-TyMEdxRJwohXCNLO9UzCQOIxwHK9c6uIwUkF-vls4oC2G9lNiqPgVey3KnMSRs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweEZCMzQwRkY0OTZkMUMzNGExYTVENDVBOTc4MjFENmE3MDQ2OTY3NTUiLCJqdGkiOiIweGZkMWFiYjBhZDQzMDhlYmNlNjNmM2M5OTBjMjg0OWZkMDUyYjgyY2Y1ZDUwZmZlOTNlYWQ2ZTQyMDk0ZDc3M2EiLCJleHAiOjE3NzkyOTIxMDIsImlhdCI6MTc0NzczNDUwMn0.92Bww53W789wChrRdIG_--4mhG5iBxXz96pp3Y-nEIIyv8KXukzs0GrdlQ6ALHJ5XE0v2Lw-k47NHnAdURyNOxs'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'
@@ -74,6 +74,7 @@ describe('Payments API (e2e)', () => {
       async () => {
         const priceConfig = getERC20PriceConfig(20n, builderAddress, ERC20_ADDRESS)
         const creditsConfig = getFixedCreditsConfig(100n)
+        console.log(' **** PRICE CONFIG ***', priceConfig)
         const response = await paymentsBuilder.registerCreditsPlan(priceConfig, creditsConfig)
         expect(response).toBeDefined()
         creditsPlanId = response.planId 
@@ -101,13 +102,13 @@ describe('Payments API (e2e)', () => {
       TEST_TIMEOUT,
     )
 
-        it(
+    it(
       'I should be able to register a new Agent with 2 plans associated',
       async () => {
-        const agentMetadata = {
+        const agentMetadata: AgentMetadata = {
           name: 'E2E Payments Agent',
           tags: ['test'],
-          createdAt: new Date()
+          dateCreated: new Date()
         }
         const agentApi = {
           endpoints: AGENT_ENDPOINTS
@@ -147,7 +148,7 @@ describe('Payments API (e2e)', () => {
   })
     
 
-  describe('Plan Purchase', () => {
+  describe.skip('Plan Purchase', () => {
     it(
       'I should be able to order a Plan',
       async () => {

@@ -7,8 +7,11 @@ import {
   PlanRedemptionType,
 } from './common/types'
 import { ZeroAddress } from './environments'
+import { isEthereumAddress } from './utils'
 
 export const getFiatPriceConfig = (amount: bigint, receiver: Address): PlanPriceConfig => {
+  if (!isEthereumAddress(receiver))
+    throw new Error(`Receiver address ${receiver} is not a valid Ethereum address`)
   return {
     priceType: PlanPriceType.FIXED_FIAT_PRICE,
     tokenAddress: ZeroAddress,
@@ -23,6 +26,8 @@ export const getCryptoPriceConfig = (
   receiver: Address,
   tokenAddress: Address = ZeroAddress,
 ): PlanPriceConfig => {
+  if (!isEthereumAddress(receiver))
+    throw new Error(`Receiver address ${receiver} is not a valid Ethereum address`)
   return {
     priceType: PlanPriceType.FIXED_PRICE,
     tokenAddress,
