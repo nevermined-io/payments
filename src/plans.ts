@@ -39,8 +39,8 @@ export const getCryptoPriceConfig = (
 
 export const getERC20PriceConfig = (
   amount: bigint,
-  receiver: Address,
   tokenAddress: Address,
+  receiver: Address,
 ): PlanPriceConfig => {
   return getCryptoPriceConfig(amount, receiver, tokenAddress)
 }

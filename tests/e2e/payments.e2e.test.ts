@@ -8,11 +8,10 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweGFBOEIzNWQxNThCNzIwQzVlRTJhMmM3OTBDM2Y2QTA4MEIyNzQ4NjIiLCJqdGkiOiIweDAxY2NkMmE5MjI5NmE3NjBjM2JlNDFmNGI4Nzk2Njg0NzVkZTQxNGY4NmUzMWJlNTQ1Mzc5Y2RlNjFlMzVmOGMiLCJleHAiOjE3NzkyOTIxMDEsImlhdCI6MTc0NzczNDUwMX0.dsXZa_LCLK083foODGClAvxxSpux2nG8Ok3Euevz3aEHzJQedZrppba7vvZRrH6DOhOmz1fhLfrfz81Yoam6-hs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweEZCMzQwRkY0OTZkMUMzNGExYTVENDVBOTc4MjFENmE3MDQ2OTY3NTUiLCJqdGkiOiIweGQ0MWQzYjA2YzJkYmMxMGFkMzczYTY3Y2YzMjZmYmQyYjNlNTYwYTA3ZGY4OGQyMTVhOTNjODBhMDcyZjEyZDMiLCJleHAiOjE3NzkzOTg0MDUsImlhdCI6MTc0Nzg0MDgwNX0.S-W41Lg3SOhlKsxaLMXiirtJULtCjj6SWegewvDr0gtS8wLekfmGZ_78a4W6ldrmecOqHuxzIdTNTKQFAzO-mRw'
   const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
-    // 'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDdmRTNFZTA4OGQwY2IzRjQ5ZmREMjBlMTk0RjIzRDY4MzhhY2NjODIiLCJqdGkiOiIweGY2ZDcyMmIzYWY5ZmNhOWY2MTQ2OGI5YjlhNGNmZjk3Yjg5NjE5Yzc1ZjRkYWEyMmY4NTA3Yjc2ODQzM2JkYWQiLCJleHAiOjE3NTk2MDU0MTMsImlhdCI6MTcyODA0NzgxNn0.1JDNV7yT8i1_1DXxC4z_jzMLJQns4XqujaJOEFmLdtwFam7bi-3s8oOF-dbTBObzNY98ddZZFifaCEvJUImYOBw'
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweEZCMzQwRkY0OTZkMUMzNGExYTVENDVBOTc4MjFENmE3MDQ2OTY3NTUiLCJqdGkiOiIweGZkMWFiYjBhZDQzMDhlYmNlNjNmM2M5OTBjMjg0OWZkMDUyYjgyY2Y1ZDUwZmZlOTNlYWQ2ZTQyMDk0ZDc3M2EiLCJleHAiOjE3NzkyOTIxMDIsImlhdCI6MTc0NzczNDUwMn0.92Bww53W789wChrRdIG_--4mhG5iBxXz96pp3Y-nEIIyv8KXukzs0GrdlQ6ALHJ5XE0v2Lw-k47NHnAdURyNOxs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJp    c3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweGFBOEIzNWQxNThCNzIwQzVlRTJhMmM3OTBDM2Y2QTA4MEIyNzQ4NjIiLCJqdGkiOiIweDgyOGU3YWUzMzBhNTFiMjFhMDczNjllMjZlNGNjMjNhYTZjMDcxNjQ2N2VlNzU5ZGM0ZTdjYWFjN2YyNzEyNWUiLCJleHAiOjE3NzkzOTg0MDQsImlhdCI6MTc0Nzg0MDgwNH0.WGZ5UTIpv9og_8kjOvE7NmhRJ1ZCrmom2lrf7SbrErUde142L7EmPpOL_ihv_d2yOoCrBrjjm1LsTAcXm0Z8dhw'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'
@@ -72,7 +71,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to register a new Credits Payment Plan',
       async () => {
-        const priceConfig = getERC20PriceConfig(20n, builderAddress, ERC20_ADDRESS)
+        const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
         const response = await paymentsBuilder.registerCreditsPlan(priceConfig, creditsConfig)
@@ -89,7 +88,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to register a new Expirable Payment Plan',
       async () => {
-        const priceConfig = getERC20PriceConfig(50n, builderAddress, ERC20_ADDRESS)
+        const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getExpirableCreditsConfig(86400n) // 1 day
         const response = await paymentsBuilder.registerTimePlan(priceConfig, creditsConfig)
         expect(response).toBeDefined()
@@ -145,10 +144,30 @@ describe('Payments API (e2e)', () => {
       },
       TEST_TIMEOUT,
     )
+
+    it(
+      'I should be able to get a plan',
+      async () => {
+        const plan = await paymentsBuilder.getPlan(creditsPlanId)
+        expect(plan).toBeDefined()
+        console.log('Plan', plan)
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
+      'I should be able to get an agent',
+      async () => {
+        const agent = await paymentsBuilder.getAgent(agentDID)
+        expect(agent).toBeDefined()
+        console.log('Agent', agent)
+      },
+      TEST_TIMEOUT,
+    )
   })
     
 
-  describe.skip('Plan Purchase', () => {
+  describe('Plan Purchase', () => {
     it(
       'I should be able to order a Plan',
       async () => {

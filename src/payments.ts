@@ -268,7 +268,7 @@ export class Payments {
       creditsConfig,
       nonce,
     }
-    const options = this.getHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REGISTER_PLAN, this.environment.backend)
 
     const response = await fetch(url, options)
@@ -396,7 +396,7 @@ export class Payments {
       plans: paymentPlans,
     }
 
-    const options = this.getHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REGISTER_AGENT, this.environment.backend)
 
     const response = await fetch(url, options)
@@ -532,7 +532,7 @@ export class Payments {
    * @returns A promise that resolves indicating if the operation was successful.
    */
   public async orderPlan(planId: string): Promise<{ success: boolean }> {
-    const options = this.getHTTPOptions('POST')
+    const options = this.getBackendHTTPOptions('POST')
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -575,7 +575,7 @@ export class Payments {
    */
   public async mintPlanCredits(planId: string, creditsAmount: bigint, creditsReceiver: string) {
     const body = { planId, amount: creditsAmount, creditsReceiver }
-    const options = this.getHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -607,7 +607,7 @@ export class Payments {
     creditsDuration = 0n,
   ) {
     const body = { planId, amount: creditsAmount, creditsReceiver, duration: creditsDuration }
-    const options = this.getHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -631,7 +631,7 @@ export class Payments {
    */
   public async burnCredits(planId: string, creditsAmountToBurn: string) {
     const body = { planId, creditsAmountToBurn }
-    const options = this.getHTTPOptions('DELETE', body)
+    const options = this.getBackendHTTPOptions('DELETE', body)
     const url = new URL(API_URL_BURN_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -655,7 +655,7 @@ export class Payments {
    * @throws Error if the server response is not successful.
    */
   public async addPlanToAgent(planId: string, agentDid: string) {
-    const options = this.getHTTPOptions('POST')
+    const options = this.getBackendHTTPOptions('POST')
     const endpoint = API_URL_ADD_PLAN_AGENT.replace(':planId', planId).replace(':did', agentDid)
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
@@ -680,7 +680,7 @@ export class Payments {
    * @throws Error if the server response is not successful.
    */
   public async removePlanFromAgent(planId: string, agentDid: string) {
-    const options = this.getHTTPOptions('DELETE')
+    const options = this.getBackendHTTPOptions('DELETE')
     const endpoint = API_URL_REMOVE_PLAN_AGENT.replace(':planId', planId).replace(':did', agentDid)
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
@@ -717,7 +717,7 @@ export class Payments {
     offset?: number
   }) {
     const body = { text: text, page: page, offset: offset }
-    const options = this.getHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_SEARCH_AGENTS, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -726,7 +726,11 @@ export class Payments {
     return response.json()
   }
 
-  private getHTTPOptions(method: string, body?: any) {
+  // It returns the HTTP options required to be sent to query the agent
+  // getAgentQueryOptions(agentId)
+  // public async searchPaymentPlans
+
+  private getBackendHTTPOptions(method: string, body?: any) {
     return {
       method,
       headers: {
