@@ -9,6 +9,7 @@ import {
   PlanCreditsType,
   AgentMetadata,
   AgentAPIAttributes,
+  PlanBalance,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
 import { getRandomBigInt, isEthereumAddress } from './utils'
@@ -256,7 +257,7 @@ export class Payments {
    *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, creditsConfig)
    * ```
    *
-   * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
+   * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
    */
   public async registerPlan(
     priceConfig: PlanPriceConfig,
@@ -302,7 +303,7 @@ export class Payments {
    *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, creditsConfig)
    * ```
    *
-   * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
+   * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
    */
   public async registerCreditsPlan(
     priceConfig: PlanPriceConfig,
@@ -345,7 +346,7 @@ export class Payments {
    *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, 1dayCreditsPlan)
    * ```
    *
-   * @returns The unique identifier of the plan (Plan DID) of the newly created plan.
+   * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
    */
   public async registerTimePlan(
     priceConfig: PlanPriceConfig,
@@ -379,16 +380,16 @@ export class Payments {
    *  const agentApi { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
    *  const paymentPlans = [planId]
    *
-   *  const { did } = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)
+   *  const { agentId } = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)
    * ```
    *
-   * @returns The unique identifier of the newly created agent (Agent DID).
+   * @returns The unique identifier of the newly created agent (Agent Id).
    */
   public async registerAgent(
     agentMetadata: AgentMetadata,
     agentApi: AgentAPIAttributes,
     paymentPlans: string[],
-  ): Promise<{ did: string }> {
+  ): Promise<{ agentId: string }> {
 
     const body = {
       metadataAttributes: agentMetadata, 
@@ -401,10 +402,10 @@ export class Payments {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Unable to register agent. ${response.statusText} - ${await response.text()}`)
     }
-
-    return response.json()
+    const agentData = await response.json()
+    return { agentId: agentData.agentId }
   }
 
   /**
@@ -429,7 +430,7 @@ export class Payments {
    *  const agentApi { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
    *  const 1dayCreditsPlan = getExpirableCreditsConfig(86400n)
-   *  const { did, planId } = await payments.registerAgentAndPlan(
+   *  const { agentId, planId } = await payments.registerAgentAndPlan(
    *    agentMetadata,
    *    agentApi,
    *    cryptoPriceConfig,
@@ -437,7 +438,7 @@ export class Payments {
    *  )
    * ```
    *
-   * @returns The unique identifier of the newly created agent (Agent DID).
+   * @returns The unique identifier of the newly created agent (agentId).
    * @returns The unique identifier of the newly created plan (planId).
    */
   public async registerAgentAndPlan(
@@ -445,24 +446,25 @@ export class Payments {
     agentApi: AgentAPIAttributes,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
-  ): Promise<{ did: string; planId: string }> {
+  ): Promise<{ agentId: string; planId: string }> {
     const { planId } = await this.registerPlan(priceConfig, creditsConfig)
-    const { did } = await this.registerAgent(agentMetadata, agentApi, [planId])
+    const { agentId } = await this.registerAgent(agentMetadata, agentApi, [planId])
 
-    return { did, planId }
+    return { agentId, planId }
   }
 
   /**
-   * Get the Metadata (aka Decentralized Document or DDO) for a given Agent identifier (DID).
+   * Get the Metadata (aka Decentralized Document or DDO) for a given Agent identifier (agentId).
    *
-   * @param did - The unique identifier (aka DID) of the agent .
+   * @param agentId - The unique identifier of the agent .
    * @returns A promise that resolves to the DDO.
    */
-  public async getAgent(did: string) {
-    const url = new URL(API_URL_GET_AGENT.replace(':did', did), this.environment.backend)
+  public async getAgent(agentId: string) {
+    const url = new URL(API_URL_GET_AGENT.replace(':agentId', agentId), this.environment.backend)
+    console.log(`Fetching agent from ${url.toString()}`)
     const response = await fetch(url)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Agent not found. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -478,7 +480,7 @@ export class Payments {
     const url = new URL(API_URL_GET_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -494,12 +496,7 @@ export class Payments {
   public async getPlanBalance(
     planId: string,
     accountAddress?: string,
-  ): Promise<{
-    // subscriptionType: string
-    // isOwner: boolean
-    balance: bigint
-    // isSubscriptor: boolean
-  }> {
+  ): Promise<PlanBalance> {
     const holderAddress = isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress
     const balanceUrl = API_URL_PLAN_BALANCE.replace(':planId', planId).replace(
       ':holderAddress',
@@ -516,7 +513,7 @@ export class Payments {
     const url = new URL(balanceUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Unable to get balance. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -536,21 +533,21 @@ export class Payments {
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Unable to order plan. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
   }
 
   // /**
-  //  * Get array of services/agent DIDs associated with a payment plan.
+  //  * Get array of services/agent ids associated with a payment plan.
   //  *
-  //  * @param planDID - The DID of the Payment Plan.
-  //  * @returns A promise that resolves to the array of services/agents DIDs.
+  //  * @param planId - The identifier of the Payment Plan.
+  //  * @returns A promise that resolves to the array of agents ids.
   //  */
-  // public async getPlanAssociatedServices(planDID: string) {
+  // public async getPlanAssociatedServices(planId: string) {
   //   const url = new URL(
-  //     `/api/v1/payments/subscription/services/${planDID}`,
+  //     `/api/v1/payments/subscription/services/${planId}`,
   //     this.environment.backend,
   //   )
   //   const response = await fetch(url)
@@ -579,7 +576,7 @@ export class Payments {
     const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Unable to mint plan credits. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -611,7 +608,7 @@ export class Payments {
     const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Unable to mint expirable credits. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -624,7 +621,7 @@ export class Payments {
    *
    * This method is only can be called by the owner of the Payment Plan.
    *
-   * @param planId - The DID (Decentralized Identifier) of the asset.
+   * @param planId - The unique identifier of the asset.
    * @param creditsAmountToBurn - The amount of credits to burn.
    * @returns A Promise that resolves to the JSON response from the server.
    * @throws Error if the server response is not successful.
@@ -635,7 +632,7 @@ export class Payments {
     const url = new URL(API_URL_BURN_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Unable to burn credits. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -650,17 +647,17 @@ export class Payments {
    * This method is only can be called by the owner of the Payment Plan.
    *
    * @param planId - The unique identifier of the Payment Plan.
-   * @param agentDid - The unique identifier of the AI Agent.
+   * @param agentId - The unique identifier of the AI Agent.
    * @returns A Promise that resolves to the JSON response from the server.
    * @throws Error if the server response is not successful.
    */
-  public async addPlanToAgent(planId: string, agentDid: string) {
+  public async addPlanToAgent(planId: string, agentId: string) {
     const options = this.getBackendHTTPOptions('POST')
-    const endpoint = API_URL_ADD_PLAN_AGENT.replace(':planId', planId).replace(':did', agentDid)
+    const endpoint = API_URL_ADD_PLAN_AGENT.replace(':planId', planId).replace(':agentId', agentId)
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Unable to add plan to agent. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -675,17 +672,17 @@ export class Payments {
    * This method is only can be called by the owner of the Payment Plan.
    *
    * @param planId - The unique identifier of the Payment Plan.
-   * @param agentDid - The unique identifier of the AI Agent.
+   * @param agentId - The unique identifier of the AI Agent.
    * @returns A Promise that resolves to the JSON response from the server.
    * @throws Error if the server response is not successful.
    */
-  public async removePlanFromAgent(planId: string, agentDid: string) {
+  public async removePlanFromAgent(planId: string, agentId: string) {
     const options = this.getBackendHTTPOptions('DELETE')
-    const endpoint = API_URL_REMOVE_PLAN_AGENT.replace(':planId', planId).replace(':did', agentDid)
+    const endpoint = API_URL_REMOVE_PLAN_AGENT.replace(':planId', planId).replace(':agentId', agentId)
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Unable to remove plan from agent. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()
@@ -721,7 +718,7 @@ export class Payments {
     const url = new URL(API_URL_SEARCH_AGENTS, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(`Error searching agents. ${response.statusText} - ${await response.text()}`)
     }
     return response.json()
   }

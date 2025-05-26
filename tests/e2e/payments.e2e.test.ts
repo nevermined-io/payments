@@ -8,10 +8,10 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweEZCMzQwRkY0OTZkMUMzNGExYTVENDVBOTc4MjFENmE3MDQ2OTY3NTUiLCJqdGkiOiIweGQ0MWQzYjA2YzJkYmMxMGFkMzczYTY3Y2YzMjZmYmQyYjNlNTYwYTA3ZGY4OGQyMTVhOTNjODBhMDcyZjEyZDMiLCJleHAiOjE3NzkzOTg0MDUsImlhdCI6MTc0Nzg0MDgwNX0.S-W41Lg3SOhlKsxaLMXiirtJULtCjj6SWegewvDr0gtS8wLekfmGZ_78a4W6ldrmecOqHuxzIdTNTKQFAzO-mRw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDU5YTc2NDdkZDIwNTZiYWE5MjI0ZjZmMzYxOTE5NjE5OTkzMDAyMTI0MTFiZDc3YzQwMjgwZmYzYTQ1ZmZkMTIiLCJleHAiOjE3Nzk1NjU4NTYsImlhdCI6MTc0ODAwODI1N30.ZBCsIeoGglApVi-9Y0vPtjkna5T2YJhbCmbxxbhjDIoiG1vN2QYc9EUimXkYaPNjmVlxlSAk3mZRYXtOaTNkLRw'
   const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJp    c3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweGFBOEIzNWQxNThCNzIwQzVlRTJhMmM3OTBDM2Y2QTA4MEIyNzQ4NjIiLCJqdGkiOiIweDgyOGU3YWUzMzBhNTFiMjFhMDczNjllMjZlNGNjMjNhYTZjMDcxNjQ2N2VlNzU5ZGM0ZTdjYWFjN2YyNzEyNWUiLCJleHAiOjE3NzkzOTg0MDQsImlhdCI6MTc0Nzg0MDgwNH0.WGZ5UTIpv9og_8kjOvE7NmhRJ1ZCrmom2lrf7SbrErUde142L7EmPpOL_ihv_d2yOoCrBrjjm1LsTAcXm0Z8dhw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDMwMDFhMzk1N2U1NzRiOGZjNGZkYWVjMWY5NzJmYzUwYTM5NDhlMDE1OGRlMzdiYTBjODMyYjMzMTMzZjZkMWQiLCJleHAiOjE3Nzk1NjU4NTgsImlhdCI6MTc0ODAwODI1OH0.kPymyOKNRak5EjD3dBj8cooINIkhb7QdRQXVAV4EBb57Dk9LXRztedFH0IJBs-tadoBHR6FgnEti1KGCsOWC3hw'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'
@@ -25,7 +25,7 @@ describe('Payments API (e2e)', () => {
 
   let creditsPlanId: string
   let expirablePlanId: string
-  let agentDID: string
+  let agentId: string
   let builderAddress: Address
 
   describe('Payments Setup', () => {
@@ -113,13 +113,11 @@ describe('Payments API (e2e)', () => {
           endpoints: AGENT_ENDPOINTS
         }
         const paymentPlans = [ creditsPlanId, expirablePlanId ]
-        const response = await paymentsBuilder.registerAgent(agentMetadata, agentApi, paymentPlans)
-        expect(response).toBeDefined()
-        agentDID = response.did 
+        const { agentId } = await paymentsBuilder.registerAgent(agentMetadata, agentApi, paymentPlans)
+        expect(agentId).toBeDefined()
 
-        expect(agentDID).toBeDefined()
-        expect(agentDID.startsWith('did:nv:')).toBeTruthy()
-        console.log('Agent DID', agentDID)
+        expect(agentId.startsWith('did:nv:')).toBeTruthy()
+        console.log('Agent ID', agentId)
       },
       TEST_TIMEOUT,
     )
@@ -128,18 +126,18 @@ describe('Payments API (e2e)', () => {
       'I should be able to register an agent and a plan in one step',
       async () => {
 
-        const agentMetadata = { name: 'My AI Payments Agent', tags: ['test'] }
+        const agentMetadata = { name: 'My AI Payments Agent', tags: ['test2'] }
         const agentApi = { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
         const cryptoPriceConfig = getNativeTokenPriceConfig(500n, builderAddress)
         const nonExpirableConfig = getNonExpirableCreditsConfig()
         
-        const { did, planId } = await paymentsBuilder.registerAgentAndPlan(
+        const { agentId, planId } = await paymentsBuilder.registerAgentAndPlan(
           agentMetadata,
           agentApi,
           cryptoPriceConfig,
           nonExpirableConfig,
         )
-        expect(did).toBeDefined()
+        expect(agentId).toBeDefined()
         expect(planId).toBeDefined()
       },
       TEST_TIMEOUT,
@@ -158,7 +156,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to get an agent',
       async () => {
-        const agent = await paymentsBuilder.getAgent(agentDID)
+        const agent = await paymentsBuilder.getAgent(agentId!)
         expect(agent).toBeDefined()
         console.log('Agent', agent)
       },

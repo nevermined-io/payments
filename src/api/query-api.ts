@@ -38,15 +38,15 @@ export class AIQueryApi extends NVMBackendApi {
    *
    * @example
    * ```
-   * const accessConfig = await payments.query.getServiceAccessConfig(agentDID)
+   * const accessConfig = await payments.query.getServiceAccessConfig(agentId)
    * console.log(`Agent JWT Token: ${accessConfig.accessToken}`)
    * console.log(`Agent Proxy URL: ${accessConfig.neverminedProxyUri}`)
    * ```
    *
-   * @param did - The DID of the agent/service.
+   * @param agentId - The unique identifier of the agent
    * @returns A promise that resolves to the service token.
    */
-  public async getServiceAccessConfig(did: string): Promise<{
+  public async getServiceAccessConfig(agentId: string): Promise<{
     accessToken: string
     neverminedProxyUri: string
   }> {
@@ -58,7 +58,7 @@ export class AIQueryApi extends NVMBackendApi {
         Authorization: `Bearer ${this.opts.apiKey}`,
       },
     }
-    const url = new URL(`/api/v1/payments/service/token/${did}`, this.opts.backendHost)
+    const url = new URL(`/api/v1/payments/service/token/${agentId}`, this.opts.backendHost)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw Error(`${response.statusText} - ${await response.text()}`)

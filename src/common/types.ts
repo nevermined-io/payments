@@ -153,6 +153,15 @@ export enum PlanRedemptionType {
   ONLY_PLAN_ROLE,
 }
 
+export interface PlanBalance {
+  planId: string
+  holderAddress: Address
+  balance: bigint
+  creditsContract: Address
+  isSubscriber: boolean
+}
+
+
 /**
  * Metadata attributes describing the AI Agent.
  */
