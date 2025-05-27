@@ -1,4 +1,4 @@
-import { Address, AgentMetadata, Endpoint, PlanPriceType } from '../../src/common/types'
+import { Address, AgentMetadata, Endpoint, PlanMetadata, PlanPriceType } from '../../src/common/types'
 import { EnvironmentName, ZeroAddress } from '../../src/environments'
 import { Payments } from '../../src/payments'
 import { getERC20PriceConfig, getExpirableCreditsConfig, getFiatPriceConfig, getFixedCreditsConfig, getNativeTokenPriceConfig, getNonExpirableCreditsConfig } from '../../src/plans'
@@ -8,13 +8,13 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDU5YTc2NDdkZDIwNTZiYWE5MjI0ZjZmMzYxOTE5NjE5OTkzMDAyMTI0MTFiZDc3YzQwMjgwZmYzYTQ1ZmZkMTIiLCJleHAiOjE3Nzk1NjU4NTYsImlhdCI6MTc0ODAwODI1N30.ZBCsIeoGglApVi-9Y0vPtjkna5T2YJhbCmbxxbhjDIoiG1vN2QYc9EUimXkYaPNjmVlxlSAk3mZRYXtOaTNkLRw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDNmZDFiODg3NzFjOTEzNmVlZDc0N2YyMjVlOGY0N2Y0MWIyMjRmYjA3YTU4M2I5NzE2ZjBlZjdlZjJjODNiYWYiLCJleHAiOjE3Nzk4MjAzODUsImlhdCI6MTc0ODI2Mjc4NX0.xBBZKZhK3vWEsOFhgKx8e9LCgDNFTH6XAIDvUqA6XqgR0PbtnS4tspfNUaV_XESzS_n24qBmwBjhNPa-7RGILRw'
   const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDMwMDFhMzk1N2U1NzRiOGZjNGZkYWVjMWY5NzJmYzUwYTM5NDhlMDE1OGRlMzdiYTBjODMyYjMzMTMzZjZkMWQiLCJleHAiOjE3Nzk1NjU4NTgsImlhdCI6MTc0ODAwODI1OH0.kPymyOKNRak5EjD3dBj8cooINIkhb7QdRQXVAV4EBb57Dk9LXRztedFH0IJBs-tadoBHR6FgnEti1KGCsOWC3hw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGNjMGFkMTQxNTUwYjQ4YjUwZGM2MmU5N2YzZTFkYTQ3ODZjNThhMTg1ODAwYzFiY2RhZTc3N2JlYzg3NjI1YzIiLCJleHAiOjE3Nzk4MjAzODYsImlhdCI6MTc0ODI2Mjc4N30.mjg9UZ1njYarzUF4Dta1imbzMFXdrTxX22fxRE0znvlWJBj9rHMYcqk8qFiN0OFNcd92VgPjBwGjc1YfHnoY9xs'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const _SLEEP_DURATION = 3_000
-  const ERC20_ADDRESS = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'
+  const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
     { 'POST': `https://one-backend.${testingEnvironment}.nevermined.app/api/v1/agents/(.*)/tasks` },
     { 'GET': `https://one-backend.${testingEnvironment}.nevermined.app/api/v1/agents/(.*)/tasks/(.*)` }
@@ -27,6 +27,9 @@ describe('Payments API (e2e)', () => {
   let expirablePlanId: string
   let agentId: string
   let builderAddress: Address
+  const planMetadata: PlanMetadata = {
+    name: 'E2E test Payments Plan',
+  }
 
   describe('Payments Setup', () => {
     it('The Payments client can be initialized correctly', () => {
@@ -74,7 +77,7 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.registerCreditsPlan(priceConfig, creditsConfig)
+        const response = await paymentsBuilder.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
         expect(response).toBeDefined()
         creditsPlanId = response.planId 
 
@@ -90,7 +93,7 @@ describe('Payments API (e2e)', () => {
       async () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getExpirableCreditsConfig(86400n) // 1 day
-        const response = await paymentsBuilder.registerTimePlan(priceConfig, creditsConfig)
+        const response = await paymentsBuilder.registerTimePlan(planMetadata, priceConfig, creditsConfig)
         expect(response).toBeDefined()
         expirablePlanId = response.planId 
 
@@ -113,7 +116,8 @@ describe('Payments API (e2e)', () => {
           endpoints: AGENT_ENDPOINTS
         }
         const paymentPlans = [ creditsPlanId, expirablePlanId ]
-        const { agentId } = await paymentsBuilder.registerAgent(agentMetadata, agentApi, paymentPlans)
+        const result = await paymentsBuilder.registerAgent(agentMetadata, agentApi, paymentPlans)
+        agentId = result.agentId
         expect(agentId).toBeDefined()
 
         expect(agentId.startsWith('did:nv:')).toBeTruthy()
@@ -134,6 +138,7 @@ describe('Payments API (e2e)', () => {
         const { agentId, planId } = await paymentsBuilder.registerAgentAndPlan(
           agentMetadata,
           agentApi,
+          planMetadata,
           cryptoPriceConfig,
           nonExpirableConfig,
         )
@@ -156,7 +161,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to get an agent',
       async () => {
-        const agent = await paymentsBuilder.getAgent(agentId!)
+        const agent = await paymentsBuilder.getAgent(agentId)
         expect(agent).toBeDefined()
         console.log('Agent', agent)
       },
@@ -170,6 +175,7 @@ describe('Payments API (e2e)', () => {
       'I should be able to order a Plan',
       async () => {
         console.log(creditsPlanId)
+        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.accountAddress)
         const orderResult = await paymentsSubscriber.orderPlan(creditsPlanId)
         expect(orderResult).toBeDefined()
         expect(orderResult.success).toBeTruthy()

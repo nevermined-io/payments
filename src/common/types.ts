@@ -206,6 +206,8 @@ export interface AgentMetadata {
   // internalAttributes?: any
 }
 
+export interface PlanMetadata extends AgentMetadata {}
+
 /**
  * It describes the API exposed by an AI Agent.
  * This information is necessary to query the AI Agent and to know which endpoints are available.

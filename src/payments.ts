@@ -10,6 +10,7 @@ import {
   AgentMetadata,
   AgentAPIAttributes,
   PlanBalance,
+  PlanMetadata,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
 import { getRandomBigInt, isEthereumAddress } from './utils'
@@ -118,7 +119,7 @@ export class Payments {
   private parseNvmApiKey() {
     try {
       const jwt = decodeJwt(this.nvmApiKey!)
-      this.accountAddress = jwt.iss
+      this.accountAddress = jwt.sub
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
     }
@@ -260,11 +261,13 @@ export class Payments {
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
    */
   public async registerPlan(
+    planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
     nonce = getRandomBigInt(),
   ): Promise<{ planId: string }> {
     const body = {
+      metadataAttributes: planMetadata,
       priceConfig,
       creditsConfig,
       nonce,
@@ -306,6 +309,7 @@ export class Payments {
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
    */
   public async registerCreditsPlan(
+    planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ planId: string }> {
@@ -320,7 +324,7 @@ export class Payments {
         'The creditsConfig.minAmount can not be more than creditsConfig.maxAmount',
       )
 
-    return this.registerPlan(priceConfig, creditsConfig)
+    return this.registerPlan(planMetadata, priceConfig, creditsConfig)
   }
 
   /**
@@ -349,13 +353,14 @@ export class Payments {
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
    */
   public async registerTimePlan(
+    planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ planId: string }> {
     if (creditsConfig.creditsType != PlanCreditsType.EXPIRABLE)
       throw new PaymentsError('The creditsConfig.creditsType must be EXPIRABLE')
 
-    return this.registerPlan(priceConfig, creditsConfig)
+    return this.registerPlan(planMetadata, priceConfig, creditsConfig)
   }
 
   /**
@@ -444,10 +449,11 @@ export class Payments {
   public async registerAgentAndPlan(
     agentMetadata: AgentMetadata,
     agentApi: AgentAPIAttributes,
+    planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ agentId: string; planId: string }> {
-    const { planId } = await this.registerPlan(priceConfig, creditsConfig)
+    const { planId } = await this.registerPlan(planMetadata, priceConfig, creditsConfig)
     const { agentId } = await this.registerAgent(agentMetadata, agentApi, [planId])
 
     return { agentId, planId }
@@ -461,7 +467,6 @@ export class Payments {
    */
   public async getAgent(agentId: string) {
     const url = new URL(API_URL_GET_AGENT.replace(':agentId', agentId), this.environment.backend)
-    console.log(`Fetching agent from ${url.toString()}`)
     const response = await fetch(url)
     if (!response.ok) {
       throw new PaymentsError(`Agent not found. ${response.statusText} - ${await response.text()}`)
