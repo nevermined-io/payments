@@ -1,17 +1,17 @@
 import { Address, AgentMetadata, Endpoint, PlanMetadata, PlanPriceType } from '../../src/common/types'
 import { EnvironmentName, ZeroAddress } from '../../src/environments'
 import { Payments } from '../../src/payments'
-import { getERC20PriceConfig, getExpirableCreditsConfig, getFiatPriceConfig, getFixedCreditsConfig, getNativeTokenPriceConfig, getNonExpirableCreditsConfig } from '../../src/plans'
+import { getERC20PriceConfig, getExpirableDurationConfig, getFiatPriceConfig, getFixedCreditsConfig, getFreePriceConfig, getNativeTokenPriceConfig, getNonExpirableDurationConfig, ONE_DAY_DURATION } from '../../src/plans'
 
 describe('Payments API (e2e)', () => {
   const TEST_TIMEOUT = 30_000
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDNmZDFiODg3NzFjOTEzNmVlZDc0N2YyMjVlOGY0N2Y0MWIyMjRmYjA3YTU4M2I5NzE2ZjBlZjdlZjJjODNiYWYiLCJleHAiOjE3Nzk4MjAzODUsImlhdCI6MTc0ODI2Mjc4NX0.xBBZKZhK3vWEsOFhgKx8e9LCgDNFTH6XAIDvUqA6XqgR0PbtnS4tspfNUaV_XESzS_n24qBmwBjhNPa-7RGILRw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweGQ2MGIyYWFlZDA3OThmNDEyMWU3NzEzMDcwMjNjZDMzYjZkNzgxNjI0NDU5ZWJiMWNiYjc5YzE4Y2QyMGExNjciLCJleHAiOjE3ODEwMjQ4MzN9.kQxu50dZqFKHBfYY5Xn2RJlc2-9g6zQXXspm9h47XjJRxNOeFhEy10ETXYsV4s8v1VfFnnW7DDmxeJMZQJzSChs'
   const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGNjMGFkMTQxNTUwYjQ4YjUwZGM2MmU5N2YzZTFkYTQ3ODZjNThhMTg1ODAwYzFiY2RhZTc3N2JlYzg3NjI1YzIiLCJleHAiOjE3Nzk4MjAzODYsImlhdCI6MTc0ODI2Mjc4N30.mjg9UZ1njYarzUF4Dta1imbzMFXdrTxX22fxRE0znvlWJBj9rHMYcqk8qFiN0OFNcd92VgPjBwGjc1YfHnoY9xs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDJlNzA5NTQyNzVkOTliZjA3ZGViZDA3ZTZlMmQwMWU5NTEyYjIzZDFhMzE4Yzg4Mzk1NmQ0MGU3Y2I1Yjk2MGIiLCJleHAiOjE3ODEwMjQ4MzV9.D9MULQG9_TmENRdYHJJs8CSYbdmZmLNwJ03jCSUNZmZnMzC61qiW2yPl3WxB6LbvNy_lDmeQD17JTLxWLVd1XRs'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
@@ -25,6 +25,7 @@ describe('Payments API (e2e)', () => {
 
   let creditsPlanId: string
   let expirablePlanId: string
+  let trialPlanId: string
   let agentId: string
   let builderAddress: Address
   const planMetadata: PlanMetadata = {
@@ -40,7 +41,7 @@ describe('Payments API (e2e)', () => {
       
       expect(paymentsSubscriber).toBeDefined()
       expect(paymentsSubscriber.query).toBeDefined()
-
+      
       paymentsBuilder = Payments.getInstance({
         nvmApiKey: builderNvmApiKeyHash,
         environment: testingEnvironment as EnvironmentName,
@@ -51,6 +52,7 @@ describe('Payments API (e2e)', () => {
     })
 
   })
+
 
   describe('AI Builder Publication', () => {
     it('I get a FIAT price config setup', async () => {
@@ -92,7 +94,7 @@ describe('Payments API (e2e)', () => {
       'I should be able to register a new Expirable Payment Plan',
       async () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
-        const creditsConfig = getExpirableCreditsConfig(86400n) // 1 day
+        const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
         const response = await paymentsBuilder.registerTimePlan(planMetadata, priceConfig, creditsConfig)
         expect(response).toBeDefined()
         expirablePlanId = response.planId 
@@ -100,6 +102,26 @@ describe('Payments API (e2e)', () => {
         expect(expirablePlanId).toBeDefined()
         expect(BigInt(expirablePlanId) > 0n).toBeTruthy()
         console.log('Expirable Plan ID', expirablePlanId)
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
+      'I should be able to register a Trial Plan',
+      async () => {
+        const trialPlanMetadata: PlanMetadata = {
+          name: 'E2E test Trial Payments Plan',
+        }
+        const priceConfig = getFreePriceConfig()
+        const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
+        console.log(' **** PRICE CONFIG ***', priceConfig)
+        const response = await paymentsBuilder.registerTimeTrialPlan(trialPlanMetadata, priceConfig, creditsConfig)
+        expect(response).toBeDefined()
+        trialPlanId = response.planId 
+
+        expect(trialPlanId).toBeDefined()
+        expect(BigInt(trialPlanId) > 0n).toBeTruthy()
+        console.log('Trial Plan ID', trialPlanId)
       },
       TEST_TIMEOUT,
     )
@@ -133,7 +155,7 @@ describe('Payments API (e2e)', () => {
         const agentMetadata = { name: 'My AI Payments Agent', tags: ['test2'] }
         const agentApi = { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
         const cryptoPriceConfig = getNativeTokenPriceConfig(500n, builderAddress)
-        const nonExpirableConfig = getNonExpirableCreditsConfig()
+        const nonExpirableConfig = getNonExpirableDurationConfig()
         
         const { agentId, planId } = await paymentsBuilder.registerAgentAndPlan(
           agentMetadata,
@@ -191,6 +213,42 @@ describe('Payments API (e2e)', () => {
       expect(BigInt(balanceResult.balance)).toBeGreaterThan(0)
     })
 
-  
+    it.skip(
+      'I should be able to get a Trial Plan',
+      async () => {
+        console.log(creditsPlanId)
+        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.accountAddress)
+        const orderResult = await paymentsSubscriber.orderPlan(trialPlanId)
+        expect(orderResult).toBeDefined()
+        expect(orderResult.success).toBeTruthy()
+        console.log('Order Result', orderResult)
+      },
+      TEST_TIMEOUT * 2,
+    )
+
+    it.skip(
+      'I should NOT be able to get a Trial Plan twice',
+      async () => {
+        await expect(
+          paymentsSubscriber.orderPlan(trialPlanId)
+        ).rejects.toThrow()
+      },
+      TEST_TIMEOUT * 2,
+    )
+  })
+
+  describe.skip('Errors', () => {
+
+    it(
+      'I should not be able to get a that does not exist',
+      async () => {
+        const result = await paymentsBuilder.getPlan('11111')
+        expect(result).toBeUndefined()
+        // expect(() => 
+        //   paymentsBuilder.getPlan('11111')
+        // ).toThrow(PaymentsError)
+      },
+      TEST_TIMEOUT,
+    )
   })
 })

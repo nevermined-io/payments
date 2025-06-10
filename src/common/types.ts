@@ -75,6 +75,11 @@ export interface PlanPriceConfig {
    * @remarks only if priceType == SMART_CONTRACT_PRICE
    */
   contractAddress?: Address // only if priceType == 2
+  /**
+   * The address of the fee controller contract, if any
+   * @remarks if not given, the fee controller is the default one
+   */
+  feeController?: Address // only if priceType == 2  
 }
 
 /**
@@ -112,6 +117,10 @@ export interface PlanCreditsConfig {
    * @remarks only if creditsType == DYNAMIC
    */
   maxAmount: bigint
+  /**
+   * The address of the NFT contract that represents the plan's credits
+   */
+  nftAddress?: Address
 }
 
 /**
@@ -190,7 +199,7 @@ export interface AgentMetadata {
    * Some description or instructions about how to integrate the Agent.
    */
   integration?: string
-  /**
+  /**                   
    * A link to some same usage of the Agent.
    */
   sampleLink?: string
@@ -206,7 +215,14 @@ export interface AgentMetadata {
   // internalAttributes?: any
 }
 
-export interface PlanMetadata extends AgentMetadata {}
+export interface PlanMetadata extends AgentMetadata {
+  /**
+   * Indicates if a payment plan is a Trial plan.
+   * A Trial plan is a plan that allows users to test the AI Agents associated with it typically without any cost.
+   * @remarks A Trial plan only can be purchased once by a user.
+   */
+  isTrialPlan?: boolean
+}
 
 /**
  * It describes the API exposed by an AI Agent.

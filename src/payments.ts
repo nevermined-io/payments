@@ -346,8 +346,8 @@ export class Payments {
    * @example
    * ```
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
-   *  const 1dayCreditsPlan = getExpirableCreditsConfig(86400n)
-   *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, 1dayCreditsPlan)
+   *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
+   *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, 1dayDurationPlan)
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -361,6 +361,72 @@ export class Payments {
       throw new PaymentsError('The creditsConfig.creditsType must be EXPIRABLE')
 
     return this.registerPlan(planMetadata, priceConfig, creditsConfig)
+  }
+
+  /**
+   *
+   * It allows to an AI Builder to create a Trial Payment Plan on Nevermined limited by duration.
+   * A Nevermined Trial Plan allow subscribers of that plan to test the Agents associated to it.
+   * A Trial plan is a plan that only can be purchased once by a user.
+   * Trial plans, as regular plans, can be limited by duration (i.e 1 week of usage) or by credits (i.e 100 credits to use the agent).
+   * @remarks This method is oriented to AI Builders
+   * @remarks To call this method, the NVM API Key must have publication permissions
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   *
+   * @param priceConfig - @see {@link PlanPriceConfig}
+   * @param creditsConfig - @see {@link PlanCreditsConfig}
+   *
+   * @example
+   * ```
+   *  const freePriceConfig = getFreePriceConfig()
+   *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
+   *  const { planId } = await payments.registerCreditsPlan(freePriceConfig, 1dayDurationPlan)
+   * ```
+   *
+   * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
+   */
+  public async registerCreditsTrialPlan(
+    planMetadata: PlanMetadata,
+    priceConfig: PlanPriceConfig,
+    creditsConfig: PlanCreditsConfig,
+  ): Promise<{ planId: string }> {
+    planMetadata.isTrialPlan = true
+    
+    return this.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
+  }
+
+  /**
+   *
+   * It allows to an AI Builder to create a Trial Payment Plan on Nevermined limited by duration.
+   * A Nevermined Trial Plan allow subscribers of that plan to test the Agents associated to it.
+   * A Trial plan is a plan that only can be purchased once by a user.
+   * Trial plans, as regular plans, can be limited by duration (i.e 1 week of usage) or by credits (i.e 100 credits to use the agent).
+   * @remarks This method is oriented to AI Builders
+   * @remarks To call this method, the NVM API Key must have publication permissions
+   *
+   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   *
+   * @param priceConfig - @see {@link PlanPriceConfig}
+   * @param creditsConfig - @see {@link PlanCreditsConfig}
+   *
+   * @example
+   * ```
+   *  const freePriceConfig = getFreePriceConfig()
+   *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
+   *  const { planId } = await payments.registerCreditsPlan(freePriceConfig, 1dayDurationPlan)
+   * ```
+   *
+   * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
+   */
+  public async registerTimeTrialPlan(
+    planMetadata: PlanMetadata,
+    priceConfig: PlanPriceConfig,
+    creditsConfig: PlanCreditsConfig,
+  ): Promise<{ planId: string }> {
+    planMetadata.isTrialPlan = true
+    
+    return this.registerTimePlan(planMetadata, priceConfig, creditsConfig)
   }
 
   /**
@@ -434,12 +500,12 @@ export class Payments {
    *  const agentMetadata = { name: 'My AI Payments Agent', tags: ['test'] }
    *  const agentApi { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
-   *  const 1dayCreditsPlan = getExpirableCreditsConfig(86400n)
+   *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
    *  const { agentId, planId } = await payments.registerAgentAndPlan(
    *    agentMetadata,
    *    agentApi,
    *    cryptoPriceConfig,
-   *    1dayCreditsPlan
+   *    1dayDurationPlan
    *  )
    * ```
    *
@@ -482,9 +548,12 @@ export class Payments {
    * @returns A promise that resolves to the description of the plan.
    */
   public async getPlan(planId: string) {
+    console.log(`Getting plan ${planId} from ${this.environment.backend}`)
     const url = new URL(API_URL_GET_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url)
+    console.log(`Response status: ${response.status}`)
     if (!response.ok) {
+      console.log(await response.json())
       throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
     }
 
