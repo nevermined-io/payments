@@ -52,7 +52,7 @@ export type Address = `0x${string}`
 export interface PlanPriceConfig {
   /**
    * The type or configuration of the price
-   * @remarks 0 - fixed price. 1 - fixed fiat price. 2 - smart contract price
+   * @remarks 0 - crypto fixed price. 1 - fixed fiat price. 2 - smart contract price
    */
   priceType: PlanPriceType
   /**
@@ -157,8 +157,8 @@ export enum PlanCreditsType {
  * If ONLY_PLAN_ROLE it means the credits can be redeemed by an account with specifics grants for the plan
  */
 export enum PlanRedemptionType {
-  ONLY_GLOBAL_ROLE,
-  ONLY_OWNER,
+  ONLY_GLOBAL_ROLE, // NVM Proxy can burn
+  ONLY_OWNER, // Agent can burn
   ONLY_PLAN_ROLE,
 }
 
@@ -170,6 +170,10 @@ export interface PlanBalance {
   isSubscriber: boolean
 }
 
+export interface AgentAccessParams {
+  accessToken: string
+  proxies?: string[]
+}
 
 /**
  * Metadata attributes describing the AI Agent.

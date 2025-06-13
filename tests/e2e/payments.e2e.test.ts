@@ -8,10 +8,10 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweGQ2MGIyYWFlZDA3OThmNDEyMWU3NzEzMDcwMjNjZDMzYjZkNzgxNjI0NDU5ZWJiMWNiYjc5YzE4Y2QyMGExNjciLCJleHAiOjE3ODEwMjQ4MzN9.kQxu50dZqFKHBfYY5Xn2RJlc2-9g6zQXXspm9h47XjJRxNOeFhEy10ETXYsV4s8v1VfFnnW7DDmxeJMZQJzSChs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGQwYTQwMTAxZTgwMmI4MTcxOTRmZmYzNzdiZGRjZTliMzkxNTQyY2Q5MzYxNTE1YWY2YTkzNTJhNTQ5ZDA5ODkiLCJleHAiOjE3ODEyODUzNzl9.3RnO1_sTNM4K0z_EZ6u2FPDHSZHRDojVQvQcKh6Wa_EAJU1TYxXVCxjngH5y7urN5tfXeEgv1lo_vkwvmX4_ORs'
   const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDJlNzA5NTQyNzVkOTliZjA3ZGViZDA3ZTZlMmQwMWU5NTEyYjIzZDFhMzE4Yzg4Mzk1NmQ0MGU3Y2I1Yjk2MGIiLCJleHAiOjE3ODEwMjQ4MzV9.D9MULQG9_TmENRdYHJJs8CSYbdmZmLNwJ03jCSUNZmZnMzC61qiW2yPl3WxB6LbvNy_lDmeQD17JTLxWLVd1XRs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDBmNTNhYjNmM2M3MTdiYjYxZWUyMTIwZWU0ODE2YmMyYzc2ZDU0MGI2ZTQ3ODEyZTBiNTY4NTgzYTI4ZTBjMzUiLCJleHAiOjE3ODEyODUzNzh9.vt4nW_AQQpSB-MHPc8KLUEx7k_V8x4ShFL06WsLwd7dbDMGmV4QFHLpnpBKgKvFoZ13rFhVXXAHUkoaEIzgORhw'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
@@ -213,10 +213,11 @@ describe('Payments API (e2e)', () => {
       expect(BigInt(balanceResult.balance)).toBeGreaterThan(0)
     })
 
-    it.skip(
+
+    it(
       'I should be able to get a Trial Plan',
       async () => {
-        console.log(creditsPlanId)
+        console.log(trialPlanId)
         console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.accountAddress)
         const orderResult = await paymentsSubscriber.orderPlan(trialPlanId)
         expect(orderResult).toBeDefined()
@@ -226,7 +227,7 @@ describe('Payments API (e2e)', () => {
       TEST_TIMEOUT * 2,
     )
 
-    it.skip(
+    it(
       'I should NOT be able to get a Trial Plan twice',
       async () => {
         await expect(
@@ -235,6 +236,17 @@ describe('Payments API (e2e)', () => {
       },
       TEST_TIMEOUT * 2,
     )
+  })
+
+  describe('Querying Agents', () => {
+
+    it('I should be able to generate the agent access token', async () => {
+      const agentAccessParams = await paymentsSubscriber.getAgentAccessToken(creditsPlanId, agentId)
+      expect(agentAccessParams).toBeDefined()
+      console.log('Agent Access Params', agentAccessParams)
+      expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
+    })
+    
   })
 
   describe.skip('Errors', () => {

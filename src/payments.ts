@@ -11,6 +11,7 @@ import {
   AgentAPIAttributes,
   PlanBalance,
   PlanMetadata,
+  AgentAccessParams,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
 import { getRandomBigInt, isEthereumAddress } from './utils'
@@ -18,6 +19,7 @@ import {
   API_URL_ADD_PLAN_AGENT,
   API_URL_BURN_PLAN,
   API_URL_GET_AGENT,
+  API_URL_GET_AGENT_ACCESS_TOKEN,
   API_URL_GET_PLAN,
   API_URL_MINT_EXPIRABLE_PLAN,
   API_URL_MINT_PLAN,
@@ -31,7 +33,7 @@ import {
 
 /**
  * Main class that interacts with the Nevermined payments API.
- * To get an instance of this class use the `getInstance` method.
+ * Use `Payments.getInstance` for server-side usage or `Payments.getBrowserInstance` for browser usage.
  */
 export class Payments {
   public query!: AIQueryApi
@@ -44,19 +46,18 @@ export class Payments {
   public isBrowserInstance = true
 
   /**
-   * The options get's an instance of the payments class.
+   * Get an instance of the Payments class for server-side usage.
    *
    * @param options - The options to initialize the payments class.
-   *
    * @example
    * ```
    * const payments = Payments.getInstance({
-   *   nvmApiKey: 'kjdfaofakdoasdkoas',
+   *   nvmApiKey: 'your-nvm-api-key',
    *   environment: 'testing'
    * })
    * ```
-   *
    * @returns An instance of {@link Payments}
+   * @throws PaymentsError if nvmApiKey is missing.
    */
   static getInstance(options: PaymentOptions) {
     if (!options.nvmApiKey) {
@@ -66,14 +67,12 @@ export class Payments {
   }
 
   /**
-   * The options get's an instance of the payments class to be used in the browser.
+   * Get an instance of the Payments class for browser usage.
    *
    * @remarks
-   *
-   * This is a browser only function.
+   * This is a browser-only function.
    *
    * @param options - The options to initialize the payments class.
-   *
    * @example
    * ```
    * const payments = Payments.getBrowserInstance({
@@ -83,8 +82,8 @@ export class Payments {
    *   version: '1.0.0'
    * })
    * ```
-   *
    * @returns An instance of {@link Payments}
+   * @throws PaymentsError if returnUrl is missing.
    */
   static getBrowserInstance(options: PaymentOptions) {
     if (!options.returnUrl) {
@@ -94,11 +93,10 @@ export class Payments {
   }
 
   /**
-   * Initialize the payments class.
+   * Initializes the Payments class.
    *
    * @param options - The options to initialize the payments class.
-   *
-   * @returns An instance of {@link Payments}
+   * @param isBrowserInstance - Whether this instance is for browser usage.
    */
   private constructor(options: PaymentOptions, isBrowserInstance = true) {
     this.nvmApiKey = options.nvmApiKey
@@ -114,7 +112,8 @@ export class Payments {
   }
 
   /**
-   * It parses the NVM API Key to get the account address.
+   * Parses the NVM API Key to extract the account address.
+   * @throws PaymentsError if the API key is invalid.
    */
   private parseNvmApiKey() {
     try {
@@ -137,13 +136,11 @@ export class Payments {
   }
 
   /**
-   * Initiate the connect flow. The user's browser will be redirected to
+   * Initiates the connect flow. The user's browser will be redirected to
    * the Nevermined App login page.
    *
    * @remarks
-   *
-   * This is a browser only function.
-   *
+   * This is a browser-only function.
    * @example
    * ```
    * payments.connect()
@@ -159,24 +156,16 @@ export class Payments {
   }
 
   /**
-   * Method to initialize the class once the user has been logged in.
-   * This method should be called has soon as the user has been redirected
+   * Initializes the class after the user has logged in and been redirected
    * back to the app ({@link returnUrl}).
    *
    * @remarks
-   *
-   * This is a browser only function.
-   *
+   * This is a browser-only function.
    * @example
    * ```
    * payments.init()
    * ```
-   *
-   * @example Using react
-   *
-   * You may want to use `useEffect` on the route that matches the passed
-   * {@link returnUrl}
-   *
+   * @example Using React
    * ```
    * useEffect(() => {
    *   payments.init()
@@ -206,12 +195,10 @@ export class Payments {
   }
 
   /**
-   * Logout the user by removing the nvm api key.
+   * Logs out the user by removing the NVM API key.
    *
    * @remarks
-   *
-   * This is a browser only function.
-   *
+   * This is a browser-only function.
    * @example
    * ```
    * payments.logout()
@@ -222,13 +209,11 @@ export class Payments {
   }
 
   /**
-   * Property to check if a user logged in.
-   *
+   * Checks if a user is logged in.
    * @example
    * ```
    * payments.isLoggedIn
    * ```
-   *
    * @returns True if the user is logged in.
    */
   get isLoggedIn(): boolean {
@@ -243,14 +228,16 @@ export class Payments {
    * Every time a user accesses any resouce associated to the Payment Plan, the usage consumes from a capped amount of credits.
    * When the user consumes all the credits, the plan automatically expires and the user needs to top up to continue using the service.
    *
-   * @remarks This method is oriented to AI Builders
-   * @remarks To call this method, the NVM API Key must have publication permissions
+   * @remarks
+   * This method is oriented to AI Builders.
+   * The NVM API Key must have publication permissions.
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
+   * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
    * @param creditsConfig - @see {@link PlanCreditsConfig}
-   *
+   * @param nonce - Optional nonce to prevent replay attacks. Default is a random BigInt.
    * @example
    * ```
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
@@ -271,6 +258,7 @@ export class Payments {
       priceConfig,
       creditsConfig,
       nonce,
+      isTrialPlan: planMetadata.isTrialPlan || false,
     }
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REGISTER_PLAN, this.environment.backend)
@@ -296,6 +284,7 @@ export class Payments {
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
+   * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
    * @param creditsConfig - @see {@link PlanCreditsConfig}
    *
@@ -340,6 +329,7 @@ export class Payments {
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
+   * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
    * @param creditsConfig - @see {@link PlanCreditsConfig}
    *
@@ -374,6 +364,7 @@ export class Payments {
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
+   * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
    * @param creditsConfig - @see {@link PlanCreditsConfig}
    *
@@ -392,7 +383,6 @@ export class Payments {
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ planId: string }> {
     planMetadata.isTrialPlan = true
-    
     return this.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
   }
 
@@ -407,6 +397,7 @@ export class Payments {
    *
    * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
    *
+   * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
    * @param creditsConfig - @see {@link PlanCreditsConfig}
    *
@@ -425,7 +416,6 @@ export class Payments {
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ planId: string }> {
     planMetadata.isTrialPlan = true
-    
     return this.registerTimePlan(planMetadata, priceConfig, creditsConfig)
   }
 
@@ -448,7 +438,7 @@ export class Payments {
    * @example
    * ```
    *  const agentMetadata = { name: 'My AI Payments Agent', tags: ['test'] }
-   *  const agentApi { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
+   *  const agentApi = { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
    *  const paymentPlans = [planId]
    *
    *  const { agentId } = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)
@@ -461,9 +451,8 @@ export class Payments {
     agentApi: AgentAPIAttributes,
     paymentPlans: string[],
   ): Promise<{ agentId: string }> {
-
     const body = {
-      metadataAttributes: agentMetadata, 
+      metadataAttributes: agentMetadata,
       agentApiAttributes: agentApi,
       plans: paymentPlans,
     }
@@ -492,6 +481,7 @@ export class Payments {
    *
    * @param agentMetadata - @see {@link AgentMetadata}
    * @param agentApi - @see {@link AgentAPIAttributes}
+   * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
    * @param creditsConfig - @see {@link PlanCreditsConfig}
    *
@@ -521,15 +511,15 @@ export class Payments {
   ): Promise<{ agentId: string; planId: string }> {
     const { planId } = await this.registerPlan(planMetadata, priceConfig, creditsConfig)
     const { agentId } = await this.registerAgent(agentMetadata, agentApi, [planId])
-
     return { agentId, planId }
   }
 
   /**
-   * Get the Metadata (aka Decentralized Document or DDO) for a given Agent identifier (agentId).
+   * Gets the metadata (DDO) for a given Agent identifier.
    *
-   * @param agentId - The unique identifier of the agent .
-   * @returns A promise that resolves to the DDO.
+   * @param agentId - The unique identifier of the agent.
+   * @returns A promise that resolves to the agent's metadata.
+   * @throws PaymentsError if the agent is not found.
    */
   public async getAgent(agentId: string) {
     const url = new URL(API_URL_GET_AGENT.replace(':agentId', agentId), this.environment.backend)
@@ -537,35 +527,32 @@ export class Payments {
     if (!response.ok) {
       throw new PaymentsError(`Agent not found. ${response.statusText} - ${await response.text()}`)
     }
-
     return response.json()
   }
 
   /**
-   * Get the information about a Payment Plan giving it's plan identifier (planId).
+   * Gets the information about a Payment Plan by its identifier.
    *
    * @param planId - The unique identifier of the plan.
-   * @returns A promise that resolves to the description of the plan.
+   * @returns A promise that resolves to the plan's description.
+   * @throws PaymentsError if the plan is not found.
    */
   public async getPlan(planId: string) {
-    console.log(`Getting plan ${planId} from ${this.environment.backend}`)
     const url = new URL(API_URL_GET_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url)
-    console.log(`Response status: ${response.status}`)
     if (!response.ok) {
-      console.log(await response.json())
       throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
     }
-
     return response.json()
   }
 
   /**
-   * Get the balance of an account for a Payment Plan.
+   * Gets the balance of an account for a Payment Plan.
    *
-   * @param planId - The identifier of the Payment Plan
-   * @param accountAddress - The address of the account to get the balance.
+   * @param planId - The identifier of the Payment Plan.
+   * @param accountAddress - The address of the account to get the balance for.
    * @returns A promise that resolves to the balance result.
+   * @throws PaymentsError if unable to get the balance.
    */
   public async getPlanBalance(
     planId: string,
@@ -594,13 +581,14 @@ export class Payments {
   }
 
   /**
-   * Orders a Payment Plan. The user needs to have enough balance in the token selected by the owner of the Payment Plan.
+   * Orders a Payment Plan. The user must have enough balance in the selected token.
    *
    * @remarks
-   * The payment is done using Crypto. Payments using Fiat can be done via the Nevermined App.
+   * The payment is done using crypto. Payments using fiat can be done via the Nevermined App.
    *
    * @param planId - The unique identifier of the plan.
    * @returns A promise that resolves indicating if the operation was successful.
+   * @throws PaymentsError if unable to order the plan.
    */
   public async orderPlan(planId: string): Promise<{ success: boolean }> {
     const options = this.getBackendHTTPOptions('POST')
@@ -613,36 +601,17 @@ export class Payments {
     return response.json()
   }
 
-  // /**
-  //  * Get array of services/agent ids associated with a payment plan.
-  //  *
-  //  * @param planId - The identifier of the Payment Plan.
-  //  * @returns A promise that resolves to the array of agents ids.
-  //  */
-  // public async getPlanAssociatedServices(planId: string) {
-  //   const url = new URL(
-  //     `/api/v1/payments/subscription/services/${planId}`,
-  //     this.environment.backend,
-  //   )
-  //   const response = await fetch(url)
-  //   if (!response.ok) {
-  //     throw Error(`${response.statusText} - ${await response.text()}`)
-  //   }
-  //   return response.json()
-  // }
-
   /**
-   * Mint credits for a given Payment Plan and transfer them to a receiver.
+   * Mints credits for a given Payment Plan and transfers them to a receiver.
    *
    * @remarks
-   *
-   * This method is only can be called by the owner of the Payment Plan.
+   * Only the owner of the Payment Plan can call this method.
    *
    * @param planId - The unique identifier of the Payment Plan.
    * @param creditsAmount - The number of credits to mint.
-   * @param creditsReceiver - The address of the receiver where the credits will be transferred.
-   * @returns A Promise that resolves to the JSON response from the server.
-   * @throws Error if the server response is not successful.
+   * @param creditsReceiver - The address of the receiver.
+   * @returns A promise that resolves to the server response.
+   * @throws PaymentsError if unable to mint credits.
    */
   public async mintPlanCredits(planId: string, creditsAmount: bigint, creditsReceiver: string) {
     const body = { planId, amount: creditsAmount, creditsReceiver }
@@ -657,19 +626,17 @@ export class Payments {
   }
 
   /**
-   * Mint credits for a given Payment Plan and transfer them to a receiver.
-   * The credits minted will expire after a given duration (in seconds).
+   * Mints expirable credits for a given Payment Plan and transfers them to a receiver.
    *
    * @remarks
-   *
-   * This method is only can be called by the owner of the Payment Plan.
+   * Only the owner of the Payment Plan can call this method.
    *
    * @param planId - The unique identifier of the Payment Plan.
    * @param creditsAmount - The number of credits to mint.
-   * @param creditsReceiver - The address of the receiver where the credits will be transferred.
+   * @param creditsReceiver - The address of the receiver.
    * @param creditsDuration - The duration of the credits in seconds. Default is 0 (no expiration).
-   * @returns A Promise that resolves to the JSON response from the server.
-   * @throws Error if the server response is not successful.
+   * @returns A promise that resolves to the server response.
+   * @throws PaymentsError if unable to mint expirable credits.
    */
   public async mintPlanExpirable(
     planId: string,
@@ -689,16 +656,15 @@ export class Payments {
   }
 
   /**
-   * Burn credits for a given Payment Plan.
+   * Burns credits for a given Payment Plan.
    *
    * @remarks
+   * Only the owner of the Payment Plan can call this method.
    *
-   * This method is only can be called by the owner of the Payment Plan.
-   *
-   * @param planId - The unique identifier of the asset.
+   * @param planId - The unique identifier of the Payment Plan.
    * @param creditsAmountToBurn - The amount of credits to burn.
-   * @returns A Promise that resolves to the JSON response from the server.
-   * @throws Error if the server response is not successful.
+   * @returns A promise that resolves to the server response.
+   * @throws PaymentsError if unable to burn credits.
    */
   public async burnCredits(planId: string, creditsAmountToBurn: string) {
     const body = { planId, creditsAmountToBurn }
@@ -714,16 +680,15 @@ export class Payments {
 
   /**
    * Adds an existing Payment Plan to an AI Agent.
-   * After this operation, users having access to the Payment Plan will be able to access the AI Agent.
+   * After this operation, users with access to the Payment Plan will be able to access the AI Agent.
    *
    * @remarks
-   *
-   * This method is only can be called by the owner of the Payment Plan.
+   * Only the owner of the Payment Plan can call this method.
    *
    * @param planId - The unique identifier of the Payment Plan.
    * @param agentId - The unique identifier of the AI Agent.
-   * @returns A Promise that resolves to the JSON response from the server.
-   * @throws Error if the server response is not successful.
+   * @returns A promise that resolves to the server response.
+   * @throws PaymentsError if unable to add the plan to the agent.
    */
   public async addPlanToAgent(planId: string, agentId: string) {
     const options = this.getBackendHTTPOptions('POST')
@@ -739,16 +704,15 @@ export class Payments {
 
   /**
    * Removes a Payment Plan from an AI Agent.
-   * After this operation, users having access to the Payment Plan will not longer be able to access the AI Agent.
+   * After this operation, users with access to the Payment Plan will no longer be able to access the AI Agent.
    *
    * @remarks
-   *
-   * This method is only can be called by the owner of the Payment Plan.
+   * Only the owner of the Payment Plan can call this method.
    *
    * @param planId - The unique identifier of the Payment Plan.
    * @param agentId - The unique identifier of the AI Agent.
-   * @returns A Promise that resolves to the JSON response from the server.
-   * @throws Error if the server response is not successful.
+   * @returns A promise that resolves to the server response.
+   * @throws PaymentsError if unable to remove the plan from the agent.
    */
   public async removePlanFromAgent(planId: string, agentId: string) {
     const options = this.getBackendHTTPOptions('DELETE')
@@ -763,20 +727,17 @@ export class Payments {
   }
 
   /**
-   *
-   * Search for AI Agents based on a text query.
+   * Searches for AI Agents based on a text query.
    *
    * @example
    * ```
    * const agents = await payments.searchAgents({ text: 'test' })
    * ```
-   *
-   * @param text - The text query to search for Payment Plans.
+   * @param text - The text query to search for agents.
    * @param page - The page number for pagination.
    * @param offset - The number of items per page.
-   * @returns A Promise that resolves to the JSON response from the server.
-   * @throws Error if the server response is not successful.
-   *
+   * @returns A promise that resolves to the search results.
+   * @throws PaymentsError if the search fails.
    */
   public async searchAgents({
     text,
@@ -797,10 +758,31 @@ export class Payments {
     return response.json()
   }
 
-  // It returns the HTTP options required to be sent to query the agent
-  // getAgentQueryOptions(agentId)
-  // public async searchPaymentPlans
 
+  public async getAgentAccessToken(planId: string, agentId: string): Promise<AgentAccessParams> {
+
+    const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId).replace(
+      ':agentId',
+      agentId!,
+    )
+    const options = this.getBackendHTTPOptions('GET')
+
+    const url = new URL(accessTokenUrl, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(`Unable to get agent access token. ${response.statusText} - ${await response.text()}`)
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Returns the HTTP options required to query the backend.
+   * @param method - HTTP method.
+   * @param body - Optional request body.
+   * @returns HTTP options object.
+   * @internal
+   */
   private getBackendHTTPOptions(method: string, body?: any) {
     return {
       method,

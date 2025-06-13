@@ -15,6 +15,8 @@ export const API_URL_REMOVE_PLAN_AGENT = '/api/v1/protocol/agents/:agentId/plan/
 
 export const API_URL_BURN_PLAN = '/api/v1/protocol/plans/burn'
 export const API_URL_PLAN_BALANCE = '/api/v1/protocol/plans/:planId/balance/:holderAddress'
+export const API_URL_GET_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/:planId/:agentId'
+
 
 export interface BackendApiOptions {
   /**
