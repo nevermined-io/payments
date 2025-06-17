@@ -12,6 +12,8 @@ import {
   PlanBalance,
   PlanMetadata,
   AgentAccessParams,
+  SubscriberRequestStatus,
+  ValidationAgentRequest,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
 import { getRandomBigInt, isEthereumAddress } from './utils'
@@ -29,7 +31,9 @@ import {
   API_URL_REGISTER_PLAN,
   API_URL_REMOVE_PLAN_AGENT,
   API_URL_SEARCH_AGENTS,
+  API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
 } from './api/nvm-api'
+import { access } from 'fs'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -761,16 +765,35 @@ export class Payments {
 
   public async getAgentAccessToken(planId: string, agentId: string): Promise<AgentAccessParams> {
 
-    const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId).replace(
-      ':agentId',
-      agentId!,
-    )
+    const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId)
+      .replace(':agentId', agentId!
+      )
     const options = this.getBackendHTTPOptions('GET')
 
     const url = new URL(accessTokenUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw new PaymentsError(`Unable to get agent access token. ${response.statusText} - ${await response.text()}`)
+    }
+
+    return response.json()
+  }
+
+  public async isValidRequest(agentId: string, accessToken: string | undefined, urlRequested: string, httpMethodRequested: string): Promise<ValidationAgentRequest> {
+
+    const validateTokenUrl = API_URL_VALIDATE_AGENT_ACCESS_TOKEN.replace(':agentId', agentId!
+      )
+    const body = { 
+      accessToken,
+      endpoint: urlRequested,
+      httpVerb: httpMethodRequested, 
+    }
+    const options = this.getBackendHTTPOptions('POST', body)
+
+    const url = new URL(validateTokenUrl, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(`Unable to validate access token. ${response.statusText} - ${await response.text()}`)
     }
 
     return response.json()

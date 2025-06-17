@@ -200,7 +200,9 @@ await fetch(url, queryOptions)
 ### Is a valid request from a subscriber?
 
 ```typescript
-const isValid = await payments.isValidRequest(planId, agentId, subscriberAddress, request.headers['x-nvm-query-signature'])
+const isValid = await payments.isValidRequest(agentId, request.headers['Authorization'])
+
+// const isValid = await payments.isValidRequest(planId, agentId, subscriberAddress, request.headers['x-nvm-query-signature'])
 if (!isValid) {
   const paymentCard = payments.getAgentPaymentCard(agentId)
   return response.status(402).send(paymentCard)

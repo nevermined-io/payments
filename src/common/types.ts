@@ -170,9 +170,23 @@ export interface PlanBalance {
   isSubscriber: boolean
 }
 
+export interface ValidationAgentRequest {
+  balance: PlanBalance
+  urlMatching: string
+  verbMatching: string
+}
+
 export interface AgentAccessParams {
   accessToken: string
   proxies?: string[]
+}
+
+export interface SubscriberRequestStatus {
+  planId: string
+  agentId: string
+  isValid: boolean
+  code: number
+  message?: string
 }
 
 /**
