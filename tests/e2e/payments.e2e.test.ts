@@ -8,7 +8,7 @@ describe('Payments API (e2e)', () => {
   const TEST_TIMEOUT = 30_000
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
-    process.env.   ||
+    process.env.TEST_SUBSCRIBER_API_KEY ||
     'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGM1NWNiNTUzN2IzNmQ3MmRmZjBmMGY0MGYzMmY1ZTMwMjVkOWFiYmI5YTJhZjgwNjM2NWEzYmQzOWVkMWJiMWUiLCJleHAiOjE3ODE3MTQyMzF9.s0Pj27izNBnswrO7n8Gjfk7HplSChd4x5dtBMP4WTkYwnNLf-tfvscz-eNPrJshV0cLTb1QIyTZCFxXbPLuW_hs'
   const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
