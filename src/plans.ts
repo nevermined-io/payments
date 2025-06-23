@@ -23,7 +23,7 @@ export const getFiatPriceConfig = (amount: bigint, receiver: Address): PlanPrice
     amounts: [amount],
     receivers: [receiver],
     contractAddress: ZeroAddress,
-    feeController: ZeroAddress
+    feeController: ZeroAddress,
   }
 }
 
@@ -40,7 +40,7 @@ export const getCryptoPriceConfig = (
     amounts: [amount],
     receivers: [receiver],
     contractAddress: ZeroAddress,
-    feeController: ZeroAddress
+    feeController: ZeroAddress,
   }
 }
 
@@ -59,7 +59,7 @@ export const getFreePriceConfig = (): PlanPriceConfig => {
     amounts: [],
     receivers: [],
     contractAddress: ZeroAddress,
-    feeController: ZeroAddress
+    feeController: ZeroAddress,
   }
 }
 

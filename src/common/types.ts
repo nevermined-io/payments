@@ -79,7 +79,7 @@ export interface PlanPriceConfig {
    * The address of the fee controller contract, if any
    * @remarks if not given, the fee controller is the default one
    */
-  feeController?: Address // only if priceType == 2  
+  feeController?: Address // only if priceType == 2
 }
 
 /**
@@ -217,7 +217,7 @@ export interface AgentMetadata {
    * Some description or instructions about how to integrate the Agent.
    */
   integration?: string
-  /**                   
+  /**
    * A link to some same usage of the Agent.
    */
   sampleLink?: string

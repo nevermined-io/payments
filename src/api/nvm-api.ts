@@ -42,7 +42,6 @@ export interface BackendApiOptions {
   headers?: { [key: string]: string }
 }
 
-
 export class HTTPRequestOptions {
   sendThroughProxy: boolean = true
   proxyHost?: string = undefined
