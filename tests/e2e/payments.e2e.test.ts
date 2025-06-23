@@ -8,13 +8,12 @@ describe('Payments API (e2e)', () => {
   const TEST_TIMEOUT = 30_000
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
-    process.env.TEST_SUBSCRIBER_API_KEY ||
+    process.env.   ||
     'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGM1NWNiNTUzN2IzNmQ3MmRmZjBmMGY0MGYzMmY1ZTMwMjVkOWFiYmI5YTJhZjgwNjM2NWEzYmQzOWVkMWJiMWUiLCJleHAiOjE3ODE3MTQyMzF9.s0Pj27izNBnswrO7n8Gjfk7HplSChd4x5dtBMP4WTkYwnNLf-tfvscz-eNPrJshV0cLTb1QIyTZCFxXbPLuW_hs'
   const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
     'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDk2ZWIxNzdkMTg1M2EyNGI2NGM5ZTIzMDYxZjhkYjJmNGQ0ZjUzNDEzYjU1ZjczN2M5ZWY4MmJiYzlkNmNlZjQiLCJleHAiOjE3ODE3MTQyMzB9.G0iWkDVKXM_608hYQ5hUpc1HWZDOlRBasyO6iCo9FdQYleihUWmtlczAlQoHmgThnj6_eS3S6O_pCfKU9EBbpBw'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
-  const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
     { 'POST': `http://localhost:8889/test/:agentId/tasks` },
@@ -106,7 +105,7 @@ describe('Payments API (e2e)', () => {
       },
       TEST_TIMEOUT,
     )
-
+    
     it(
       'I should be able to register a Trial Plan',
       async () => {

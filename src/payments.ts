@@ -12,7 +12,6 @@ import {
   PlanBalance,
   PlanMetadata,
   AgentAccessParams,
-  SubscriberRequestStatus,
   ValidationAgentRequest,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
@@ -33,7 +32,6 @@ import {
   API_URL_SEARCH_AGENTS,
   API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
 } from './api/nvm-api'
-import { access } from 'fs'
 
 /**
  * Main class that interacts with the Nevermined payments API.
