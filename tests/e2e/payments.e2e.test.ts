@@ -94,8 +94,8 @@ describe('Payments API (e2e)', () => {
       'I should be able to register a new Expirable Payment Plan',
       async () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
-        const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
-        const response = await paymentsBuilder.registerTimePlan(planMetadata, priceConfig, creditsConfig)
+        const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
+        const response = await paymentsBuilder.registerTimePlan(planMetadata, priceConfig, expirablePlanConfig)
         expect(response).toBeDefined()
         expirablePlanId = response.planId 
 

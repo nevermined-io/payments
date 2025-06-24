@@ -19,7 +19,7 @@ Nevermined Payments Library is a Typescript SDK that allows AI Builders and Subs
 
 The Payments Library allows:
 
-* Easy registration and discovery of AI agents, payment plans required to access them. All the agents registered in Nevermined expose their metadata in a generic way, and this metadata is searchable, allowing them to discover other agents fitting a specific purpose.
+* Easy registration and discovery of AI agents & the payment plans required to access them. All the agents registered in Nevermined expose their metadata in a generic way, and this metadata is searchable, allowing them to discover other agents fitting a specific purpose.
 * Allows to define pricing options and how AI agents can be queried. This is done via payment plans (based on time or credits) and consumption costs (fixed per request or dynamic). All of this can be defined by the AI builder/agent during the registration process.
 * It allows subscribers (human or other agents) to purchase credits that give access to AI agents services. Payments can be in crypto or in fiat via Stripe integration. The protocol registers on-chain the payment and the credits distribution settlement.
 * Agents or users owning access credits can query other AI agents. Nevermined authorizes only the users with enough balance and keep track of their usage of credits.
@@ -98,17 +98,20 @@ const payments = Payments.getInstance({
 Once the app is initialized we can create a payment plan:
 
 ```typescript
-const priceConfig = getERC20PriceConfig(20n, builderAddress, ERC20_ADDRESS)
+const planMetadata: PlanMetadata = {
+    name: 'E2E test Payments Plan',
+  }
+const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
 const creditsConfig = getFixedCreditsConfig(100n)
-const { planId } = await paymentsBuilder.registerCreditsPlan(priceConfig, creditsConfig)
+const { planId } = await payments.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
 ```
 
 Or register a plan limited by time:
 
 ```typescript
-const priceConfig = getERC20PriceConfig(50n, builderAddress, ERC20_ADDRESS)
-const creditsConfig = getExpirableCreditsConfig(86400n) // 1 day
-const { planId } = await paymentsBuilder.registerTimePlan(priceConfig, creditsConfig)
+const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
+const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
+const response = await payments.registerTimePlan(planMetadata, priceConfig, expirablePlanConfig)
 ```
 
 ### Create an AI Agent/Service
@@ -123,13 +126,44 @@ const agentMetadata = {
 // The API that the agent will expose
 const agentApi = {
   endpoints: [
-    { 'POST': `https://example.com/api/v1/agents/(.*)/tasks` },
-    { 'GET': `https://example.com/api/v1/agents/(.*)/tasks/(.*)` }
+    { 'POST': `https://example.com/api/v1/agents/:agentId/tasks` },
+    { 'GET': `https://example.com/api/v1/agents/:agentId/tasks/invoke` }
 ]}
 
 // This is the list of payment plans that the agent will accept
-const paymentPlans = [ planId ]
-const { did } = await paymentsBuilder.registerAgent(agentMetadata, agentApi, paymentPlans)
+const paymentPlans = [ creditsPlanId, expirablePlanId ]
+const result = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)
 
 ```
 
+### Purchase a Payment Plan
+
+```typescript
+const orderResult = await payments.orderPlan(creditsPlanId)
+```
+
+And get the balabce of the purchased plan:
+
+```typescript
+const balance = await payments.getPlanBalance(creditsPlanId)
+console.log(`Balance: ${balance}`)
+```
+
+### Query an AI Agent
+
+Once the user has purchased a plan, they can query the agent:
+
+```typescript
+const params = await payments.getAgentAccessToken(creditsPlanId, agentId)
+
+const agentHTTPOptions = {
+  method: 'POST',
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization:  `Bearer ${params.accessToken}`
+  },
+}
+const response = await fetch(new URL(agentURL), agentHTTPOptions)
+
+```
