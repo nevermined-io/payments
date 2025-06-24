@@ -233,6 +233,9 @@ export interface AgentMetadata {
   // internalAttributes?: any
 }
 
+/**
+ * Metadata attributes describing the Payment Plan.
+ */
 export interface PlanMetadata extends AgentMetadata {
   /**
    * Indicates if a payment plan is a Trial plan.

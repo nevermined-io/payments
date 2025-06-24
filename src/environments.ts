@@ -10,7 +10,7 @@ export type EnvironmentName =
   | 'local'
   | 'staging'
   | 'testing'
-  | 'arbitrum'
+  | 'production'
   | 'base'
   | 'base-sepolia'
   | 'custom'
@@ -46,10 +46,10 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
   /**
    * The Arbitrum environment URLs.
    */
-  arbitrum: {
+  production: {
     frontend: 'https://nevermined.app',
-    backend: 'https://one-backend.arbitrum.nevermined.app',
-    proxy: 'https://proxy.arbitrum.nevermined.app',
+    backend: 'https://one-backend.nevermined.app',
+    proxy: 'https://proxy.nevermined.app',
   },
   /**
    * The Base environment URLs.

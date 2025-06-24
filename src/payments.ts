@@ -32,13 +32,13 @@ import {
   API_URL_REGISTER_AGENT,
   API_URL_REGISTER_PLAN,
   API_URL_REMOVE_PLAN_AGENT,
-  API_URL_SEARCH_AGENTS,
   API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
 } from './api/nvm-api'
 
 /**
  * Main class that interacts with the Nevermined payments API.
  * Use `Payments.getInstance` for server-side usage or `Payments.getBrowserInstance` for browser usage.
+ * @remarks This API requires a Nevermined API Key, which can be obtained by logging in to the Nevermined App.
  */
 export class Payments {
   public query!: AIQueryApi
@@ -227,10 +227,14 @@ export class Payments {
 
   /**
    *
-   * It allows to an AI Builder to create a Payment Plan on Nevermined in a flexible manner.
-   * A Nevermined Credits Plan limits the access by the access/usage of the Plan.
-   * With them, AI Builders control the number of requests that can be made to an agent or service.
-   * Every time a user accesses any resouce associated to the Payment Plan, the usage consumes from a capped amount of credits.
+   * It allows to an AI Builder to register a Payment Plan on Nevermined in a flexible manner.
+   * A Payment Plan defines 2 main aspects:
+   *   1. What a subscriber needs to pay to get the plan (i.e. 100 USDC, 5 USD, etc).
+   *   2. What the subscriber gets in return to access the AI agents associated to the plan (i.e. 100 credits, 1 week of usage, etc).
+   *
+   * With Payment Plans, AI Builders control the usage to their AI Agents.
+   *
+   * Every time a user accesses an AI Agent to the Payment Plan, the usage consumes from a capped amount of credits (or when the plan duration expires).
    * When the user consumes all the credits, the plan automatically expires and the user needs to top up to continue using the service.
    *
    * @remarks
@@ -247,7 +251,7 @@ export class Payments {
    * ```
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
    *  const creditsConfig = getFixedCreditsConfig(100n)
-   *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, creditsConfig)
+   *  const { planId } = await payments.registerPlan({ name: 'AI Assistants Plan'}, cryptoPriceConfig, creditsConfig)
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -297,7 +301,7 @@ export class Payments {
    * ```
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
    *  const creditsConfig = getFixedCreditsConfig(100n)
-   *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, creditsConfig)
+   *  const { planId } = await payments.registerCreditsPlan({ name: 'AI Credits Plan'}, cryptoPriceConfig, creditsConfig)
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -342,7 +346,7 @@ export class Payments {
    * ```
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
    *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
-   *  const { planId } = await payments.registerCreditsPlan(cryptoPriceConfig, 1dayDurationPlan)
+   *  const { planId } = await payments.registerTimePlan({ name: 'Just for today plan'}, cryptoPriceConfig, 1dayDurationPlan)
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -377,7 +381,7 @@ export class Payments {
    * ```
    *  const freePriceConfig = getFreePriceConfig()
    *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
-   *  const { planId } = await payments.registerCreditsPlan(freePriceConfig, 1dayDurationPlan)
+   *  const { planId } = await payments.registerCreditsTrialPlan({name: 'Trial plan'}, freePriceConfig, 1dayDurationPlan)
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -410,7 +414,7 @@ export class Payments {
    * ```
    *  const freePriceConfig = getFreePriceConfig()
    *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
-   *  const { planId } = await payments.registerCreditsPlan(freePriceConfig, 1dayDurationPlan)
+   *  const { planId } = await payments.registerTimeTrialPlan({name: '1 day Trial plan'}, freePriceConfig, 1dayDurationPlan)
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -427,7 +431,7 @@ export class Payments {
   /**
    *
    * It registers a new AI Agent on Nevermined.
-   * The agent must be associated to one or multiple Payment Plans. Users that are subscribers of a payment plan can access the agent.
+   * The agent must be associated to one or multiple Payment Plans. Users that are subscribers of a payment plan can query the agent.
    * Depending on the Payment Plan and the configuration of the agent, the usage of the agent/service will consume credits.
    * When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue using the agent.
    *
@@ -495,7 +499,7 @@ export class Payments {
    * @example
    * ```
    *  const agentMetadata = { name: 'My AI Payments Agent', tags: ['test'] }
-   *  const agentApi { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
+   *  const agentApi { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/:agentId/tasks' }] }
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
    *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
    *  const { agentId, planId } = await payments.registerAgentAndPlan(
@@ -522,7 +526,7 @@ export class Payments {
   }
 
   /**
-   * Gets the metadata (DDO) for a given Agent identifier.
+   * Gets the metadata for a given Agent identifier.
    *
    * @param agentId - The unique identifier of the agent.
    * @returns A promise that resolves to the agent's metadata.
@@ -541,6 +545,7 @@ export class Payments {
    * Gets the list of plans that can be ordered to get access to an agent.
    *
    * @param agentId - The unique identifier of the agent.
+   * @param pagination - Optional pagination options to control the number of results returned.p
    * @returns A promise that resolves to the list of all different plans giving access to the agent.
    * @throws PaymentsError if the agent is not found.
    */
@@ -578,6 +583,7 @@ export class Payments {
    * All the agents returned can be accessed by the users that are subscribed to the Payment Plan.
    *
    * @param planId - The unique identifier of the plan.
+   * @param pagination - Optional pagination options to control the number of results returned.
    * @returns A promise that resolves to the list of agents associated with the plan.
    * @throws PaymentsError if the plan is not found.
    */
@@ -714,12 +720,12 @@ export class Payments {
    * Only the owner of the Payment Plan can call this method.
    *
    * @param planId - The unique identifier of the Payment Plan.
-   * @param creditsAmountToBurn - The amount of credits to burn.
+   * @param creditsAmountToRedeem - The amount of credits to redeem.
    * @returns A promise that resolves to the server response.
    * @throws PaymentsError if unable to burn credits.
    */
-  public async burnCredits(planId: string, creditsAmountToBurn: string) {
-    const body = { planId, creditsAmountToBurn }
+  public async redeemCredits(planId: string, creditsAmountToRedeem: string) {
+    const body = { planId, creditsAmountToBurn: creditsAmountToRedeem }
     const options = this.getBackendHTTPOptions('DELETE', body)
     const url = new URL(API_URL_BURN_PLAN, this.environment.backend)
     const response = await fetch(url, options)
@@ -788,39 +794,17 @@ export class Payments {
   }
 
   /**
-   * Searches for AI Agents based on a text query.
+   * When the user calling this method is a valid subscriber, it generates an access token related to the Payment Plan and the AI Agent.
+   * The access token can be used to query the AI Agent's API endpoints. The access token is unique for the subscriber, payment plan and agent.
    *
-   * @example
-   * ```
-   * const agents = await payments.searchAgents({ text: 'test' })
-   * ```
-   * @param text - The text query to search for agents.
-   * @param page - The page number for pagination.
-   * @param offset - The number of items per page.
-   * @returns A promise that resolves to the search results.
-   * @throws PaymentsError if the search fails.
+   * @remarks
+   * Only a valid subscriber of the Payment Plan can generate a valid access token.
+   *
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param agentId - The unique identifier of the AI Agent.
+   * @returns
+   * @throws PaymentsError if unable to remove the plan from the agent.
    */
-  public async searchAgents({
-    text,
-    page = 1,
-    offset = 10,
-  }: {
-    text: string
-    page?: number
-    offset?: number
-  }) {
-    const body = { text: text, page: page, offset: offset }
-    const options = this.getBackendHTTPOptions('POST', body)
-    const url = new URL(API_URL_SEARCH_AGENTS, this.environment.backend)
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw new PaymentsError(
-        `Error searching agents. ${response.statusText} - ${await response.text()}`,
-      )
-    }
-    return response.json()
-  }
-
   public async getAgentAccessToken(planId: string, agentId: string): Promise<AgentAccessParams> {
     const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId).replace(
       ':agentId',
@@ -839,6 +823,22 @@ export class Payments {
     return response.json()
   }
 
+  /**
+   * This method validates if the access token given by a user is valid for a specific agent and plan.
+   * This is useful to be integrated in the AI Agent's API to authorize the access to the agent's API endpoints.
+   *
+   * @remarks
+   * This method is especially useful to be integrated in the AI Agent's API to authorize the access to the agent's API endpoints.
+   * @remarks
+   * The access token is generated by subscriber the {@link getAgentAccessToken} method.
+   *
+   * @param agentId - The unique identifier of the AI Agent.
+   * @param accessToken - The access token provided by the subscriber to validate
+   * @param urlRequested - The URL requested by the subscriber to access the agent's API.
+   * @param httpMethodRequested - The HTTP method requested by the subscriber to access the agent's API.
+   * @returns The information about the validation of the request.
+   * @throws PaymentsError if unable to validate the access token.
+   */
   public async isValidRequest(
     agentId: string,
     accessToken: string | undefined,
