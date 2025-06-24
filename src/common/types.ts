@@ -279,3 +279,59 @@ export interface AgentAPIAttributes {
    */
   token?: string
 }
+
+/**
+ * Options for pagination in API requests to the Nevermined API.
+ */
+export class PaginationOptions {
+  /**
+   * The field to sort the results by.
+   * If not provided, the default sorting defined by the API will be applied.
+   */
+  sortBy?: string
+  /**
+   * The order in which to sort the results.
+   * Default is 'desc' (descending).
+   */
+  sortOrder: 'asc' | 'desc' = 'desc'
+  /**
+   * The page number to retrieve.
+   * Default is 1.
+   */
+  page = 1
+  /**
+   * The number of items per page.
+   * Default is 10.
+   */
+  offset = 10
+
+  /**
+   * Constructs a new PaginationOptions instance.
+   * @param options - Optional initial values for the pagination options.
+   */
+  constructor(options?: Partial<PaginationOptions>) {
+    if (options) {
+      this.sortBy = options.sortBy
+      this.sortOrder = options.sortOrder || 'desc'
+      this.page = options.page || 1
+      this.offset = options.offset || 10
+    }
+  }
+
+  /**
+   * It returns a string representation of the pagination options
+   * @returns A string representation of the pagination options as URL query parameters.
+   * This can be used to append to API requests for pagination.
+   */
+  asQueryParams(): string {
+    const params: Record<string, string> = {}
+    if (this.sortBy) {
+      params.sortBy = this.sortBy
+    }
+    params.sortOrder = this.sortOrder
+    params.page = this.page.toString()
+    params.pageSize = this.offset.toString()
+
+    return new URLSearchParams(params).toString()
+  }
+}

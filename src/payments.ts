@@ -13,6 +13,7 @@ import {
   PlanMetadata,
   AgentAccessParams,
   ValidationAgentRequest,
+  PaginationOptions,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
 import { getRandomBigInt, isEthereumAddress } from './utils'
@@ -21,7 +22,9 @@ import {
   API_URL_BURN_PLAN,
   API_URL_GET_AGENT,
   API_URL_GET_AGENT_ACCESS_TOKEN,
+  API_URL_GET_AGENT_PLANS,
   API_URL_GET_PLAN,
+  API_URL_GET_PLAN_AGENTS,
   API_URL_MINT_EXPIRABLE_PLAN,
   API_URL_MINT_PLAN,
   API_URL_ORDER_PLAN,
@@ -63,7 +66,7 @@ export class Payments {
    */
   static getInstance(options: PaymentOptions) {
     if (!options.nvmApiKey) {
-      throw new PaymentsError('nvmApiKey is required')
+      throw new PaymentsError('Nevermined API Key is required')
     }
     return new Payments(options, false)
   }
@@ -535,6 +538,25 @@ export class Payments {
   }
 
   /**
+   * Gets the list of plans that can be ordered to get access to an agent.
+   *
+   * @param agentId - The unique identifier of the agent.
+   * @returns A promise that resolves to the list of all different plans giving access to the agent.
+   * @throws PaymentsError if the agent is not found.
+   */
+  public async getAgentPlans(agentId: string, pagination = new PaginationOptions()) {
+    const query =
+      API_URL_GET_AGENT_PLANS.replace(':agentId', agentId) + '?' + pagination.asQueryParams()
+    const url = new URL(query, this.environment.backend)
+    console.log(`Fetching plans for agent ${agentId} from ${url.toString()}`)
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new PaymentsError(`Agent not found. ${response.statusText} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  /**
    * Gets the information about a Payment Plan by its identifier.
    *
    * @param planId - The unique identifier of the plan.
@@ -542,7 +564,28 @@ export class Payments {
    * @throws PaymentsError if the plan is not found.
    */
   public async getPlan(planId: string) {
-    const url = new URL(API_URL_GET_PLAN.replace(':planId', planId), this.environment.backend)
+    const query = API_URL_GET_PLAN.replace(':planId', planId)
+    const url = new URL(query, this.environment.backend)
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  /**
+   * Gets the list of Agents that have associated a specific Payment Plan.
+   * All the agents returned can be accessed by the users that are subscribed to the Payment Plan.
+   *
+   * @param planId - The unique identifier of the plan.
+   * @returns A promise that resolves to the list of agents associated with the plan.
+   * @throws PaymentsError if the plan is not found.
+   */
+  public async getAgentsAssociatedToAPlan(planId: string, pagination = new PaginationOptions()) {
+    const query =
+      API_URL_GET_PLAN_AGENTS.replace(':planId', planId) + '?' + pagination.asQueryParams()
+    const url = new URL(query, this.environment.backend)
+    console.log(`Fetching agents for plan ${planId} from ${url.toString()}`)
     const response = await fetch(url)
     if (!response.ok) {
       throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)

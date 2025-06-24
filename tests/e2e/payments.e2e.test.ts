@@ -1,4 +1,4 @@
-import { Address, AgentAccessParams, AgentMetadata, Endpoint, PlanMetadata, PlanPriceType } from '../../src/common/types'
+import { Address, AgentAccessParams, AgentMetadata, Endpoint, PaginationOptions, PlanMetadata, PlanPriceType } from '../../src/common/types'
 import { EnvironmentName, ZeroAddress } from '../../src/environments'
 import { Payments } from '../../src/payments'
 import { getERC20PriceConfig, getExpirableDurationConfig, getFiatPriceConfig, getFixedCreditsConfig, getFreePriceConfig, getNativeTokenPriceConfig, getNonExpirableDurationConfig, ONE_DAY_DURATION } from '../../src/plans'
@@ -9,10 +9,10 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGM1NWNiNTUzN2IzNmQ3MmRmZjBmMGY0MGYzMmY1ZTMwMjVkOWFiYmI5YTJhZjgwNjM2NWEzYmQzOWVkMWJiMWUiLCJleHAiOjE3ODE3MTQyMzF9.s0Pj27izNBnswrO7n8Gjfk7HplSChd4x5dtBMP4WTkYwnNLf-tfvscz-eNPrJshV0cLTb1QIyTZCFxXbPLuW_hs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDFlZGQ3YmFjNzQ5YmMzNWM2MzhlNTc5NjMyNDUwMTk5ZGI0YjhiNWZkYWUzMGI4MGJiMjEzMGM2MjM5MDRkMTIiLCJleHAiOjE3ODIzMTkzOTN9.LabD_FpGJWneZZASqBU54xqJdhdY0FB-6nINbsnv83pt-AKqCYSvWFx2UUl_29K6hMEBMhFqgBymFHG72sfB8hs'
   const builderNvmApiKeyHash =  
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDk2ZWIxNzdkMTg1M2EyNGI2NGM5ZTIzMDYxZjhkYjJmNGQ0ZjUzNDEzYjU1ZjczN2M5ZWY4MmJiYzlkNmNlZjQiLCJleHAiOjE3ODE3MTQyMzB9.G0iWkDVKXM_608hYQ5hUpc1HWZDOlRBasyO6iCo9FdQYleihUWmtlczAlQoHmgThnj6_eS3S6O_pCfKU9EBbpBw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDFmOTRlN2ZjYzIwYTMzYzllM2JjMTEyNGRiZTgwNjA2ZGZlZWU5ZTdhZmE2NjdmMWJiYTc5MGQyYzhlYjVhODciLCJleHAiOjE3ODIzMTkzOTV9.FwQ2OO1-nDSR04XPu5b7SMR7vWEJEg-8RPl3Dy-FluRYLC5lgeJyFcWIjaw0AMFtZAqSd3KV3I_bURuT2XU8Dhw'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
@@ -169,7 +169,9 @@ describe('Payments API (e2e)', () => {
       },
       TEST_TIMEOUT,
     )
-
+  })
+    
+  describe('Search & Discovery', () => {
     it(
       'I should be able to get a plan',
       async () => {
@@ -189,8 +191,33 @@ describe('Payments API (e2e)', () => {
       },
       TEST_TIMEOUT,
     )
+
+    it(
+      'Get agents associated to a plan',
+      async () => {
+        console.log('Credits Plan ID', creditsPlanId)
+        const agents = await paymentsBuilder.getAgentsAssociatedToAPlan(creditsPlanId, new PaginationOptions({ offset: 5 }))
+        expect(agents).toBeDefined()
+        console.log('Agents associated to the Plan', agents)
+        expect(agents.total).toBeGreaterThan(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
+      'Get plans associated to an agent',
+      async () => {
+        // /agents/:agentId/plans
+        console.log('Agent ID', agentId)
+        const plans = await paymentsBuilder.getAgentPlans(agentId)
+        expect(plans).toBeDefined()
+        console.log('Plans associated to an agent', plans)
+        expect(plans.total).toBeGreaterThan(0)
+      },
+      TEST_TIMEOUT,
+    )
+
   })
-    
 
   describe('Plan Purchase', () => {
     it(
@@ -280,9 +307,7 @@ describe('Payments API (e2e)', () => {
     afterAll(async () => {
       server.close()
     })
-    // afterAll((done) => {
-    //   server.close(done)
-    // })
+
 
     it('I should be able to generate the agent access token', async () => {
       agentAccessParams = await paymentsSubscriber.getAgentAccessToken(creditsPlanId, agentId)
