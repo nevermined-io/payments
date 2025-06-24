@@ -39,6 +39,7 @@ describe('Payments API (e2e)', () => {
         environment: testingEnvironment as EnvironmentName,
       })
       
+      
       expect(paymentsSubscriber).toBeDefined()
       expect(paymentsSubscriber.query).toBeDefined()
       

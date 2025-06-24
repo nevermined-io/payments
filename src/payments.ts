@@ -447,7 +447,7 @@ export class Payments {
    * @example
    * ```
    *  const agentMetadata = { name: 'My AI Payments Agent', tags: ['test'] }
-   *  const agentApi = { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/(.*)/tasks' }] }
+   *  const agentApi = { endpoints: [{ 'POST': 'https://example.com/api/v1/agents/:agentId/tasks' }] }
    *  const paymentPlans = [planId]
    *
    *  const { agentId } = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)

@@ -36,8 +36,8 @@ describe('Payments (unit)', () => {
 
     it('can get the service host from Endpoints[]', () => {    
       const endpoints: Endpoint[] = [
-       { 'POST': `https://one-backend.testing.nevermined.app/api/v1/agents/(.*)/tasks` },
-       { 'GET': `https://one-backend.testing.nevermined.app/api/v1/agents/(.*)/tasks/(.*)` }
+       { 'POST': `https://one-backend.testing.nevermined.app/api/v1/agents/:agentId/tasks` },
+       { 'GET': `https://one-backend.testing.nevermined.app/api/v1/agents/:agentId/tasks/invoke` }
       ]  
       const serviceHost = getServiceHostFromEndpoints(endpoints)
       expect(serviceHost).toEqual('https://one-backend.testing.nevermined.app')

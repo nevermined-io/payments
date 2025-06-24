@@ -1,45 +1,43 @@
 [![banner](https://raw.githubusercontent.com/nevermined-io/assets/main/images/logo/banner_logo.png)](https://nevermined.io)
 
-# Library for activating AI Agents Payments using Nevermined protocol
+# Library for Activating AI Agent Payments Using the Nevermined Protocol
 
-> Typescript SDK to interact with the Nevermined Payments Protocol
+> TypeScript SDK to interact with the Nevermined Payments Protocol  
 > [nevermined.io](https://nevermined.io)
 
 ## Motivation
 
-The evolution of AI-native commerce is inevitable, but the infrastructure to support it is insufficient. Today, AI agents require seamless, automated payment systems for individual transactions. As the need grows, these agents will scale into swarms, with the ability to transact and operate autonomously.
+The evolution of AI-native commerce is inevitable, but the infrastructure to support it is currently lacking. Today, AI agents require seamless, automated payment systems for individual transactions. As demand grows, these agents will scale into swarms, transacting and operating autonomously.
 
-Existing solutions are designed for their usage by humans using physical money. This doesn’t represent a new reality where AI Agents need to make and receive payments quickly and efficiently without the limitations of existing payment systems.
+Existing solutions are designed for human use with physical money. This does not reflect the new reality, where AI Agents need to make and receive payments quickly and efficiently, without the limitations of traditional payment systems.
 
 Nevermined provides a solution that seamlessly evolves from single-agent needs to complex AI economies, eliminating friction and supporting a fully autonomous, composable future for AI-driven commerce.
 
-## What is Nevermined Payments Library?
+## What is the Nevermined Payments Library?
 
-Nevermined Payments Library is a Typescript SDK that allows AI Builders and Subscribers to make available AI Agents for being queried and used by other agents or humans. It is designed to be used in conjunction with the Nevermined protocol, which provides a decentralized infrastructure for managing AI agents and their interactions.
+The Nevermined Payments Library is a TypeScript SDK that allows AI Builders and Subscribers to make AI Agents available for querying and use by other agents or humans. It is designed to be used alongside the Nevermined protocol, which provides a decentralized infrastructure for managing AI agents and their interactions.
 
-The Payments Library allows:
+The Payments Library enables:
 
-* Easy registration and discovery of AI agents & the payment plans required to access them. All the agents registered in Nevermined expose their metadata in a generic way, and this metadata is searchable, allowing them to discover other agents fitting a specific purpose.
-* Allows to define pricing options and how AI agents can be queried. This is done via payment plans (based on time or credits) and consumption costs (fixed per request or dynamic). All of this can be defined by the AI builder/agent during the registration process.
-* It allows subscribers (human or other agents) to purchase credits that give access to AI agents services. Payments can be in crypto or in fiat via Stripe integration. The protocol registers on-chain the payment and the credits distribution settlement.
-* Agents or users owning access credits can query other AI agents. Nevermined authorizes only the users with enough balance and keep track of their usage of credits.
+* Easy registration and discovery of AI agents and the payment plans required to access them. All agents registered in Nevermined expose their metadata in a generic way, making them searchable and discoverable for specific purposes.
+* Flexible definition of pricing options and how AI agents can be queried. This is achieved through payment plans (based on time or credits) and consumption costs (fixed per request or dynamic). All of this can be defined by the AI builder or agent during the registration process.
+* Subscribers (humans or other agents) to purchase credits that grant access to AI agent services. Payments can be made in crypto or fiat via Stripe integration. The protocol registers the payment and credits distribution settlement on-chain.
+* Agents or users with access credits to query other AI agents. Nevermined authorizes only users with sufficient balance and keeps track of their credit usage.
 
 [![banner](docs/images/nvm_hl.png)]
 
-The library is designed to be used in browser environments or as part of AI Agents:
+The library is designed for use in browser environments or as part of AI Agents:
 
-* When the library is used in a browser, it provides a simple way to connect to the Nevermined protocol and allow users to query AI Agents or publish their own.
-* When the library is used as part of an AI Agent, it allows the agent to query other agents in a programatic way. Beyond that agents can use the library to expose their own services and make them available to other agents or humans.
-
+* In a browser, the library provides a simple way to connect to the Nevermined protocol, allowing users to query AI Agents or publish their own.
+* As part of an AI Agent, the library allows the agent to query other agents programmatically. Additionally, agents can use the library to expose their own services and make them available to other agents or humans.
 
 ## Quickstart
 
-```
+```bash
 # yarn
 yarn add @nevermined-io/payments
 
 # npm
-
 npm install @nevermined-io/payments
 ```
 
@@ -166,4 +164,22 @@ const agentHTTPOptions = {
 }
 const response = await fetch(new URL(agentURL), agentHTTPOptions)
 
+```
+
+## License
+
+```text
+Copyright 2025 Nevermined AG
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 ```
