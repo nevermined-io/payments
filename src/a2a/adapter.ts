@@ -294,9 +294,9 @@ export class PaymentsA2AAdapter implements AgentExecutor {
   /**
    * Handles task cancellation by delegating to the user's cancelTask method.
    * @param taskId - The ID of the task to cancel.
-   * @param eventBus - The event bus for publishing cancellation events.
+   * @param _eventBus - The event bus for publishing cancellation events (unused in current implementation).
    */
-  async cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void> {
+  async cancelTask(taskId: string, _eventBus: ExecutionEventBus): Promise<void> {
     await this.userExecutor.cancelTask(taskId)
     // Optionally publish a cancellation event here if needed
   }

@@ -5,7 +5,7 @@ import type { AgentCard } from './types'
 
 /**
  * Payment/pricing information to be included in the AgentCard extensions.
- * Must be compatible with {[key: string]: unknown} to comply with A2A standard.
+ * Must be compatible with \{[key: string]: unknown\} to comply with A2A standard.
  */
 export interface PaymentAgentCardMetadata {
   paymentType: 'fixed' | 'dynamic'
