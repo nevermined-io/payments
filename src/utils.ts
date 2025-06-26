@@ -43,6 +43,39 @@ export const isStepIdValid = (stepId: string): boolean => {
 }
 
 /**
+ * Decodes a JWT token and returns the full payload for debugging purposes.
+ * @param accessToken - The JWT access token
+ * @returns The decoded payload object or null if invalid
+ */
+export const decodeAccessToken = (accessToken: string): any | null => {
+  try {
+    const parts = accessToken.split('.')
+    if (parts.length !== 3) {
+      return null
+    }
+
+    const payload = parts[1]
+    const paddedPayload = payload + '='.repeat((4 - (payload.length % 4)) % 4)
+    const decodedPayload = atob(paddedPayload.replace(/-/g, '+').replace(/_/g, '/'))
+
+    const tokenData = JSON.parse(decodedPayload)
+
+    // Check if this is a nested token structure with authToken field
+    if (tokenData.authToken) {
+      // Return both the outer token data and the decoded inner authToken
+      return {
+        ...tokenData,
+        authToken: decodeAccessToken(tokenData.authToken),
+      }
+    }
+
+    return tokenData
+  } catch (error) {
+    return null
+  }
+}
+
+/**
  * It returns the list of endpoints that are used by agents/services implementing the Nevermined Query Protocol
  * @param serverHost - The host of the server where the agents/services are running
  * @returns the list of endpoints

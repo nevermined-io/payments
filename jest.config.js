@@ -1,6 +1,10 @@
 module.exports = {
-  transform: {'^.+\\.ts?$': 'ts-jest'},
-  testEnvironment: 'node',  
+  preset: 'ts-jest',
+  testEnvironment: 'node',
   testRegex: '/tests/unit/.*\\.(test|spec)?\\.(ts|tsx)$',
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node']
-};
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  moduleNameMapper: {
+    '^@a2a-js/sdk$': '<rootDir>/__mocks__/@a2a-js/sdk.ts',
+  },
+  transformIgnorePatterns: ['node_modules/(?!(@a2a-js/sdk)/)'],
+}

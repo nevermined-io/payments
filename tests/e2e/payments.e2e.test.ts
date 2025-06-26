@@ -1,7 +1,23 @@
-import { Address, AgentAccessParams, AgentMetadata, Endpoint, PlanMetadata, PlanPriceType } from '../../src/common/types'
+import {
+  Address,
+  AgentAccessParams,
+  AgentMetadata,
+  Endpoint,
+  PlanMetadata,
+  PlanPriceType,
+} from '../../src/common/types'
 import { EnvironmentName, ZeroAddress } from '../../src/environments'
 import { Payments } from '../../src/payments'
-import { getERC20PriceConfig, getExpirableDurationConfig, getFiatPriceConfig, getFixedCreditsConfig, getFreePriceConfig, getNativeTokenPriceConfig, getNonExpirableDurationConfig, ONE_DAY_DURATION } from '../../src/plans'
+import {
+  getERC20PriceConfig,
+  getExpirableDurationConfig,
+  getFiatPriceConfig,
+  getFixedCreditsConfig,
+  getFreePriceConfig,
+  getNativeTokenPriceConfig,
+  getNonExpirableDurationConfig,
+  ONE_DAY_DURATION,
+} from '../../src/plans'
 import http from 'http'
 
 describe('Payments API (e2e)', () => {
@@ -9,16 +25,17 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGM1NWNiNTUzN2IzNmQ3MmRmZjBmMGY0MGYzMmY1ZTMwMjVkOWFiYmI5YTJhZjgwNjM2NWEzYmQzOWVkMWJiMWUiLCJleHAiOjE3ODE3MTQyMzF9.s0Pj27izNBnswrO7n8Gjfk7HplSChd4x5dtBMP4WTkYwnNLf-tfvscz-eNPrJshV0cLTb1QIyTZCFxXbPLuW_hs'
-  const builderNvmApiKeyHash =  
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDA4MjRlM0YzNjI1MmQzMjUyNzRDQTcxNTQyMWM3OTU2ZTY0MWEyYzQiLCJqdGkiOiIweDA0OGQ0NDVmMWQ3MzJlNzczMGU2NGY1NTViMTk0MWQzMDZiOGM5Y2MwOTdkM2VhZDlmMjcwNWI1MzVhY2QzNzQiLCJleHAiOjE3ODI0ODU5NDh9.aLthh9Kato8my_TRTL1zhnynAvHwpVco3g7K47L2jGt5Zn7L5HAxnPZUryxihnIG-zaon5Z-m3PaT7GEqmZhshw'
+  const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDk2ZWIxNzdkMTg1M2EyNGI2NGM5ZTIzMDYxZjhkYjJmNGQ0ZjUzNDEzYjU1ZjczN2M5ZWY4MmJiYzlkNmNlZjQiLCJleHAiOjE3ODE3MTQyMzB9.G0iWkDVKXM_608hYQ5hUpc1HWZDOlRBasyO6iCo9FdQYleihUWmtlczAlQoHmgThnj6_eS3S6O_pCfKU9EBbpBw'
-  const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweEIyZWRCRjJhMjhEM0VkNDA2ZGM4ZDMyZDdFNTY2OWM2Mzc0NjBmMTgiLCJqdGkiOiIweGFhODhmNTc5ZWE3ZmE5YjAzMThiNDM3ZmEzOWRkMTY0NjEyMjdkM2U1NTgxNWE0Y2I1M2E0ODNmZDg0NTg2OTMiLCJleHAiOjE3ODI0ODU5NDd9.v11AevFpxhTQgxgg-rfrznu_Q_xFkN9BdYrs7qfBcRJIZaSsOp6JNXKxlPPcmMO4qokVYAXTlMbycNh8wpYjXBw'
+  const testingEnvironment = process.env.TEST_ENVIRONMENT || 'local'
   const _SLEEP_DURATION = 3_000
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
-    { 'POST': `http://localhost:8889/test/:agentId/tasks` },
-    { 'GET': `http://localhost:8889/test/:agentId/tasks/:taskId` }
+    { POST: `http://localhost:41242/test/:agentId/tasks` },
+    { POST: `http://localhost:41242/` },
+    { GET: `http://localhost:41242/test/:agentId/tasks/:taskId` },
   ]
 
   let paymentsSubscriber: Payments
@@ -39,10 +56,10 @@ describe('Payments API (e2e)', () => {
         nvmApiKey: subscriberNvmApiKeyHash,
         environment: testingEnvironment as EnvironmentName,
       })
-      
+
       expect(paymentsSubscriber).toBeDefined()
       expect(paymentsSubscriber.query).toBeDefined()
-      
+
       paymentsBuilder = Payments.getInstance({
         nvmApiKey: builderNvmApiKeyHash,
         environment: testingEnvironment as EnvironmentName,
@@ -50,13 +67,13 @@ describe('Payments API (e2e)', () => {
       expect(paymentsBuilder).toBeDefined()
       expect(paymentsBuilder.query).toBeDefined()
       builderAddress = paymentsBuilder.accountAddress as Address
+      console.log('Builder Address', builderAddress)
     })
-
   })
-
 
   describe('AI Builder Publication', () => {
     it('I get a FIAT price config setup', async () => {
+      const builderAddress = paymentsBuilder.accountAddress as Address
       const fiatPriceConfig = getFiatPriceConfig(100n, builderAddress)
       expect(fiatPriceConfig).toBeDefined()
       expect(fiatPriceConfig.priceType).toBe(PlanPriceType.FIXED_FIAT_PRICE)
@@ -71,7 +88,6 @@ describe('Payments API (e2e)', () => {
       expect(cryptoPriceConfig.amounts[0]).toBe(100n)
       expect(cryptoPriceConfig.receivers[0]).toBe(builderAddress)
       expect(cryptoPriceConfig.tokenAddress).toBe(ZeroAddress)
-
     })
 
     it(
@@ -80,9 +96,13 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
+        const response = await paymentsBuilder.registerCreditsPlan(
+          planMetadata,
+          priceConfig,
+          creditsConfig,
+        )
         expect(response).toBeDefined()
-        creditsPlanId = response.planId 
+        creditsPlanId = response.planId
 
         expect(creditsPlanId).toBeDefined()
         expect(BigInt(creditsPlanId) > 0n).toBeTruthy()
@@ -96,9 +116,13 @@ describe('Payments API (e2e)', () => {
       async () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
-        const response = await paymentsBuilder.registerTimePlan(planMetadata, priceConfig, creditsConfig)
+        const response = await paymentsBuilder.registerTimePlan(
+          planMetadata,
+          priceConfig,
+          creditsConfig,
+        )
         expect(response).toBeDefined()
-        expirablePlanId = response.planId 
+        expirablePlanId = response.planId
 
         expect(expirablePlanId).toBeDefined()
         expect(BigInt(expirablePlanId) > 0n).toBeTruthy()
@@ -116,9 +140,13 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getFreePriceConfig()
         const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.registerTimeTrialPlan(trialPlanMetadata, priceConfig, creditsConfig)
+        const response = await paymentsBuilder.registerTimeTrialPlan(
+          trialPlanMetadata,
+          priceConfig,
+          creditsConfig,
+        )
         expect(response).toBeDefined()
-        trialPlanId = response.planId 
+        trialPlanId = response.planId
 
         expect(trialPlanId).toBeDefined()
         expect(BigInt(trialPlanId) > 0n).toBeTruthy()
@@ -133,12 +161,13 @@ describe('Payments API (e2e)', () => {
         const agentMetadata: AgentMetadata = {
           name: 'E2E Payments Agent',
           tags: ['test'],
-          dateCreated: new Date()
+          dateCreated: new Date(),
+          description: 'E2E Payments Agent',
         }
         const agentApi = {
-          endpoints: AGENT_ENDPOINTS
+          endpoints: AGENT_ENDPOINTS,
         }
-        const paymentPlans = [ creditsPlanId, expirablePlanId ]
+        const paymentPlans = [creditsPlanId, expirablePlanId]
         const result = await paymentsBuilder.registerAgent(agentMetadata, agentApi, paymentPlans)
         agentId = result.agentId
         expect(agentId).toBeDefined()
@@ -152,12 +181,11 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to register an agent and a plan in one step',
       async () => {
-
-        const agentMetadata = { name: 'My AI Payments Agent', tags: ['test2'] }
-        const agentApi = { endpoints: [{ 'POST': 'http://localhost:8889/test/:agentId/tasks' }] }
+        const agentMetadata = { name: 'My AI Payments Agent', tags: ['test2'], description: 'test' }
+        const agentApi = { endpoints: [{ POST: 'http://localhost:41242/' }] }
         const cryptoPriceConfig = getNativeTokenPriceConfig(500n, builderAddress)
         const nonExpirableConfig = getNonExpirableDurationConfig()
-        
+
         const { agentId, planId } = await paymentsBuilder.registerAgentAndPlan(
           agentMetadata,
           agentApi,
@@ -191,7 +219,6 @@ describe('Payments API (e2e)', () => {
       TEST_TIMEOUT,
     )
   })
-    
 
   describe('Plan Purchase', () => {
     it(
@@ -214,7 +241,6 @@ describe('Payments API (e2e)', () => {
       expect(BigInt(balanceResult.balance)).toBeGreaterThan(0)
     })
 
-
     it(
       'I should be able to get a Trial Plan',
       async () => {
@@ -231,20 +257,16 @@ describe('Payments API (e2e)', () => {
     it(
       'I should NOT be able to get a Trial Plan twice',
       async () => {
-        await expect(
-          paymentsSubscriber.orderPlan(trialPlanId)
-        ).rejects.toThrow()
+        await expect(paymentsSubscriber.orderPlan(trialPlanId)).rejects.toThrow()
       },
       TEST_TIMEOUT * 2,
     )
   })
 
   describe('E2E Subscriber/Agent flow', () => {
-
     let server: http.Server
     let agentAccessParams: AgentAccessParams
     const agentURL = 'http://localhost:8889/test/12345/tasks'
-
 
     beforeAll(async () => {
       server = http.createServer(async (req, res) => {
@@ -255,7 +277,12 @@ describe('Payments API (e2e)', () => {
         console.log('Received request:', { endpoint: requestedUrl, httpVerb, authHeader })
         let isValidReq
         try {
-          isValidReq = await paymentsBuilder.isValidRequest(agentId, authHeader, requestedUrl, httpVerb!)
+          isValidReq = await paymentsBuilder.isValidRequest(
+            agentId,
+            authHeader,
+            requestedUrl,
+            httpVerb!,
+          )
           console.log('isValidReq', isValidReq)
           if (isValidReq.balance.isSubscriber) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -265,11 +292,10 @@ describe('Payments API (e2e)', () => {
         } catch (error) {
           console.log('Unauthorized access attempt:', authHeader)
         }
-        
+
         res.writeHead(403, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Unauthorized' }))
         return
-        
       })
 
       server.listen(8889, () => {
@@ -292,50 +318,54 @@ describe('Payments API (e2e)', () => {
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
     })
 
-    it('I should be able to send a request DIRECTLY to the agent', async () => {
-      const agentHTTPOptions = {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Authorization:  `Bearer ${agentAccessParams.accessToken}`
-        },
-      }
-      const response = await fetch(new URL(agentURL), agentHTTPOptions)
-      expect(response).toBeDefined()
-      console.log(await response.json())
-      expect(response.ok).toBeTruthy()
-    }, TEST_TIMEOUT) 
+    it(
+      'I should be able to send a request DIRECTLY to the agent',
+      async () => {
+        const agentHTTPOptions = {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${agentAccessParams.accessToken}`,
+          },
+        }
+        const response = await fetch(new URL(agentURL), agentHTTPOptions)
+        expect(response).toBeDefined()
+        console.log(await response.json())
+        expect(response.ok).toBeTruthy()
+      },
+      TEST_TIMEOUT,
+    )
 
-    it('I should NOT be able to query an agent with invalid params', async () => {
-      const agentHTTPOptions = {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Authorization:  `Bearer INVALID_TOKEN`
-        },
-      }
-      // await expect(
-      //   fetch(new URL(agentURL), agentHTTPOptions)
-      // ).rejects.toThrow()
-      const response = await fetch(new URL(agentURL), agentHTTPOptions)
-      expect(response).toBeDefined()
-      expect(response.status).toBe(403)
-    }, TEST_TIMEOUT)
-
+    it(
+      'I should NOT be able to query an agent with invalid params',
+      async () => {
+        const agentHTTPOptions = {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer INVALID_TOKEN`,
+          },
+        }
+        // await expect(
+        //   fetch(new URL(agentURL), agentHTTPOptions)
+        // ).rejects.toThrow()
+        const response = await fetch(new URL(agentURL), agentHTTPOptions)
+        expect(response).toBeDefined()
+        expect(response.status).toBe(403)
+      },
+      TEST_TIMEOUT,
+    )
   })
 
-  
-
   describe.skip('Errors', () => {
-
     it(
       'I should not be able to get a that does not exist',
       async () => {
         const result = await paymentsBuilder.getPlan('11111')
         expect(result).toBeUndefined()
-        // expect(() => 
+        // expect(() =>
         //   paymentsBuilder.getPlan('11111')
         // ).toThrow(PaymentsError)
       },

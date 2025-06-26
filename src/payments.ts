@@ -2,6 +2,7 @@ import { decodeJwt } from 'jose'
 import { AIQueryApi } from './api/query-api'
 import { jsonReplacer } from './common/helper'
 import { PaymentsError } from './common/payments.error'
+import { decodeAccessToken } from './utils'
 import {
   PaymentOptions,
   PlanPriceConfig,
@@ -34,10 +35,18 @@ import {
   API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
 } from './api/nvm-api'
 import { access } from 'fs'
+import * as a2aModule from './a2a'
+import type { PaymentsA2AServerOptions } from './a2a/server'
 
 /**
  * Main class that interacts with the Nevermined payments API.
  * Use `Payments.getInstance` for server-side usage or `Payments.getBrowserInstance` for browser usage.
+ *
+ * Now exposes an instance property `a2a` for launching an A2A agent server:
+ *
+ * @example
+ * const payments = Payments.getInstance({ ... })
+ * payments.a2a.start({ agentCard, executor, port: 41242 })
  */
 export class Payments {
   public query!: AIQueryApi
@@ -48,6 +57,18 @@ export class Payments {
   public accountAddress?: string
   private nvmApiKey?: string
   public isBrowserInstance = true
+
+  /**
+   * Exposes A2A agent/server functionality for this Payments instance.
+   * Usage: payments.a2a.start({ agentCard, executor, port, ... })
+   */
+  public readonly a2a: {
+    /**
+     * Starts the A2A server using this Payments instance for payment logic.
+     * @param options - All PaymentsA2AServerOptions except 'paymentsService'.
+     */
+    start: (options: Omit<PaymentsA2AServerOptions, 'paymentsService'>) => void
+  }
 
   /**
    * Get an instance of the Payments class for server-side usage.
@@ -113,6 +134,17 @@ export class Payments {
       this.parseNvmApiKey()
       this.initializeApi()
     }
+    // ---
+    // Attach the a2a server API to this instance
+    this.a2a = {
+      start: (options) => {
+        return a2aModule.PaymentsA2AServer.start({
+          ...options,
+          paymentsService: this,
+        })
+      },
+    }
+    // ---
   }
 
   /**
@@ -466,7 +498,9 @@ export class Payments {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to register agent. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to register agent. ${response.statusText} - ${await response.text()}`,
+      )
     }
     const agentData = await response.json()
     return { agentId: agentData.agentId }
@@ -558,10 +592,7 @@ export class Payments {
    * @returns A promise that resolves to the balance result.
    * @throws PaymentsError if unable to get the balance.
    */
-  public async getPlanBalance(
-    planId: string,
-    accountAddress?: string,
-  ): Promise<PlanBalance> {
+  public async getPlanBalance(planId: string, accountAddress?: string): Promise<PlanBalance> {
     const holderAddress = isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress
     const balanceUrl = API_URL_PLAN_BALANCE.replace(':planId', planId).replace(
       ':holderAddress',
@@ -578,7 +609,9 @@ export class Payments {
     const url = new URL(balanceUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to get balance. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to get balance. ${response.statusText} - ${await response.text()}`,
+      )
     }
 
     return response.json()
@@ -599,7 +632,9 @@ export class Payments {
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to order plan. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to order plan. ${response.statusText} - ${await response.text()}`,
+      )
     }
 
     return response.json()
@@ -623,7 +658,9 @@ export class Payments {
     const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to mint plan credits. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to mint plan credits. ${response.statusText} - ${await response.text()}`,
+      )
     }
 
     return response.json()
@@ -653,7 +690,9 @@ export class Payments {
     const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to mint expirable credits. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to mint expirable credits. ${response.statusText} - ${await response.text()}`,
+      )
     }
 
     return response.json()
@@ -676,7 +715,9 @@ export class Payments {
     const url = new URL(API_URL_BURN_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to burn credits. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to burn credits. ${response.statusText} - ${await response.text()}`,
+      )
     }
 
     return response.json()
@@ -700,7 +741,9 @@ export class Payments {
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to add plan to agent. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to add plan to agent. ${response.statusText} - ${await response.text()}`,
+      )
     }
 
     return response.json()
@@ -720,11 +763,16 @@ export class Payments {
    */
   public async removePlanFromAgent(planId: string, agentId: string) {
     const options = this.getBackendHTTPOptions('DELETE')
-    const endpoint = API_URL_REMOVE_PLAN_AGENT.replace(':planId', planId).replace(':agentId', agentId)
+    const endpoint = API_URL_REMOVE_PLAN_AGENT.replace(':planId', planId).replace(
+      ':agentId',
+      agentId,
+    )
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to remove plan from agent. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to remove plan from agent. ${response.statusText} - ${await response.text()}`,
+      )
     }
 
     return response.json()
@@ -757,43 +805,111 @@ export class Payments {
     const url = new URL(API_URL_SEARCH_AGENTS, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Error searching agents. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Error searching agents. ${response.statusText} - ${await response.text()}`,
+      )
     }
     return response.json()
   }
 
-
+  /**
+   * Gets the access token for an AI Agent.
+   *
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param agentId - The unique identifier of the AI Agent.
+   * @returns A promise that resolves to the agent's access token.
+   * @throws PaymentsError if unable to get the access token.
+   */
   public async getAgentAccessToken(planId: string, agentId: string): Promise<AgentAccessParams> {
-
-    const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId)
-      .replace(':agentId', agentId!
-      )
+    const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId).replace(
+      ':agentId',
+      agentId!,
+    )
     const options = this.getBackendHTTPOptions('GET')
 
     const url = new URL(accessTokenUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to get agent access token. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to get agent access token. ${response.statusText} - ${await response.text()}`,
+      )
     }
 
     return response.json()
   }
 
-  public async isValidRequest(agentId: string, accessToken: string | undefined, urlRequested: string, httpMethodRequested: string): Promise<ValidationAgentRequest> {
-
-    const validateTokenUrl = API_URL_VALIDATE_AGENT_ACCESS_TOKEN.replace(':agentId', agentId!
-      )
-    const body = { 
+  /**
+   * Validates an access token for an AI Agent.
+   *
+   * @param agentId - The unique identifier of the AI Agent.
+   * @param accessToken - The access token to validate.
+   * @param urlRequested - The URL requested.
+   * @param httpMethodRequested - The HTTP method requested.
+   * @returns A promise that resolves to the validation result.
+   * @throws PaymentsError if unable to validate the access token.
+   */
+  public async isValidRequest(
+    agentId: string,
+    accessToken: string | undefined,
+    urlRequested: string,
+    httpMethodRequested: string,
+  ): Promise<ValidationAgentRequest> {
+    const validateTokenUrl = API_URL_VALIDATE_AGENT_ACCESS_TOKEN.replace(':agentId', agentId!)
+    const body = {
       accessToken,
       endpoint: urlRequested,
-      httpVerb: httpMethodRequested, 
+      httpVerb: httpMethodRequested,
     }
     const options = this.getBackendHTTPOptions('POST', body)
 
     const url = new URL(validateTokenUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(`Unable to validate access token. ${response.statusText} - ${await response.text()}`)
+      throw new PaymentsError(
+        `Unable to validate access token. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Allows the agent to redeem credits from a request.
+   *
+   * @param requestAccessToken - The access token of the request.
+   * @param creditsToBurn - The number of credits to burn.
+   * @returns A promise that resolves to the server response.
+   * @throws PaymentsError if unable to redeem credits from the request.
+   */
+  public async redeemCreditsFromRequest(requestAccessToken: string, creditsToBurn: bigint) {
+    // Decode the access token to get the wallet address and plan ID
+    const decodedToken = decodeAccessToken(requestAccessToken)
+    if (!decodedToken) {
+      throw new PaymentsError('Invalid access token provided')
+    }
+
+    // Extract wallet address and plan ID from the token
+    const walletAddress = decodedToken.authToken?.sub || decodedToken.sub
+    const planId = decodedToken.authToken?.planId || decodedToken.planId
+
+    if (!walletAddress || !planId) {
+      throw new PaymentsError('Missing wallet address or plan ID in access token')
+    }
+
+    const body = {
+      planId: BigInt(planId),
+      redeemFrom: walletAddress,
+      amount: creditsToBurn,
+    }
+
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_BURN_PLAN, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      const responseText = await response.text()
+      throw new PaymentsError(
+        `Unable to redeem credits from request. ${response.status} ${response.statusText} - ${responseText}`,
+      )
     }
 
     return response.json()
