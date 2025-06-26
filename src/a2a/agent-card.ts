@@ -1,5 +1,5 @@
 /**
- * @fileoverview Helper to build an AgentCard with payment/pricing metadata for A2A agents.
+ * Helper to build an AgentCard with payment/pricing metadata for A2A agents.
  */
 import type { AgentCard } from './types'
 

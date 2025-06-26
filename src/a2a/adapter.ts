@@ -1,5 +1,5 @@
 /**
- * @fileoverview PaymentsA2AAdapter bridges user executor logic with the A2A SDK.
+ * PaymentsA2AAdapter bridges user executor logic with the A2A SDK.
  * Handles credit validation, task execution, and credit burning.
  */
 import { v4 as uuidv4 } from 'uuid'

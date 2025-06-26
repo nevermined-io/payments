@@ -1,5 +1,5 @@
 /**
- * @fileoverview Abstract base class for implementing a payments A2A agent executor.
+ * Abstract base class for implementing a payments A2A agent executor.
  * Users should extend this class and implement the handleTask method.
  */
 import type { TaskContext, TaskHandlerResult } from './types'

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Types and interfaces for the A2A payments integration.
+ * Types and interfaces for the A2A payments integration.
  * Defines context, handler result, and payment metadata structures.
  */
 

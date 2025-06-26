@@ -1,5 +1,5 @@
 /**
- * @fileoverview PaymentsA2AServer sets up and starts the A2A server for payments agents.
+ * PaymentsA2AServer sets up and starts the A2A server for payments agents.
  * Handles A2A protocol endpoints and allows optional custom endpoints.
  */
 import express from 'express'
