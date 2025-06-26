@@ -33,7 +33,6 @@ import {
   API_URL_SEARCH_AGENTS,
   API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
 } from './api/nvm-api'
-import { access } from 'fs'
 import * as a2aModule from './a2a'
 import type { PaymentsA2AServerOptions } from './a2a/server'
 
