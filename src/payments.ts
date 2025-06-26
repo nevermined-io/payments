@@ -13,7 +13,6 @@ import {
   PlanBalance,
   PlanMetadata,
   AgentAccessParams,
-  SubscriberRequestStatus,
   ValidationAgentRequest,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
