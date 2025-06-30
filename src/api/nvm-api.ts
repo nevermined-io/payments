@@ -19,6 +19,10 @@ export const API_URL_PLAN_BALANCE = '/api/v1/protocol/plans/:planId/balance/:hol
 export const API_URL_GET_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/:planId/:agentId'
 export const API_URL_VALIDATE_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/validate/:agentId'
 
+export const API_URL_TRACK_AGENT_TASK = '/api/v1/protocol/agent-tasks'
+export const API_URL_TRACK_AGENT_SUB_TASK = '/api/v1/protocol/agent-sub-tasks'
+
+
 export interface BackendApiOptions {
   /**
    * The host of the backend server

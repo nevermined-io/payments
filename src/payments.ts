@@ -13,7 +13,11 @@ import {
   PlanMetadata,
   AgentAccessParams,
   ValidationAgentRequest,
-  PaginationOptions,
+  TrackAgentTaskResponseDto,
+  TrackAgentTaskDto,
+  AgentTaskStatus,
+  TrackAgentSubTaskResponseDto,
+  TrackAgentSubTaskDto,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
 import { getRandomBigInt, isEthereumAddress } from './utils'
@@ -32,6 +36,8 @@ import {
   API_URL_REGISTER_AGENT,
   API_URL_REGISTER_PLAN,
   API_URL_REMOVE_PLAN_AGENT,
+  API_URL_TRACK_AGENT_SUB_TASK,
+  API_URL_TRACK_AGENT_TASK,
   API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
 } from './api/nvm-api'
 
@@ -862,6 +868,187 @@ export class Payments {
     }
 
     return response.json()
+  }
+
+  /**
+   * Tracks an agent task for an agent.
+   *
+   * @remarks
+   * This method is used by agent owners to track agent tasks when users interact with their agents.
+   * It records usage metrics including credits consumed, HTTP methods used, and endpoints accessed.
+   *
+   * @param transactionData - The agent task data to track
+   * @returns A promise that resolves to the tracking response
+   * @throws PaymentsError if unable to track the transaction
+   *
+   * @example
+   * ```typescript
+   * await payments.trackAgentTask({
+   *   agentId: 'did:nv:agent-12345',
+   *   planId: 'did:nv:plan-67890',
+   *   consumer: '0x1234567890123456789012345678901234567890',
+   *   httpVerb: 'POST',
+   *   endpoint: '/api/v1/chat',
+   *   status: AgentTaskStatus.SUCCESS,
+   *   totalCredits: 5
+   * })
+   * ```
+   */
+  public async trackAgentTask(  
+    transactionData: TrackAgentTaskDto,
+  ): Promise<TrackAgentTaskResponseDto> {
+    const body = {
+      agentId: transactionData.agentId,
+      planId: transactionData.planId,
+      consumer: transactionData.consumer,
+      httpVerb: transactionData.httpVerb,
+      endpoint: transactionData.endpoint,
+      status: transactionData.status || AgentTaskStatus.SUCCESS,
+      totalCredits: transactionData.totalCredits,
+    }
+
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_TRACK_AGENT_TASK, this.environment.backend)
+    const response = await fetch(url, options)
+
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to track access transaction. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Tracks an access transaction for an agent using individual parameters.
+   *
+   * @remarks
+   * This is a convenience method that wraps {@link trackTransaction} for easier usage.
+   * It's especially useful when integrating access tracking directly into agent endpoints.
+   *
+   * @param agentId - The unique identifier of the agent
+   * @param planId - The unique identifier of the plan
+   * @param consumer - The address of the consumer accessing the agent
+   * @param httpVerb - The HTTP verb used for the request
+   * @param totalCredits - The total number of credits used in this transaction
+   * @param endpoint - The endpoint that was accessed (optional)
+   * @param status - The status of the access transaction (optional, defaults to SUCCESS)
+   * @returns A promise that resolves to the tracking response
+   * @throws PaymentsError if unable to track the transaction
+   *
+   * @example
+   * ```typescript
+   * await payments.trackAgentAccessEntry(
+   *   'did:nv:agent-12345',
+   *   'did:nv:plan-67890',
+   *   '0x1234567890123456789012345678901234567890',
+   *   'POST',
+   *   5,
+   *   '/api/v1/chat'
+   * )
+   * ```
+   */
+  public async trackAgentAccessEntry(
+    agentId: string,
+    planId: string,
+    consumer: string,
+    httpVerb: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
+    totalCredits: number,
+    endpoint?: string,
+    status: AgentTaskStatus = AgentTaskStatus.SUCCESS,
+  ): Promise<TrackAgentTaskResponseDto> {
+    return this.trackAgentTask({
+      agentId,
+      planId,
+      consumer,
+      httpVerb,
+      endpoint,
+      status,
+      totalCredits,
+    })
+  }
+
+  /**
+   * Tracks an agent sub task.
+   *
+   * @remarks
+   * This method is used by agent owners to track agent sub tasks for agent tasks.
+   * It records information about credit redemption, categorization tags, and processing descriptions.
+   *
+   * @param trackAgentSubTask - The agent sub task data to track
+   * @returns A promise that resolves to the tracking response
+   * @throws PaymentsError if unable to track the agent sub task
+   *
+   * @example
+   * ```typescript
+   * await payments.trackAgentSubTask({
+   *   agentRequestId: 'atx-12345',
+   *   creditsToRedeem: 5,
+   *   tag: 'high-priority',
+   *   description: 'Processing high-priority data request'
+   * })
+   * ```
+   */
+  public async trackAgentSubTask(
+    trackAgentSubTask: TrackAgentSubTaskDto,
+  ): Promise<TrackAgentSubTaskResponseDto> {
+    const body = {
+      agentRequestId: trackAgentSubTask.agentRequestId,
+      creditsToRedeem: trackAgentSubTask.creditsToRedeem || 0,
+      tag: trackAgentSubTask.tag,
+      description: trackAgentSubTask.description,
+    }
+
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_TRACK_AGENT_SUB_TASK, this.environment.backend)
+    const response = await fetch(url, options)
+
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to track agent sub task. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Tracks an agent sub task using individual parameters.
+   *
+   * @remarks
+   * This is a convenience method that wraps {@link trackAgentSubTask} for easier usage.
+   * It's especially useful when integrating agent sub task tracking directly into agent processing workflows.
+   *
+   * @param agentRequestId - The unique identifier of the access transaction
+   * @param creditsToRedeem - The number of credits burned in this agent sub task (optional, defaults to 0)
+   * @param tag - A tag to categorize this agent sub task (optional)
+   * @param description - A description of this agent sub task (optional)
+   * @returns A promise that resolves to the tracking response
+   * @throws PaymentsError if unable to track the agent sub task
+   *
+   * @example
+   * ```typescript
+   * await payments.trackAgentSubTaskEntry(
+   *   'atx-12345',
+   *   5,
+   *   'high-priority',
+   *   'Processing high-priority data request'
+   * )
+   * ```
+   */
+  public async trackAgentSubTaskEntry(
+    agentRequestId: string,
+    creditsToRedeem: number = 0,
+    tag?: string,
+    description?: string,
+  ): Promise<TrackAgentSubTaskResponseDto> {
+    return this.trackAgentSubTask({
+      agentRequestId,
+      creditsToRedeem,
+      tag,
+      description,
+    })
   }
 
   /**

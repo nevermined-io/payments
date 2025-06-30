@@ -338,3 +338,109 @@ export class PaginationOptions {
     return new URLSearchParams(params).toString()
   }
 }
+
+/**
+ * Status of an agent task
+ */
+export enum AgentTaskStatus {
+  SUCCESS = 'SUCCESS',
+  FAILED = 'FAILED',
+  PENDING = 'PENDING',
+}
+
+/**
+ * Data transfer object for tracking agent tasks
+ */
+export interface TrackAgentTaskDto {
+  /**
+   * The unique identifier of the agent
+   */
+  agentId: string
+
+  /**
+   * The unique identifier of the plan
+   */
+  planId: string
+
+  /**
+   * The address of the consumer accessing the agent
+   */
+  consumer: string
+
+  /**
+   * The HTTP verb used for the request
+   */
+  httpVerb: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+
+  /**
+   * The endpoint that was accessed (optional)
+   */
+  endpoint?: string
+
+  /**
+   * The status of the agent task (optional)
+   * @defaultValue AgentTaskStatus.SUCCESS
+   */
+  status?: AgentTaskStatus
+
+  /**
+   * The total number of credits used in this transaction
+   */
+  totalCredits: number
+}
+
+/**
+ * Response data transfer object for tracking agent tasks
+ */
+export interface TrackAgentTaskResponseDto {
+  /**
+   * Indicates if the agent task was tracked successfully
+   */
+  success: boolean
+
+  /**
+   * Success or error message
+   */
+  message: string
+}
+
+/**
+ * Data transfer object for tracking agent sub tasks
+ */
+export interface TrackAgentSubTaskDto {
+  /**
+   * The unique identifier of the agent task
+   */
+  agentRequestId: string
+
+  /**
+   * The number of credits burned in this agent sub task (optional)
+   * @defaultValue 0
+   */
+  creditsToRedeem?: number
+
+  /**
+   * A tag to categorize this agent sub task (optional)
+   */
+  tag?: string
+
+  /**
+   * A description of this agent sub task (optional)
+   */
+  description?: string
+}
+
+/**
+ * Response data transfer object for tracking agent sub tasks
+ */
+export interface TrackAgentSubTaskResponseDto {
+  /**
+   * Indicates if the agent sub task was tracked successfully
+   */
+  success: boolean
+
+  /**
+   * Success or error message
+   */
+  message: string
+}
