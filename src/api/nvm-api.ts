@@ -22,7 +22,6 @@ export const API_URL_VALIDATE_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/valid
 export const API_URL_TRACK_AGENT_TASK = '/api/v1/protocol/agent-tasks'
 export const API_URL_TRACK_AGENT_SUB_TASK = '/api/v1/protocol/agent-sub-tasks'
 
-
 export interface BackendApiOptions {
   /**
    * The host of the backend server
