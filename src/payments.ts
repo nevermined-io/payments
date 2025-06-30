@@ -737,7 +737,7 @@ export class Payments {
 
     return response.json()
   }
-
+  
   /**
    * Adds an existing Payment Plan to an AI Agent.
    * After this operation, users with access to the Payment Plan will be able to access the AI Agent.

@@ -1,5 +1,58 @@
 # Documentation of a new potential API
 
+## New API Structure
+
+The library is initialized by calling the `getInstance` method, which returns an instance of the `Payments` class. This instance is used to interact with the Payments API.
+
+The library requires an API key to be passed as an argument when calling `getInstance`. This API key is used to authenticate/authorize the requests made to the Backend API.
+
+The library is structured in the following modules:
+
+* `payments`: The main module that provides the instance of the Payments class and methods. It exposes to methods to connect/disconnect.
+* `plans`: This module provides methods to register and manage payment plans.
+* `agents`: This module provides methods to register and manage agents.
+* `a2a`: This module provides methods to facilitate the integration with Google A2A agents.
+* `mcp`: This module provides methods to manage the integration with MCP agents.
+
+```
+const payments = Payments.getInstance()
+payments.isLoggedIn()
+payments.logout()
+
+payments.registerAgentAndPlan()
+
+payments.plans.registerPlan()
+payments.plans.registerCreditsPlan()
+payments.plans.registerTimePlan()
+payments.plans.registerCreditsTrialPlan
+payments.plans.registerTimeTrialPlan
+payments.plans.getPlan()
+payments.plans.getAgentsAssociatedToAPlan()
+payments.plans.getPlanBalance()
+payments.plans.orderPlan()
+payments.plans.mintPlanCredits()
+payments.plans.mintPlanExpirable()
+payments.plans.redeemCredits()
+
+
+payments.agents.registerAgent()
+payments.agents.getAgent()
+payments.agents.getAgentPlans()
+payments.agents.addPlanToAgent()
+payments.agents.removePlanFromAgent()
+payments.agents.getAgentAccessToken()
+
+payments.requests.initializeSubscriberRequest()
+payments.requests.updateSubscriberRequest()
+payments.requests.finishSubscriberRequest()
+
+payments.a2a.xxx
+payments.mcp.xxx
+
+
+```
+
+
 ## Connect
 
 We only support 4 environments:
@@ -180,13 +233,11 @@ const balance = await payments.getPlanBalance(planId)
 const balance = await payments.getPlanBalance(planId, userAddress)
 ```
 
-
 ## Usage scenarios
 
 ### As Subscriber (HUMAN or AGENT) I want to order & query an Agent
 
 ```typescript
-
 payments.getAgent(agentId)
 payments.getPlan(planId)
 payments.orderPlan(planId)
@@ -194,7 +245,6 @@ payments.getPlanBalance(planId)
 const queryOptions = await payments.getAgentHTTPOptions(planId, agentId)
 
 await fetch(url, queryOptions)
-
 ```
 
 ### Is a valid request from a subscriber?
@@ -208,10 +258,15 @@ if (!isValid) {
   return response.status(402).send(paymentCard)
 }
 
-function isValidRequest(planId: string, agentId: string, subscriberAddress: string, signature: string): Promise<boolean> {
+function isValidRequest(
+  planId: string,
+  agentId: string,
+  subscriberAddress: string,
+  signature: string,
+): Promise<boolean> {
   // Validate the plan is part of the agent
   const agent = await payments.getAgent(agentId)
-  if (!agent.registry.plans.some(plan => plan.planId === planId)) {
+  if (!agent.registry.plans.some((plan) => plan.planId === planId)) {
     return false
   }
 
@@ -221,15 +276,19 @@ function isValidRequest(planId: string, agentId: string, subscriberAddress: stri
     return false
   }
   // Validate the request signature against the plan and agent
-  const isValidSignature = await payments.validateSignature(planId, agentId, subscriberAddress, signature)
+  const isValidSignature = await payments.validateSignature(
+    planId,
+    agentId,
+    subscriberAddress,
+    signature,
+  )
   if (!isValidSignature) {
     return false
   }
 
-  return true  
+  return true
 }
 ```
-
 
 ### As Builder I want my Agent the ability to expose an API to subscribers
 
@@ -250,7 +309,7 @@ if (!balance.isSubscriber) {
 // Authorize the user ....
 // Process the AI request
 // Redeem credits
-const creditsToRedeem = 5n 
+const creditsToRedeem = 5n
 const payments.redeemCredits(planId, creditsToRedeem, proof)
 ```
 
