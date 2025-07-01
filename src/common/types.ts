@@ -189,6 +189,28 @@ export interface SubscriberRequestStatus {
   message?: string
 }
 
+export interface NvmAPIResult {
+  success: boolean
+  message?: string
+  txHash?: string
+  httpStatus?: number
+  data?: APIOutputData
+  when?: Date
+}
+
+export interface APIOutputData {
+  [key: string]: any
+}
+
+export interface StripeCheckoutResult {
+  stripeCheckoutSessionId: string
+  checkoutLink: string
+  clientReferenceId: string
+  paymentStatus?: string
+  linkCreatedAt: number
+  linkExpiresAt: number
+}
+
 /**
  * Metadata attributes describing the AI Agent.
  */

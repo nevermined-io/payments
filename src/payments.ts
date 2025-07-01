@@ -19,6 +19,8 @@ import {
   AgentTaskStatus,
   TrackAgentSubTaskResponseDto,
   TrackAgentSubTaskDto,
+  NvmAPIResult,
+  StripeCheckoutResult,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
 import { getRandomBigInt, isEthereumAddress } from './utils'
@@ -37,6 +39,7 @@ import {
   API_URL_REGISTER_AGENT,
   API_URL_REGISTER_PLAN,
   API_URL_REMOVE_PLAN_AGENT,
+  API_URL_STRIPE_CHECKOUT,
   API_URL_TRACK_AGENT_SUB_TASK,
   API_URL_TRACK_AGENT_TASK,
   API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
@@ -640,22 +643,50 @@ export class Payments {
   }
 
   /**
-   * Orders a Payment Plan. The user must have enough balance in the selected token.
+   * Orders a Payment Plan requiring the payment in crypto. The user must have enough balance in the selected token.
    *
    * @remarks
-   * The payment is done using crypto. Payments using fiat can be done via the Nevermined App.
+   * The payment is done using crypto in the token (ERC20 or native) defined in the plan.
    *
    * @param planId - The unique identifier of the plan.
    * @returns A promise that resolves indicating if the operation was successful.
    * @throws PaymentsError if unable to order the plan.
    */
-  public async orderPlan(planId: string): Promise<{ success: boolean }> {
+  public async orderPlan(planId: string): Promise<NvmAPIResult> {
     const options = this.getBackendHTTPOptions('POST')
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw new PaymentsError(
         `Unable to order plan. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+
+  /**
+   * Initiates the purchase of a Plan requiring the payment in Fiat. This method will return a URL where the user can complete the payment.
+   *
+   * @remarks
+   * The payment is completed using a credit card in a external website (Stripe).
+   *
+   * @param planId - The unique identifier of the plan.
+   * @returns A promise that resolves indicating the URL to complete the payment.
+   * @throws PaymentsError if unable to order the plan.
+   */
+  public async orderFiatPlan(planId: string): Promise<{ result: StripeCheckoutResult }> {
+    const body = {
+      sessionType: 'embedded', 
+      planId
+    }
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to order fiat plan. ${response.statusText} - ${await response.text()}`,
       )
     }
 
