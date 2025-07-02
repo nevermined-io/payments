@@ -34,7 +34,7 @@ import {
   API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
 } from './api/nvm-api'
 import * as a2aModule from './a2a'
-import type { PaymentsA2AServerOptions } from './a2a/server'
+import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/server'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -64,8 +64,9 @@ export class Payments {
     /**
      * Starts the A2A server using this Payments instance for payment logic.
      * @param options - All PaymentsA2AServerOptions except 'paymentsService'.
+     * @returns Server result containing app, server, adapter, and handler instances.
      */
-    start: (options: Omit<PaymentsA2AServerOptions, 'paymentsService'>) => void
+    start: (options: Omit<PaymentsA2AServerOptions, 'paymentsService'>) => PaymentsA2AServerResult
   }
 
   /**
