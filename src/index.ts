@@ -9,6 +9,7 @@ export * as a2a from './a2a'
 export { BackendApiOptions } from './api/nvm-api'
 
 export type {
+  Task,
   AgentCard,
   TaskHandlerResult,
   TaskStatusUpdateEvent,
