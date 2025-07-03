@@ -244,7 +244,7 @@ export class PaymentsA2AServer {
     }
 
     if (exposeDefaultRoutes) {
-      appBuilder.setupRoutes(app, basePath, [bearerTokenMiddleware.bind(null, handler)])
+      appBuilder.setupRoutes(app, basePath)//, [bearerTokenMiddleware.bind(null, handler)])
     }
 
     if (exposeAgentCard) {

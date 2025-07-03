@@ -26,10 +26,10 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGRlNDZkMWZiYzcxZjJlOWU0ZTg0YjA0YTFkYTViMzBhZjgwZTk2NTNhN2YyZGRkNjkwNmUxMGJkYTI4NWE5YzIiLCJleHAiOjE3ODI5Mjc1NjZ9.8tCLnhCf16B0Q1l1G47Jp_Bskq8TOfm17WYA1cEZXGoCPSdSDFEsIB0SpYjYEpQqaYvx5r6WxYSMNY13RLLhoRw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDAxNjkzYmZkZWYxNWRmM2M4ZGE0OTU3ZmQ4MzY1ZWJjNmZhNjFhOTA1ZDUxYjJjYTNjOWQ2YWFiZTU2M2U1MTMiLCJleHAiOjE3ODMwOTI2Nzl9.u88CqhyCtEHz2m_OQLMbVtJ4rQ3mzzB8PgaeHkMr4mgdA0gOu2o8Jni_D1rAkm4Ej6WXIUGEW6haYIcCfLOYkxw'
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGVmMWJkODFmN2YyNjliN2QzM2EzOWI0OGMxMDlmMDg4YTg1YjUxOGFjYWEzOWZkNjU2NDdhOWFkYjlkODk4NTIiLCJleHAiOjE3ODI5Mjc1NjZ9.9EhvOq6tPqweTJCpiA6teZhDqS0UPK9H7Q8G9RUntkxeRW0PKZZrjA_hgs-UKJ3fus4j9c_f2OXF4w30_WZUfxw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDAxNjkzYmZkZWYxNWRmM2M4ZGE0OTU3ZmQ4MzY1ZWJjNmZhNjFhOTA1ZDUxYjJjYTNjOWQ2YWFiZTU2M2U1MTMiLCJleHAiOjE3ODMwOTI2Nzl9.u88CqhyCtEHz2m_OQLMbVtJ4rQ3mzzB8PgaeHkMr4mgdA0gOu2o8Jni_D1rAkm4Ej6WXIUGEW6haYIcCfLOYkxw'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
@@ -324,7 +324,7 @@ describe('Payments API (e2e)', () => {
         console.log('Received request:', { endpoint: requestedUrl, httpVerb, authHeader })
         let isValidReq
         try {
-          isValidReq = await paymentsBuilder.isValidRequest(
+          isValidReq = await paymentsBuilder.initializeAgent(
             agentId,
             authHeader,
             requestedUrl,
@@ -338,6 +338,7 @@ describe('Payments API (e2e)', () => {
           }
         } catch (error) {
           console.log('Unauthorized access attempt:', authHeader)
+          console.log('Error details:', error)
         }
 
         res.writeHead(403, { 'Content-Type': 'application/json' })
