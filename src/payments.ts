@@ -15,11 +15,10 @@ import {
   AgentAccessParams,
   ValidationAgentRequest,
   PaginationOptions,
-  TrackAgentTaskResponseDto,
-  TrackAgentTaskDto,
-  AgentTaskStatus,
   TrackAgentSubTaskResponseDto,
   TrackAgentSubTaskDto,
+  NvmAPIResult,
+  StripeCheckoutResult,
 } from './common/types'
 import { EnvironmentInfo, Environments } from './environments'
 import { getRandomBigInt, isEthereumAddress } from './utils'
@@ -38,8 +37,9 @@ import {
   API_URL_REGISTER_AGENT,
   API_URL_REGISTER_PLAN,
   API_URL_REMOVE_PLAN_AGENT,
+  API_URL_STRIPE_CHECKOUT,
   API_URL_TRACK_AGENT_SUB_TASK,
-  API_URL_TRACK_AGENT_TASK,
+  API_URL_INITIALIZE_AGENT,
   API_URL_VALIDATE_AGENT_ACCESS_TOKEN,
 } from './api/nvm-api'
 import * as a2aModule from './a2a'
@@ -667,22 +667,49 @@ export class Payments {
   }
 
   /**
-   * Orders a Payment Plan. The user must have enough balance in the selected token.
+   * Orders a Payment Plan requiring the payment in crypto. The user must have enough balance in the selected token.
    *
    * @remarks
-   * The payment is done using crypto. Payments using fiat can be done via the Nevermined App.
+   * The payment is done using crypto in the token (ERC20 or native) defined in the plan.
    *
    * @param planId - The unique identifier of the plan.
    * @returns A promise that resolves indicating if the operation was successful.
    * @throws PaymentsError if unable to order the plan.
    */
-  public async orderPlan(planId: string): Promise<{ success: boolean }> {
+  public async orderPlan(planId: string): Promise<NvmAPIResult> {
     const options = this.getBackendHTTPOptions('POST')
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
       throw new PaymentsError(
         `Unable to order plan. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Initiates the purchase of a Plan requiring the payment in Fiat. This method will return a URL where the user can complete the payment.
+   *
+   * @remarks
+   * The payment is completed using a credit card in a external website (Stripe).
+   *
+   * @param planId - The unique identifier of the plan.
+   * @returns A promise that resolves indicating the URL to complete the payment.
+   * @throws PaymentsError if unable to order the plan.
+   */
+  public async orderFiatPlan(planId: string): Promise<{ result: StripeCheckoutResult }> {
+    const body = {
+      sessionType: 'embedded',
+      planId,
+    }
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to order fiat plan. ${response.statusText} - ${await response.text()}`,
       )
     }
 
@@ -858,6 +885,44 @@ export class Payments {
   }
 
   /**
+   * This method initializes an agent request.
+   *
+   * @remarks
+   * This method is used to initialize an agent request.
+   *
+   * @param agentId - The unique identifier of the AI Agent.
+   * @param accessToken - The access token provided by the subscriber to validate
+   * @param urlRequested - The URL requested by the subscriber to access the agent's API.
+   * @param httpMethodRequested - The HTTP method requested by the subscriber to access the agent's API.
+   * @returns The information about the initialization of the request.
+   * @throws PaymentsError if unable to initialize the agent request.
+   */
+  public async initializeAgent(
+    agentId: string,
+    accessToken: string | undefined,
+    urlRequested: string,
+    httpMethodRequested: string,
+  ): Promise<ValidationAgentRequest> {
+    const initializeAgentUrl = API_URL_INITIALIZE_AGENT.replace(':agentId', agentId!)
+    const body = {
+      accessToken,
+      endpoint: urlRequested,
+      httpVerb: httpMethodRequested,
+    }
+    const options = this.getBackendHTTPOptions('POST', body)
+
+    const url = new URL(initializeAgentUrl, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to validate access token. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
    * This method validates if the access token given by a user is valid for a specific agent and plan.
    * This is useful to be integrated in the AI Agent's API to authorize the access to the agent's API endpoints.
    *
@@ -941,105 +1006,6 @@ export class Payments {
   }
 
   /**
-   * Tracks an agent task for an agent.
-   *
-   * @remarks
-   * This method is used by agent owners to track agent tasks when users interact with their agents.
-   * It records usage metrics including credits consumed, HTTP methods used, and endpoints accessed.
-   *
-   * @param transactionData - The agent task data to track
-   * @returns A promise that resolves to the tracking response
-   * @throws PaymentsError if unable to track the transaction
-   *
-   * @example
-   * ```typescript
-   * await payments.trackAgentTask({
-   *   agentId: 'did:nv:agent-12345',
-   *   planId: 'did:nv:plan-67890',
-   *   consumer: '0x1234567890123456789012345678901234567890',
-   *   httpVerb: 'POST',
-   *   endpoint: '/api/v1/chat',
-   *   status: AgentTaskStatus.SUCCESS,
-   *   totalCredits: 5
-   * })
-   * ```
-   */
-  public async trackAgentTask(
-    transactionData: TrackAgentTaskDto,
-  ): Promise<TrackAgentTaskResponseDto> {
-    const body = {
-      agentId: transactionData.agentId,
-      planId: transactionData.planId,
-      consumer: transactionData.consumer,
-      httpVerb: transactionData.httpVerb,
-      endpoint: transactionData.endpoint,
-      status: transactionData.status || AgentTaskStatus.SUCCESS,
-      totalCredits: transactionData.totalCredits,
-    }
-
-    const options = this.getBackendHTTPOptions('POST', body)
-    const url = new URL(API_URL_TRACK_AGENT_TASK, this.environment.backend)
-    const response = await fetch(url, options)
-
-    if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to track access transaction. ${response.statusText} - ${await response.text()}`,
-      )
-    }
-
-    return response.json()
-  }
-
-  /**
-   * Tracks an access transaction for an agent using individual parameters.
-   *
-   * @remarks
-   * This is a convenience method that wraps {@link trackTransaction} for easier usage.
-   * It's especially useful when integrating access tracking directly into agent endpoints.
-   *
-   * @param agentId - The unique identifier of the agent
-   * @param planId - The unique identifier of the plan
-   * @param consumer - The address of the consumer accessing the agent
-   * @param httpVerb - The HTTP verb used for the request
-   * @param totalCredits - The total number of credits used in this transaction
-   * @param endpoint - The endpoint that was accessed (optional)
-   * @param status - The status of the access transaction (optional, defaults to SUCCESS)
-   * @returns A promise that resolves to the tracking response
-   * @throws PaymentsError if unable to track the transaction
-   *
-   * @example
-   * ```typescript
-   * await payments.trackAgentAccessEntry(
-   *   'did:nv:agent-12345',
-   *   'did:nv:plan-67890',
-   *   '0x1234567890123456789012345678901234567890',
-   *   'POST',
-   *   5,
-   *   '/api/v1/chat'
-   * )
-   * ```
-   */
-  public async trackAgentAccessEntry(
-    agentId: string,
-    planId: string,
-    consumer: string,
-    httpVerb: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
-    totalCredits: number,
-    endpoint?: string,
-    status: AgentTaskStatus = AgentTaskStatus.SUCCESS,
-  ): Promise<TrackAgentTaskResponseDto> {
-    return this.trackAgentTask({
-      agentId,
-      planId,
-      consumer,
-      httpVerb,
-      endpoint,
-      status,
-      totalCredits,
-    })
-  }
-
-  /**
    * Tracks an agent sub task.
    *
    * @remarks
@@ -1056,7 +1022,8 @@ export class Payments {
    *   agentRequestId: 'atx-12345',
    *   creditsToRedeem: 5,
    *   tag: 'high-priority',
-   *   description: 'Processing high-priority data request'
+   *   description: 'Processing high-priority data request',
+   *   status: AgentTaskStatus.SUCCESS
    * })
    * ```
    */
@@ -1068,6 +1035,7 @@ export class Payments {
       creditsToRedeem: trackAgentSubTask.creditsToRedeem || 0,
       tag: trackAgentSubTask.tag,
       description: trackAgentSubTask.description,
+      status: trackAgentSubTask.status,
     }
 
     const options = this.getBackendHTTPOptions('POST', body)
@@ -1081,44 +1049,6 @@ export class Payments {
     }
 
     return response.json()
-  }
-
-  /**
-   * Tracks an agent sub task using individual parameters.
-   *
-   * @remarks
-   * This is a convenience method that wraps {@link trackAgentSubTask} for easier usage.
-   * It's especially useful when integrating agent sub task tracking directly into agent processing workflows.
-   *
-   * @param agentRequestId - The unique identifier of the access transaction
-   * @param creditsToRedeem - The number of credits burned in this agent sub task (optional, defaults to 0)
-   * @param tag - A tag to categorize this agent sub task (optional)
-   * @param description - A description of this agent sub task (optional)
-   * @returns A promise that resolves to the tracking response
-   * @throws PaymentsError if unable to track the agent sub task
-   *
-   * @example
-   * ```typescript
-   * await payments.trackAgentSubTaskEntry(
-   *   'atx-12345',
-   *   5,
-   *   'high-priority',
-   *   'Processing high-priority data request'
-   * )
-   * ```
-   */
-  public async trackAgentSubTaskEntry(
-    agentRequestId: string,
-    creditsToRedeem: number = 0,
-    tag?: string,
-    description?: string,
-  ): Promise<TrackAgentSubTaskResponseDto> {
-    return this.trackAgentSubTask({
-      agentRequestId,
-      creditsToRedeem,
-      tag,
-      description,
-    })
   }
 
   /**

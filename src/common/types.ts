@@ -189,6 +189,28 @@ export interface SubscriberRequestStatus {
   message?: string
 }
 
+export interface NvmAPIResult {
+  success: boolean
+  message?: string
+  txHash?: string
+  httpStatus?: number
+  data?: APIOutputData
+  when?: Date
+}
+
+export interface APIOutputData {
+  [key: string]: any
+}
+
+export interface StripeCheckoutResult {
+  stripeCheckoutSessionId: string
+  checkoutLink: string
+  clientReferenceId: string
+  paymentStatus?: string
+  linkCreatedAt: number
+  linkExpiresAt: number
+}
+
 /**
  * Metadata attributes describing the AI Agent.
  */
@@ -349,62 +371,6 @@ export enum AgentTaskStatus {
 }
 
 /**
- * Data transfer object for tracking agent tasks
- */
-export interface TrackAgentTaskDto {
-  /**
-   * The unique identifier of the agent
-   */
-  agentId: string
-
-  /**
-   * The unique identifier of the plan
-   */
-  planId: string
-
-  /**
-   * The address of the consumer accessing the agent
-   */
-  consumer: string
-
-  /**
-   * The HTTP verb used for the request
-   */
-  httpVerb: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-
-  /**
-   * The endpoint that was accessed (optional)
-   */
-  endpoint?: string
-
-  /**
-   * The status of the agent task (optional)
-   * @defaultValue AgentTaskStatus.SUCCESS
-   */
-  status?: AgentTaskStatus
-
-  /**
-   * The total number of credits used in this transaction
-   */
-  totalCredits: number
-}
-
-/**
- * Response data transfer object for tracking agent tasks
- */
-export interface TrackAgentTaskResponseDto {
-  /**
-   * Indicates if the agent task was tracked successfully
-   */
-  success: boolean
-
-  /**
-   * Success or error message
-   */
-  message: string
-}
-
-/**
  * Data transfer object for tracking agent sub tasks
  */
 export interface TrackAgentSubTaskDto {
@@ -428,6 +394,11 @@ export interface TrackAgentSubTaskDto {
    * A description of this agent sub task (optional)
    */
   description?: string
+
+  /**
+   * The status of the agent sub task (optional)
+   */
+  status?: AgentTaskStatus
 }
 
 /**

@@ -26,10 +26,10 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDFlZGQ3YmFjNzQ5YmMzNWM2MzhlNTc5NjMyNDUwMTk5ZGI0YjhiNWZkYWUzMGI4MGJiMjEzMGM2MjM5MDRkMTIiLCJleHAiOjE3ODIzMTkzOTN9.LabD_FpGJWneZZASqBU54xqJdhdY0FB-6nINbsnv83pt-AKqCYSvWFx2UUl_29K6hMEBMhFqgBymFHG72sfB8hs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGRlNDZkMWZiYzcxZjJlOWU0ZTg0YjA0YTFkYTViMzBhZjgwZTk2NTNhN2YyZGRkNjkwNmUxMGJkYTI4NWE5YzIiLCJleHAiOjE3ODI5Mjc1NjZ9.8tCLnhCf16B0Q1l1G47Jp_Bskq8TOfm17WYA1cEZXGoCPSdSDFEsIB0SpYjYEpQqaYvx5r6WxYSMNY13RLLhoRw'
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDFmOTRlN2ZjYzIwYTMzYzllM2JjMTEyNGRiZTgwNjA2ZGZlZWU5ZTdhZmE2NjdmMWJiYTc5MGQyYzhlYjVhODciLCJleHAiOjE3ODIzMTkzOTV9.FwQ2OO1-nDSR04XPu5b7SMR7vWEJEg-8RPl3Dy-FluRYLC5lgeJyFcWIjaw0AMFtZAqSd3KV3I_bURuT2XU8Dhw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGVmMWJkODFmN2YyNjliN2QzM2EzOWI0OGMxMDlmMDg4YTg1YjUxOGFjYWEzOWZkNjU2NDdhOWFkYjlkODk4NTIiLCJleHAiOjE3ODI5Mjc1NjZ9.9EhvOq6tPqweTJCpiA6teZhDqS0UPK9H7Q8G9RUntkxeRW0PKZZrjA_hgs-UKJ3fus4j9c_f2OXF4w30_WZUfxw'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
@@ -43,6 +43,7 @@ describe('Payments API (e2e)', () => {
   let creditsPlanId: string
   let expirablePlanId: string
   let trialPlanId: string
+  let fiatPlanId: string
   let agentId: string
   let builderAddress: Address
   const planMetadata: PlanMetadata = {
@@ -157,9 +158,9 @@ describe('Payments API (e2e)', () => {
       async () => {
         const agentMetadata: AgentMetadata = {
           name: 'E2E Payments Agent',
+          description: 'This is a test agent for the E2E Payments tests',
           tags: ['test'],
           dateCreated: new Date(),
-          description: 'E2E Payments Agent',
         }
         const agentApi = {
           endpoints: AGENT_ENDPOINTS,
@@ -179,23 +180,24 @@ describe('Payments API (e2e)', () => {
       'I should be able to register an agent and a plan in one step',
       async () => {
         const agentMetadata = {
-          name: 'My AI Payments Agent',
-          tags: ['test2'],
-          description: 'E2E Payments Agent',
+          name: 'My AI FIAT Payments Agent',
+          description: 'This is a test agent for the E2E Payments tests',
+          tags: ['fiat', 'test2'],
         }
-        const agentApi = { endpoints: [{ POST: 'http://localhost:41243/a2a' }] }
-        const cryptoPriceConfig = getNativeTokenPriceConfig(500n, builderAddress)
+        const agentApi = { endpoints: [{ POST: 'http://localhost:8889/test/:agentId/tasks' }] }
+        const fiatPriceConfig = getFiatPriceConfig(10_000_000n, builderAddress)
         const nonExpirableConfig = getNonExpirableDurationConfig()
 
         const { agentId, planId } = await paymentsBuilder.registerAgentAndPlan(
           agentMetadata,
           agentApi,
           planMetadata,
-          cryptoPriceConfig,
+          fiatPriceConfig,
           nonExpirableConfig,
         )
         expect(agentId).toBeDefined()
         expect(planId).toBeDefined()
+        fiatPlanId = planId
       },
       TEST_TIMEOUT,
     )
@@ -259,8 +261,22 @@ describe('Payments API (e2e)', () => {
         console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.accountAddress)
         const orderResult = await paymentsSubscriber.orderPlan(creditsPlanId)
         expect(orderResult).toBeDefined()
+        console.log('Credits Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
-        console.log('Order Result', orderResult)
+      },
+      TEST_TIMEOUT * 2,
+    )
+
+    // To test the Fiat Plan we need to have a Stripe account configured
+    it.skip(
+      'I should be able to get the link to finalize the order of a Fiat Plan',
+      async () => {
+        console.log(fiatPlanId)
+        const orderResult = await paymentsSubscriber.orderFiatPlan(fiatPlanId)
+        expect(orderResult).toBeDefined()
+        console.log('Fiat Plan - Order Result', orderResult)
+        expect(orderResult.result.checkoutLink).toBeDefined()
+        expect(orderResult.result.checkoutLink).toContain('https://checkout.stripe.com')
       },
       TEST_TIMEOUT * 2,
     )
@@ -279,8 +295,8 @@ describe('Payments API (e2e)', () => {
         console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.accountAddress)
         const orderResult = await paymentsSubscriber.orderPlan(trialPlanId)
         expect(orderResult).toBeDefined()
+        console.log('Trial Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
-        console.log('Order Result', orderResult)
       },
       TEST_TIMEOUT * 2,
     )
