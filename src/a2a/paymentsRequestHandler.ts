@@ -155,6 +155,10 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       )
     }
 
+    if (!params.message.taskId) {
+      params.message.taskId = uuidv4()
+    }
+
     // 4. Call the base logic
     const result = await super.sendMessage(params)
 
