@@ -7,11 +7,12 @@ import type {
   PushNotificationConfig,
   TaskStatusUpdateEvent,
   Task,
+  Message,
 } from '@a2a-js/sdk'
 import { v4 as uuidv4 } from 'uuid'
-import { AgentExecutor, DefaultRequestHandler } from '@a2a-js/sdk'
+import { AgentExecutor, DefaultRequestHandler, ResultManager } from '@a2a-js/sdk'
+import { ExecutionEventQueue } from '@a2a-js/sdk/build/src/server/events/execution_event_queue'
 import { PaymentsError } from '../common/payments.error'
-import { AgentExecutionEvent } from '@a2a-js/sdk/build/src/server/events/execution_event_bus'
 
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
 
@@ -28,24 +29,13 @@ type HttpRequestContext = {
  * PaymentsRequestHandler extends DefaultRequestHandler to add payments validation and burning.
  * It validates credits before executing a task and burns credits after successful execution.
  * It also sends push notifications when a task reaches a terminal state.
+ * @param options - Handler options, including asyncExecution to control synchronous/asynchronous behavior
  */
 export class PaymentsRequestHandler extends DefaultRequestHandler {
   private paymentsService: any
-
-  /**
-   * Map to store HTTP context by taskId.
-   */
   private httpContextByTaskId: Map<string, HttpRequestContext> = new Map()
-
-  /**
-   * Map to store temporary HTTP context by messageId (before taskId is known).
-   */
   private httpContextByMessageId: Map<string, HttpRequestContext> = new Map()
-
-  /**
-   * Set to track which tasks already have a finalization listener attached.
-   */
-  private finalizedTasksWithListener: Set<string> = new Set()
+  private asyncExecution: boolean
 
   /**
    * Store HTTP context temporarily by messageId (used in middleware when taskId is not yet available).
@@ -71,6 +61,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @param agentExecutor - The business logic executor
    * @param paymentsService - The payments service for validation and burning
    * @param eventBusManager - The event bus manager (optional)
+   * @param options - Handler options (asyncExecution: boolean)
    */
   constructor(
     agentCard: AgentCard,
@@ -78,9 +69,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     agentExecutor: AgentExecutor,
     paymentsService: any,
     eventBusManager?: ExecutionEventBusManager,
+    options?: { asyncExecution?: boolean },
   ) {
     super(agentCard, taskStore, agentExecutor, eventBusManager)
     this.paymentsService = paymentsService
+    this.asyncExecution = options?.asyncExecution ?? false
   }
 
   /**
@@ -102,21 +95,69 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   }
 
   /**
+   * Processes all events, calling handleTaskFinalization when a terminal status-update event is received.
+   * In modo asíncrono, puede lanzarse en background.
+   */
+  protected async processEventsWithFinalization(
+    taskId: string,
+    resultManager: ResultManager,
+    eventQueue: ExecutionEventQueue,
+    bearerToken: string,
+    options?: {
+      firstResultResolver?: (event: any) => void
+      firstResultRejector?: (err: any) => void
+    },
+  ) {
+    let firstResultSent = false
+    try {
+      for await (const event of eventQueue.events()) {
+        await resultManager.processEvent(event)
+        // Lógica de finalización tras almacenar la tarea
+        if (
+          event.kind === 'status-update' &&
+          event.final &&
+          terminalStates.includes(event.status?.state)
+        ) {
+          await this.handleTaskFinalization(event, bearerToken)
+        }
+        if (options?.firstResultResolver && !firstResultSent) {
+          if (event.kind === 'message' || event.kind === 'task') {
+            options.firstResultResolver(event)
+            firstResultSent = true
+          }
+        }
+      }
+      if (options?.firstResultRejector && !firstResultSent) {
+        options.firstResultRejector(
+          new Error('Execution finished before a message or task was produced.'),
+        )
+      }
+    } catch (error) {
+      if (options?.firstResultRejector && !firstResultSent) {
+        options.firstResultRejector(error)
+      }
+      throw error
+    } finally {
+      this.getEventBusManager().cleanupByTaskId(taskId)
+    }
+  }
+
+  /**
    * Sends a message, validating credits before execution and burning credits after.
    * Also sends a push notification if the task reaches a terminal state.
+   * This method overrides the parent implementation to allow eventBus subscription before agent execution.
    * @param params - Message send parameters
    * @returns The resulting message or task
    */
-  async sendMessage(params: MessageSendParams) {
-    const incomingMessage = params.message
-
+  async sendMessage(params: MessageSendParams): Promise<Message | Task> {
+    // const result = await super.sendMessage(params)
     // 1. Get HTTP context for the task or message
-    const taskId = incomingMessage.taskId
+    let taskId = params.message.taskId
     let httpContext: HttpRequestContext | undefined
     if (taskId) {
       httpContext = this.getHttpRequestContextForTask(taskId)
     } else {
-      const messageId = incomingMessage.messageId
+      const messageId = params.message.messageId
       if (messageId) {
         httpContext = this.getHttpRequestContextForMessage(messageId)
       }
@@ -126,11 +167,12 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.internal('HTTP context not found for task or message.')
     }
 
-    // 2. Extract bearer token
+    // 2. Extract bearer token and validate presence of required fields
     const { bearerToken, urlRequested, httpMethodRequested } = httpContext
     if (!bearerToken || !urlRequested || !httpMethodRequested) {
       throw PaymentsError.unauthorized('Missing bearer token for payment validation.')
     }
+
     // 3. Validate credits before executing the task
     const agentCard = await this.getAgentCard()
     const agentId = agentCard.capabilities?.extensions?.find(
@@ -155,29 +197,84 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       )
     }
 
-    if (!params.message.taskId) {
-      params.message.taskId = uuidv4()
+    // 4. Generate taskId if not present and migrate HTTP context
+    const incomingMessage = params.message
+    if (!incomingMessage.messageId) {
+      throw PaymentsError.internal('message.messageId is required.')
+    }
+    if (!taskId) {
+      taskId = uuidv4()
+      this.migrateHttpRequestContextFromMessageToTask(params.message.messageId, taskId)
     }
 
-    // 4. Call the base logic
-    const result = await super.sendMessage(params)
+    // 5. Instantiate ResultManager and eventBus
+    const resultManager = new ResultManager(this.getTaskStore())
+    resultManager.setContext(incomingMessage)
+    const requestContext = await this.callCreateRequestContext(incomingMessage, taskId, false)
+    const finalMessageForAgent = requestContext.userMessage
+    const eventBus = this.getEventBusManager().createOrGetByTaskId(taskId)
+    const eventQueue = new ExecutionEventQueue(eventBus)
 
-    // 5. Only handle if result is a Task (not a Message)
-    if (result && result.kind === 'task') {
-      if (incomingMessage.messageId) {
-        this.migrateHttpRequestContextFromMessageToTask(incomingMessage.messageId, result.id)
-      }
-      const eventBus = this.getEventBusManager().createOrGetByTaskId(result.id)
-      if (!this.finalizedTasksWithListener.has(result.id)) {
-        this.finalizedTasksWithListener.add(result.id)
-        eventBus.on('event', (event: AgentExecutionEvent) => {
-          if (event.kind === 'status-update' && terminalStates.includes(event.status?.state)) {
-            this.handleTaskFinalization(event, bearerToken)
+    // 7. Continue with the logic from the parent class
+    this.getAgentExecutor()
+      .execute(requestContext, eventBus)
+      .catch((err: any) => {
+        console.error(`Agent execution failed for message ${finalMessageForAgent.messageId}:`, err)
+        // Publish a synthetic error event
+        const errorTask: Task = {
+          id: requestContext.task?.id || uuidv4(),
+          contextId: finalMessageForAgent.contextId,
+          status: {
+            state: 'failed',
+            message: {
+              kind: 'message',
+              role: 'agent',
+              messageId: uuidv4(),
+              parts: [{ kind: 'text', text: `Agent execution error: ${err.message}` }],
+              taskId: requestContext.task?.id,
+              contextId: finalMessageForAgent.contextId,
+            },
+            timestamp: new Date().toISOString(),
+          },
+          history: requestContext.task?.history ? [...requestContext.task.history] : [],
+          kind: 'task',
+        }
+        if (finalMessageForAgent) {
+          if (
+            !errorTask.history?.find((m: any) => m.messageId === finalMessageForAgent.messageId)
+          ) {
+            errorTask.history?.push(finalMessageForAgent)
           }
+        }
+        eventBus.publish(errorTask)
+        eventBus.publish({
+          kind: 'status-update',
+          taskId: errorTask.id,
+          contextId: errorTask.contextId,
+          status: errorTask.status,
+          final: true,
         })
+        eventBus.finished()
+      })
+
+    if (!this.asyncExecution) {
+      await this.processEventsWithFinalization(taskId, resultManager, eventQueue, bearerToken)
+      const finalResult = resultManager.getFinalResult()
+      if (!finalResult) {
+        throw PaymentsError.internal(
+          'Agent execution finished without a result, and no task context found.',
+        )
       }
+      return finalResult
+    } else {
+      // Async execution
+      return new Promise((resolve, reject) => {
+        this.processEventsWithFinalization(taskId, resultManager, eventQueue, bearerToken, {
+          firstResultResolver: resolve,
+          firstResultRejector: reject,
+        })
+      })
     }
-    return result
   }
 
   /**
@@ -416,5 +513,33 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    */
   protected getEventBusManager(): ExecutionEventBusManager {
     return (this as any).eventBusManager as ExecutionEventBusManager
+  }
+
+  /**
+   * Protected getter to access the private agentExecutor property from the parent class.
+   * This is a workaround due to SDK limitations.
+   */
+  protected getAgentExecutor(): AgentExecutor {
+    return (this as any).agentExecutor as AgentExecutor
+  }
+
+  /**
+   * Protected getter to access the private _createRequestContext method from the parent class.
+   * This is a workaround due to SDK limitations.
+   */
+  protected async callCreateRequestContext(
+    incomingMessage: any,
+    taskId: string,
+    isStream: boolean,
+  ): Promise<any> {
+    return await (this as any)._createRequestContext(incomingMessage, taskId, isStream)
+  }
+
+  /**
+   * Protected getter to access the private _processEvents method from the parent class.
+   * This is a workaround due to SDK limitations.
+   */
+  protected callProcessEvents(...args: any[]): any {
+    return (this as any)._processEvents.apply(this, args)
   }
 }

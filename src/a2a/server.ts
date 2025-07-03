@@ -50,6 +50,12 @@ export interface PaymentsA2AServerOptions {
     /** Called when a JSON-RPC request fails */
     onError?: (method: string, error: Error, req: express.Request) => Promise<void>
   }
+  /**
+   * If true, the agent will respond immediately with a task skeleton (asynchronous execution).
+   * If false, the agent will wait for task completion before responding (synchronous execution).
+   * Defaults to false (synchronous).
+   */
+  asyncExecution?: boolean
 }
 
 /**
@@ -191,13 +197,16 @@ export class PaymentsA2AServer {
       expressApp,
       customRequestHandler,
       hooks,
+      asyncExecution,
     } = options
 
     // Initialize components
     const store = taskStore || new InMemoryTaskStore()
     const handler =
       customRequestHandler ||
-      new PaymentsRequestHandler(agentCard, store, executor, paymentsService)
+      new PaymentsRequestHandler(agentCard, store, executor, paymentsService, undefined, {
+        asyncExecution,
+      })
     const appBuilder = new A2AExpressApp(handler)
 
     const app = expressApp || express()
