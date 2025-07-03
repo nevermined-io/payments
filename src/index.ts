@@ -16,4 +16,5 @@ export type {
   AgentExecutor,
   RequestContext,
   PushNotificationConfig,
+  Task,
 } from './a2a/types'
