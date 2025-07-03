@@ -3,6 +3,7 @@ import {
   AgentAccessParams,
   AgentMetadata,
   Endpoint,
+  PaginationOptions,
   PlanMetadata,
   PlanPriceType,
 } from '../../src/common/types'
@@ -25,12 +26,11 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDA4MjRlM0YzNjI1MmQzMjUyNzRDQTcxNTQyMWM3OTU2ZTY0MWEyYzQiLCJqdGkiOiIweDA0OGQ0NDVmMWQ3MzJlNzczMGU2NGY1NTViMTk0MWQzMDZiOGM5Y2MwOTdkM2VhZDlmMjcwNWI1MzVhY2QzNzQiLCJleHAiOjE3ODI0ODU5NDh9.aLthh9Kato8my_TRTL1zhnynAvHwpVco3g7K47L2jGt5Zn7L5HAxnPZUryxihnIG-zaon5Z-m3PaT7GEqmZhshw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDFlZGQ3YmFjNzQ5YmMzNWM2MzhlNTc5NjMyNDUwMTk5ZGI0YjhiNWZkYWUzMGI4MGJiMjEzMGM2MjM5MDRkMTIiLCJleHAiOjE3ODIzMTkzOTN9.LabD_FpGJWneZZASqBU54xqJdhdY0FB-6nINbsnv83pt-AKqCYSvWFx2UUl_29K6hMEBMhFqgBymFHG72sfB8hs'
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweEIyZWRCRjJhMjhEM0VkNDA2ZGM4ZDMyZDdFNTY2OWM2Mzc0NjBmMTgiLCJqdGkiOiIweGFhODhmNTc5ZWE3ZmE5YjAzMThiNDM3ZmEzOWRkMTY0NjEyMjdkM2U1NTgxNWE0Y2I1M2E0ODNmZDg0NTg2OTMiLCJleHAiOjE3ODI0ODU5NDd9.v11AevFpxhTQgxgg-rfrznu_Q_xFkN9BdYrs7qfBcRJIZaSsOp6JNXKxlPPcmMO4qokVYAXTlMbycNh8wpYjXBw'
-  const testingEnvironment = process.env.TEST_ENVIRONMENT || 'local'
-  const _SLEEP_DURATION = 3_000
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDFmOTRlN2ZjYzIwYTMzYzllM2JjMTEyNGRiZTgwNjA2ZGZlZWU5ZTdhZmE2NjdmMWJiYTc5MGQyYzhlYjVhODciLCJleHAiOjE3ODIzMTkzOTV9.FwQ2OO1-nDSR04XPu5b7SMR7vWEJEg-8RPl3Dy-FluRYLC5lgeJyFcWIjaw0AMFtZAqSd3KV3I_bURuT2XU8Dhw'
+  const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
     { POST: `http://localhost:41243/a2a` },
@@ -112,11 +112,11 @@ describe('Payments API (e2e)', () => {
       'I should be able to register a new Expirable Payment Plan',
       async () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
-        const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
+        const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
         const response = await paymentsBuilder.registerTimePlan(
           planMetadata,
           priceConfig,
-          creditsConfig,
+          expirablePlanConfig,
         )
         expect(response).toBeDefined()
         expirablePlanId = response.planId
@@ -199,7 +199,9 @@ describe('Payments API (e2e)', () => {
       },
       TEST_TIMEOUT,
     )
+  })
 
+  describe('Search & Discovery', () => {
     it(
       'I should be able to get a plan',
       async () => {
@@ -216,6 +218,34 @@ describe('Payments API (e2e)', () => {
         const agent = await paymentsBuilder.getAgent(agentId)
         expect(agent).toBeDefined()
         console.log('Agent', agent)
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
+      'Get agents associated to a plan',
+      async () => {
+        console.log('Credits Plan ID', creditsPlanId)
+        const agents = await paymentsBuilder.getAgentsAssociatedToAPlan(
+          creditsPlanId,
+          new PaginationOptions({ offset: 5 }),
+        )
+        expect(agents).toBeDefined()
+        console.log('Agents associated to the Plan', agents)
+        expect(agents.total).toBeGreaterThan(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
+      'Get plans associated to an agent',
+      async () => {
+        // /agents/:agentId/plans
+        console.log('Agent ID', agentId)
+        const plans = await paymentsBuilder.getAgentPlans(agentId)
+        expect(plans).toBeDefined()
+        console.log('Plans associated to an agent', plans)
+        expect(plans.total).toBeGreaterThan(0)
       },
       TEST_TIMEOUT,
     )
@@ -308,9 +338,6 @@ describe('Payments API (e2e)', () => {
     afterAll(async () => {
       server.close()
     })
-    // afterAll((done) => {
-    //   server.close(done)
-    // })
 
     it('I should be able to generate the agent access token', async () => {
       agentAccessParams = await paymentsSubscriber.getAgentAccessToken(creditsPlanId, agentId)

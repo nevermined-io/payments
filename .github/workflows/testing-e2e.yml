@@ -19,4 +19,9 @@ jobs:
       - name: Check build
         run: yarn build
       - name: e2e tests
+        env:
+          TEST_ENVIRONMENT: staging
+          NVM_FRONTEND_URL: https://api.staging.nevermined.app/
+          TEST_BUILDER_API_KEY: ${{ secrets.TEST_BUILDER_API_KEY }}
+          TEST_SUBSCRIBER_API_KEY: ${{ secrets.TEST_SUBSCRIBER_API_KEY }}
         run: yarn test:e2e

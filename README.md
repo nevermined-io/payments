@@ -1,45 +1,43 @@
 [![banner](https://raw.githubusercontent.com/nevermined-io/assets/main/images/logo/banner_logo.png)](https://nevermined.io)
 
-# Library for activating AI Agents Payments using Nevermined protocol
+# Library for Activating AI Agent Payments Using the Nevermined Protocol
 
-> Typescript SDK to interact with the Nevermined Payments Protocol
+> TypeScript SDK to interact with the Nevermined Payments Protocol  
 > [nevermined.io](https://nevermined.io)
 
 ## Motivation
 
-The evolution of AI-native commerce is inevitable, but the infrastructure to support it is insufficient. Today, AI agents require seamless, automated payment systems for individual transactions. As the need grows, these agents will scale into swarms, with the ability to transact and operate autonomously.
+The evolution of AI-native commerce is inevitable, but the infrastructure to support it is currently lacking. Today, AI agents require seamless, automated payment systems for individual transactions. As demand grows, these agents will scale into swarms, transacting and operating autonomously.
 
-Existing solutions are designed for their usage by humans using physical money. This doesn’t represent a new reality where AI Agents need to make and receive payments quickly and efficiently without the limitations of existing payment systems.
+Existing solutions are designed for human use with physical money. This does not reflect the new reality, where AI Agents need to make and receive payments quickly and efficiently, without the limitations of traditional payment systems.
 
 Nevermined provides a solution that seamlessly evolves from single-agent needs to complex AI economies, eliminating friction and supporting a fully autonomous, composable future for AI-driven commerce.
 
-## What is Nevermined Payments Library?
+## What is the Nevermined Payments Library?
 
-Nevermined Payments Library is a Typescript SDK that allows AI Builders and Subscribers to make available AI Agents for being queried and used by other agents or humans. It is designed to be used in conjunction with the Nevermined protocol, which provides a decentralized infrastructure for managing AI agents and their interactions.
+The Nevermined Payments Library is a TypeScript SDK that allows AI Builders and Subscribers to make AI Agents available for querying and use by other agents or humans. It is designed to be used alongside the Nevermined protocol, which provides a decentralized infrastructure for managing AI agents and their interactions.
 
-The Payments Library allows:
+The Payments Library enables:
 
-* Easy registration and discovery of AI agents, payment plans required to access them. All the agents registered in Nevermined expose their metadata in a generic way, and this metadata is searchable, allowing them to discover other agents fitting a specific purpose.
-* Allows to define pricing options and how AI agents can be queried. This is done via payment plans (based on time or credits) and consumption costs (fixed per request or dynamic). All of this can be defined by the AI builder/agent during the registration process.
-* It allows subscribers (human or other agents) to purchase credits that give access to AI agents services. Payments can be in crypto or in fiat via Stripe integration. The protocol registers on-chain the payment and the credits distribution settlement.
-* Agents or users owning access credits can query other AI agents. Nevermined authorizes only the users with enough balance and keep track of their usage of credits.
+* Easy registration and discovery of AI agents and the payment plans required to access them. All agents registered in Nevermined expose their metadata in a generic way, making them searchable and discoverable for specific purposes.
+* Flexible definition of pricing options and how AI agents can be queried. This is achieved through payment plans (based on time or credits) and consumption costs (fixed per request or dynamic). All of this can be defined by the AI builder or agent during the registration process.
+* Subscribers (humans or other agents) to purchase credits that grant access to AI agent services. Payments can be made in crypto or fiat via Stripe integration. The protocol registers the payment and credits distribution settlement on-chain.
+* Agents or users with access credits to query other AI agents. Nevermined authorizes only users with sufficient balance and keeps track of their credit usage.
 
 [![banner](docs/images/nvm_hl.png)]
 
-The library is designed to be used in browser environments or as part of AI Agents:
+The library is designed for use in browser environments or as part of AI Agents:
 
-* When the library is used in a browser, it provides a simple way to connect to the Nevermined protocol and allow users to query AI Agents or publish their own.
-* When the library is used as part of an AI Agent, it allows the agent to query other agents in a programatic way. Beyond that agents can use the library to expose their own services and make them available to other agents or humans.
-
+* In a browser, the library provides a simple way to connect to the Nevermined protocol, allowing users to query AI Agents or publish their own.
+* As part of an AI Agent, the library allows the agent to query other agents programmatically. Additionally, agents can use the library to expose their own services and make them available to other agents or humans.
 
 ## Quickstart
 
-```
+```bash
 # yarn
 yarn add @nevermined-io/payments
 
 # npm
-
 npm install @nevermined-io/payments
 ```
 
@@ -98,17 +96,20 @@ const payments = Payments.getInstance({
 Once the app is initialized we can create a payment plan:
 
 ```typescript
-const priceConfig = getERC20PriceConfig(20n, builderAddress, ERC20_ADDRESS)
+const planMetadata: PlanMetadata = {
+    name: 'E2E test Payments Plan',
+  }
+const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
 const creditsConfig = getFixedCreditsConfig(100n)
-const { planId } = await paymentsBuilder.registerCreditsPlan(priceConfig, creditsConfig)
+const { planId } = await payments.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
 ```
 
 Or register a plan limited by time:
 
 ```typescript
-const priceConfig = getERC20PriceConfig(50n, builderAddress, ERC20_ADDRESS)
-const creditsConfig = getExpirableCreditsConfig(86400n) // 1 day
-const { planId } = await paymentsBuilder.registerTimePlan(priceConfig, creditsConfig)
+const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
+const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
+const response = await payments.registerTimePlan(planMetadata, priceConfig, expirablePlanConfig)
 ```
 
 ### Create an AI Agent/Service
@@ -123,13 +124,62 @@ const agentMetadata = {
 // The API that the agent will expose
 const agentApi = {
   endpoints: [
-    { 'POST': `https://example.com/api/v1/agents/(.*)/tasks` },
-    { 'GET': `https://example.com/api/v1/agents/(.*)/tasks/(.*)` }
+    { 'POST': `https://example.com/api/v1/agents/:agentId/tasks` },
+    { 'GET': `https://example.com/api/v1/agents/:agentId/tasks/invoke` }
 ]}
 
 // This is the list of payment plans that the agent will accept
-const paymentPlans = [ planId ]
-const { did } = await paymentsBuilder.registerAgent(agentMetadata, agentApi, paymentPlans)
+const paymentPlans = [ creditsPlanId, expirablePlanId ]
+const result = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)
 
 ```
 
+### Purchase a Payment Plan
+
+```typescript
+const orderResult = await payments.orderPlan(creditsPlanId)
+```
+
+And get the balabce of the purchased plan:
+
+```typescript
+const balance = await payments.getPlanBalance(creditsPlanId)
+console.log(`Balance: ${balance}`)
+```
+
+### Query an AI Agent
+
+Once the user has purchased a plan, they can query the agent:
+
+```typescript
+const params = await payments.getAgentAccessToken(creditsPlanId, agentId)
+
+const agentHTTPOptions = {
+  method: 'POST',
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization:  `Bearer ${params.accessToken}`
+  },
+}
+const response = await fetch(new URL(agentURL), agentHTTPOptions)
+
+```
+
+## License
+
+```text
+Copyright 2025 Nevermined AG
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```

@@ -233,6 +233,9 @@ export interface AgentMetadata {
   // internalAttributes?: any
 }
 
+/**
+ * Metadata attributes describing the Payment Plan.
+ */
 export interface PlanMetadata extends AgentMetadata {
   /**
    * Indicates if a payment plan is a Trial plan.
@@ -278,4 +281,166 @@ export interface AgentAPIAttributes {
    * The upstream agent/service bearer token for authentication. Only if `authType` is 'bearer' or 'oauth'.
    */
   token?: string
+}
+
+/**
+ * Options for pagination in API requests to the Nevermined API.
+ */
+export class PaginationOptions {
+  /**
+   * The field to sort the results by.
+   * If not provided, the default sorting defined by the API will be applied.
+   */
+  sortBy?: string
+  /**
+   * The order in which to sort the results.
+   * Default is 'desc' (descending).
+   */
+  sortOrder: 'asc' | 'desc' = 'desc'
+  /**
+   * The page number to retrieve.
+   * Default is 1.
+   */
+  page = 1
+  /**
+   * The number of items per page.
+   * Default is 10.
+   */
+  offset = 10
+
+  /**
+   * Constructs a new PaginationOptions instance.
+   * @param options - Optional initial values for the pagination options.
+   */
+  constructor(options?: Partial<PaginationOptions>) {
+    if (options) {
+      this.sortBy = options.sortBy
+      this.sortOrder = options.sortOrder || 'desc'
+      this.page = options.page || 1
+      this.offset = options.offset || 10
+    }
+  }
+
+  /**
+   * It returns a string representation of the pagination options
+   * @returns A string representation of the pagination options as URL query parameters.
+   * This can be used to append to API requests for pagination.
+   */
+  asQueryParams(): string {
+    const params: Record<string, string> = {}
+    if (this.sortBy) {
+      params.sortBy = this.sortBy
+    }
+    params.sortOrder = this.sortOrder
+    params.page = this.page.toString()
+    params.pageSize = this.offset.toString()
+
+    return new URLSearchParams(params).toString()
+  }
+}
+
+/**
+ * Status of an agent task
+ */
+export enum AgentTaskStatus {
+  SUCCESS = 'SUCCESS',
+  FAILED = 'FAILED',
+  PENDING = 'PENDING',
+}
+
+/**
+ * Data transfer object for tracking agent tasks
+ */
+export interface TrackAgentTaskDto {
+  /**
+   * The unique identifier of the agent
+   */
+  agentId: string
+
+  /**
+   * The unique identifier of the plan
+   */
+  planId: string
+
+  /**
+   * The address of the consumer accessing the agent
+   */
+  consumer: string
+
+  /**
+   * The HTTP verb used for the request
+   */
+  httpVerb: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+
+  /**
+   * The endpoint that was accessed (optional)
+   */
+  endpoint?: string
+
+  /**
+   * The status of the agent task (optional)
+   * @defaultValue AgentTaskStatus.SUCCESS
+   */
+  status?: AgentTaskStatus
+
+  /**
+   * The total number of credits used in this transaction
+   */
+  totalCredits: number
+}
+
+/**
+ * Response data transfer object for tracking agent tasks
+ */
+export interface TrackAgentTaskResponseDto {
+  /**
+   * Indicates if the agent task was tracked successfully
+   */
+  success: boolean
+
+  /**
+   * Success or error message
+   */
+  message: string
+}
+
+/**
+ * Data transfer object for tracking agent sub tasks
+ */
+export interface TrackAgentSubTaskDto {
+  /**
+   * The unique identifier of the agent task
+   */
+  agentRequestId: string
+
+  /**
+   * The number of credits burned in this agent sub task (optional)
+   * @defaultValue 0
+   */
+  creditsToRedeem?: number
+
+  /**
+   * A tag to categorize this agent sub task (optional)
+   */
+  tag?: string
+
+  /**
+   * A description of this agent sub task (optional)
+   */
+  description?: string
+}
+
+/**
+ * Response data transfer object for tracking agent sub tasks
+ */
+export interface TrackAgentSubTaskResponseDto {
+  /**
+   * Indicates if the agent sub task was tracked successfully
+   */
+  success: boolean
+
+  /**
+   * Success or error message
+   */
+  message: string
 }

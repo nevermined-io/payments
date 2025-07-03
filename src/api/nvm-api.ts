@@ -4,9 +4,10 @@ import { isEthereumAddress } from '../utils'
 
 export const API_URL_REGISTER_PLAN = '/api/v1/protocol/plans'
 export const API_URL_REGISTER_AGENT = '/api/v1/protocol/agents'
-export const API_URL_SEARCH_AGENTS = '/api/v1/protocol/agents/search'
 export const API_URL_GET_AGENT = '/api/v1/protocol/agents/:agentId'
+export const API_URL_GET_AGENT_PLANS = '/api/v1/protocol/agents/:agentId/plans'
 export const API_URL_GET_PLAN = '/api/v1/protocol/plans/:planId'
+export const API_URL_GET_PLAN_AGENTS = '/api/v1/protocol/plans/:planId/agents'
 export const API_URL_ORDER_PLAN = '/api/v1/protocol/plans/:planId/order'
 export const API_URL_MINT_PLAN = '/api/v1/protocol/plans/mint'
 export const API_URL_MINT_EXPIRABLE_PLAN = '/api/v1/protocol/plans/mintExpirable'
@@ -17,6 +18,9 @@ export const API_URL_BURN_PLAN = '/api/v1/protocol/plans/redeem'
 export const API_URL_PLAN_BALANCE = '/api/v1/protocol/plans/:planId/balance/:holderAddress'
 export const API_URL_GET_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/:planId/:agentId'
 export const API_URL_VALIDATE_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/validate/:agentId'
+
+export const API_URL_TRACK_AGENT_TASK = '/api/v1/protocol/agent-tasks'
+export const API_URL_TRACK_AGENT_SUB_TASK = '/api/v1/protocol/agent-sub-tasks'
 
 export interface BackendApiOptions {
   /**
