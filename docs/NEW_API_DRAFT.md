@@ -8,11 +8,11 @@ The library requires an API key to be passed as an argument when calling `getIns
 
 The library is structured in the following modules:
 
-* `payments`: The main module that provides the instance of the Payments class and methods. It exposes to methods to connect/disconnect.
-* `plans`: This module provides methods to register and manage payment plans.
-* `agents`: This module provides methods to register and manage agents.
-* `a2a`: This module provides methods to facilitate the integration with Google A2A agents.
-* `mcp`: This module provides methods to manage the integration with MCP agents.
+- `payments`: The main module that provides the instance of the Payments class and methods. It exposes to methods to connect/disconnect.
+- `plans`: This module provides methods to register and manage payment plans.
+- `agents`: This module provides methods to register and manage agents.
+- `a2a`: This module provides methods to facilitate the integration with Google A2A agents.
+- `mcp`: This module provides methods to manage the integration with MCP agents.
 
 ```
 const payments = Payments.getInstance()
@@ -30,6 +30,7 @@ payments.plans.getPlan()
 payments.plans.getAgentsAssociatedToAPlan()
 payments.plans.getPlanBalance()
 payments.plans.orderPlan()
+payments.plans.orderFiatPlan()
 payments.plans.mintPlanCredits()
 payments.plans.mintPlanExpirable()
 payments.plans.redeemCredits()
@@ -51,7 +52,6 @@ payments.mcp.xxx
 
 
 ```
-
 
 ## Connect
 
