@@ -4,6 +4,7 @@ import { isEthereumAddress } from '../utils'
 
 export const API_URL_REGISTER_PLAN = '/api/v1/protocol/plans'
 export const API_URL_REGISTER_AGENT = '/api/v1/protocol/agents'
+export const API_URL_REGISTER_AGENTS_AND_PLAN = '/api/v1/protocol/agents/plans'
 export const API_URL_GET_AGENT = '/api/v1/protocol/agents/:agentId'
 export const API_URL_GET_AGENT_PLANS = '/api/v1/protocol/agents/:agentId/plans'
 export const API_URL_GET_PLAN = '/api/v1/protocol/plans/:planId'
@@ -54,7 +55,7 @@ export class HTTPRequestOptions {
   headers?: { [key: string]: string } = {}
 }
 
-export class NVMBackendApi {
+export abstract class NVMBackendApi {
   protected opts: BackendApiOptions
   private hasKey = false
   private agentId = ''
