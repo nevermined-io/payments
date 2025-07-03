@@ -96,7 +96,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
 
   /**
    * Processes all events, calling handleTaskFinalization when a terminal status-update event is received.
-   * In modo asíncrono, puede lanzarse en background.
+   * In async mode, it can be launched in background.
    */
   protected async processEventsWithFinalization(
     taskId: string,
@@ -112,13 +112,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     try {
       for await (const event of eventQueue.events()) {
         await resultManager.processEvent(event)
-        // Lógica de finalización tras almacenar la tarea
+        // Finalization logic after storing the task
         if (
           event.kind === 'status-update' &&
           event.final &&
           terminalStates.includes(event.status?.state)
         ) {
-          await this.handleTaskFinalization(event, bearerToken)
+          await this.handleTaskFinalization(resultManager, event, bearerToken)
         }
         if (options?.firstResultResolver && !firstResultSent) {
           if (event.kind === 'message' || event.kind === 'task') {
@@ -280,10 +280,15 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Handles credits burning and push notification when a task reaches a terminal state.
    * This is called asynchronously from the eventBus listener.
+   * @param resultManager - The result manager
    * @param event - The status-update event with final state
    * @param bearerToken - The bearer token for payment validation
    */
-  private async handleTaskFinalization(event: TaskStatusUpdateEvent, bearerToken: string) {
+  private async handleTaskFinalization(
+    resultManager: ResultManager,
+    event: TaskStatusUpdateEvent,
+    bearerToken: string,
+  ) {
     const creditsToBurn = event.metadata?.creditsUsed
     if (
       creditsToBurn !== undefined &&
@@ -295,6 +300,14 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     ) {
       try {
         await this.paymentsService.redeemCreditsFromRequest(bearerToken, BigInt(creditsToBurn))
+        const task = resultManager.getCurrentTask()
+        if (task) {
+          task.metadata = {
+            ...task.metadata,
+            ...event.metadata,
+          }
+          await resultManager.processEvent(task)
+        }
       } catch (err) {
         console.error('[Payments] Failed to redeem credits.', err)
       }
