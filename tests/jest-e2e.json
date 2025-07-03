@@ -1,9 +1,10 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": "./e2e/",
+  "preset": "ts-jest",
   "testEnvironment": "node",
-  "testRegex": ".e2e.test.ts$",
-  "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  }
+  "testRegex": "/tests/e2e/.*\\.(test|spec)?\\.(ts|tsx)$",
+  "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
+  "moduleNameMapper": {
+    "^@a2a-js/sdk$": "<rootDir>/../__mocks__/@a2a-js/sdk.ts"
+  },
+  "transformIgnorePatterns": ["node_modules/(?!(@a2a-js/sdk)/)"]
 }

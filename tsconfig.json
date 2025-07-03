@@ -9,9 +9,18 @@
     "strict": true,
     "esModuleInterop": true,
     "preserveConstEnums": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "inlineSources": true,
+    "rootDir": "./src",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
     "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests"
   ]
 }
