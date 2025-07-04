@@ -1,6 +1,4 @@
 import axios from 'axios'
-import { decodeJwt } from 'jose'
-import { isEthereumAddress } from '../utils'
 
 export const API_URL_REGISTER_PLAN = '/api/v1/protocol/plans'
 export const API_URL_REGISTER_AGENT = '/api/v1/protocol/agents'
@@ -47,71 +45,75 @@ export interface BackendApiOptions {
 }
 
 export class HTTPRequestOptions {
+  accessToken?: string
   sendThroughProxy: boolean = true
   proxyHost?: string = undefined
   headers?: { [key: string]: string } = {}
 }
 
-export abstract class NVMBackendApi {
-  protected opts: BackendApiOptions
-  private hasKey = false
-  private agentId = ''
+export abstract class AbstractHTTPClient {
+  // protected opts: BackendApiOptions
+  // private hasKey = false
+  // private agentId = ''
 
-  constructor(opts: BackendApiOptions) {
-    const defaultHeaders = {
-      Accept: 'application/json',
-      ...opts.headers,
-      ...(opts.apiKey && { Authorization: `Bearer ${opts.apiKey}` }),
-    }
+  // constructor(opts: BackendApiOptions) {
+  //   const defaultHeaders = {
+  //     Accept: 'application/json',
+  //     ...opts.headers,
+  //     ...(opts.apiKey && { Authorization: `Bearer ${opts.apiKey}` }),
+  //   }
 
-    this.opts = {
-      ...opts,
-      headers: defaultHeaders,
-    }
+  //   this.opts = {
+  //     ...opts,
+  //     headers: defaultHeaders,
+  //   }
 
-    try {
-      if (this.opts.apiKey && this.opts.apiKey.length > 0) {
-        const jwt = decodeJwt(this.opts.apiKey)
-        if (isEthereumAddress(jwt.sub)) {
-          this.hasKey = true
-        }
-      }
-    } catch {
-      this.hasKey = false
-    }
+  //   try {
+  //     if (this.opts.apiKey && this.opts.apiKey.length > 0) {
+  //       const jwt = decodeJwt(this.opts.apiKey)
+  //       if (isEthereumAddress(jwt.sub)) {
+  //         this.hasKey = true
+  //       }
+  //     }
+  //   } catch {
+  //     this.hasKey = false
+  //   }
 
-    let backendUrl
-    try {
-      backendUrl = new URL(this.opts.backendHost)
-      this.opts.backendHost = backendUrl.origin
-    } catch (error) {
-      throw new Error(`Invalid URL: ${this.opts.backendHost} - ${(error as Error).message}`)
-    }
-  }
+  //   let backendUrl
+  //   try {
+  //     backendUrl = new URL(this.opts.backendHost)
+  //     this.opts.backendHost = backendUrl.origin
+  //   } catch (error) {
+  //     throw new Error(`Invalid URL: ${this.opts.backendHost} - ${(error as Error).message}`)
+  //   }
+  // }
 
-  parseUrl(uri: string, reqOptions: HTTPRequestOptions) {
+  constructor() {}
+
+  parseUrl(urlRequested: string, reqOptions: HTTPRequestOptions) {
     let _host: URL
     if (reqOptions.sendThroughProxy) {
-      if (reqOptions.proxyHost) _host = new URL(reqOptions.proxyHost)
-      else if (this.opts.proxyHost) _host = new URL(this.opts.proxyHost)
-      else _host = new URL(this.opts.backendHost)
-    } else _host = new URL(this.opts.backendHost)
-    return `${_host.origin}${uri}`
+      if (!reqOptions.proxyHost)
+        throw new Error('Proxy host is required when sendThroughProxy is true')
+      return `${new URL(reqOptions.proxyHost).origin}${new URL(urlRequested).href}`
+    } else {
+      return urlRequested
+    }
   }
 
-  parseHeaders(additionalHeaders: { [key: string]: string }) {
+  parseHeaders(requestHeaders: { [key: string]: string }, accessToken?: string) {
     return {
-      ...this.opts.headers,
-      ...additionalHeaders,
+      ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+      ...requestHeaders,
     }
   }
 
-  setBearerToken(token: string) {
-    this.opts.headers = {
-      ...this.opts.headers,
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  // setBearerToken(token: string) {
+  //   this.opts.headers = {
+  //     ...this.opts.headers,
+  //     Authorization: `Bearer ${token}`,
+  //   }
+  // }
 
   async request(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
@@ -125,7 +127,7 @@ export abstract class NVMBackendApi {
       const response = await axios({
         method,
         url: this.parseUrl(url, reqOptions),
-        headers: this.parseHeaders(reqOptions.headers || {}),
+        headers: this.parseHeaders(reqOptions.headers || {}, reqOptions.accessToken),
         ...(data && { data }), // Only include `data` for methods that support it
       })
 

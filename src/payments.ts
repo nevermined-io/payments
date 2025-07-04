@@ -135,12 +135,7 @@ export class Payments extends BasePaymentsAPI {
     this.plans = PlansAPI.getInstance(options)
     this.agents = AgentsAPI.getInstance(options)
     this.requests = AgentRequestsAPI.getInstance(options)
-
-    this.query = new AIQueryApi({
-      backendHost: this.environment.backend,
-      apiKey: this.nvmApiKey!,
-      proxyHost: this.environment.proxy,
-    })
+    this.query = AIQueryApi.getInstance()
   }
 
   /**

@@ -177,7 +177,7 @@ export interface StartAgentRequest {
   verbMatching: string
 }
 
-export interface AgentAccessParams {
+export interface AgentAccessCredentials {
   accessToken: string
   proxies?: string[]
 }

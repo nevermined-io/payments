@@ -19,8 +19,6 @@ const payments = Payments.getInstance()
 payments.isLoggedIn()
 payments.logout()
 
-payments.registerAgentAndPlan()
-
 payments.plans.registerPlan()
 payments.plans.registerCreditsPlan()
 payments.plans.registerTimePlan()
@@ -42,6 +40,7 @@ payments.agents.getAgentPlans()
 payments.agents.addPlanToAgent()
 payments.agents.removePlanFromAgent()
 payments.agents.getAgentAccessToken()
+payments.agents.registerAgentAndPlan()
 
 payments.requests.initializeSubscriberRequest()
 payments.requests.updateSubscriberRequest()

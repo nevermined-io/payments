@@ -1,7 +1,7 @@
 import { jsonReplacer } from '../common/helper'
 import { PaymentsError } from '../common/payments.error'
 import {
-  AgentAccessParams,
+  AgentAccessCredentials,
   AgentAPIAttributes,
   AgentMetadata,
   NvmAPIResult,
@@ -297,7 +297,7 @@ export class AgentsAPI extends BasePaymentsAPI {
    *
    * @param planId - The unique identifier of the Payment Plan.
    * @param agentId - The unique identifier of the AI Agent.
-   * @returns  @see {@link AgentAccessParams} The access token and the proxy URL to query the agent.
+   * @returns  @see {@link AgentAccessCredentials} The access token and the proxy URL to query the agent.
    * @throws PaymentsError if unable to remove the plan from the agent.
    *
    * @example
@@ -320,7 +320,10 @@ export class AgentsAPI extends BasePaymentsAPI {
    * const response = await fetch(new URL(agentEndpoint), agentHTTPOptions)
    * ```
    */
-  public async getAgentAccessToken(planId: string, agentId: string): Promise<AgentAccessParams> {
+  public async getAgentAccessToken(
+    planId: string,
+    agentId: string,
+  ): Promise<AgentAccessCredentials> {
     const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId).replace(
       ':agentId',
       agentId!,

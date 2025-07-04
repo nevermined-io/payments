@@ -1,6 +1,6 @@
 import {
   Address,
-  AgentAccessParams,
+  AgentAccessCredentials,
   AgentMetadata,
   Endpoint,
   PaginationOptions,
@@ -59,7 +59,7 @@ describe('Payments API (e2e)', () => {
       })
 
       expect(paymentsSubscriber).toBeDefined()
-      expect(paymentsSubscriber.query).toBeDefined()
+      expect(paymentsSubscriber.agents).toBeDefined()
 
       paymentsBuilder = Payments.getInstance({
         nvmApiKey: builderNvmApiKeyHash,
@@ -317,7 +317,7 @@ describe('Payments API (e2e)', () => {
 
   describe('E2E Subscriber/Agent flow', () => {
     let server: http.Server
-    let agentAccessParams: AgentAccessParams
+    let agentAccessParams: AgentAccessCredentials
     const agentURL = 'http://localhost:41243/a2a/'
 
     beforeAll(async () => {
