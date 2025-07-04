@@ -14,13 +14,10 @@ export const API_URL_MINT_PLAN = '/api/v1/protocol/plans/mint'
 export const API_URL_MINT_EXPIRABLE_PLAN = '/api/v1/protocol/plans/mintExpirable'
 export const API_URL_ADD_PLAN_AGENT = '/api/v1/protocol/agents/:agentId/plan/:planId'
 export const API_URL_REMOVE_PLAN_AGENT = '/api/v1/protocol/agents/:agentId/plan/:planId'
-
-export const API_URL_BURN_PLAN = '/api/v1/protocol/plans/redeem'
+export const API_URL_REDEEM_PLAN = '/api/v1/protocol/plans/redeem'
 export const API_URL_PLAN_BALANCE = '/api/v1/protocol/plans/:planId/balance/:holderAddress'
 export const API_URL_GET_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/:planId/:agentId'
 export const API_URL_INITIALIZE_AGENT = '/api/v1/protocol/agents/initialize/:agentId'
-export const API_URL_VALIDATE_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/validate/:agentId'
-
 export const API_URL_TRACK_AGENT_SUB_TASK = '/api/v1/protocol/agent-sub-tasks'
 
 export const API_URL_STRIPE_CHECKOUT = '/api/v1/stripe/checkout'

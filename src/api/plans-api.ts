@@ -1,5 +1,7 @@
 import { PaymentsError } from '../common/payments.error'
 import {
+  Address,
+  NvmAPIResult,
   PaginationOptions,
   PaymentOptions,
   PlanBalance,
@@ -7,14 +9,20 @@ import {
   PlanCreditsType,
   PlanMetadata,
   PlanPriceConfig,
+  StripeCheckoutResult,
 } from '../common/types'
 import { getRandomBigInt, isEthereumAddress } from '../utils'
 import { BasePaymentsAPI } from './base-payments'
 import {
+  API_URL_REDEEM_PLAN,
   API_URL_GET_PLAN,
   API_URL_GET_PLAN_AGENTS,
+  API_URL_MINT_EXPIRABLE_PLAN,
+  API_URL_MINT_PLAN,
+  API_URL_ORDER_PLAN,
   API_URL_PLAN_BALANCE,
   API_URL_REGISTER_PLAN,
+  API_URL_STRIPE_CHECKOUT,
 } from './nvm-api'
 
 /**
@@ -57,7 +65,7 @@ export class PlansAPI extends BasePaymentsAPI {
    * ```
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
    *  const creditsConfig = getFixedCreditsConfig(100n)
-   *  const { planId } = await payments.registerPlan({ name: 'AI Assistants Plan'}, cryptoPriceConfig, creditsConfig)
+   *  const { planId } = await payments.plans.registerPlan({ name: 'AI Assistants Plan'}, cryptoPriceConfig, creditsConfig)
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -107,7 +115,11 @@ export class PlansAPI extends BasePaymentsAPI {
    * ```
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
    *  const creditsConfig = getFixedCreditsConfig(100n)
-   *  const { planId } = await payments.registerCreditsPlan({ name: 'AI Credits Plan'}, cryptoPriceConfig, creditsConfig)
+   *  const { planId } = await payments.plans.registerCreditsPlan(
+   *     { name: 'AI Credits Plan'},
+   *     cryptoPriceConfig,
+   *     creditsConfig
+   * )
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -152,7 +164,11 @@ export class PlansAPI extends BasePaymentsAPI {
    * ```
    *  const cryptoPriceConfig = getNativeTokenPriceConfig(100n, builderAddress)
    *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
-   *  const { planId } = await payments.registerTimePlan({ name: 'Just for today plan'}, cryptoPriceConfig, 1dayDurationPlan)
+   *  const { planId } = await payments.plans.registerTimePlan(
+   *    { name: 'Just for today plan'},
+   *    cryptoPriceConfig,
+   *    1dayDurationPlan
+   *  )
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -187,7 +203,11 @@ export class PlansAPI extends BasePaymentsAPI {
    * ```
    *  const freePriceConfig = getFreePriceConfig()
    *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
-   *  const { planId } = await payments.registerCreditsTrialPlan({name: 'Trial plan'}, freePriceConfig, 1dayDurationPlan)
+   *  const { planId } = await payments.plans.registerCreditsTrialPlan(
+   *    {name: 'Trial plan'},
+   *    freePriceConfig,
+   *    1dayDurationPlan
+   * )
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -220,7 +240,11 @@ export class PlansAPI extends BasePaymentsAPI {
    * ```
    *  const freePriceConfig = getFreePriceConfig()
    *  const 1dayDurationPlan = getExpirableDurationConfig(ONE_DAY_DURATION)
-   *  const { planId } = await payments.registerTimeTrialPlan({name: '1 day Trial plan'}, freePriceConfig, 1dayDurationPlan)
+   *  const { planId } = await payments.plans.registerTimeTrialPlan(
+   *    {name: '1 day Trial plan'},
+   *    freePriceConfig,
+   *    1dayDurationPlan
+   * )
    * ```
    *
    * @returns The unique identifier of the plan (Plan ID) of the newly created plan.
@@ -240,6 +264,10 @@ export class PlansAPI extends BasePaymentsAPI {
    * @param planId - The unique identifier of the plan.
    * @returns A promise that resolves to the plan's description.
    * @throws PaymentsError if the plan is not found.
+   * @example
+   * ```
+   *  const plan = payments.plans.getPlan(planId)
+   * ```
    */
   public async getPlan(planId: string) {
     const query = API_URL_GET_PLAN.replace(':planId', planId)
@@ -259,6 +287,17 @@ export class PlansAPI extends BasePaymentsAPI {
    * @param pagination - Optional pagination options to control the number of results returned.
    * @returns A promise that resolves to the list of agents associated with the plan.
    * @throws PaymentsError if the plan is not found.
+   *
+   * @example
+   * ```
+   *  const result = payments.plans.getAgentsAssociatedToAPlan(planId)
+   *  // {
+   *  //  total: 10,
+   *  //  page: 1,
+   *  //  offset: 5,
+   *  //  agents: [ ..]
+   *  // }
+   * ```
    */
   public async getAgentsAssociatedToAPlan(planId: string, pagination = new PaginationOptions()) {
     const query =
@@ -277,11 +316,26 @@ export class PlansAPI extends BasePaymentsAPI {
    *
    * @param planId - The identifier of the Payment Plan.
    * @param accountAddress - The address of the account to get the balance for.
-   * @returns A promise that resolves to the balance result.
+   * @returns @see {@link PlanBalance} A promise that resolves to the balance result.
    * @throws PaymentsError if unable to get the balance.
+   *
+   * ```
+   * const balance = payments.plans.getPlanBalance(planId)
+   * // {
+   * //     planId: '105906633592154016712415751065660953070604027297000423385655551747721326921578',
+   * //     planType: 'credits',
+   * //     holderAddress: '0x505384192Ba6a4D4b50EAB846ee67db3b9A93359',
+   * //     creditsContract: '0xdd0240858fE744C3BF245DD377abBC04d1FDA443',
+   * //     balance: '100',
+   * //     isSubscriber: true
+   * //   }
+   * ```
+   *
    */
-  public async getPlanBalance(planId: string, accountAddress?: string): Promise<PlanBalance> {
-    const holderAddress = isEthereumAddress(accountAddress) ? accountAddress : this.accountAddress
+  public async getPlanBalance(planId: string, accountAddress?: Address): Promise<PlanBalance> {
+    const holderAddress = isEthereumAddress(accountAddress)
+      ? accountAddress
+      : this.getAccountAddress()
     const balanceUrl = API_URL_PLAN_BALANCE.replace(':planId', planId).replace(
       ':holderAddress',
       holderAddress!,
@@ -299,6 +353,207 @@ export class PlansAPI extends BasePaymentsAPI {
     if (!response.ok) {
       throw new PaymentsError(
         `Unable to get balance. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Orders a Payment Plan requiring the payment in crypto. The user must have enough balance in the selected token.
+   *
+   * @remarks
+   * The payment is done using crypto in the token (ERC20 or native) defined in the plan.
+   *
+   * @param planId - The unique identifier of the plan.
+   * @returns  @see {@link NvmAPIResult} A promise that resolves indicating if the operation was successful.
+   * @throws PaymentsError if unable to order the plan.
+   *
+   * @example
+   * ```
+   * const result = await payments.plans.orderPlan(planId)
+   * // {
+   * //   txHash: '0x8d29d5769e832a35e53f80cd4e8890d941c50a09c33dbd975533debc894f2535',
+   * //   success: true
+   * // }
+   * ```
+   */
+  public async orderPlan(planId: string): Promise<NvmAPIResult> {
+    const options = this.getBackendHTTPOptions('POST')
+    const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to order plan. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Initiates the purchase of a Plan requiring the payment in Fiat. This method will return a URL where the user can complete the payment.
+   *
+   * @remarks
+   * The payment is completed using a credit card in a external website (Stripe).
+   * @remarks
+   * This method is only valid for plans with price in Fiat.
+   *
+   * @param planId - The unique identifier of the plan.
+   * @returns A promise that resolves indicating the URL to complete the payment.
+   * @throws PaymentsError if unable to order the plan.
+   *
+   * @example
+   * ```
+   * const result = await payments.plans.orderFiatPlan(planId)
+   * ```
+   */
+  public async orderFiatPlan(planId: string): Promise<{ result: StripeCheckoutResult }> {
+    const body = {
+      sessionType: 'embedded',
+      planId,
+    }
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to order fiat plan. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Mints credits for a given Payment Plan and transfers them to a receiver.
+   *
+   * @remarks
+   * Only the owner of the Payment Plan can call this method.
+   *
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param creditsAmount - The number of credits to mint.
+   * @param creditsReceiver - The address of the receiver.
+   * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
+   * @throws PaymentsError if unable to mint credits.
+   *
+   * @example
+   * ```
+   * const result = await payments.plans.mintPlanCredits(planId, 5n, '0x505384192Ba6a4D4b50EAB846ee67db3b9A93359')
+   * // {
+   * //   txHash: '0x8d29d5769e832a35e53f80cd4e8890d941c50a09c33dbd975533debc894f2535',
+   * //   success: true
+   * // }
+   * ```
+   */
+  public async mintPlanCredits(
+    planId: string,
+    creditsAmount: bigint,
+    creditsReceiver: Address,
+  ): Promise<NvmAPIResult> {
+    const body = { planId, amount: creditsAmount, creditsReceiver }
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to mint plan credits. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Mints expirable credits for a given Payment Plan and transfers them to a receiver.
+   *
+   * @remarks
+   * Only the owner of the Payment Plan can call this method.
+   *
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param creditsAmount - The number of credits to mint.
+   * @param creditsReceiver - The address of the receiver.
+   * @param creditsDuration - The duration of the credits in seconds. Default is 0 (no expiration).
+   * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
+   * @throws PaymentsError if unable to mint expirable credits.
+   *
+   * @example
+   * ```
+   * const result = await payments.plans.mintPlanExpirable(
+   *    planId,
+   *    1n,
+   *    '0x505384192Ba6a4D4b50EAB846ee67db3b9A93359',
+   *    86_400n // 1 day in seconds
+   *  )
+   * // {
+   * //   txHash: '0x8d29d5769e832a35e53f80cd4e8890d941c50a09c33dbd975533debc894f2535',
+   * //   success: true
+   * // }
+   * ```
+   */
+  public async mintPlanExpirable(
+    planId: string,
+    creditsAmount: bigint,
+    creditsReceiver: Address,
+    creditsDuration = 0n,
+  ): Promise<NvmAPIResult> {
+    const body = { planId, amount: creditsAmount, creditsReceiver, duration: creditsDuration }
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to mint expirable credits. ${response.statusText} - ${await response.text()}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  /**
+   * Burns/redeem credits for a given Payment Plan.
+   *
+   * @remarks
+   * Only the owner of the Payment Plan can call this method.
+   *
+   * @param agentRequestId - The unique identifier of the agent request to track the operation. This ID is generated via the `requests.startProcessingRequest` method
+   * @param planId - The unique identifier of the Payment Plan.
+   * @param redeemFrom - The address of the account to redeem from.
+   * @param creditsAmountToRedeem - The amount of credits to redeem.
+   * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
+   * @throws PaymentsError if unable to burn credits.
+   *
+   * ```
+   * const result = await payments.plans.redeemCredits(
+   *   'request-id-12345', // The request ID to track the operation
+   *    planId,
+   *    '0x505384192Ba6a4D4b50EAB846ee67db3b9A93359', // The address of the account to redeem from
+   *    5n
+   * )
+   * // {
+   * //   txHash: '0x8d29d5769e832a35e53f80cd4e8890d941c50a09c33dbd975533debc894f2535',
+   * //   success: true
+   * // }
+   * ```
+   */
+  public async redeemCredits(
+    agentRequestId: string,
+    planId: string,
+    redeemFrom: Address,
+    creditsAmountToRedeem: string,
+  ): Promise<NvmAPIResult> {
+    const body = {
+      agentRequestId,
+      planId,
+      redeemFrom,
+      creditsAmoamountuntToBurn: creditsAmountToRedeem,
+    }
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new PaymentsError(
+        `Unable to redeem credits. ${response.statusText} - ${await response.text()}`,
       )
     }
 

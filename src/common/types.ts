@@ -170,7 +170,8 @@ export interface PlanBalance {
   isSubscriber: boolean
 }
 
-export interface ValidationAgentRequest {
+export interface StartAgentRequest {
+  agentRequestId: string
   balance: PlanBalance
   urlMatching: string
   verbMatching: string
@@ -399,19 +400,4 @@ export interface TrackAgentSubTaskDto {
    * The status of the agent sub task (optional)
    */
   status?: AgentTaskStatus
-}
-
-/**
- * Response data transfer object for tracking agent sub tasks
- */
-export interface TrackAgentSubTaskResponseDto {
-  /**
-   * Indicates if the agent sub task was tracked successfully
-   */
-  success: boolean
-
-  /**
-   * Success or error message
-   */
-  message: string
 }

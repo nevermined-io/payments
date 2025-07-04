@@ -68,6 +68,7 @@ describe('Payments API (e2e)', () => {
       expect(paymentsBuilder).toBeDefined()
       expect(paymentsBuilder.plans).toBeDefined()
       builderAddress = paymentsBuilder.getAccountAddress() as Address
+      expect(paymentsBuilder.plans.getAccountAddress()).toBe(builderAddress)
     })
   })
 
@@ -211,6 +212,7 @@ describe('Payments API (e2e)', () => {
       'I should be able to get a plan',
       async () => {
         const plan = await paymentsBuilder.plans.getPlan(creditsPlanId)
+        
         expect(plan).toBeDefined()
         console.log('Plan', plan)
       },
@@ -262,7 +264,7 @@ describe('Payments API (e2e)', () => {
       async () => {
         console.log(creditsPlanId)
         console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
-        const orderResult = await paymentsSubscriber.orderPlan(creditsPlanId)
+        const orderResult = await paymentsSubscriber.plans.orderPlan(creditsPlanId)
         expect(orderResult).toBeDefined()
         console.log('Credits Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
@@ -275,7 +277,7 @@ describe('Payments API (e2e)', () => {
       'I should be able to get the link to finalize the order of a Fiat Plan',
       async () => {
         console.log(fiatPlanId)
-        const orderResult = await paymentsSubscriber.orderFiatPlan(fiatPlanId)
+        const orderResult = await paymentsSubscriber.plans.orderFiatPlan(fiatPlanId)
         expect(orderResult).toBeDefined()
         console.log('Fiat Plan - Order Result', orderResult)
         expect(orderResult.result.checkoutLink).toBeDefined()
@@ -296,7 +298,7 @@ describe('Payments API (e2e)', () => {
       async () => {
         console.log(trialPlanId)
         console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
-        const orderResult = await paymentsSubscriber.orderPlan(trialPlanId)
+        const orderResult = await paymentsSubscriber.plans.orderPlan(trialPlanId)
         expect(orderResult).toBeDefined()
         console.log('Trial Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
@@ -307,7 +309,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should NOT be able to get a Trial Plan twice',
       async () => {
-        await expect(paymentsSubscriber.orderPlan(trialPlanId)).rejects.toThrow()
+        await expect(paymentsSubscriber.plans.orderPlan(trialPlanId)).rejects.toThrow()
       },
       TEST_TIMEOUT * 2,
     )
@@ -320,14 +322,14 @@ describe('Payments API (e2e)', () => {
 
     beforeAll(async () => {
       server = http.createServer(async (req, res) => {
-        const authHeader = req.headers['authorization']
+        const authHeader = req.headers['authorization'] as string
 
         const requestedUrl = `http://localhost:41243${req.url}`
         const httpVerb = req.method
         console.log('Received request:', { endpoint: requestedUrl, httpVerb, authHeader })
         let isValidReq
         try {
-          isValidReq = await paymentsBuilder.startProcessingRequest(
+          isValidReq = await paymentsBuilder.requests.startProcessingRequest(
             agentId,
             authHeader,
             requestedUrl,
@@ -360,7 +362,7 @@ describe('Payments API (e2e)', () => {
     })
 
     it('I should be able to generate the agent access token', async () => {
-      agentAccessParams = await paymentsSubscriber.getAgentAccessToken(creditsPlanId, agentId)
+      agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(creditsPlanId, agentId)
       expect(agentAccessParams).toBeDefined()
       console.log('Agent Access Params', agentAccessParams)
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)

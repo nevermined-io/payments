@@ -4,6 +4,10 @@ import { PaymentOptions } from '../common/types'
 import { decodeJwt } from 'jose'
 import { PaymentsError } from '../common/payments.error'
 
+/**
+ * Base class extended by all Payments API classes.
+ * It provides common functionality such as parsing the NVM API Key and getting the account address.
+ */
 export abstract class BasePaymentsAPI {
   protected nvmApiKey: string
   protected environment: EnvironmentInfo
@@ -19,10 +23,7 @@ export abstract class BasePaymentsAPI {
     this.environment = Environments[options.environment]
     this.appId = options.appId
     this.version = options.version
-  }
-
-  public getAccountAddress(): string | undefined {
-    return this.accountAddress
+    this.parseNvmApiKey()
   }
 
   /**
@@ -36,6 +37,14 @@ export abstract class BasePaymentsAPI {
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
     }
+  }
+
+  /**
+   * It returns the account address associated with the NVM API Key used to initialize the Payments Library instance.
+   * @returns The account address extracted from the NVM API Key
+   */
+  public getAccountAddress(): string | undefined {
+    return this.accountAddress
   }
 
   /**
