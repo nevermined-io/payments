@@ -11,7 +11,7 @@ With the Payments Library, subscribers can easily order Payment Plans by paying 
 
 ```typescript
 // Here we are ordering the plan created in the previous steps
-const orderResult = await payments.orderPlan(planId)
+const orderResult = await payments.plans.orderPlan(planId)
 // OUTPUT: orderResult: 
 // {
 //   txHash: '0x5b95ebaec594b6d87e688faddf85eec3d708e6a06e61864699e5a366af1343f6',
@@ -28,7 +28,7 @@ Time-based plans provide a balance of 1 credit for subscribers. When the plan ex
 :::
 
 ```typescript
-const balanceResult = await payments.getPlanBalance(planId)
+const balanceResult = await payments.plans.getPlanBalance(planId)
 // OUTPUT: balanceResult:
 // {
 //   planId: '84262690312400469275420649384078993542777341811308941725027729655403981619104',

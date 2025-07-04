@@ -19,8 +19,8 @@ Once a user is a subscriber, sending a request is quite simple.
 ## Get the AI Agent or Service Access Token
 
 ```typescript
-const agentAccessParams = await payments.getAgentAccessToken(planId, agentId)
-// OUTPUT: subscriberQueryOpts:
+const credentials = await payments.agents.getAgentAccessToken(planId, agentId)
+// OUTPUT: credentials:
 // {
 //   accessToken: 'eJyNj0sKgDAURP9lJQ ....',
 //   proxies: [ 'https://proxy.nevermined.app' ]
@@ -40,4 +40,21 @@ Because Nevermined authorizes standard HTTP requests, they can be used to protec
 export AGENT_ACCESS_TOKEN="eJyNj0sKgDAURP9lJQ..."
 
 curl -k -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $AGENT_ACCESS_TOKEN" -d '{"query": "hey there"}' https://my.agent.io/prompt```
+```
+
+Of course you can use all this information to send a request to the agent in typescript:
+
+```typescript
+const agentHTTPOptions = {
+  method: 'POST',
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${credentials.accessToken}`,
+  }
+}
+
+const response = await fetch(new URL('https://my.agent.io/prompt'), agentHTTPOptions)
+
+
 ```

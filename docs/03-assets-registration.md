@@ -30,7 +30,11 @@ const priceConfig = getERC20PriceConfig(20_000_000n, USDC_ERC20_TESTING, builder
 // The subscriber receives 100 credits upon purchasing the plan
 const creditsConfig = getFixedCreditsConfig(100n)
 // Register the plan
-const { planId } = await payments.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
+const { planId } = await payments.plans.registerCreditsPlan(
+  planMetadata, 
+  priceConfig, 
+  creditsConfig
+)
 ```
 
 ### Registering a Time-Based Payment Plan
@@ -38,8 +42,14 @@ const { planId } = await payments.registerCreditsPlan(planMetadata, priceConfig,
 ```typescript
 // The price is 5 USDC (5_000_000) on the testing network
 const priceConfig = getERC20PriceConfig(5_000_000n, ERC20_ADDRESS, builderAddress)
-const oneDayPlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
-const { planId } = await payments.registerTimePlan(planMetadata, priceConfig, oneDayPlanConfig)
+// The plan is valid for 1 day
+const oneDayPlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
+// Register the plan
+const { planId } = await payments.plans.registerTimePlan(
+  planMetadata, 
+  priceConfig, 
+  oneDayPlanConfig
+)
 ```
 
 ### Registering a Trial Plan
@@ -50,9 +60,16 @@ A Trial Plan is a special type of Payment Plan that allows users to try out an A
 const trialPlanMetadata: PlanMetadata = {
   name: 'Try it for one day before you buy it',
 }
+// The price is free
 const freeConfig = getFreePriceConfig()
+// The plan is valid for 1 day
 const oneDayPlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
-const { planId } = await payments.registerTimeTrialPlan(trialPlanMetadata, freeConfig, oneDayPlanConfig)
+// Register the trial plan
+const { planId } = await payments.plans.registerTimeTrialPlan(
+  trialPlanMetadata, 
+  freeConfig, 
+  oneDayPlanConfig
+)
 ```
 
 ### Registering an AI Agent
@@ -61,6 +78,7 @@ const { planId } = await payments.registerTimeTrialPlan(trialPlanMetadata, freeC
 // When you create an agent, you need to provide the endpoints that the agent exposes and are protected by the Payment Plan
 // You must specify the HTTP method and the URL pattern that the agent exposes
 // You can use wildcards (like :agentId in the example) to match any string
+// See more information about the wildcards supported here: https://github.com/pillarjs/path-to-regexp
 
 const agentMetadata: AgentMetadata = {
   name: 'E2E Payments Agent',
@@ -75,7 +93,12 @@ const agentApi = {
   openEndpoints: ['https://example.com/api/v1/rest/docs-json']
 }
 const paymentPlans = [creditsPlanId, expirablePlanId]
-const { agentId } = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)
+
+const { agentId } = await payments.agents.registerAgent(
+  agentMetadata, 
+  agentApi, 
+  paymentPlans
+)
 ```
 
 ### Creating a Credit-Based Payment Plan and an AI Agent in One Step
@@ -83,10 +106,12 @@ const { agentId } = await payments.registerAgent(agentMetadata, agentApi, paymen
 ```typescript
 const agentMetadata = { name: 'My AI Payments Agent', tags: ['test2'] }
 const agentApi = { endpoints: [{ 'POST': 'http://localhost:8889/test/:agentId/tasks' }] }
+
 const cryptoPriceConfig = getNativeTokenPriceConfig(500n, builderAddress)
+// Non expirable payment plan
 const nonExpirableConfig = getNonExpirableDurationConfig()
 
-const { agentId, planId } = await paymentsBuilder.registerAgentAndPlan(
+const { agentId, planId } = await paymentsBuilder.agents.registerAgentAndPlan(
   agentMetadata,
   agentApi,
   planMetadata,
