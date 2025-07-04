@@ -5,7 +5,6 @@ export * from './common/types'
 export * from './common/payments.error'
 export * from './common/helper'
 export * from './api/query-api'
-export * as a2a from './a2a'
 export { BackendApiOptions } from './api/nvm-api'
 
 export type {
@@ -17,4 +16,12 @@ export type {
   RequestContext,
   PushNotificationConfig,
   Task,
+  MessageSendParams,
+  SendMessageResponse,
+  TaskQueryParams,
+  GetTaskResponse,
+  TaskPushNotificationConfig,
+  SetTaskPushNotificationConfigResponse,
+  TaskIdParams,
+  GetTaskPushNotificationConfigResponse,
 } from './a2a/types'

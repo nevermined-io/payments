@@ -23,3 +23,9 @@ export { buildPaymentAgentCard } from './agent-card'
  * Includes TaskContext, TaskHandlerResult, PaymentMetadata, and A2A SDK types.
  */
 export * from './types'
+
+/**
+ * A2A server and client registry functionality is now available via the Payments.a2a property.
+ * Use payments.a2a.start(...) to start the server, and payments.a2a.getClient(...) to get or create a client for an agent.
+ * The client registry is lazy-initialized and not created unless getClient is called.
+ */

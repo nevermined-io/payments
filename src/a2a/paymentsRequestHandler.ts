@@ -9,21 +9,13 @@ import type {
   Task,
   Message,
 } from '@a2a-js/sdk'
+import type { HttpRequestContext } from './types'
 import { v4 as uuidv4 } from 'uuid'
 import { AgentExecutor, DefaultRequestHandler, ResultManager } from '@a2a-js/sdk'
 import { ExecutionEventQueue } from '@a2a-js/sdk/build/src/server/events/execution_event_queue'
 import { PaymentsError } from '../common/payments.error'
 
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
-
-/**
- * HTTP context associated with a task or message.
- */
-type HttpRequestContext = {
-  bearerToken?: string
-  urlRequested?: string
-  httpMethodRequested?: string
-}
 
 /**
  * PaymentsRequestHandler extends DefaultRequestHandler to add payments validation and burning.

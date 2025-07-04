@@ -24,6 +24,14 @@ import type {
   AgentExecutor,
   RequestContext,
   PushNotificationConfig,
+  MessageSendParams,
+  SendMessageResponse,
+  TaskQueryParams,
+  GetTaskResponse,
+  TaskPushNotificationConfig,
+  SetTaskPushNotificationConfigResponse,
+  TaskIdParams,
+  GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
 
 /**
@@ -103,6 +111,32 @@ export interface PaymentMetadata {
   costDescription?: string
 }
 
+/**
+ * Options required to register or retrieve a client in the registry.
+ */
+export interface ClientRegistryOptions {
+  agentBaseUrl: string
+  agentId: string
+  planId: string
+}
+
+/**
+ * Options for agent interaction methods (used by PaymentsClient).
+ */
+export interface AgentOptions {
+  agentId: string
+  planId?: string
+}
+
+/**
+ * HTTP context associated with a task or message (for internal request tracking).
+ */
+export type HttpRequestContext = {
+  bearerToken?: string
+  urlRequested?: string
+  httpMethodRequested?: string
+}
+
 // Re-export A2A SDK types for convenience
 export type {
   AgentCard,
@@ -116,6 +150,14 @@ export type {
   AgentExecutor,
   RequestContext,
   PushNotificationConfig,
+  MessageSendParams,
+  SendMessageResponse,
+  TaskQueryParams,
+  GetTaskResponse,
+  TaskPushNotificationConfig,
+  SetTaskPushNotificationConfigResponse,
+  TaskIdParams,
+  GetTaskPushNotificationConfigResponse,
 }
 
 // Re-export server options type for convenience
