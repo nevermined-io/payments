@@ -114,7 +114,7 @@ function bearerTokenMiddleware(
   }
 
   // Try to associate context with taskId or messageId
-  const taskId = req.body?.taskId || req.body?.id
+  const taskId = req.body?.taskId
   const messageId = req.body?.params?.message?.messageId
 
   if (taskId) {
