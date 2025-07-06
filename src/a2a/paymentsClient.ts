@@ -10,66 +10,49 @@ import {
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
-import type { AgentOptions } from './types'
 
 /**
- * PaymentsClient extends the official A2AClient, adding automatic accessToken management and caching per agent.
- * The user only needs to provide planId the first time for each agent; subsequent calls require only agentId.
+ * PaymentsClient is a high-level client for A2A agents with payments integration.
+ * Each instance is bound to a specific agentId and planId.
  */
 export class PaymentsClient extends A2AClient {
   public payments: Payments
-  private tokenCache: Map<string, string> = new Map()
+  private readonly agentId: string
+  private readonly planId: string
+  private accessToken: string | null = null
 
-  /**
-   * Constructs a PaymentsClient instance.
-   * @param agentBaseUrl - The base URL of the A2A agent.
-   * @param payments - An initialized Payments instance for payment operations.
-   */
-  constructor(agentBaseUrl: string, payments: Payments) {
+  constructor(agentBaseUrl: string, payments: Payments, agentId: string, planId: string) {
     super(agentBaseUrl)
     this.payments = payments
+    this.agentId = agentId
+    this.planId = planId
   }
 
   /**
-   * Gets and caches the access token for a given agentId (and planId if needed).
-   * Throws an error if the token is not cached and planId is not provided.
-   * @param options - Object containing agentId (required) and planId (required only if token is not cached).
+   * Gets and caches the access token for this client instance.
    * @returns The access token string.
    */
-  private async _getAgentAccessToken(options: AgentOptions): Promise<string> {
-    const { agentId, planId } = options
-    const cached = this.tokenCache.get(agentId)
-    if (cached) {
-      return cached
+  private async _getAccessToken(): Promise<string> {
+    if (this.accessToken) {
+      return this.accessToken
     }
-    if (!planId) {
-      throw new Error(
-        `No cached accessToken for agentId '${agentId}'. Please provide planId to obtain one.`,
-      )
-    }
-    const accessParams = await this.payments.getAgentAccessToken(planId, agentId)
-    this.tokenCache.set(agentId, accessParams.accessToken)
-    return accessParams.accessToken
+    const accessParams = await this.payments.getAgentAccessToken(this.planId, this.agentId)
+    this.accessToken = accessParams.accessToken
+    return this.accessToken
   }
 
   /**
-   * Clears the cached access token for a given agentId.
-   * @param agentId - The agent ID whose token should be cleared.
+   * Clears the cached access token for this client instance.
    */
-  public clearAgentToken(agentId: string) {
-    this.tokenCache.delete(agentId)
+  public clearToken() {
+    this.accessToken = null
   }
 
   /**
-   * Sends a message to the agent, automatically handling and caching the access token per agent.
-   * @param params - Message send parameters.
-   * @param options - Object containing agentId (required) and planId (required only if token is not cached).
+   * Sends a message to the agent, managing authentication automatically.
    */
-  public async sendAgentMessage(
-    params: MessageSendParams,
-    options: AgentOptions,
-  ): Promise<SendMessageResponse> {
-    const accessToken = await this._getAgentAccessToken(options)
+  public async sendA2AMessage(params: MessageSendParams): Promise<SendMessageResponse> {
+    const accessToken = await this._getAccessToken()
     const headers = { Authorization: `Bearer ${accessToken}` }
     return this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
       'message/send',
@@ -79,15 +62,265 @@ export class PaymentsClient extends A2AClient {
   }
 
   /**
-   * Retrieves a task by its ID, automatically handling the access token per agent.
-   * @param params - Task query parameters.
-   * @param options - Object containing agentId (required) and planId (required only if token is not cached).
+   * Sends a message to the agent and streams back responses using Server-Sent Events (SSE).
+   * Push notification configuration can be specified in `params.configuration`.
+   * Optionally, `params.message.contextId` or `params.message.taskId` can be provided.
+   * Requires the agent to support streaming (`capabilities.streaming: true` in AgentCard).
+   * @param params The parameters for sending the message.
+   * @returns An AsyncGenerator yielding A2AStreamEventData (Message, Task, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent).
+   * The generator throws an error if streaming is not supported or if an HTTP/SSE error occurs.
    */
-  public async getAgentTask(
-    params: TaskQueryParams,
-    options: AgentOptions,
-  ): Promise<GetTaskResponse> {
-    const accessToken = await this._getAgentAccessToken(options)
+  public async *sendA2AMessageStream(
+    params: MessageSendParams,
+  ): AsyncGenerator<any, void, undefined> {
+    const agentCard = await (this as any).agentCardPromise
+    if (!agentCard.capabilities?.streaming) {
+      throw new Error(
+        'Agent does not support streaming (AgentCard.capabilities.streaming is not true).',
+      )
+    }
+    const endpoint = await (this as any)._getServiceEndpoint()
+    const clientRequestId = (this as any).requestIdCounter++
+    const rpcRequest = {
+      jsonrpc: '2.0',
+      method: 'message/stream',
+      params: params as { [key: string]: any },
+      id: clientRequestId,
+    }
+    const accessToken = await this._getAccessToken()
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(rpcRequest),
+    })
+    if (!response.ok) {
+      let errorBody = ''
+      try {
+        errorBody = await response.text()
+        const errorJson = JSON.parse(errorBody)
+        if (errorJson.error) {
+          throw new Error(
+            `HTTP error establishing stream for message/stream: ${response.status} ${response.statusText}. RPC Error: ${errorJson.error.message} (Code: ${errorJson.error.code})`,
+          )
+        }
+      } catch (e: any) {
+        if (e.message.startsWith('HTTP error establishing stream')) throw e
+        throw new Error(
+          `HTTP error establishing stream for message/stream: ${response.status} ${response.statusText}. Response: ${errorBody || '(empty)'}`,
+        )
+      }
+      throw new Error(
+        `HTTP error establishing stream for message/stream: ${response.status} ${response.statusText}`,
+      )
+    }
+    if (!response.headers.get('Content-Type')?.startsWith('text/event-stream')) {
+      throw new Error("Invalid response Content-Type for SSE stream. Expected 'text/event-stream'.")
+    }
+    // Parse and yield SSE events
+    for await (const event of this._parseA2AStream(response, clientRequestId)) {
+      yield event
+    }
+  }
+
+  /**
+   * Parses an HTTP response body as an A2A Server-Sent Event stream.
+   * Each 'data' field of an SSE event is expected to be a JSON-RPC 2.0 Response object,
+   * specifically a SendStreamingMessageResponse (or similar structure for resubscribe).
+   * @param response The HTTP Response object whose body is the SSE stream.
+   * @param originalRequestId The ID of the client's JSON-RPC request that initiated this stream.
+   * Used to validate the `id` in the streamed JSON-RPC responses.
+   * @returns An AsyncGenerator yielding the `result` field of each valid JSON-RPC success response from the stream.
+   */
+  private async *_parseA2AStream<TStreamItem>(
+    response: Response,
+    originalRequestId: number | string | null,
+  ): AsyncGenerator<TStreamItem, void, undefined> {
+    if (!response.body) {
+      throw new Error('SSE response body is undefined. Cannot read stream.')
+    }
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+    let buffer = '' // Holds incomplete lines from the stream
+    let eventDataBuffer = '' // Holds accumulated 'data:' lines for the current event
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) {
+          // Process any final buffered event data if the stream ends abruptly after a 'data:' line
+          if (eventDataBuffer.trim()) {
+            const result = this._processEventData<TStreamItem>(eventDataBuffer, originalRequestId)
+            yield result
+          }
+          break // Stream finished
+        }
+
+        buffer += value // Append new chunk to buffer
+        let lineEndIndex
+        // Process all complete lines in the buffer
+        while ((lineEndIndex = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.substring(0, lineEndIndex).trim() // Get and trim the line
+          buffer = buffer.substring(lineEndIndex + 1) // Remove processed line from buffer
+
+          if (line === '') {
+            // Empty line: signifies the end of an event
+            if (eventDataBuffer) {
+              // If we have accumulated data for an event
+              const result = this._processEventData<TStreamItem>(eventDataBuffer, originalRequestId)
+              yield result
+              eventDataBuffer = '' // Reset buffer for the next event
+            }
+          } else if (line.startsWith('data:')) {
+            eventDataBuffer += line.substring(5).trimStart() + '\n' // Append data (multi-line data is possible)
+          } else if (line.startsWith(':')) {
+            // This is a comment line in SSE, ignore it.
+          } else if (line.includes(':')) {
+            // Other SSE fields like 'event:', 'id:', 'retry:'.
+            // The A2A spec primarily focuses on the 'data' field for JSON-RPC payloads.
+            // For now, we don't specifically handle these other SSE fields unless required by spec.
+          }
+        }
+      }
+    } catch (error: any) {
+      // Log and re-throw errors encountered during stream processing
+      console.error('Error reading or parsing SSE stream:', error.message)
+      throw error
+    } finally {
+      reader.releaseLock() // Ensure the reader lock is released
+    }
+  }
+
+  /**
+   * Processes a single SSE event's data string, expecting it to be a JSON-RPC response.
+   * @param jsonData The string content from one or more 'data:' lines of an SSE event.
+   * @param originalRequestId The ID of the client's request that initiated the stream.
+   * @returns The `result` field of the parsed JSON-RPC success response.
+   * @throws Error if data is not valid JSON, not a valid JSON-RPC response, an error response, or ID mismatch.
+   */
+  private _processEventData<TStreamItem>(
+    jsonData: string,
+    originalRequestId: number | string | null,
+  ): TStreamItem {
+    if (!jsonData.trim()) {
+      throw new Error('Attempted to process empty SSE event data.')
+    }
+    try {
+      // SSE data can be multi-line, ensure it's treated as a single JSON string.
+      const sseJsonRpcResponse = JSON.parse(jsonData.replace(/\n$/, ''))
+
+      // Type assertion to SendStreamingMessageResponse, as this is the expected structure for A2A streams.
+      const a2aStreamResponse: any = sseJsonRpcResponse
+
+      if (a2aStreamResponse.id !== originalRequestId) {
+        // According to JSON-RPC spec, notifications (which SSE events can be seen as) might not have an ID,
+        // or if they do, it should match. A2A spec implies streamed events are tied to the initial request.
+        console.warn(
+          `SSE Event's JSON-RPC response ID mismatch. Client request ID: ${originalRequestId}, event response ID: ${a2aStreamResponse.id}.`,
+        )
+        // Depending on strictness, this could be an error. For now, it's a warning.
+      }
+
+      if (this.isErrorResponse && this.isErrorResponse(a2aStreamResponse)) {
+        const err = a2aStreamResponse.error
+        throw new Error(
+          `SSE event contained an error: ${err.message} (Code: ${err.code}) Data: ${JSON.stringify(err.data)}`,
+        )
+      }
+
+      // Check if 'result' exists, as it's mandatory for successful JSON-RPC responses
+      if (!('result' in a2aStreamResponse) || typeof a2aStreamResponse.result === 'undefined') {
+        throw new Error(`SSE event JSON-RPC response is missing 'result' field. Data: ${jsonData}`)
+      }
+
+      return a2aStreamResponse.result as TStreamItem
+    } catch (e: any) {
+      // Catch errors from JSON.parse or if it's an error response that was thrown by this function
+      if (
+        e.message.startsWith('SSE event contained an error') ||
+        e.message.startsWith("SSE event JSON-RPC response is missing 'result' field")
+      ) {
+        throw e // Re-throw errors already processed/identified by this function
+      }
+      // For other parsing errors or unexpected structures:
+      console.error(
+        'Failed to parse SSE event data string or unexpected JSON-RPC structure:',
+        jsonData,
+        e,
+      )
+      throw new Error(
+        `Failed to parse SSE event data: "${jsonData.substring(0, 100)}...". Original error: ${e.message}`,
+      )
+    }
+  }
+
+  /**
+   * Resubscribes to a task's event stream using Server-Sent Events (SSE).
+   * This is used if a previous SSE connection for an active task was broken.
+   * Requires the agent to support streaming (`capabilities.streaming: true` in AgentCard).
+   * @param params Parameters containing the taskId.
+   * @returns An AsyncGenerator yielding A2AStreamEventData (Message, Task, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent).
+   */
+  public async *resubscribeA2ATask(params: TaskIdParams): AsyncGenerator<any, void, undefined> {
+    const agentCard = await (this as any).agentCardPromise
+    if (!agentCard.capabilities?.streaming) {
+      throw new Error('Agent does not support streaming (required for tasks/resubscribe).')
+    }
+    const endpoint = await (this as any)._getServiceEndpoint()
+    const clientRequestId = (this as any).requestIdCounter++
+    const rpcRequest = {
+      jsonrpc: '2.0',
+      method: 'tasks/resubscribe',
+      params: params as { [key: string]: any },
+      id: clientRequestId,
+    }
+    const accessToken = await this._getAccessToken()
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(rpcRequest),
+    })
+    if (!response.ok) {
+      let errorBody = ''
+      try {
+        errorBody = await response.text()
+        const errorJson = JSON.parse(errorBody)
+        if (errorJson.error) {
+          throw new Error(
+            `HTTP error establishing stream for tasks/resubscribe: ${response.status} ${response.statusText}. RPC Error: ${errorJson.error.message} (Code: ${errorJson.error.code})`,
+          )
+        }
+      } catch (e: any) {
+        if (e.message.startsWith('HTTP error establishing stream')) throw e
+        throw new Error(
+          `HTTP error establishing stream for tasks/resubscribe: ${response.status} ${response.statusText}. Response: ${errorBody || '(empty)'}`,
+        )
+      }
+      throw new Error(
+        `HTTP error establishing stream for tasks/resubscribe: ${response.status} ${response.statusText}`,
+      )
+    }
+    if (!response.headers.get('Content-Type')?.startsWith('text/event-stream')) {
+      throw new Error(
+        "Invalid response Content-Type for SSE stream on resubscribe. Expected 'text/event-stream'.",
+      )
+    }
+    // The events structure for resubscribe is assumed to be the same as message/stream.
+    // Each event's 'data' field is a JSON-RPC response.
+    yield* this._parseA2AStream<any>(response, clientRequestId)
+  }
+
+  /**
+   * Retrieves a task by its ID, managing authentication automatically.
+   */
+  public async getA2ATask(params: TaskQueryParams): Promise<GetTaskResponse> {
+    const accessToken = await this._getAccessToken()
     const headers = { Authorization: `Bearer ${accessToken}` }
     return this._postRpcRequestWithHeaders<TaskQueryParams, GetTaskResponse>(
       'tasks/get',
@@ -97,15 +330,12 @@ export class PaymentsClient extends A2AClient {
   }
 
   /**
-   * Sets or updates the push notification configuration for a given task, automatically handling the access token per agent.
-   * @param params - Push notification config parameters.
-   * @param options - Object containing agentId (required) and planId (required only if token is not cached).
+   * Sets or updates the push notification configuration for a given task, managing authentication automatically.
    */
-  public async setAgentTaskPushNotificationConfig(
+  public async setA2ATaskPushNotificationConfig(
     params: TaskPushNotificationConfig,
-    options: AgentOptions,
   ): Promise<SetTaskPushNotificationConfigResponse> {
-    const accessToken = await this._getAgentAccessToken(options)
+    const accessToken = await this._getAccessToken()
     const headers = { Authorization: `Bearer ${accessToken}` }
     return this._postRpcRequestWithHeaders<
       TaskPushNotificationConfig,
@@ -114,53 +344,18 @@ export class PaymentsClient extends A2AClient {
   }
 
   /**
-   * Gets the push notification configuration for a given task, automatically handling the access token per agent.
-   * @param params - Task ID parameters.
-   * @param options - Object containing agentId (required) and planId (required only if token is not cached).
+   * Gets the push notification configuration for a given task, managing authentication automatically.
    */
-  public async getAgentTaskPushNotificationConfig(
+  public async getA2ATaskPushNotificationConfig(
     params: TaskIdParams,
-    options: AgentOptions,
   ): Promise<GetTaskPushNotificationConfigResponse> {
-    const accessToken = await this._getAgentAccessToken(options)
+    const accessToken = await this._getAccessToken()
     const headers = { Authorization: `Bearer ${accessToken}` }
     return this._postRpcRequestWithHeaders<TaskIdParams, GetTaskPushNotificationConfigResponse>(
       'tasks/pushNotificationConfig/get',
       params,
       headers,
     )
-  }
-
-  /**
-   * Sends a streaming message to the agent, automatically handling and caching the access token per agent.
-   * @param params - Message send parameters.
-   * @param options - Object containing agentId (required) and planId (required only if token is not cached).
-   */
-  public async sendAgentMessageStream(
-    params: MessageSendParams,
-    options: AgentOptions,
-  ): Promise<AsyncIterable<any>> {
-    const accessToken = await this._getAgentAccessToken(options)
-    const headers = { Authorization: `Bearer ${accessToken}` }
-    return this._postRpcRequestWithHeaders<MessageSendParams, any>(
-      'message/stream',
-      params,
-      headers,
-    )
-  }
-
-  /**
-   * Resubscribes to a task's event stream, automatically handling the access token per agent.
-   * @param params - TaskIdParams for the task to resubscribe.
-   * @param options - Object containing agentId (required) and planId (required only if token is not cached).
-   */
-  public async resubscribeAgentTask(
-    params: TaskIdParams,
-    options: AgentOptions,
-  ): Promise<AsyncIterable<any>> {
-    const accessToken = await this._getAgentAccessToken(options)
-    const headers = { Authorization: `Bearer ${accessToken}` }
-    return this._postRpcRequestWithHeaders<TaskIdParams, any>('tasks/resubscribe', params, headers)
   }
 
   /**
