@@ -80,7 +80,7 @@ export interface PaymentsA2AServerResult {
  * @param res - Express response object
  * @param next - Express next function
  */
-function bearerTokenMiddleware(
+function _bearerTokenMiddleware(
   handler: PaymentsRequestHandler,
   req: express.Request,
   res: express.Response,
@@ -253,7 +253,7 @@ export class PaymentsA2AServer {
     }
 
     if (exposeDefaultRoutes) {
-      appBuilder.setupRoutes(app, basePath, [bearerTokenMiddleware.bind(null, handler)])
+      appBuilder.setupRoutes(app, basePath) //, [bearerTokenMiddleware.bind(null, handler)])
     }
 
     if (exposeAgentCard) {

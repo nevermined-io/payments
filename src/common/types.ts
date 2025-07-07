@@ -16,7 +16,7 @@ export interface PaymentOptions {
    * You can get your API key by logging in to the Nevermined App.
    * @see https://docs.nevermined.app/docs/tutorials/integration/nvm-api-keys
    */
-  nvmApiKey?: string
+  nvmApiKey: string
 
   /**
    * The URL to return to the app after a successful login.
@@ -170,13 +170,14 @@ export interface PlanBalance {
   isSubscriber: boolean
 }
 
-export interface ValidationAgentRequest {
+export interface StartAgentRequest {
+  agentRequestId: string
   balance: PlanBalance
   urlMatching: string
   verbMatching: string
 }
 
-export interface AgentAccessParams {
+export interface AgentAccessCredentials {
   accessToken: string
   proxies?: string[]
 }
@@ -399,19 +400,4 @@ export interface TrackAgentSubTaskDto {
    * The status of the agent sub task (optional)
    */
   status?: AgentTaskStatus
-}
-
-/**
- * Response data transfer object for tracking agent sub tasks
- */
-export interface TrackAgentSubTaskResponseDto {
-  /**
-   * Indicates if the agent sub task was tracked successfully
-   */
-  success: boolean
-
-  /**
-   * Success or error message
-   */
-  message: string
 }

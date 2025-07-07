@@ -1,6 +1,4 @@
 import { isEthereumAddress } from "../../src/utils"
-import { PaymentsError } from "../../src/common/payments.error"
-
 import { Payments } from "../../src/payments"
 import { getServiceHostFromEndpoints } from "../../src/common/helper"
 import { Endpoint } from "../../src/common/types"
@@ -18,13 +16,7 @@ describe('Payments (unit)', () => {
         environment: 'staging'
       })
       expect(payments).toBeDefined()
-      expect(payments.query).toBeDefined()
-    })
-
-    it('doesnt initialize if there is no api key', () => {      
-      expect(() => 
-        Payments.getInstance({ environment: 'staging'})
-      ).toThrow(PaymentsError)
+      expect(payments.plans).toBeDefined()
     })
 
 

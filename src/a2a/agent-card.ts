@@ -22,7 +22,7 @@ import type { AgentCard } from './types'
  * - Plan identification
  * - Cost descriptions
  *
- * Must be compatible with {[key: string]: unknown} to comply with A2A standard.
+ * Must be compatible with `{[key: string]: unknown}` to comply with A2A standard.
  */
 export interface PaymentAgentCardMetadata {
   /** Type of payment model - 'fixed' for set prices, 'dynamic' for variable pricing */

@@ -36,7 +36,7 @@ export class PaymentsClient extends A2AClient {
     if (this.accessToken) {
       return this.accessToken
     }
-    const accessParams = await this.payments.getAgentAccessToken(this.planId, this.agentId)
+    const accessParams = await this.payments.agents.getAgentAccessToken(this.planId, this.agentId)
     this.accessToken = accessParams.accessToken
     return this.accessToken
   }

@@ -1,6 +1,6 @@
 import {
   Address,
-  AgentAccessParams,
+  AgentAccessCredentials,
   AgentMetadata,
   Endpoint,
   PaginationOptions,
@@ -20,16 +20,17 @@ import {
   ONE_DAY_DURATION,
 } from '../../src/plans'
 import http from 'http'
+import { getRandomBigInt } from '../../src/utils'
 
 describe('Payments API (e2e)', () => {
   const TEST_TIMEOUT = 30_000
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGRlNDZkMWZiYzcxZjJlOWU0ZTg0YjA0YTFkYTViMzBhZjgwZTk2NTNhN2YyZGRkNjkwNmUxMGJkYTI4NWE5YzIiLCJleHAiOjE3ODI5Mjc1NjZ9.8tCLnhCf16B0Q1l1G47Jp_Bskq8TOfm17WYA1cEZXGoCPSdSDFEsIB0SpYjYEpQqaYvx5r6WxYSMNY13RLLhoRw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGEwMTUzNTAyNDkxYjEzODQ2NjZkYWVjMTQ2MmY3MWEzYjAxOWI5OThiMTUyZGQ3ZTQzMjFkM2NkZTIzZmIyNzYiLCJleHAiOjE3ODMxMTU1MzN9.yDXVTenPr4GGnP08x1RQlImt2u59zhJ80sf3A-Dy9sctPXWQsw9RD2CcsAypXrLy4KWgqm8PvWHOJeRWruK8sxw'
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGVmMWJkODFmN2YyNjliN2QzM2EzOWI0OGMxMDlmMDg4YTg1YjUxOGFjYWEzOWZkNjU2NDdhOWFkYjlkODk4NTIiLCJleHAiOjE3ODI5Mjc1NjZ9.9EhvOq6tPqweTJCpiA6teZhDqS0UPK9H7Q8G9RUntkxeRW0PKZZrjA_hgs-UKJ3fus4j9c_f2OXF4w30_WZUfxw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDE4MjM3NGM4ZDQ4ZTRmNjk4MDY1OTY4NGYzNzg1ZTQxZDM1MzczNjU3MzBlMzlhOTc4N2RjYmM0MGYwM2U3OTQiLCJleHAiOjE3ODMxMTU1MzB9.kQBtyOYssbd6Cvkf29xdfkqBJUkFqVt_EBzQ8x3Gan9RskH2RK8bhYjbbZo9EwFJNUhBl4h8R_mL-BykJmZovhs'
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
@@ -58,15 +59,16 @@ describe('Payments API (e2e)', () => {
       })
 
       expect(paymentsSubscriber).toBeDefined()
-      expect(paymentsSubscriber.query).toBeDefined()
+      expect(paymentsSubscriber.agents).toBeDefined()
 
       paymentsBuilder = Payments.getInstance({
         nvmApiKey: builderNvmApiKeyHash,
         environment: testingEnvironment as EnvironmentName,
       })
       expect(paymentsBuilder).toBeDefined()
-      expect(paymentsBuilder.query).toBeDefined()
-      builderAddress = paymentsBuilder.accountAddress as Address
+      expect(paymentsBuilder.plans).toBeDefined()
+      builderAddress = paymentsBuilder.getAccountAddress() as Address
+      expect(paymentsBuilder.plans.getAccountAddress()).toBe(builderAddress)
     })
   })
 
@@ -94,7 +96,7 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.registerCreditsPlan(
+        const response = await paymentsBuilder.plans.registerCreditsPlan(
           planMetadata,
           priceConfig,
           creditsConfig,
@@ -114,7 +116,7 @@ describe('Payments API (e2e)', () => {
       async () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
         const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
-        const response = await paymentsBuilder.registerTimePlan(
+        const response = await paymentsBuilder.plans.registerTimePlan(
           planMetadata,
           priceConfig,
           expirablePlanConfig,
@@ -138,7 +140,7 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getFreePriceConfig()
         const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.registerTimeTrialPlan(
+        const response = await paymentsBuilder.plans.registerTimeTrialPlan(
           trialPlanMetadata,
           priceConfig,
           creditsConfig,
@@ -166,7 +168,7 @@ describe('Payments API (e2e)', () => {
           endpoints: AGENT_ENDPOINTS,
         }
         const paymentPlans = [creditsPlanId, expirablePlanId]
-        const result = await paymentsBuilder.registerAgent(agentMetadata, agentApi, paymentPlans)
+        const result = await paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, paymentPlans)
         agentId = result.agentId
         expect(agentId).toBeDefined()
 
@@ -187,17 +189,19 @@ describe('Payments API (e2e)', () => {
         const agentApi = { endpoints: [{ POST: 'http://localhost:8889/test/:agentId/tasks' }] }
         const fiatPriceConfig = getFiatPriceConfig(10_000_000n, builderAddress)
         const nonExpirableConfig = getNonExpirableDurationConfig()
+        nonExpirableConfig.durationSecs = getRandomBigInt() // we force the randomness of the plan
 
-        const { agentId, planId } = await paymentsBuilder.registerAgentAndPlan(
+        const result = await paymentsBuilder.agents.registerAgentAndPlan(
           agentMetadata,
           agentApi,
           planMetadata,
           fiatPriceConfig,
           nonExpirableConfig,
         )
-        expect(agentId).toBeDefined()
-        expect(planId).toBeDefined()
-        fiatPlanId = planId
+        console.log('Agent and Plan Registration Result', result)
+        expect(result.agentId).toBeDefined()
+        expect(result.planId).toBeDefined()
+        fiatPlanId = result.planId
       },
       TEST_TIMEOUT,
     )
@@ -207,7 +211,8 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to get a plan',
       async () => {
-        const plan = await paymentsBuilder.getPlan(creditsPlanId)
+        const plan = await paymentsBuilder.plans.getPlan(creditsPlanId)
+        
         expect(plan).toBeDefined()
         console.log('Plan', plan)
       },
@@ -217,7 +222,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to get an agent',
       async () => {
-        const agent = await paymentsBuilder.getAgent(agentId)
+        const agent = await paymentsBuilder.agents.getAgent(agentId)
         expect(agent).toBeDefined()
         console.log('Agent', agent)
       },
@@ -228,7 +233,7 @@ describe('Payments API (e2e)', () => {
       'Get agents associated to a plan',
       async () => {
         console.log('Credits Plan ID', creditsPlanId)
-        const agents = await paymentsBuilder.getAgentsAssociatedToAPlan(
+        const agents = await paymentsBuilder.plans.getAgentsAssociatedToAPlan(
           creditsPlanId,
           new PaginationOptions({ offset: 5 }),
         )
@@ -244,7 +249,7 @@ describe('Payments API (e2e)', () => {
       async () => {
         // /agents/:agentId/plans
         console.log('Agent ID', agentId)
-        const plans = await paymentsBuilder.getAgentPlans(agentId)
+        const plans = await paymentsBuilder.agents.getAgentPlans(agentId)
         expect(plans).toBeDefined()
         console.log('Plans associated to an agent', plans)
         expect(plans.total).toBeGreaterThan(0)
@@ -258,8 +263,8 @@ describe('Payments API (e2e)', () => {
       'I should be able to order a Plan',
       async () => {
         console.log(creditsPlanId)
-        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.accountAddress)
-        const orderResult = await paymentsSubscriber.orderPlan(creditsPlanId)
+        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
+        const orderResult = await paymentsSubscriber.plans.orderPlan(creditsPlanId)
         expect(orderResult).toBeDefined()
         console.log('Credits Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
@@ -272,7 +277,7 @@ describe('Payments API (e2e)', () => {
       'I should be able to get the link to finalize the order of a Fiat Plan',
       async () => {
         console.log(fiatPlanId)
-        const orderResult = await paymentsSubscriber.orderFiatPlan(fiatPlanId)
+        const orderResult = await paymentsSubscriber.plans.orderFiatPlan(fiatPlanId)
         expect(orderResult).toBeDefined()
         console.log('Fiat Plan - Order Result', orderResult)
         expect(orderResult.result.checkoutLink).toBeDefined()
@@ -282,7 +287,7 @@ describe('Payments API (e2e)', () => {
     )
 
     it('I should be able to check the credits I own', async () => {
-      const balanceResult = await paymentsSubscriber.getPlanBalance(creditsPlanId)
+      const balanceResult = await paymentsSubscriber.plans.getPlanBalance(creditsPlanId)
       expect(balanceResult).toBeDefined()
       console.log('Balance Result', balanceResult)
       expect(BigInt(balanceResult.balance)).toBeGreaterThan(0)
@@ -292,8 +297,8 @@ describe('Payments API (e2e)', () => {
       'I should be able to get a Trial Plan',
       async () => {
         console.log(trialPlanId)
-        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.accountAddress)
-        const orderResult = await paymentsSubscriber.orderPlan(trialPlanId)
+        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
+        const orderResult = await paymentsSubscriber.plans.orderPlan(trialPlanId)
         expect(orderResult).toBeDefined()
         console.log('Trial Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
@@ -304,7 +309,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should NOT be able to get a Trial Plan twice',
       async () => {
-        await expect(paymentsSubscriber.orderPlan(trialPlanId)).rejects.toThrow()
+        await expect(paymentsSubscriber.plans.orderPlan(trialPlanId)).rejects.toThrow()
       },
       TEST_TIMEOUT * 2,
     )
@@ -312,19 +317,19 @@ describe('Payments API (e2e)', () => {
 
   describe('E2E Subscriber/Agent flow', () => {
     let server: http.Server
-    let agentAccessParams: AgentAccessParams
+    let agentAccessParams: AgentAccessCredentials
     const agentURL = 'http://localhost:41243/a2a/'
 
     beforeAll(async () => {
       server = http.createServer(async (req, res) => {
-        const authHeader = req.headers['authorization']
+        const authHeader = req.headers['authorization'] as string
 
         const requestedUrl = `http://localhost:41243${req.url}`
         const httpVerb = req.method
         console.log('Received request:', { endpoint: requestedUrl, httpVerb, authHeader })
         let isValidReq
         try {
-          isValidReq = await paymentsBuilder.isValidRequest(
+          isValidReq = await paymentsBuilder.requests.startProcessingRequest(
             agentId,
             authHeader,
             requestedUrl,
@@ -338,6 +343,7 @@ describe('Payments API (e2e)', () => {
           }
         } catch (error) {
           console.log('Unauthorized access attempt:', authHeader)
+          console.log('Error details:', error)
         }
 
         res.writeHead(403, { 'Content-Type': 'application/json' })
@@ -356,7 +362,7 @@ describe('Payments API (e2e)', () => {
     })
 
     it('I should be able to generate the agent access token', async () => {
-      agentAccessParams = await paymentsSubscriber.getAgentAccessToken(creditsPlanId, agentId)
+      agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(creditsPlanId, agentId)
       expect(agentAccessParams).toBeDefined()
       console.log('Agent Access Params', agentAccessParams)
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
@@ -407,7 +413,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should not be able to get a that does not exist',
       async () => {
-        const result = await paymentsBuilder.getPlan('11111')
+        const result = await paymentsBuilder.plans.getPlan('11111')
         expect(result).toBeUndefined()
         // expect(() =>
         //   paymentsBuilder.getPlan('11111')

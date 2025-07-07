@@ -1,70 +1,21 @@
-import { BackendApiOptions, HTTPRequestOptions, NVMBackendApi } from './nvm-api'
+import { AbstractHTTPClient, HTTPRequestOptions } from './nvm-api'
+import { AgentAccessCredentials } from '../common/types'
 
 /**
- * Options required for interacting with an external AI Agent/Service.
- */
-export class AIQueryOptions {
-  /**
-   * The access token to interact with the AI Agent/Service.
-   * Only subscribers of the Payment Plan associated with the AI Agent/Service can obtain the access toke.
-   */
-  accessToken?: string
+ * The AIQueryApi class provides methods to query AI Agents on Nevermined.
 
-  /**
-   * The Nevermined Proxy that needs to be used to interact with the AI Agent/Service.
-   */
-  neverminedProxyUri?: string
-}
-
-/**
- * The AI Query API class provides the methods to interact with the AI Query API.
- * This API implements the Nevermined AI Query Protocol @see https://docs.nevermined.io/docs/protocol/query-protocol.
- *
  * @remarks
- * This API is oriented for AI Builders providing AI Agents and AI Subscribers interacting with them.
+ * This API is oriented for AI users who already purchased access to an AI Agent and want to start querying them.
  */
-export class AIQueryApi extends NVMBackendApi {
-  queryOptionsCache = new Map<string, AIQueryOptions>()
-
-  constructor(opts: BackendApiOptions) {
-    super(opts)
-  }
-
+export class AIQueryApi extends AbstractHTTPClient {
   /**
-   * Get the required configuration for accessing a remote service agent.
-   * This configuration includes:
-   * - The JWT access token
-   * - The Proxy url that can be used to query the agent/service.
+   * This method is used to create a singleton instance of the AIQueryApi class.
    *
-   * @example
-   * ```
-   * const accessConfig = await payments.query.getServiceAccessConfig(agentId)
-   * console.log(`Agent JWT Token: ${accessConfig.accessToken}`)
-   * console.log(`Agent Proxy URL: ${accessConfig.neverminedProxyUri}`)
-   * ```
-   *
-   * @param agentId - The unique identifier of the agent
-   * @returns A promise that resolves to the service token.
+   * @param options - The options to initialize the payments class.
+   * @returns The instance of the AIQueryApi class.
    */
-  public async getServiceAccessConfig(agentId: string): Promise<{
-    accessToken: string
-    neverminedProxyUri: string
-  }> {
-    const options = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.opts.apiKey}`,
-      },
-    }
-    const url = new URL(`/api/v1/payments/service/token/${agentId}`, this.opts.backendHost)
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw Error(`${response.statusText} - ${await response.text()}`)
-    }
-
-    return (await response.json()).token
+  static getInstance(): AIQueryApi {
+    return new AIQueryApi()
   }
 
   /**
@@ -77,7 +28,7 @@ export class AIQueryApi extends NVMBackendApi {
    * To send this request through a Nevermined proxy, it's necessary to specify the "sendThroughProxy" in the reqOptions parameter
    * @example
    * ```
-   * await payments.query.send('POST', 'http://example.com/agent/prompt', {'input': 'Hello'})
+   * await payments.query.send(accessCredentials, 'POST', 'http://example.com/agent/prompt', {'input': 'Hello'})
    * ```
    *
    * @param method - The HTTP method to use when querying the Agent @see {@link AxiosRequestConfig.method}
@@ -87,6 +38,7 @@ export class AIQueryApi extends NVMBackendApi {
    * @returns The result of query
    */
   async send(
+    accessCredentials: AgentAccessCredentials,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
     url: string,
     data?: any,
@@ -94,6 +46,11 @@ export class AIQueryApi extends NVMBackendApi {
       sendThroughProxy: false,
     },
   ) {
+    reqOptions.accessToken = accessCredentials.accessToken
+    if (accessCredentials.proxies && accessCredentials.proxies.length > 0) {
+      reqOptions.proxyHost = accessCredentials.proxies[0]
+      reqOptions.sendThroughProxy = true
+    }
     return this.request(method, url, data, reqOptions)
   }
 }
