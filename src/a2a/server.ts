@@ -15,6 +15,7 @@ import http from 'http'
 import { InMemoryTaskStore, A2AExpressApp, AgentExecutor } from '@a2a-js/sdk'
 import type { AgentCard } from './types'
 import { PaymentsRequestHandler } from './paymentsRequestHandler'
+import { PaymentsError } from '../common/payments.error'
 
 /**
  * Options for starting the PaymentsA2AServer.
@@ -213,14 +214,18 @@ export class PaymentsA2AServer {
 
           // Apply beforeRequest hook
           if (hooks.beforeRequest) {
-            hooks.beforeRequest(method, params, req).catch((err) => {})
+            hooks.beforeRequest(method, params, req).catch((err) => {
+              throw new PaymentsError(err.message)
+            })
           }
 
           // Apply afterRequest hook by intercepting res.json
           const originalJson = res.json
           res.json = function (data) {
             if (hooks.afterRequest) {
-              hooks.afterRequest(method, data, req).catch((err) => {})
+              hooks.afterRequest(method, data, req).catch((err) => {
+                throw new PaymentsError(err.message)
+              })
             }
             return originalJson.call(this, data)
           }
@@ -230,8 +235,10 @@ export class PaymentsA2AServer {
           res.send = function (data) {
             if (data?.error && hooks.onError) {
               hooks
-                .onError(method, new Error(data.error.message || 'Unknown error'), req)
-                .catch((err) => {})
+                .onError(method, new PaymentsError(data.error.message || 'Unknown error'), req)
+                .catch((err) => {
+                  throw new PaymentsError(err.message)
+                })
             }
             return originalSend.call(this, data)
           }
