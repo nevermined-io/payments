@@ -1,15 +1,5 @@
 import { Payments } from '..'
-import {
-  PaymentsClient,
-  MessageSendParams,
-  SendMessageResponse,
-  TaskQueryParams,
-  GetTaskResponse,
-  TaskPushNotificationConfig,
-  SetTaskPushNotificationConfigResponse,
-  TaskIdParams,
-  GetTaskPushNotificationConfigResponse,
-} from './paymentsClient'
+import { PaymentsClient } from './paymentsClient'
 import type { ClientRegistryOptions } from './types'
 
 /**
