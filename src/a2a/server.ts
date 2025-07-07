@@ -86,11 +86,8 @@ function _bearerTokenMiddleware(
   res: express.Response,
   next: express.NextFunction,
 ) {
-  console.log(`[MIDDLEWARE] Processing ${req.method} ${req.url}`)
-
   // Only process POST requests (A2A uses POST for all operations)
   if (req.method !== 'POST') {
-    console.log(`[MIDDLEWARE] Skipping non-POST request`)
     return next()
   }
 
@@ -100,9 +97,6 @@ function _bearerTokenMiddleware(
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     bearerToken = authHeader.substring(7) // Remove 'Bearer ' prefix
-    console.log(`[MIDDLEWARE] Extracted bearer token: ${bearerToken.substring(0, 20)}...`)
-  } else {
-    console.log(`[MIDDLEWARE] No bearer token found in headers`)
   }
 
   // Transform relative URL to absolute URL

@@ -36,7 +36,6 @@ export class Payments extends BasePaymentsAPI {
    * The client registry is initialized only if getClient is called.
    */
   public get a2a() {
-    const self = this
     return {
       /**
        * Starts the A2A server with payment integration.
@@ -44,7 +43,7 @@ export class Payments extends BasePaymentsAPI {
        */
       start: (
         options: Omit<PaymentsA2AServerOptions, 'paymentsService'>,
-      ): PaymentsA2AServerResult => PaymentsA2AServer.start({ ...options, paymentsService: self }),
+      ): PaymentsA2AServerResult => PaymentsA2AServer.start({ ...options, paymentsService: this }),
 
       /**
        * Gets (or creates) a RegisteredPaymentsClient for the given alias.
@@ -52,10 +51,10 @@ export class Payments extends BasePaymentsAPI {
        * @param options - ClientRegistryOptions.
        */
       getClient: (options: any) => {
-        if (!self._a2aRegistry) {
-          self._a2aRegistry = new ClientRegistry(self)
+        if (!this._a2aRegistry) {
+          this._a2aRegistry = new ClientRegistry(this)
         }
-        return self._a2aRegistry.getClient(options)
+        return this._a2aRegistry.getClient(options)
       },
     }
   }
