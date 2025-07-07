@@ -216,7 +216,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     this.getAgentExecutor()
       .execute(requestContext, eventBus)
       .catch((err: any) => {
-        console.error(`Agent execution failed for message ${finalMessageForAgent.messageId}:`, err)
         // Publish a synthetic error event
         const errorTask: Task = {
           id: requestContext.task?.id || uuidv4(),
@@ -310,7 +309,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           await resultManager.processEvent(task)
         }
       } catch (err) {
-        console.error('[Payments] Failed to redeem credits.', err)
+        throw new PaymentsError('Failed to redeem credits.', 'payments_error')
       }
     }
     try {
@@ -326,7 +325,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         )
       }
     } catch (err) {
-      console.error('[PushNotification] Failed to send push notification.', err)
+      throw new PaymentsError('Failed to send push notification.', 'payments_error')
     }
   }
 
@@ -425,7 +424,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             BigInt(event.metadata.creditsUsed),
           )
         } catch (err) {
-          console.error('[Payments] Failed to redeem credits.', err)
+          throw new PaymentsError('Failed to redeem credits.', 'payments_error')
         }
       }
       // 2. Handle push notification
@@ -450,7 +449,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             )
           }
         } catch (err) {
-          console.error('[PushNotification] Failed to send push notification.', err)
+          throw new PaymentsError('Failed to send push notification.', 'payments_error')
         }
       }
       yield event

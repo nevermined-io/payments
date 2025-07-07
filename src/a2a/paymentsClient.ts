@@ -10,6 +10,7 @@ import {
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
+import { PaymentsError } from '../common/payments.error'
 
 /**
  * PaymentsClient is a high-level client for A2A agents with payments integration.
@@ -186,17 +187,11 @@ export class PaymentsClient extends A2AClient {
             eventDataBuffer += line.substring(5).trimStart() + '\n' // Append data (multi-line data is possible)
           } else if (line.startsWith(':')) {
             // This is a comment line in SSE, ignore it.
-          } else if (line.includes(':')) {
-            // Other SSE fields like 'event:', 'id:', 'retry:'.
-            // The A2A spec primarily focuses on the 'data' field for JSON-RPC payloads.
-            // For now, we don't specifically handle these other SSE fields unless required by spec.
           }
         }
       }
     } catch (error: any) {
-      // Log and re-throw errors encountered during stream processing
-      console.error('Error reading or parsing SSE stream:', error.message)
-      throw error
+      throw new PaymentsError(error.message, 'payments_error')
     } finally {
       reader.releaseLock() // Ensure the reader lock is released
     }
@@ -226,22 +221,25 @@ export class PaymentsClient extends A2AClient {
       if (a2aStreamResponse.id !== originalRequestId) {
         // According to JSON-RPC spec, notifications (which SSE events can be seen as) might not have an ID,
         // or if they do, it should match. A2A spec implies streamed events are tied to the initial request.
-        console.warn(
+        throw new PaymentsError(
           `SSE Event's JSON-RPC response ID mismatch. Client request ID: ${originalRequestId}, event response ID: ${a2aStreamResponse.id}.`,
+          'payments_error',
         )
-        // Depending on strictness, this could be an error. For now, it's a warning.
       }
 
       if (this.isErrorResponse && this.isErrorResponse(a2aStreamResponse)) {
         const err = a2aStreamResponse.error
-        throw new Error(
+        throw new PaymentsError(
           `SSE event contained an error: ${err.message} (Code: ${err.code}) Data: ${JSON.stringify(err.data)}`,
         )
       }
 
       // Check if 'result' exists, as it's mandatory for successful JSON-RPC responses
       if (!('result' in a2aStreamResponse) || typeof a2aStreamResponse.result === 'undefined') {
-        throw new Error(`SSE event JSON-RPC response is missing 'result' field. Data: ${jsonData}`)
+        throw new PaymentsError(
+          `SSE event JSON-RPC response is missing 'result' field. Data: ${jsonData}`,
+          'payments_error',
+        )
       }
 
       return a2aStreamResponse.result as TStreamItem
@@ -251,16 +249,12 @@ export class PaymentsClient extends A2AClient {
         e.message.startsWith('SSE event contained an error') ||
         e.message.startsWith("SSE event JSON-RPC response is missing 'result' field")
       ) {
-        throw e // Re-throw errors already processed/identified by this function
+        throw new PaymentsError(e.message, 'payments_error')
       }
-      // For other parsing errors or unexpected structures:
-      console.error(
-        'Failed to parse SSE event data string or unexpected JSON-RPC structure:',
-        jsonData,
-        e,
-      )
-      throw new Error(
+
+      throw new PaymentsError(
         `Failed to parse SSE event data: "${jsonData.substring(0, 100)}...". Original error: ${e.message}`,
+        'payments_error',
       )
     }
   }
@@ -425,8 +419,9 @@ export class PaymentsClient extends A2AClient {
     }
     const rpcResponse = await httpResponse.json()
     if (rpcResponse.id !== requestId) {
-      console.error(
+      throw new PaymentsError(
         `CRITICAL: RPC response ID mismatch for method ${method}. Expected ${requestId}, got ${rpcResponse.id}. This may lead to incorrect response handling.`,
+        'payments_error',
       )
     }
     return rpcResponse as TResponse

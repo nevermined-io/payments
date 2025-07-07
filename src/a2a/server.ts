@@ -213,18 +213,14 @@ export class PaymentsA2AServer {
 
           // Apply beforeRequest hook
           if (hooks.beforeRequest) {
-            hooks.beforeRequest(method, params, req).catch((err) => {
-              console.error('[HOOKS] beforeRequest error:', err)
-            })
+            hooks.beforeRequest(method, params, req).catch((err) => {})
           }
 
           // Apply afterRequest hook by intercepting res.json
           const originalJson = res.json
           res.json = function (data) {
             if (hooks.afterRequest) {
-              hooks.afterRequest(method, data, req).catch((err) => {
-                console.error('[HOOKS] afterRequest error:', err)
-              })
+              hooks.afterRequest(method, data, req).catch((err) => {})
             }
             return originalJson.call(this, data)
           }
@@ -235,9 +231,7 @@ export class PaymentsA2AServer {
             if (data?.error && hooks.onError) {
               hooks
                 .onError(method, new Error(data.error.message || 'Unknown error'), req)
-                .catch((err) => {
-                  console.error('[HOOKS] onError error:', err)
-                })
+                .catch((err) => {})
             }
             return originalSend.call(this, data)
           }
@@ -257,14 +251,7 @@ export class PaymentsA2AServer {
     }
 
     const server = http.createServer(app)
-    server.listen(port, () => {
-      console.log(`[PaymentsA2A] Server started on http://localhost:${port}${basePath}`)
-      if (exposeAgentCard) {
-        console.log(
-          `[PaymentsA2A] Agent Card: http://localhost:${port}${basePath}.well-known/agent.json`,
-        )
-      }
-    })
+    server.listen(port, () => {})
 
     return { app, server, handler }
   }
