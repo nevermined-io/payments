@@ -21,6 +21,13 @@ export class PaymentsClient extends A2AClient {
   private readonly planId: string
   private accessToken: string | null = null
 
+  /**
+   * Creates a new PaymentsClient instance.
+   * @param agentBaseUrl - The base URL of the agent.
+   * @param payments - The Payments object.
+   * @param agentId - The ID of the agent.
+   * @param planId - The ID of the plan.
+   */
   constructor(agentBaseUrl: string, payments: Payments, agentId: string, planId: string) {
     super(agentBaseUrl)
     this.payments = payments
@@ -50,6 +57,8 @@ export class PaymentsClient extends A2AClient {
 
   /**
    * Sends a message to the agent, managing authentication automatically.
+   * @param params - The parameters for sending the message.
+   * @returns The response from the agent.
    */
   public async sendA2AMessage(params: MessageSendParams): Promise<SendMessageResponse> {
     const accessToken = await this._getAccessToken()
@@ -66,7 +75,7 @@ export class PaymentsClient extends A2AClient {
    * Push notification configuration can be specified in `params.configuration`.
    * Optionally, `params.message.contextId` or `params.message.taskId` can be provided.
    * Requires the agent to support streaming (`capabilities.streaming: true` in AgentCard).
-   * @param params The parameters for sending the message.
+   * @param params - The parameters for sending the message.
    * @returns An AsyncGenerator yielding A2AStreamEventData (Message, Task, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent).
    * The generator throws an error if streaming is not supported or if an HTTP/SSE error occurs.
    */
@@ -130,8 +139,8 @@ export class PaymentsClient extends A2AClient {
    * Parses an HTTP response body as an A2A Server-Sent Event stream.
    * Each 'data' field of an SSE event is expected to be a JSON-RPC 2.0 Response object,
    * specifically a SendStreamingMessageResponse (or similar structure for resubscribe).
-   * @param response The HTTP Response object whose body is the SSE stream.
-   * @param originalRequestId The ID of the client's JSON-RPC request that initiated this stream.
+   * @param response -The HTTP Response object whose body is the SSE stream.
+   * @param originalRequestId - The ID of the client's JSON-RPC request that initiated this stream.
    * Used to validate the `id` in the streamed JSON-RPC responses.
    * @returns An AsyncGenerator yielding the `result` field of each valid JSON-RPC success response from the stream.
    */
@@ -195,8 +204,8 @@ export class PaymentsClient extends A2AClient {
 
   /**
    * Processes a single SSE event's data string, expecting it to be a JSON-RPC response.
-   * @param jsonData The string content from one or more 'data:' lines of an SSE event.
-   * @param originalRequestId The ID of the client's request that initiated the stream.
+   * @param jsonData - The string content from one or more 'data:' lines of an SSE event.
+   * @param originalRequestId - The ID of the client's request that initiated the stream.
    * @returns The `result` field of the parsed JSON-RPC success response.
    * @throws Error if data is not valid JSON, not a valid JSON-RPC response, an error response, or ID mismatch.
    */
@@ -260,7 +269,7 @@ export class PaymentsClient extends A2AClient {
    * Resubscribes to a task's event stream using Server-Sent Events (SSE).
    * This is used if a previous SSE connection for an active task was broken.
    * Requires the agent to support streaming (`capabilities.streaming: true` in AgentCard).
-   * @param params Parameters containing the taskId.
+   * @param params - Parameters containing the taskId.
    * @returns An AsyncGenerator yielding A2AStreamEventData (Message, Task, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent).
    */
   public async *resubscribeA2ATask(params: TaskIdParams): AsyncGenerator<any, void, undefined> {
@@ -318,6 +327,8 @@ export class PaymentsClient extends A2AClient {
 
   /**
    * Retrieves a task by its ID, managing authentication automatically.
+   * @param params - The parameters for the task query.
+   * @returns The task response.
    */
   public async getA2ATask(params: TaskQueryParams): Promise<GetTaskResponse> {
     const accessToken = await this._getAccessToken()
@@ -331,6 +342,8 @@ export class PaymentsClient extends A2AClient {
 
   /**
    * Sets or updates the push notification configuration for a given task, managing authentication automatically.
+   * @param params - The parameters for the task push notification configuration.
+   * @returns The response from the agent.
    */
   public async setA2ATaskPushNotificationConfig(
     params: TaskPushNotificationConfig,
@@ -345,6 +358,8 @@ export class PaymentsClient extends A2AClient {
 
   /**
    * Gets the push notification configuration for a given task, managing authentication automatically.
+   * @param params - The parameters for the task push notification configuration.
+   * @returns The response from the agent.
    */
   public async getA2ATaskPushNotificationConfig(
     params: TaskIdParams,
@@ -363,6 +378,7 @@ export class PaymentsClient extends A2AClient {
    * @param method - The RPC method name.
    * @param params - The parameters for the RPC method.
    * @param headers - Optional custom headers.
+   * @returns The response from the agent.
    */
   protected async _postRpcRequestWithHeaders<TParams, TResponse>(
     method: string,

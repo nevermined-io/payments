@@ -32,6 +32,7 @@ export class ClientRegistry {
    * Gets (or creates) a PaymentsClient for the given agentBaseUrl, agentId, and planId.
    * The combination of these three is used as a unique key.
    * @param options - ClientRegistryOptions with agentBaseUrl, agentId, planId (all required).
+   * @returns The PaymentsClient instance
    */
   public getClient(options: ClientRegistryOptions): PaymentsClient {
     const { agentBaseUrl, agentId, planId } = options

@@ -21,7 +21,6 @@ const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejecte
  * PaymentsRequestHandler extends DefaultRequestHandler to add payments validation and burning.
  * It validates credits before executing a task and burns credits after successful execution.
  * It also sends push notifications when a task reaches a terminal state.
- * @param options - Handler options, including asyncExecution to control synchronous/asynchronous behavior
  */
 export class PaymentsRequestHandler extends DefaultRequestHandler {
   private paymentsService: any
@@ -89,6 +88,12 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Processes all events, calling handleTaskFinalization when a terminal status-update event is received.
    * In async mode, it can be launched in background.
+   * @param taskId - The taskId of the task
+   * @param resultManager - The result manager
+   * @param eventQueue - The event queue
+   * @param bearerToken - The bearer token for payment validation
+   * @param options - Options for the finalization process (firstResultResolver, firstResultRejector)
+   * @returns void
    */
   protected async processEventsWithFinalization(
     taskId: string,
@@ -142,7 +147,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @returns The resulting message or task
    */
   async sendMessage(params: MessageSendParams): Promise<Message | Task> {
-    // const result = await super.sendMessage(params)
     // 1. Get HTTP context for the task or message
     let taskId = params.message.taskId
     let httpContext: HttpRequestContext | undefined
@@ -453,6 +457,14 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     }
   }
 
+  /**
+   * Sends a push notification to the configured URL.
+   * @param taskId - The taskId of the task
+   * @param state - The state of the task
+   * @param pushNotificationConfig - The push notification configuration
+   * @param payload - The payload to send
+   * @returns void
+   */
   private async sendPushNotification(
     taskId: string,
     state: TaskState,
@@ -513,6 +525,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Protected getter to access the private taskStore property from the parent class.
    * This is a workaround due to SDK limitations.
+   * @returns The task store
    */
   protected getTaskStore(): TaskStore {
     return (this as any).taskStore as TaskStore
@@ -521,6 +534,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Protected getter to access the private eventBusManager property from the parent class.
    * This is a workaround due to SDK limitations.
+   * @returns The event bus manager
    */
   protected getEventBusManager(): ExecutionEventBusManager {
     return (this as any).eventBusManager as ExecutionEventBusManager
@@ -529,6 +543,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Protected getter to access the private agentExecutor property from the parent class.
    * This is a workaround due to SDK limitations.
+   * @returns The agent executor
    */
   protected getAgentExecutor(): AgentExecutor {
     return (this as any).agentExecutor as AgentExecutor
@@ -537,6 +552,10 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Protected getter to access the private _createRequestContext method from the parent class.
    * This is a workaround due to SDK limitations.
+   * @param incomingMessage - The incoming message
+   * @param taskId - The taskId
+   * @param isStream - Whether the request is a stream
+   * @returns The request context
    */
   protected async callCreateRequestContext(
     incomingMessage: any,
@@ -549,6 +568,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Protected getter to access the private _processEvents method from the parent class.
    * This is a workaround due to SDK limitations.
+   * @param args - The arguments to pass to the _processEvents method
+   * @returns The result of the _processEvents method
    */
   protected callProcessEvents(...args: any[]): any {
     return (this as any)._processEvents.apply(this, args)
