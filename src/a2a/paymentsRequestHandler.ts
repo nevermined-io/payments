@@ -173,8 +173,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     if (!agentId) {
       throw PaymentsError.internal('Agent ID not found in payment extension.')
     }
+
     try {
-      const validation = await this.paymentsService.isValidRequest(
+      const validation = await this.paymentsService.requests.isValidRequest(
         agentId,
         bearerToken,
         urlRequested,
@@ -291,7 +292,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         typeof creditsToBurn === 'bigint')
     ) {
       try {
-        await this.paymentsService.redeemCreditsFromRequest(bearerToken, BigInt(creditsToBurn))
+        await this.paymentsService.requests.redeemCreditsFromRequest(
+          event.status.message?.messageId,
+          bearerToken,
+          BigInt(creditsToBurn),
+        )
         const task = resultManager.getCurrentTask()
         if (task) {
           task.metadata = {
@@ -356,7 +361,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     }
 
     try {
-      const validation = await this.paymentsService.isValidRequest(
+      const validation = await this.paymentsService.requests.isValidRequest(
         agentId,
         bearerToken,
         urlRequested,
@@ -410,7 +415,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           typeof event.metadata.creditsUsed === 'bigint')
       ) {
         try {
-          await this.paymentsService.redeemCreditsFromRequest(
+          await this.paymentsService.requests.redeemCreditsFromRequest(
+            event.status.message?.messageId,
             bearerToken,
             BigInt(event.metadata.creditsUsed),
           )

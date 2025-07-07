@@ -177,6 +177,12 @@ export interface StartAgentRequest {
   verbMatching: string
 }
 
+export interface ValidationAgentRequest {
+  balance: PlanBalance
+  urlMatching: string
+  verbMatching: string
+}
+
 export interface AgentAccessCredentials {
   accessToken: string
   proxies?: string[]
