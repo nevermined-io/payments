@@ -15,6 +15,7 @@ import http from 'http'
 import { InMemoryTaskStore, A2AExpressApp, AgentExecutor } from '@a2a-js/sdk'
 import type { AgentCard } from './types'
 import { PaymentsRequestHandler } from './paymentsRequestHandler'
+import { PaymentsError } from '../common/payments.error'
 
 /**
  * Options for starting the PaymentsA2AServer.
@@ -50,6 +51,12 @@ export interface PaymentsA2AServerOptions {
     /** Called when a JSON-RPC request fails */
     onError?: (method: string, error: Error, req: express.Request) => Promise<void>
   }
+  /**
+   * If true, the agent will respond immediately with a task skeleton (asynchronous execution).
+   * If false, the agent will wait for task completion before responding (synchronous execution).
+   * Defaults to false (synchronous).
+   */
+  asyncExecution?: boolean
 }
 
 /**
@@ -80,11 +87,8 @@ function _bearerTokenMiddleware(
   res: express.Response,
   next: express.NextFunction,
 ) {
-  console.log(`[MIDDLEWARE] Processing ${req.method} ${req.url}`)
-
   // Only process POST requests (A2A uses POST for all operations)
   if (req.method !== 'POST') {
-    console.log(`[MIDDLEWARE] Skipping non-POST request`)
     return next()
   }
 
@@ -94,9 +98,6 @@ function _bearerTokenMiddleware(
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     bearerToken = authHeader.substring(7) // Remove 'Bearer ' prefix
-    console.log(`[MIDDLEWARE] Extracted bearer token: ${bearerToken.substring(0, 20)}...`)
-  } else {
-    console.log(`[MIDDLEWARE] No bearer token found in headers`)
   }
 
   // Transform relative URL to absolute URL
@@ -108,7 +109,7 @@ function _bearerTokenMiddleware(
   }
 
   // Try to associate context with taskId or messageId
-  const taskId = req.body?.taskId || req.body?.id
+  const taskId = req.body?.taskId
   const messageId = req.body?.params?.message?.messageId
 
   if (taskId) {
@@ -191,13 +192,16 @@ export class PaymentsA2AServer {
       expressApp,
       customRequestHandler,
       hooks,
+      asyncExecution,
     } = options
 
     // Initialize components
     const store = taskStore || new InMemoryTaskStore()
     const handler =
       customRequestHandler ||
-      new PaymentsRequestHandler(agentCard, store, executor, paymentsService)
+      new PaymentsRequestHandler(agentCard, store, executor, paymentsService, undefined, {
+        asyncExecution,
+      })
     const appBuilder = new A2AExpressApp(handler)
 
     const app = expressApp || express()
@@ -211,7 +215,7 @@ export class PaymentsA2AServer {
           // Apply beforeRequest hook
           if (hooks.beforeRequest) {
             hooks.beforeRequest(method, params, req).catch((err) => {
-              console.error('[HOOKS] beforeRequest error:', err)
+              throw new PaymentsError(err.message)
             })
           }
 
@@ -220,7 +224,7 @@ export class PaymentsA2AServer {
           res.json = function (data) {
             if (hooks.afterRequest) {
               hooks.afterRequest(method, data, req).catch((err) => {
-                console.error('[HOOKS] afterRequest error:', err)
+                throw new PaymentsError(err.message)
               })
             }
             return originalJson.call(this, data)
@@ -231,9 +235,9 @@ export class PaymentsA2AServer {
           res.send = function (data) {
             if (data?.error && hooks.onError) {
               hooks
-                .onError(method, new Error(data.error.message || 'Unknown error'), req)
+                .onError(method, new PaymentsError(data.error.message || 'Unknown error'), req)
                 .catch((err) => {
-                  console.error('[HOOKS] onError error:', err)
+                  throw new PaymentsError(err.message)
                 })
             }
             return originalSend.call(this, data)
@@ -244,7 +248,7 @@ export class PaymentsA2AServer {
     }
 
     if (exposeDefaultRoutes) {
-      appBuilder.setupRoutes(app, basePath) //, [bearerTokenMiddleware.bind(null, handler)])
+      appBuilder.setupRoutes(app, basePath) //, [_bearerTokenMiddleware.bind(null, handler)])
     }
 
     if (exposeAgentCard) {
@@ -254,14 +258,7 @@ export class PaymentsA2AServer {
     }
 
     const server = http.createServer(app)
-    server.listen(port, () => {
-      console.log(`[PaymentsA2A] Server started on http://localhost:${port}${basePath}`)
-      if (exposeAgentCard) {
-        console.log(
-          `[PaymentsA2A] Agent Card: http://localhost:${port}${basePath}.well-known/agent.json`,
-        )
-      }
-    })
+    server.listen(port, () => {})
 
     return { app, server, handler }
   }

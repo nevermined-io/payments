@@ -303,7 +303,6 @@ export class PlansAPI extends BasePaymentsAPI {
     const query =
       API_URL_GET_PLAN_AGENTS.replace(':planId', planId) + '?' + pagination.asQueryParams()
     const url = new URL(query, this.environment.backend)
-    console.log(`Fetching agents for plan ${planId} from ${url.toString()}`)
     const response = await fetch(url)
     if (!response.ok) {
       throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
