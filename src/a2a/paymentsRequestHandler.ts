@@ -295,7 +295,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         typeof creditsToBurn === 'bigint')
     ) {
       try {
-        await this.paymentsService.requests.redeemCreditsFromRequest(
+        const result = await this.paymentsService.requests.redeemCreditsFromRequest(
           event.status.message?.messageId,
           bearerToken,
           BigInt(creditsToBurn),
@@ -305,11 +305,15 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           task.metadata = {
             ...task.metadata,
             ...event.metadata,
+            txHash: result.txHash,
           }
           await resultManager.processEvent(task)
         }
       } catch (err) {
-        throw new PaymentsError('Failed to redeem credits.', 'payments_error')
+        throw new PaymentsError(
+          'Failed to redeem credits: ' + (err instanceof Error ? err.message : String(err)),
+          'payments_error',
+        )
       }
     }
     try {
@@ -418,11 +422,18 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           typeof event.metadata.creditsUsed === 'bigint')
       ) {
         try {
-          await this.paymentsService.requests.redeemCreditsFromRequest(
+          const result = await this.paymentsService.requests.redeemCreditsFromRequest(
             event.status.message?.messageId,
             bearerToken,
             BigInt(event.metadata.creditsUsed),
           )
+          // Add txHash from result to event metadata if present
+          if (result?.txHash) {
+            event.metadata = {
+              ...event.metadata,
+              txHash: result.txHash,
+            }
+          }
         } catch (err) {
           throw new PaymentsError('Failed to redeem credits.', 'payments_error')
         }
