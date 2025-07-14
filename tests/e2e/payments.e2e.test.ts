@@ -27,10 +27,12 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhBYmJGMjA4MDA5YjczYTUwN0VENzY1NzczM0UwMjYxYkQ2Zjg5QUIiLCJqdGkiOiIweGE2MTExYjI0MjVjYzFiMzI4MWM1MzIxOWIyMDYyMTdjODAxYjY0MWViN2JiZWZiOTM4YmU0ODk5OTgxNWYwNGQiLCJleHAiOjE3ODM4MDYxODV9.oZkNgE5ARf-uw3x5AghJZ1zybFd2t-IstDfzLtV-HbUaKaJBgN3PyvF_UTdD4bp7XVLQfQMPfoME0CzyCX3OERs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDcwZThjRTc3NzI0Q2ZhMzA1MEIwYzUzNDJCZDNCZjdiYTZlRmM0M0UiLCJqdGkiOiIweDM3NjM1ZTFlYmIwNTJiMDUzMGNhNWU3YjEwMTZjYjMzMjg1NTJmNmMyNmFiYTYzNzQxZThhOTQzMGE5MmI2MWYiLCJleHAiOjE3ODM4MDYyNTZ9.J9Kr6drm-xo0dm6-f3P2mYGzASf-vXiPtRCk0GF_06IGz19daQF1hgl00XJsBw_j_65Neoqs-RUgXzi3qfWoXRw'
+
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDcwZThjRTc3NzI0Q2ZhMzA1MEIwYzUzNDJCZDNCZjdiYTZlRmM0M0UiLCJqdGkiOiIweDM3NjM1ZTFlYmIwNTJiMDUzMGNhNWU3YjEwMTZjYjMzMjg1NTJmNmMyNmFiYTYzNzQxZThhOTQzMGE5MmI2MWYiLCJleHAiOjE3ODM4MDYyNTZ9.J9Kr6drm-xo0dm6-f3P2mYGzASf-vXiPtRCk0GF_06IGz19daQF1hgl00XJsBw_j_65Neoqs-RUgXzi3qfWoXRw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhBYmJGMjA4MDA5YjczYTUwN0VENzY1NzczM0UwMjYxYkQ2Zjg5QUIiLCJqdGkiOiIweGE2MTExYjI0MjVjYzFiMzI4MWM1MzIxOWIyMDYyMTdjODAxYjY0MWViN2JiZWZiOTM4YmU0ODk5OTgxNWYwNGQiLCJleHAiOjE3ODM4MDYxODV9.oZkNgE5ARf-uw3x5AghJZ1zybFd2t-IstDfzLtV-HbUaKaJBgN3PyvF_UTdD4bp7XVLQfQMPfoME0CzyCX3OERs'
+
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_testnet'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
@@ -93,7 +95,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to register a new Credits Payment Plan',
       async () => {
-        const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
+        const priceConfig = getERC20PriceConfig(1n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
         const response = await paymentsBuilder.plans.registerCreditsPlan(
