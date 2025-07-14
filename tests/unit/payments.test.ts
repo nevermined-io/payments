@@ -13,7 +13,7 @@ describe('Payments (unit)', () => {
     it('can initialize correctly', () => {
       const payments = Payments.getInstance({ 
         nvmApiKey: nvmApiKeyHash,
-        environment: 'staging'
+        environment: 'staging_testnet'
       })
       expect(payments).toBeDefined()
       expect(payments.plans).toBeDefined()
