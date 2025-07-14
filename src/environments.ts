@@ -34,7 +34,7 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
   },
   /**
    * The staging environment URLs.
-   */ 
+   */
   staging_testnet: {
     frontend: 'https://staging.nevermined.app',
     backend: 'https://api-base-sepolia.staging.nevermined.app/',
