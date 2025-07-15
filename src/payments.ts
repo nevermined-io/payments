@@ -7,6 +7,8 @@ import { BasePaymentsAPI } from './api/base-payments'
 import { PlansAPI } from './api/plans-api'
 import { AgentsAPI } from './api/agents-api'
 import { AgentRequestsAPI } from './api/requests-api'
+import * as mcpModule from './mcp'
+import type { PaymentsMCPServerOptions, PaymentsMCPServerResult } from './mcp'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -42,6 +44,22 @@ export class Payments extends BasePaymentsAPI {
      * @returns Server result containing app, server, adapter, and handler instances.
      */
     start: (options: Omit<PaymentsA2AServerOptions, 'paymentsService'>) => PaymentsA2AServerResult
+  }
+
+  /**
+   * Exposes MCP server integration for this Payments instance.
+   * @example
+   * ```
+   * payments.mcp.start({ mcpServer })
+   * ```
+   */
+  public readonly mcp: {
+    /**
+     * Starts the MCP server integration using this Payments instance for payment logic.
+     * @param options - All PaymentsMCPServerOptions except 'paymentsService'.
+     * @returns Server result containing registered tools, etc.
+     */
+    start: (options: Omit<PaymentsMCPServerOptions, 'paymentsService'>) => PaymentsMCPServerResult
   }
 
   /**
@@ -126,6 +144,14 @@ export class Payments extends BasePaymentsAPI {
       },
     }
     // ---
+    this.mcp = {
+      start: (options) => {
+        return mcpModule.PaymentsMCPServer.start({
+          ...options,
+          paymentsService: this,
+        });
+      },
+    };
   }
 
   /**
