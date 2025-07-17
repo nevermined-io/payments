@@ -157,7 +157,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     return {
       agentId: result.data.agentId,
       planId: result.data.planId,
-      txHash: result.data.txHash,
+      txHash: result.txHash,
     }
   }
 

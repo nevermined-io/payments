@@ -27,11 +27,13 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGEwMTUzNTAyNDkxYjEzODQ2NjZkYWVjMTQ2MmY3MWEzYjAxOWI5OThiMTUyZGQ3ZTQzMjFkM2NkZTIzZmIyNzYiLCJleHAiOjE3ODMxMTU1MzN9.yDXVTenPr4GGnP08x1RQlImt2u59zhJ80sf3A-Dy9sctPXWQsw9RD2CcsAypXrLy4KWgqm8PvWHOJeRWruK8sxw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDcwZThjRTc3NzI0Q2ZhMzA1MEIwYzUzNDJCZDNCZjdiYTZlRmM0M0UiLCJqdGkiOiIweDM3NjM1ZTFlYmIwNTJiMDUzMGNhNWU3YjEwMTZjYjMzMjg1NTJmNmMyNmFiYTYzNzQxZThhOTQzMGE5MmI2MWYiLCJleHAiOjE3ODM4MDYyNTZ9.J9Kr6drm-xo0dm6-f3P2mYGzASf-vXiPtRCk0GF_06IGz19daQF1hgl00XJsBw_j_65Neoqs-RUgXzi3qfWoXRw'
+
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDE4MjM3NGM4ZDQ4ZTRmNjk4MDY1OTY4NGYzNzg1ZTQxZDM1MzczNjU3MzBlMzlhOTc4N2RjYmM0MGYwM2U3OTQiLCJleHAiOjE3ODMxMTU1MzB9.kQBtyOYssbd6Cvkf29xdfkqBJUkFqVt_EBzQ8x3Gan9RskH2RK8bhYjbbZo9EwFJNUhBl4h8R_mL-BykJmZovhs'
-  const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhBYmJGMjA4MDA5YjczYTUwN0VENzY1NzczM0UwMjYxYkQ2Zjg5QUIiLCJqdGkiOiIweGE2MTExYjI0MjVjYzFiMzI4MWM1MzIxOWIyMDYyMTdjODAxYjY0MWViN2JiZWZiOTM4YmU0ODk5OTgxNWYwNGQiLCJleHAiOjE3ODM4MDYxODV9.oZkNgE5ARf-uw3x5AghJZ1zybFd2t-IstDfzLtV-HbUaKaJBgN3PyvF_UTdD4bp7XVLQfQMPfoME0CzyCX3OERs'
+
+  const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_testnet'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
     { POST: `http://localhost:41243/a2a` },
@@ -93,7 +95,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to register a new Credits Payment Plan',
       async () => {
-        const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
+        const priceConfig = getERC20PriceConfig(1n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
         const response = await paymentsBuilder.plans.registerCreditsPlan(
@@ -168,7 +170,11 @@ describe('Payments API (e2e)', () => {
           endpoints: AGENT_ENDPOINTS,
         }
         const paymentPlans = [creditsPlanId, expirablePlanId]
-        const result = await paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, paymentPlans)
+        const result = await paymentsBuilder.agents.registerAgent(
+          agentMetadata,
+          agentApi,
+          paymentPlans,
+        )
         agentId = result.agentId
         expect(agentId).toBeDefined()
 
@@ -212,7 +218,7 @@ describe('Payments API (e2e)', () => {
       'I should be able to get a plan',
       async () => {
         const plan = await paymentsBuilder.plans.getPlan(creditsPlanId)
-        
+
         expect(plan).toBeDefined()
         console.log('Plan', plan)
       },
@@ -362,7 +368,10 @@ describe('Payments API (e2e)', () => {
     })
 
     it('I should be able to generate the agent access token', async () => {
-      agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(creditsPlanId, agentId)
+      agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
+        creditsPlanId,
+        agentId,
+      )
       expect(agentAccessParams).toBeDefined()
       console.log('Agent Access Params', agentAccessParams)
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
