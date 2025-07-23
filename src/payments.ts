@@ -24,7 +24,6 @@ export class Payments extends BasePaymentsAPI {
   public agents!: AgentsAPI
   public requests!: AgentRequestsAPI
 
-
   /**
    * Get an instance of the Payments class for server-side usage.
    *
