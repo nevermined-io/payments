@@ -1,8 +1,6 @@
 import { AIQueryApi } from './api/query-api'
 import { PaymentsError } from './common/payments.error'
 import { PaymentOptions } from './common/types'
-import * as a2aModule from './a2a'
-import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/server'
 import { BasePaymentsAPI } from './api/base-payments'
 import { PlansAPI } from './api/plans-api'
 import { AgentsAPI } from './api/agents-api'
@@ -14,35 +12,17 @@ import { AgentRequestsAPI } from './api/requests-api'
  * @remarks This API requires a Nevermined API Key, which can be obtained by logging in to the Nevermined App.
  *
  * The library provides methods to manage AI Agents, Plans & process AI Agent Requests.
- * Additionally to it, the library provides an integration with Google Agent2Agent (A2A) framework, allowing AI Agents to communicate with each other and using Nevermined as payment and access control.
  *
  * Each of these functionalities is encapsulated in its own API class:
  * - `plans`: Manages AI Plans, including registration and ordering and retrieving plan details.
  * - `agents`: Handles AI Agents, including registration of AI Agents and access token generation.
  * - `requests`: Manages requests received by AI Agents, including validation and tracking.
- * - `a2a`: Exposes A2A agent/server functionality for this Payments instance.
  */
 export class Payments extends BasePaymentsAPI {
   public query!: AIQueryApi
   public plans!: PlansAPI
   public agents!: AgentsAPI
   public requests!: AgentRequestsAPI
-
-  /**
-   * Exposes A2A agent/server functionality for this Payments instance.
-   * @example
-   * ```
-   * payments.a2a.start({ agentCard, executor, port, ... })
-   * ```
-   */
-  public readonly a2a: {
-    /**
-     * Starts the A2A server using this Payments instance for payment logic.
-     * @param options - All PaymentsA2AServerOptions except 'paymentsService'.
-     * @returns Server result containing app, server, adapter, and handler instances.
-     */
-    start: (options: Omit<PaymentsA2AServerOptions, 'paymentsService'>) => PaymentsA2AServerResult
-  }
 
   /**
    * Get an instance of the Payments class for server-side usage.
@@ -115,17 +95,6 @@ export class Payments extends BasePaymentsAPI {
 
     this.isBrowserInstance = isBrowserInstance
     this.initializeApi(options)
-    // ---
-    // Attach the a2a server API to this instance
-    this.a2a = {
-      start: (options) => {
-        return a2aModule.PaymentsA2AServer.start({
-          ...options,
-          paymentsService: this,
-        })
-      },
-    }
-    // ---
   }
 
   /**

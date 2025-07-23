@@ -11,8 +11,6 @@ The library is structured in the following modules:
 - `payments`: The main module that provides the instance of the Payments class and methods. It exposes to methods to connect/disconnect.
 - `plans`: This module provides methods to register and manage payment plans.
 - `agents`: This module provides methods to register and manage agents.
-- `a2a`: This module provides methods to facilitate the integration with Google A2A agents.
-- `mcp`: This module provides methods to manage the integration with MCP agents.
 
 ```
 const payments = Payments.getInstance()
@@ -45,10 +43,6 @@ payments.agents.registerAgentAndPlan()
 payments.requests.initializeSubscriberRequest()
 payments.requests.updateSubscriberRequest()
 payments.requests.finishSubscriberRequest()
-
-payments.a2a.xxx
-payments.mcp.xxx
-
 
 ```
 
