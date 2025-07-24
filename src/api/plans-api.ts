@@ -274,7 +274,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(query, this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
+      throw PaymentsError.fromBackend('Plan not found', await response.json())
     }
     return response.json()
   }
@@ -306,7 +306,7 @@ export class PlansAPI extends BasePaymentsAPI {
     console.log(`Fetching agents for plan ${planId} from ${url.toString()}`)
     const response = await fetch(url)
     if (!response.ok) {
-      throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
+      throw PaymentsError.fromBackend('Plan not found', await response.json())
     }
     return response.json()
   }
@@ -351,9 +351,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(balanceUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to get balance. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to get balance', await response.json())
     }
 
     return response.json()
@@ -383,9 +381,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to order plan. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to order plan', await response.json())
     }
 
     return response.json()
@@ -417,9 +413,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to order fiat plan. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to order fiat plan', await response.json())
     }
 
     return response.json()
@@ -456,9 +450,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to mint plan credits. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to mint plan credits', await response.json())
     }
 
     return response.json()
@@ -502,9 +494,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to mint expirable credits. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to mint expirable credits', await response.json())
     }
 
     return response.json()
@@ -552,9 +542,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to redeem credits. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to redeem credits', await response.json())
     }
 
     return response.json()

@@ -84,9 +84,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const url = new URL(initializeAgentUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to validate access token. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to validate access token', await response.json())
     }
 
     return response.json()
@@ -196,9 +194,9 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      const responseText = await response.text()
-      throw new PaymentsError(
-        `Unable to redeem credits from request. ${response.status} ${response.statusText} - ${responseText}`,
+      throw PaymentsError.fromBackend(
+        'Unable to redeem credits from request',
+        await response.json(),
       )
     }
 
@@ -246,9 +244,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const response = await fetch(url, options)
 
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to track agent sub task. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to track agent sub task', await response.json())
     }
 
     return response.json()

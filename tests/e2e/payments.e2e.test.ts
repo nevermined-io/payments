@@ -36,8 +36,8 @@ describe('Payments API (e2e)', () => {
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
-    { POST: `http://localhost:41243/a2a` },
-    { GET: `http://localhost:41243/a2a/:agentId/tasks/:taskId` },
+    { POST: `http://example.com/kkk/a2a` },
+    { GET: `http://example.com/kkk/a2a/:agentId/tasks/:taskId` },
   ]
 
   let paymentsSubscriber: Payments
@@ -353,7 +353,7 @@ describe('Payments API (e2e)', () => {
           console.log('Error details:', error)
         }
 
-        res.writeHead(403, { 'Content-Type': 'application/json' })
+        res.writeHead(402, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Unauthorized' }))
         return
       })
@@ -379,8 +379,54 @@ describe('Payments API (e2e)', () => {
     })
 
     it(
+      'I should NOT be able to query an agent using the wrong endpoint',
+      async () => {
+        const agentHTTPOptions = {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${agentAccessParams.accessToken}`,
+          },
+        }
+
+        const response = await fetch(new URL(agentURL), agentHTTPOptions)
+        expect(response).toBeDefined()
+        expect(response.status).toBe(402)
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
+      'I should be able to fix the endpoints',
+      async () => {
+        const agentMetadata: AgentMetadata = {
+          name: 'E2E Payments Agent Updated',
+          description: 'This is a test agent for the E2E Payments tests',
+          tags: ['test'],
+          dateCreated: new Date(),
+        }
+        const agentApi = {
+          endpoints: [ { POST: `${agentURL}` } ]
+        }
+        
+        const result = await paymentsBuilder.agents.updateAgentMetadata(
+          agentId,
+          agentMetadata,
+          agentApi
+        )
+        
+        expect(result).toBeDefined()
+        expect(result.success).toBeTruthy()
+        
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
       'I should be able to send a request DIRECTLY to the agent',
       async () => {
+
         const agentHTTPOptions = {
           method: 'POST',
           headers: {
@@ -413,7 +459,7 @@ describe('Payments API (e2e)', () => {
         // ).rejects.toThrow()
         const response = await fetch(new URL(agentURL), agentHTTPOptions)
         expect(response).toBeDefined()
-        expect(response.status).toBe(403)
+        expect(response.status).toBe(402)
       },
       TEST_TIMEOUT,
     )
