@@ -105,14 +105,14 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    * @param urlRequested - The URL requested by the subscriber to access the agent's API.
    * @param httpMethodRequested - The HTTP method requested by the subscriber to access the agent's API.
    * @returns agentRequestId The identifier of the agent request.
-   * @returns isRequestValid A boolean indicating if the request is valid or not.
+   * @returns isValidRequest A boolean indicating if the request is valid or not.
    * @throws PaymentsError if unable to initialize the agent request.
    *
    * @example
    * ```
    * onst authHeader = req.headers['authorization']
    *
-   * const result = await payments.requests.isRequestValid(
+   * const result = await payments.requests.isValidRequest(
    *  agentId,
    *  authHeader,
    *  'https://api.example.com/agent-endpoint/1234',
@@ -121,16 +121,16 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    *
    * // {
    * //   agentRequestId: '9878327323232',
-   * //   isRequestValid: true
+   * //   isValidRequest: true
    * // }
    * ```
    */
-  public async isRequestValid(
+  public async isValidRequest(
     agentId: string,
     accessToken: string,
     urlRequested: string,
     httpMethodRequested: string,
-  ): Promise<{ agentRequestId: string; isRequestValid: boolean }> {
+  ): Promise<{ agentRequestId: string; isValidRequest: boolean }> {
     const agentRequestInfo = await this.startProcessingRequest(
       agentId,
       accessToken,
@@ -139,7 +139,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     )
     return {
       agentRequestId: agentRequestInfo.agentRequestId,
-      isRequestValid: agentRequestInfo.balance.isSubscriber,
+      isValidRequest: agentRequestInfo.balance.isSubscriber,
     }
   }
 
