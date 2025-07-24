@@ -27,7 +27,7 @@ const credentials = await payments.agents.getAgentAccessToken(planId, agentId)
 // }  
 ```  
 
-## Sending a task to the AI Agent or Service
+## Sending a query to the AI Agent
 
 If the response of the `getAgentAccessToken` method contains a valid `accessToken`, the user can query the AI Agent making a standard HTTP request.
 This request must be sent directly to the Agent (the description of the Agent API is in the Agent Metadata) or if the `agentAccessParams` includes an entry in the `proxies` array, through one of the Nevermined Proxy instances listed in the `proxies` array of the response.

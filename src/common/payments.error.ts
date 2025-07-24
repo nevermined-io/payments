@@ -16,6 +16,10 @@ export class PaymentsError extends Error {
     this.code = code
   }
 
+  static fromBackend(message: string, error: any) {
+    return new PaymentsError(`${message}. ${error.message}`, error.code)
+  }
+
   /**
    * Creates an unauthorized error (missing or invalid credentials).
    * @param message - Optional custom message

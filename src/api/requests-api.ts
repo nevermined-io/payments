@@ -84,12 +84,61 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const url = new URL(initializeAgentUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to validate access token. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to validate access token', await response.json())
     }
 
     return response.json()
+  }
+
+  /**
+   * This method validates if a request sent by a user is valid to be processed by an AI Agent.
+   *
+   * @remarks
+   * This method can can be used to build the agent authorization system.
+   * @remarks
+   * This method is a simplification of the `startProcessingRequest` method.
+   *
+   * @param agentId - The unique identifier of the AI Agent.
+   * @param accessToken - The access token provided by the subscriber to validate
+   * @param urlRequested - The URL requested by the subscriber to access the agent's API.
+   * @param httpMethodRequested - The HTTP method requested by the subscriber to access the agent's API.
+   * @returns agentRequestId The identifier of the agent request.
+   * @returns isValidRequest A boolean indicating if the request is valid or not.
+   * @throws PaymentsError if unable to initialize the agent request.
+   *
+   * @example
+   * ```
+   * onst authHeader = req.headers['authorization']
+   *
+   * const result = await payments.requests.isValidRequest(
+   *  agentId,
+   *  authHeader,
+   *  'https://api.example.com/agent-endpoint/1234',
+   *  'POST'
+   * )
+   *
+   * // {
+   * //   agentRequestId: '9878327323232',
+   * //   isValidRequest: true
+   * // }
+   * ```
+   */
+  public async isValidRequest(
+    agentId: string,
+    accessToken: string,
+    urlRequested: string,
+    httpMethodRequested: string,
+  ): Promise<{ agentRequestId: string; isValidRequest: boolean }> {
+    const agentRequestInfo = await this.startProcessingRequest(
+      agentId,
+      accessToken,
+      urlRequested,
+      httpMethodRequested,
+    )
+    return {
+      agentRequestId: agentRequestInfo.agentRequestId,
+      isValidRequest: agentRequestInfo.balance.isSubscriber,
+    }
   }
 
   /**
@@ -145,9 +194,9 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      const responseText = await response.text()
-      throw new PaymentsError(
-        `Unable to redeem credits from request. ${response.status} ${response.statusText} - ${responseText}`,
+      throw PaymentsError.fromBackend(
+        'Unable to redeem credits from request',
+        await response.json(),
       )
     }
 
@@ -195,9 +244,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const response = await fetch(url, options)
 
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to track agent sub task. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to track agent sub task', await response.json())
     }
 
     return response.json()
