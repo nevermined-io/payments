@@ -105,7 +105,7 @@ const { agentId } = await payments.agents.registerAgent(
 
 ```typescript
 const agentMetadata = { name: 'My AI Payments Agent', tags: ['test2'] }
-const agentApi = { endpoints: [{ 'POST': 'http://localhost:8889/test/:agentId/tasks' }] }
+const agentApi = { endpoints: [{ 'POST': 'http://example.com/test/:agentId/tasks' }] }
 
 const cryptoPriceConfig = getNativeTokenPriceConfig(500n, builderAddress)
 // Non expirable payment plan

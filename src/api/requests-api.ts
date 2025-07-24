@@ -93,6 +93,52 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
   }
 
   /**
+   * This method validates if a request sent by a user is valid to be processed by an AI Agent.
+   *
+   * @remarks
+   * This method can can be used to build the agent authorization system.
+   * @remarks
+   * This method is a simplification of the `startProcessingRequest` method.
+   *
+   * @param agentId - The unique identifier of the AI Agent.
+   * @param accessToken - The access token provided by the subscriber to validate
+   * @param urlRequested - The URL requested by the subscriber to access the agent's API.
+   * @param httpMethodRequested - The HTTP method requested by the subscriber to access the agent's API.
+   * @returns agentRequestId The identifier of the agent request.
+   * @returns isRequestValid A boolean indicating if the request is valid or not.
+   * @throws PaymentsError if unable to initialize the agent request.
+   *
+   * @example
+   * ```
+   * onst authHeader = req.headers['authorization']
+   *
+   * const result = await payments.requests.isRequestValid(
+   *  agentId,
+   *  authHeader,
+   *  'https://api.example.com/agent-endpoint/1234',
+   *  'POST'
+   * )
+   *
+   * // {
+   * //   agentRequestId: '9878327323232',
+   * //   isRequestValid: true
+   * // }
+   * ```
+   */
+  public async isRequestValid(
+    agentId: string,
+    accessToken: string,
+    urlRequested: string,
+    httpMethodRequested: string,
+  ): Promise<{ agentRequestId: string, isRequestValid: boolean }> {
+    const agentRequestInfo = await this.startProcessingRequest(agentId, accessToken, urlRequested, httpMethodRequested)
+    return {
+      agentRequestId: agentRequestInfo.agentRequestId,
+      isRequestValid: agentRequestInfo.balance.isSubscriber,
+    }
+  }
+
+  /**
    * Allows the agent to redeem credits from a request.
    *
    * @param agentRequestId - The unique identifier of the agent request.

@@ -7,40 +7,28 @@ export interface EnvironmentInfo {
 export const ZeroAddress = '0x0000000000000000000000000000000000000000'
 
 export type EnvironmentName =
-  | 'local_testnet'
-  | 'local_mainnet'
-  | 'staging_testnet'
-  | 'staging_mainnet'
-  | 'production_testnet'
-  | 'production_mainnet'
+
+
+  | 'staging_sandbox'
+  | 'staging_live'
+  | 'sandbox'
+  | 'live'
   | 'custom'
 
 /**
  * Represents the different environments and their corresponding URLs.
  */
 export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
-  /**
-   * The local environment URLs.
-   */
-  local_testnet: {
-    frontend: 'http://localhost:3000',
-    backend: 'http://localhost:3001',
-    proxy: 'https://localhost:443',
-  },
-  local_mainnet: {
-    frontend: 'http://localhost:3000',
-    backend: 'http://localhost:3002',
-    proxy: 'https://localhost:443',
-  },
+
   /**
    * The staging environment URLs.
    */
-  staging_testnet: {
+  staging_sandbox: {
     frontend: 'https://staging.nevermined.app',
     backend: 'https://api-base-sepolia.staging.nevermined.app/',
     proxy: 'https://proxy.staging.nevermined.app',
   },
-  staging_mainnet: {
+  staging_live: {
     frontend: 'https://staging.nevermined.app',
     backend: 'https://api-base-mainnet.staging.nevermined.app/',
     proxy: 'https://proxy.staging.nevermined.app',
@@ -48,12 +36,12 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
   /**
    * The Production environment URLs.
    */
-  production_testnet: {
+  sandbox: {
     frontend: 'https://nevermined.app',
     backend: 'https://api-base-sepolia.nevermined.app/',
     proxy: 'https://proxy.nevermined.app',
   },
-  production_mainnet: {
+  live: {
     frontend: 'https://nevermined.app',
     backend: 'https://api-base-mainnet.nevermined.app/',
     proxy: 'https://proxy.nevermined.app',
