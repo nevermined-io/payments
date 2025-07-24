@@ -130,8 +130,13 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     accessToken: string,
     urlRequested: string,
     httpMethodRequested: string,
-  ): Promise<{ agentRequestId: string, isRequestValid: boolean }> {
-    const agentRequestInfo = await this.startProcessingRequest(agentId, accessToken, urlRequested, httpMethodRequested)
+  ): Promise<{ agentRequestId: string; isRequestValid: boolean }> {
+    const agentRequestInfo = await this.startProcessingRequest(
+      agentId,
+      accessToken,
+      urlRequested,
+      httpMethodRequested,
+    )
     return {
       agentRequestId: agentRequestInfo.agentRequestId,
       isRequestValid: agentRequestInfo.balance.isSubscriber,

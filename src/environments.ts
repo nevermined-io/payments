@@ -6,20 +6,12 @@ export interface EnvironmentInfo {
 
 export const ZeroAddress = '0x0000000000000000000000000000000000000000'
 
-export type EnvironmentName =
-
-
-  | 'staging_sandbox'
-  | 'staging_live'
-  | 'sandbox'
-  | 'live'
-  | 'custom'
+export type EnvironmentName = 'staging_sandbox' | 'staging_live' | 'sandbox' | 'live' | 'custom'
 
 /**
  * Represents the different environments and their corresponding URLs.
  */
 export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
-
   /**
    * The staging environment URLs.
    */
