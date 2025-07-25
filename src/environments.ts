@@ -16,27 +16,27 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
    * The staging environment URLs.
    */
   staging_sandbox: {
-    frontend: 'https://staging.nevermined.app',
-    backend: 'https://api-base-sepolia.staging.nevermined.app/',
-    proxy: 'https://proxy.staging.nevermined.app',
+    frontend: 'https://nevermined.dev',
+    backend: 'https://api.sandbox.nevermined.dev/',
+    proxy: 'https://proxy.sandbox.nevermined.dev',
   },
   staging_live: {
-    frontend: 'https://staging.nevermined.app',
-    backend: 'https://api-base-mainnet.staging.nevermined.app/',
-    proxy: 'https://proxy.staging.nevermined.app',
+    frontend: 'https://nevermined.dev',
+    backend: 'https://api.live.nevermined.dev/',
+    proxy: 'https://proxy.live.nevermined.dev',
   },
   /**
    * The Production environment URLs.
    */
   sandbox: {
     frontend: 'https://nevermined.app',
-    backend: 'https://api-base-sepolia.nevermined.app/',
-    proxy: 'https://proxy.nevermined.app',
+    backend: 'https://api.sandbox.nevermined.app/',
+    proxy: 'https://proxy.sandbox.nevermined.app',
   },
   live: {
     frontend: 'https://nevermined.app',
-    backend: 'https://api-base-mainnet.nevermined.app/',
-    proxy: 'https://proxy.nevermined.app',
+    backend: 'https://api.live.nevermined.app/',
+    proxy: 'https://proxy.live.nevermined.app',
   },
   /**
    * A custom environment URLs.
