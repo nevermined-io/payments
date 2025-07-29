@@ -6,66 +6,37 @@ export interface EnvironmentInfo {
 
 export const ZeroAddress = '0x0000000000000000000000000000000000000000'
 
-export type EnvironmentName =
-  | 'local'
-  | 'staging'
-  | 'testing'
-  | 'production'
-  | 'base'
-  | 'base-sepolia'
-  | 'custom'
+export type EnvironmentName = 'staging_sandbox' | 'staging_live' | 'sandbox' | 'live' | 'custom'
 
 /**
  * Represents the different environments and their corresponding URLs.
  */
 export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
   /**
-   * The local environment URLs.
-   */
-  local: {
-    frontend: 'http://localhost:3000',
-    backend: 'http://localhost:3001',
-    proxy: 'https://localhost:443',
-  },
-  /**
    * The staging environment URLs.
    */
-  staging: {
-    frontend: 'https://staging.nevermined.app',
-    backend: 'https://one-backend.staging.nevermined.app',
-    proxy: 'https://proxy.staging.nevermined.app',
+  staging_sandbox: {
+    frontend: 'https://nevermined.dev',
+    backend: 'https://api.sandbox.nevermined.dev/',
+    proxy: 'https://proxy.sandbox.nevermined.dev',
+  },
+  staging_live: {
+    frontend: 'https://nevermined.dev',
+    backend: 'https://api.live.nevermined.dev/',
+    proxy: 'https://proxy.live.nevermined.dev',
   },
   /**
-   * The testing environment URLs.
+   * The Production environment URLs.
    */
-  testing: {
-    frontend: 'https://testing.nevermined.app',
-    backend: 'https://one-backend.testing.nevermined.app',
-    proxy: 'https://proxy.testing.nevermined.app',
-  },
-  /**
-   * The Arbitrum environment URLs.
-   */
-  production: {
+  sandbox: {
     frontend: 'https://nevermined.app',
-    backend: 'https://one-backend.nevermined.app',
-    proxy: 'https://proxy.nevermined.app',
+    backend: 'https://api.sandbox.nevermined.app/',
+    proxy: 'https://proxy.sandbox.nevermined.app',
   },
-  /**
-   * The Base environment URLs.
-   */
-  base: {
-    frontend: 'https://base.nevermined.app',
-    backend: 'https://one-backend.base.nevermined.app',
-    proxy: 'https://proxy.base.nevermined.app',
-  },
-  /**
-   * The Base Sepolia environment URLs.
-   */
-  'base-sepolia': {
-    frontend: 'https://base-sepolia.nevermined.app',
-    backend: 'https://one-backend.base-sepolia.nevermined.app',
-    proxy: 'https://proxy.base-sepolia.nevermined.app',
+  live: {
+    frontend: 'https://nevermined.app',
+    backend: 'https://api.live.nevermined.app/',
+    proxy: 'https://proxy.live.nevermined.app',
   },
   /**
    * A custom environment URLs.

@@ -27,15 +27,17 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweGEwMTUzNTAyNDkxYjEzODQ2NjZkYWVjMTQ2MmY3MWEzYjAxOWI5OThiMTUyZGQ3ZTQzMjFkM2NkZTIzZmIyNzYiLCJleHAiOjE3ODMxMTU1MzN9.yDXVTenPr4GGnP08x1RQlImt2u59zhJ80sf3A-Dy9sctPXWQsw9RD2CcsAypXrLy4KWgqm8PvWHOJeRWruK8sxw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDg4NTcxYjI2ODY2Yzg5ODY5ODJjZWVjZTgyNTJjYjIwMTA2YjZlMzY3NjkxNjFhYzdlNmIyOTY4ZDUyNDVlMWUiLCJleHAiOjE3ODQ5MDU1NDd9.J1-Q2ZEt8J0zYKOMwP-2lzsFj2PSR4R3_lUZThWwJTUIvs8VGo2iNifk9ASumsr2qd8zcpD1nBqiyKjoYg4CVRs'
+
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDE4MjM3NGM4ZDQ4ZTRmNjk4MDY1OTY4NGYzNzg1ZTQxZDM1MzczNjU3MzBlMzlhOTc4N2RjYmM0MGYwM2U3OTQiLCJleHAiOjE3ODMxMTU1MzB9.kQBtyOYssbd6Cvkf29xdfkqBJUkFqVt_EBzQ8x3Gan9RskH2RK8bhYjbbZo9EwFJNUhBl4h8R_mL-BykJmZovhs'
-  const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDgxODljNjQwYTAxMjlhZTA5NzlkNWQ1OGM2ODBhMWUwNDJkOWM1NzFiYjkxYTc4Y2NlYjMyNzBmMDJjZTIzYTgiLCJleHAiOjE3ODQ5MDU1NDV9.4aSxzSfpEon1FqPNGQ-NNaM451UaG03xG5tY8jLpxcRoyhdj6x6Yo28YZRid951JqwYW4jY80f9xOOnxaJuhphs'
+
+  const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
   const AGENT_ENDPOINTS: Endpoint[] = [
-    { POST: `http://localhost:41243/a2a` },
-    { GET: `http://localhost:41243/a2a/:agentId/tasks/:taskId` },
+    { POST: `http://example.com/kkk/a2a` },
+    { GET: `http://example.com/kkk/a2a/:agentId/tasks/:taskId` },
   ]
 
   let paymentsSubscriber: Payments
@@ -93,7 +95,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to register a new Credits Payment Plan',
       async () => {
-        const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
+        const priceConfig = getERC20PriceConfig(1n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
         const response = await paymentsBuilder.plans.registerCreditsPlan(
@@ -168,7 +170,11 @@ describe('Payments API (e2e)', () => {
           endpoints: AGENT_ENDPOINTS,
         }
         const paymentPlans = [creditsPlanId, expirablePlanId]
-        const result = await paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, paymentPlans)
+        const result = await paymentsBuilder.agents.registerAgent(
+          agentMetadata,
+          agentApi,
+          paymentPlans,
+        )
         agentId = result.agentId
         expect(agentId).toBeDefined()
 
@@ -199,8 +205,9 @@ describe('Payments API (e2e)', () => {
           nonExpirableConfig,
         )
         console.log('Agent and Plan Registration Result', result)
-        expect(result.agentId).toBeDefined()
         expect(result.planId).toBeDefined()
+        expect(result.agentId).toBeDefined()
+        expect(result.agentId.startsWith('did:nv:')).toBeTruthy()
         fiatPlanId = result.planId
       },
       TEST_TIMEOUT,
@@ -212,7 +219,7 @@ describe('Payments API (e2e)', () => {
       'I should be able to get a plan',
       async () => {
         const plan = await paymentsBuilder.plans.getPlan(creditsPlanId)
-        
+
         expect(plan).toBeDefined()
         console.log('Plan', plan)
       },
@@ -346,7 +353,7 @@ describe('Payments API (e2e)', () => {
           console.log('Error details:', error)
         }
 
-        res.writeHead(403, { 'Content-Type': 'application/json' })
+        res.writeHead(402, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Unauthorized' }))
         return
       })
@@ -362,15 +369,64 @@ describe('Payments API (e2e)', () => {
     })
 
     it('I should be able to generate the agent access token', async () => {
-      agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(creditsPlanId, agentId)
+      agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
+        creditsPlanId,
+        agentId,
+      )
       expect(agentAccessParams).toBeDefined()
       console.log('Agent Access Params', agentAccessParams)
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
     })
 
     it(
+      'I should NOT be able to query an agent using the wrong endpoint',
+      async () => {
+        const agentHTTPOptions = {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${agentAccessParams.accessToken}`,
+          },
+        }
+
+        const response = await fetch(new URL(agentURL), agentHTTPOptions)
+        expect(response).toBeDefined()
+        expect(response.status).toBe(402)
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
+      'I should be able to fix the endpoints',
+      async () => {
+        const agentMetadata: AgentMetadata = {
+          name: 'E2E Payments Agent Updated',
+          description: 'This is a test agent for the E2E Payments tests',
+          tags: ['test'],
+          dateCreated: new Date(),
+        }
+        const agentApi = {
+          endpoints: [ { POST: `${agentURL}` } ]
+        }
+        
+        const result = await paymentsBuilder.agents.updateAgentMetadata(
+          agentId,
+          agentMetadata,
+          agentApi
+        )
+        
+        expect(result).toBeDefined()
+        expect(result.success).toBeTruthy()
+        
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
       'I should be able to send a request DIRECTLY to the agent',
       async () => {
+
         const agentHTTPOptions = {
           method: 'POST',
           headers: {
@@ -403,7 +459,7 @@ describe('Payments API (e2e)', () => {
         // ).rejects.toThrow()
         const response = await fetch(new URL(agentURL), agentHTTPOptions)
         expect(response).toBeDefined()
-        expect(response.status).toBe(403)
+        expect(response.status).toBe(402)
       },
       TEST_TIMEOUT,
     )

@@ -19,6 +19,7 @@ import {
   API_URL_REGISTER_AGENT,
   API_URL_REGISTER_AGENTS_AND_PLAN,
   API_URL_REMOVE_PLAN_AGENT,
+  API_URL_UPDATE_AGENT,
 } from './nvm-api'
 
 /**
@@ -78,9 +79,7 @@ export class AgentsAPI extends BasePaymentsAPI {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to register agent. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to register agent', await response.json())
     }
     const agentData = await response.json()
     return { agentId: agentData.agentId }
@@ -147,15 +146,13 @@ export class AgentsAPI extends BasePaymentsAPI {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to register agent & plan. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to register agent & plan', await response.json())
     }
     const result = await response.json()
     return {
       agentId: result.data.agentId,
       planId: result.data.planId,
-      txHash: result.data.txHash,
+      txHash: result.txHash,
     }
   }
 
@@ -175,7 +172,42 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_GET_AGENT.replace(':agentId', agentId), this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw new PaymentsError(`Agent not found. ${response.statusText} - ${await response.text()}`)
+      throw PaymentsError.fromBackend('Agent not found', await response.json())
+    }
+    return response.json()
+  }
+
+  /**
+   * Updates the metadata and API attributes of an existing AI Agent.
+   *
+   * @param agentId - The unique identifier of the agent.
+   * @param agentMetadata - The new metadata attributes for the agent.
+   * @param agentApi - The new API attributes for the agent.
+   * @returns  @see {@link NvmAPIResult} A promise that resolves indicating if the operation was successful.
+   * @throws PaymentsError if the agent is not found or if the update fails.
+   *
+   * @example
+   * ```
+   *  const agentMetadata = { name: 'My Updated Agent', tags: ['test'] }
+   *  const agentApi = { endpoints: [{ 'POST': 'https://nevermined.app/api/v1/agents/:agentId/tasks' }] }
+   *
+   *  await payments.agents.updateAgentMetadata(agentId, agentMetadata, agentApi)
+   * ```
+   */
+  public async updateAgentMetadata(
+    agentId: string,
+    agentMetadata: AgentMetadata,
+    agentApi: AgentAPIAttributes,
+  ): Promise<NvmAPIResult> {
+    const body = {
+      metadataAttributes: agentMetadata,
+      agentApiAttributes: agentApi,
+    }
+    const url = new URL(API_URL_UPDATE_AGENT.replace(':agentId', agentId), this.environment.backend)
+    const options = this.getBackendHTTPOptions('PUT', body)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw PaymentsError.fromBackend('Error updating agent', await response.json())
     }
     return response.json()
   }
@@ -205,7 +237,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(query, this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw new PaymentsError(`Agent not found. ${response.statusText} - ${await response.text()}`)
+      throw PaymentsError.fromBackend('Agent not found', await response.json())
     }
     return response.json()
   }
@@ -237,9 +269,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to add plan to agent. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to add plan to agent', await response.json())
     }
 
     return response.json()
@@ -275,9 +305,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to remove plan from agent. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to remove plan from agent', await response.json())
     }
 
     return response.json()
@@ -330,9 +358,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(accessTokenUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to get agent access token. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to get agent access token', await response.json())
     }
 
     return response.json()

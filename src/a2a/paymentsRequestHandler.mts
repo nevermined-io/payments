@@ -2,20 +2,29 @@ import type {
   AgentCard,
   MessageSendParams,
   TaskState,
-  ExecutionEventBusManager,
-  TaskStore,
   PushNotificationConfig,
   TaskStatusUpdateEvent,
   Task,
-  Message,
 } from '@a2a-js/sdk'
-import type { HttpRequestContext } from './types'
+import type {
+  AgentExecutionEvent,
+  ExecutionEventBusManager,
+  TaskStore,
+} from '@a2a-js/sdk/server'
 import { v4 as uuidv4 } from 'uuid'
-import { AgentExecutor, DefaultRequestHandler, ResultManager } from '@a2a-js/sdk'
-import { ExecutionEventQueue } from '@a2a-js/sdk/build/src/server/events/execution_event_queue'
-import { PaymentsError } from '../common/payments.error'
+import { AgentExecutor, DefaultRequestHandler } from '@a2a-js/sdk/server'
+import { PaymentsError } from '../common/payments.error.js'
 
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
+
+/**
+ * HTTP context associated with a task or message.
+ */
+type HttpRequestContext = {
+  bearerToken?: string
+  urlRequested?: string
+  httpMethodRequested?: string
+}
 
 /**
  * PaymentsRequestHandler extends DefaultRequestHandler to add payments validation and burning.
@@ -24,9 +33,21 @@ const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejecte
  */
 export class PaymentsRequestHandler extends DefaultRequestHandler {
   private paymentsService: any
+
+  /**
+   * Map to store HTTP context by taskId.
+   */
   private httpContextByTaskId: Map<string, HttpRequestContext> = new Map()
+
+  /**
+   * Map to store temporary HTTP context by messageId (before taskId is known).
+   */
   private httpContextByMessageId: Map<string, HttpRequestContext> = new Map()
-  private asyncExecution: boolean
+
+  /**
+   * Set to track which tasks already have a finalization listener attached.
+   */
+  private finalizedTasksWithListener: Set<string> = new Set()
 
   /**
    * Store HTTP context temporarily by messageId (used in middleware when taskId is not yet available).
@@ -52,7 +73,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @param agentExecutor - The business logic executor
    * @param paymentsService - The payments service for validation and burning
    * @param eventBusManager - The event bus manager (optional)
-   * @param options - Handler options (asyncExecution: boolean)
    */
   constructor(
     agentCard: AgentCard,
@@ -60,11 +80,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     agentExecutor: AgentExecutor,
     paymentsService: any,
     eventBusManager?: ExecutionEventBusManager,
-    options?: { asyncExecution?: boolean },
   ) {
     super(agentCard, taskStore, agentExecutor, eventBusManager)
     this.paymentsService = paymentsService
-    this.asyncExecution = options?.asyncExecution ?? false
   }
 
   /**
@@ -86,74 +104,21 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   }
 
   /**
-   * Processes all events, calling handleTaskFinalization when a terminal status-update event is received.
-   * In async mode, it can be launched in background.
-   * @param taskId - The taskId of the task
-   * @param resultManager - The result manager
-   * @param eventQueue - The event queue
-   * @param bearerToken - The bearer token for payment validation
-   * @param options - Options for the finalization process (firstResultResolver, firstResultRejector)
-   * @returns void
-   */
-  protected async processEventsWithFinalization(
-    taskId: string,
-    resultManager: ResultManager,
-    eventQueue: ExecutionEventQueue,
-    bearerToken: string,
-    options?: {
-      firstResultResolver?: (event: any) => void
-      firstResultRejector?: (err: any) => void
-    },
-  ) {
-    let firstResultSent = false
-    try {
-      for await (const event of eventQueue.events()) {
-        await resultManager.processEvent(event)
-        // Finalization logic after storing the task
-        if (
-          event.kind === 'status-update' &&
-          event.final &&
-          terminalStates.includes(event.status?.state)
-        ) {
-          await this.handleTaskFinalization(resultManager, event, bearerToken)
-        }
-        if (options?.firstResultResolver && !firstResultSent) {
-          if (event.kind === 'message' || event.kind === 'task') {
-            options.firstResultResolver(event)
-            firstResultSent = true
-          }
-        }
-      }
-      if (options?.firstResultRejector && !firstResultSent) {
-        options.firstResultRejector(
-          new Error('Execution finished before a message or task was produced.'),
-        )
-      }
-    } catch (error) {
-      if (options?.firstResultRejector && !firstResultSent) {
-        options.firstResultRejector(error)
-      }
-      throw error
-    } finally {
-      this.getEventBusManager().cleanupByTaskId(taskId)
-    }
-  }
-
-  /**
    * Sends a message, validating credits before execution and burning credits after.
    * Also sends a push notification if the task reaches a terminal state.
-   * This method overrides the parent implementation to allow eventBus subscription before agent execution.
    * @param params - Message send parameters
    * @returns The resulting message or task
    */
-  async sendMessage(params: MessageSendParams): Promise<Message | Task> {
+  async sendMessage(params: MessageSendParams) {
+    const incomingMessage = params.message
+
     // 1. Get HTTP context for the task or message
-    let taskId = params.message.taskId
+    const taskId = incomingMessage.taskId
     let httpContext: HttpRequestContext | undefined
     if (taskId) {
       httpContext = this.getHttpRequestContextForTask(taskId)
     } else {
-      const messageId = params.message.messageId
+      const messageId = incomingMessage.messageId
       if (messageId) {
         httpContext = this.getHttpRequestContextForMessage(messageId)
       }
@@ -163,12 +128,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.internal('HTTP context not found for task or message.')
     }
 
-    // 2. Extract bearer token and validate presence of required fields
+    // 2. Extract bearer token
     const { bearerToken, urlRequested, httpMethodRequested } = httpContext
     if (!bearerToken || !urlRequested || !httpMethodRequested) {
       throw PaymentsError.unauthorized('Missing bearer token for payment validation.')
     }
-
     // 3. Validate credits before executing the task
     const agentCard = await this.getAgentCard()
     const agentId = agentCard.capabilities?.extensions?.find(
@@ -177,9 +141,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     if (!agentId) {
       throw PaymentsError.internal('Agent ID not found in payment extension.')
     }
-
     try {
-      const validation = await this.paymentsService.requests.isValidRequest(
+      const validation = await this.paymentsService.isValidRequest(
         agentId,
         bearerToken,
         urlRequested,
@@ -194,97 +157,34 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       )
     }
 
-    // 4. Generate taskId if not present and migrate HTTP context
-    const incomingMessage = params.message
-    if (!incomingMessage.messageId) {
-      throw PaymentsError.internal('message.messageId is required.')
-    }
-    if (!taskId) {
-      taskId = uuidv4()
-      this.migrateHttpRequestContextFromMessageToTask(params.message.messageId, taskId)
-    }
+    // 4. Call the base logic
+    const result = await super.sendMessage(params)
 
-    // 5. Instantiate ResultManager and eventBus
-    const resultManager = new ResultManager(this.getTaskStore())
-    resultManager.setContext(incomingMessage)
-    const requestContext = await this.callCreateRequestContext(incomingMessage, taskId, false)
-    const finalMessageForAgent = requestContext.userMessage
-    const eventBus = this.getEventBusManager().createOrGetByTaskId(taskId)
-    const eventQueue = new ExecutionEventQueue(eventBus)
-
-    // 7. Continue with the logic from the parent class
-    this.getAgentExecutor()
-      .execute(requestContext, eventBus)
-      .catch((err: any) => {
-        // Publish a synthetic error event
-        const errorTask: Task = {
-          id: requestContext.task?.id || uuidv4(),
-          contextId: finalMessageForAgent.contextId,
-          status: {
-            state: 'failed',
-            message: {
-              kind: 'message',
-              role: 'agent',
-              messageId: uuidv4(),
-              parts: [{ kind: 'text', text: `Agent execution error: ${err.message}` }],
-              taskId: requestContext.task?.id,
-              contextId: finalMessageForAgent.contextId,
-            },
-            timestamp: new Date().toISOString(),
-          },
-          history: requestContext.task?.history ? [...requestContext.task.history] : [],
-          kind: 'task',
-        }
-        if (finalMessageForAgent) {
-          if (
-            !errorTask.history?.find((m: any) => m.messageId === finalMessageForAgent.messageId)
-          ) {
-            errorTask.history?.push(finalMessageForAgent)
-          }
-        }
-        eventBus.publish(errorTask)
-        eventBus.publish({
-          kind: 'status-update',
-          taskId: errorTask.id,
-          contextId: errorTask.contextId,
-          status: errorTask.status,
-          final: true,
-        })
-        eventBus.finished()
-      })
-
-    if (!this.asyncExecution) {
-      await this.processEventsWithFinalization(taskId, resultManager, eventQueue, bearerToken)
-      const finalResult = resultManager.getFinalResult()
-      if (!finalResult) {
-        throw PaymentsError.internal(
-          'Agent execution finished without a result, and no task context found.',
-        )
+    // 5. Only handle if result is a Task (not a Message)
+    if (result && result.kind === 'task') {
+      if (incomingMessage.messageId) {
+        this.migrateHttpRequestContextFromMessageToTask(incomingMessage.messageId, result.id)
       }
-      return finalResult
-    } else {
-      // Async execution
-      return new Promise((resolve, reject) => {
-        this.processEventsWithFinalization(taskId, resultManager, eventQueue, bearerToken, {
-          firstResultResolver: resolve,
-          firstResultRejector: reject,
+      const eventBus = this.getEventBusManager().createOrGetByTaskId(result.id)
+      if (!this.finalizedTasksWithListener.has(result.id)) {
+        this.finalizedTasksWithListener.add(result.id)
+        eventBus.on('event', (event: AgentExecutionEvent) => {
+          if (event.kind === 'status-update' && terminalStates.includes(event.status?.state)) {
+            this.handleTaskFinalization(event, bearerToken)
+          }
         })
-      })
+      }
     }
+    return result
   }
 
   /**
    * Handles credits burning and push notification when a task reaches a terminal state.
    * This is called asynchronously from the eventBus listener.
-   * @param resultManager - The result manager
    * @param event - The status-update event with final state
    * @param bearerToken - The bearer token for payment validation
    */
-  private async handleTaskFinalization(
-    resultManager: ResultManager,
-    event: TaskStatusUpdateEvent,
-    bearerToken: string,
-  ) {
+  private async handleTaskFinalization(event: TaskStatusUpdateEvent, bearerToken: string) {
     const creditsToBurn = event.metadata?.creditsUsed
     if (
       creditsToBurn !== undefined &&
@@ -295,25 +195,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         typeof creditsToBurn === 'bigint')
     ) {
       try {
-        const result = await this.paymentsService.requests.redeemCreditsFromRequest(
-          event.status.message?.messageId,
-          bearerToken,
-          BigInt(creditsToBurn),
-        )
-        const task = resultManager.getCurrentTask()
-        if (task) {
-          task.metadata = {
-            ...task.metadata,
-            ...event.metadata,
-            txHash: result.txHash,
-          }
-          await resultManager.processEvent(task)
-        }
+        await this.paymentsService.redeemCreditsFromRequest(bearerToken, BigInt(creditsToBurn))
       } catch (err) {
-        throw new PaymentsError(
-          'Failed to redeem credits: ' + (err instanceof Error ? err.message : String(err)),
-          'payments_error',
-        )
+        console.error('[Payments] Failed to redeem credits.', err)
       }
     }
     try {
@@ -329,7 +213,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         )
       }
     } catch (err) {
-      throw new PaymentsError('Failed to send push notification.', 'payments_error')
+      console.error('[PushNotification] Failed to send push notification.', err)
     }
   }
 
@@ -368,7 +252,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     }
 
     try {
-      const validation = await this.paymentsService.requests.isValidRequest(
+      const validation = await this.paymentsService.isValidRequest(
         agentId,
         bearerToken,
         urlRequested,
@@ -422,20 +306,12 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           typeof event.metadata.creditsUsed === 'bigint')
       ) {
         try {
-          const result = await this.paymentsService.requests.redeemCreditsFromRequest(
-            event.status.message?.messageId,
+          await this.paymentsService.redeemCreditsFromRequest(
             bearerToken,
             BigInt(event.metadata.creditsUsed),
           )
-          // Add txHash from result to event metadata if present
-          if (result?.txHash) {
-            event.metadata = {
-              ...event.metadata,
-              txHash: result.txHash,
-            }
-          }
         } catch (err) {
-          throw new PaymentsError('Failed to redeem credits.', 'payments_error')
+          console.error('[Payments] Failed to redeem credits.', err)
         }
       }
       // 2. Handle push notification
@@ -460,21 +336,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             )
           }
         } catch (err) {
-          throw new PaymentsError('Failed to send push notification.', 'payments_error')
+          console.error('[PushNotification] Failed to send push notification.', err)
         }
       }
       yield event
     }
   }
 
-  /**
-   * Sends a push notification to the configured URL.
-   * @param taskId - The taskId of the task
-   * @param state - The state of the task
-   * @param pushNotificationConfig - The push notification configuration
-   * @param payload - The payload to send
-   * @returns void
-   */
   private async sendPushNotification(
     taskId: string,
     state: TaskState,
@@ -535,7 +403,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Protected getter to access the private taskStore property from the parent class.
    * This is a workaround due to SDK limitations.
-   * @returns The task store
    */
   protected getTaskStore(): TaskStore {
     return (this as any).taskStore as TaskStore
@@ -544,44 +411,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Protected getter to access the private eventBusManager property from the parent class.
    * This is a workaround due to SDK limitations.
-   * @returns The event bus manager
    */
   protected getEventBusManager(): ExecutionEventBusManager {
     return (this as any).eventBusManager as ExecutionEventBusManager
-  }
-
-  /**
-   * Protected getter to access the private agentExecutor property from the parent class.
-   * This is a workaround due to SDK limitations.
-   * @returns The agent executor
-   */
-  protected getAgentExecutor(): AgentExecutor {
-    return (this as any).agentExecutor as AgentExecutor
-  }
-
-  /**
-   * Protected getter to access the private _createRequestContext method from the parent class.
-   * This is a workaround due to SDK limitations.
-   * @param incomingMessage - The incoming message
-   * @param taskId - The taskId
-   * @param isStream - Whether the request is a stream
-   * @returns The request context
-   */
-  protected async callCreateRequestContext(
-    incomingMessage: any,
-    taskId: string,
-    isStream: boolean,
-  ): Promise<any> {
-    return await (this as any)._createRequestContext(incomingMessage, taskId, isStream)
-  }
-
-  /**
-   * Protected getter to access the private _processEvents method from the parent class.
-   * This is a workaround due to SDK limitations.
-   * @param args - The arguments to pass to the _processEvents method
-   * @returns The result of the _processEvents method
-   */
-  protected callProcessEvents(...args: any[]): any {
-    return (this as any)._processEvents.apply(this, args)
   }
 }
