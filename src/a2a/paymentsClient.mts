@@ -1,6 +1,5 @@
-import { Payments } from '..'
+import { Payments } from '../index.ts'
 import {
-  A2AClient,
   MessageSendParams,
   SendMessageResponse,
   TaskQueryParams,
@@ -10,7 +9,8 @@ import {
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
-import { PaymentsError } from '../common/payments.error'
+import { A2AClient } from '@a2a-js/sdk/client'
+import { PaymentsError } from '../common/payments.error.ts'
 
 /**
  * PaymentsClient is a high-level client for A2A agents with payments integration.
@@ -381,12 +381,7 @@ export class PaymentsClient extends A2AClient {
   ): Promise<TResponse> {
     const endpoint = await (this as any)._getServiceEndpoint()
     const requestId = (this as any).requestIdCounter++
-    const rpcRequest = {
-      jsonrpc: '2.0',
-      method,
-      params,
-      id: requestId,
-    }
+    const rpcRequest = { jsonrpc: '2.0', method, params, id: requestId }
     const httpResponse = await fetch(endpoint, {
       method: 'POST',
       headers: {

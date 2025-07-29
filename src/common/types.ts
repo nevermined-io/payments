@@ -1,4 +1,4 @@
-import { EnvironmentName } from '../environments'
+import { EnvironmentName } from '../environments.js'
 
 /**
  * Options to initialize the Payments class.

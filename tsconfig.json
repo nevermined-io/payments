@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "Node16",
     "target": "es2020",
-    "moduleResolution": "node",
+    "moduleResolution": "Node16",
     "declaration": true,
     "declarationMap": true /* Create sourcemaps for d.ts files. */,
     "sourceMap": true,
@@ -13,7 +13,9 @@
     "inlineSources": true,
     "rootDir": "./src",
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "include": [
     "src/**/*"

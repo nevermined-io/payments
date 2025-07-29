@@ -20,9 +20,6 @@ import type {
   TaskState,
   Part,
   TaskStatusUpdateEvent,
-  ExecutionEventBus,
-  AgentExecutor,
-  RequestContext,
   PushNotificationConfig,
   MessageSendParams,
   SendMessageResponse,
@@ -33,6 +30,8 @@ import type {
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
+
+import type { ExecutionEventBus, AgentExecutor, RequestContext } from '@a2a-js/sdk/server'
 
 /**
  * Context provided to the user's task handler.
@@ -161,4 +160,4 @@ export type {
 }
 
 // Re-export server options type for convenience
-export type { PaymentsA2AServerOptions } from './server'
+export type { PaymentsA2AServerOptions } from './server.mjs'

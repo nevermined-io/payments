@@ -10,7 +10,7 @@
  * information about pricing, credits, and payment configuration.
  */
 
-import type { AgentCard } from './types'
+import type { AgentCard } from './types.mts'
 
 /**
  * Payment/pricing information to be included in the AgentCard extensions.

@@ -1,4 +1,4 @@
-import { PaymentsError } from '../common/payments.error'
+import { PaymentsError } from '../common/payments.error.js'
 import {
   AgentAccessCredentials,
   AgentAPIAttributes,
@@ -9,8 +9,8 @@ import {
   PlanCreditsConfig,
   PlanMetadata,
   PlanPriceConfig,
-} from '../common/types'
-import { BasePaymentsAPI } from './base-payments'
+} from '../common/types.js'
+import { BasePaymentsAPI } from './base-payments.js'
 import {
   API_URL_ADD_PLAN_AGENT,
   API_URL_GET_AGENT,
@@ -20,7 +20,7 @@ import {
   API_URL_REGISTER_AGENTS_AND_PLAN,
   API_URL_REMOVE_PLAN_AGENT,
   API_URL_UPDATE_AGENT,
-} from './nvm-api'
+} from './nvm-api.js'
 
 /**
  * The AgentsAPI class provides methods to register and interact with AI Agents on Nevermined.

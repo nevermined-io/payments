@@ -1,8 +1,8 @@
-import { jsonReplacer } from '../common/helper'
-import { EnvironmentInfo, Environments } from '../environments'
-import { PaymentOptions } from '../common/types'
+import { jsonReplacer } from '../common/helper.js'
+import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.js'
+import { PaymentOptions } from '../common/types.js'
 import { decodeJwt } from 'jose'
-import { PaymentsError } from '../common/payments.error'
+import { PaymentsError } from '../common/payments.error.js'
 
 /**
  * Base class extended by all Payments API classes.
@@ -20,7 +20,7 @@ export abstract class BasePaymentsAPI {
   constructor(options: PaymentOptions) {
     this.nvmApiKey = options.nvmApiKey
     this.returnUrl = options.returnUrl || ''
-    this.environment = Environments[options.environment]
+    this.environment = Environments[options.environment as EnvironmentName]
     this.appId = options.appId
     this.version = options.version
     this.parseNvmApiKey()

@@ -1,14 +1,14 @@
-import { AIQueryApi } from './api/query-api'
-import { PaymentsError } from './common/payments.error'
-import { PaymentOptions } from './common/types'
-import { BasePaymentsAPI } from './api/base-payments'
-import { PlansAPI } from './api/plans-api'
-import { AgentsAPI } from './api/agents-api'
-import { AgentRequestsAPI } from './api/requests-api'
-import { ClientRegistry } from './a2a/clientRegistry'
-import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/server'
-import { PaymentsA2AServer } from './a2a/server'
-import { buildPaymentAgentCard } from './a2a/agent-card'
+import { AIQueryApi } from './api/query-api.js'
+import { PaymentsError } from './common/payments.error.js'
+import { PaymentOptions } from './common/types.js'
+import { BasePaymentsAPI } from './api/base-payments.js'
+import { PlansAPI } from './api/plans-api.js'
+import { AgentsAPI } from './api/agents-api.js'
+import { AgentRequestsAPI } from './api/requests-api.js'
+import { ClientRegistry } from './a2a/clientRegistry.mjs'
+import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/server.mjs'
+import { PaymentsA2AServer } from './a2a/server.mjs'
+import { buildPaymentAgentCard } from './a2a/agent-card.mjs'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -61,9 +61,7 @@ export class Payments extends BasePaymentsAPI {
    * Static A2A helpers and utilities.
    * Example: Payments.a2a.buildPaymentAgentCard(...)
    */
-  static a2a = {
-    buildPaymentAgentCard,
-  }
+  static a2a = { buildPaymentAgentCard }
 
   /**
    * Get an instance of the Payments class for server-side usage.

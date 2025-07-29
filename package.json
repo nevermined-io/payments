@@ -4,6 +4,7 @@
   "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nevermined-io/payments"
@@ -31,7 +32,7 @@
   "devDependencies": {
     "@babel/core": "^7.27.4",
     "@babel/preset-env": "^7.27.2",
-    "@types/express": "^5.0.3",
+    "@types/express": "4.17.23",
     "@types/jest": "^29.5.13",
     "@types/node": "^20.11.19",
     "@types/uuid": "^10.0.0",
@@ -54,7 +55,7 @@
   },
   "dependencies": {
     "axios": "^1.7.7",
-    "express": "^5.1.0",
+    "express": "4.21.2",
     "jose": "^5.2.4",
     "js-file-download": "^0.4.12",
     "uuid": "^10.0.0"

@@ -13,7 +13,7 @@
 import express from 'express'
 import http from 'http'
 import { InMemoryTaskStore, A2AExpressApp, AgentExecutor } from '@a2a-js/sdk/server'
-import type { AgentCard } from './types.js'
+import type { AgentCard } from './types.mts'
 import { PaymentsRequestHandler } from './paymentsRequestHandler.mjs'
 
 /**
@@ -101,11 +101,7 @@ function bearerTokenMiddleware(
 
   // Transform relative URL to absolute URL
   const absoluteUrl = new URL(req.url, req.protocol + '://' + req.get('host')).toString()
-  const context = {
-    bearerToken,
-    urlRequested: absoluteUrl,
-    httpMethodRequested: req.method,
-  }
+  const context = { bearerToken, urlRequested: absoluteUrl, httpMethodRequested: req.method }
 
   // Try to associate context with taskId or messageId
   const taskId = req.body?.taskId || req.body?.id
