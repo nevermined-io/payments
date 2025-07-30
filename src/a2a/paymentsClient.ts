@@ -1,4 +1,5 @@
 import { Payments } from '../index.ts'
+import { PaymentsError } from '../common/payments.error.ts'
 import {
   MessageSendParams,
   SendMessageResponse,
@@ -10,7 +11,6 @@ import {
   GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
 import { A2AClient } from '@a2a-js/sdk/client'
-import { PaymentsError } from '../common/payments.error.ts'
 
 /**
  * PaymentsClient is a high-level client for A2A agents with payments integration.

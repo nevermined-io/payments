@@ -6,14 +6,10 @@ import type {
   TaskStatusUpdateEvent,
   Task,
 } from '@a2a-js/sdk'
-import type {
-  AgentExecutionEvent,
-  ExecutionEventBusManager,
-  TaskStore,
-} from '@a2a-js/sdk/server'
+import type { AgentExecutionEvent, ExecutionEventBusManager, TaskStore } from '@a2a-js/sdk/server'
 import { v4 as uuidv4 } from 'uuid'
 import { AgentExecutor, DefaultRequestHandler } from '@a2a-js/sdk/server'
-import { PaymentsError } from '../common/payments.error.js'
+import { PaymentsError } from '../common/payments.error.ts'
 
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
 
@@ -195,7 +191,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         typeof creditsToBurn === 'bigint')
     ) {
       try {
-        await this.paymentsService.redeemCreditsFromRequest(bearerToken, BigInt(creditsToBurn))
+        await this.paymentsService.requests.redeemCreditsFromRequest(
+          event.taskId,
+          bearerToken,
+          BigInt(creditsToBurn),
+        )
       } catch (err) {
         console.error('[Payments] Failed to redeem credits.', err)
       }
@@ -306,7 +306,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           typeof event.metadata.creditsUsed === 'bigint')
       ) {
         try {
-          await this.paymentsService.redeemCreditsFromRequest(
+          await this.paymentsService.requests.redeemCreditsFromRequest(
+            event.taskId,
             bearerToken,
             BigInt(event.metadata.creditsUsed),
           )

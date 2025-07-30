@@ -1,5 +1,5 @@
-import { AbstractHTTPClient, HTTPRequestOptions } from './nvm-api.js'
-import { AgentAccessCredentials } from '../common/types.js'
+import { AbstractHTTPClient, HTTPRequestOptions } from './nvm-api.ts'
+import { AgentAccessCredentials } from '../common/types.ts'
 
 /**
  * The AIQueryApi class provides methods to query AI Agents on Nevermined.

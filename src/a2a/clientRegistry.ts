@@ -1,6 +1,6 @@
 import { Payments } from '../index.ts'
-import { PaymentsClient } from './paymentsClient.mts'
-import type { ClientRegistryOptions } from './types.mts'
+import { PaymentsClient } from './paymentsClient.ts'
+import type { ClientRegistryOptions } from './types.ts'
 
 /**
  * Registry for managing multiple PaymentsClient instances by agentId+planId+baseUrl.

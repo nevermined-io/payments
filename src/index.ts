@@ -1,11 +1,11 @@
-export * from './environments.js'
-export * from './payments.js'
-export * from './utils.js'
-export * from './common/types.js'
-export * from './common/payments.error.js'
-export * from './common/helper.js'
-export * from './api/query-api.js'
-export { BackendApiOptions } from './api/nvm-api.js'
+export * from './environments.ts'
+export * from './payments.ts'
+export * from './utils.ts'
+export * from './common/types.ts'
+export * from './common/payments.error.ts'
+export * from './common/helper.ts'
+export * from './api/query-api.ts'
+export type { BackendApiOptions } from './api/nvm-api.ts'
 
 export type {
   AgentCard,
@@ -24,4 +24,4 @@ export type {
   SetTaskPushNotificationConfigResponse,
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
-} from './a2a/types.mts'
+} from './a2a/types.ts'

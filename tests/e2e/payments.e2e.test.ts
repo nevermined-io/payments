@@ -6,9 +6,9 @@ import {
   PaginationOptions,
   PlanMetadata,
   PlanPriceType,
-} from '../../src/common/types'
-import { EnvironmentName, ZeroAddress } from '../../src/environments'
-import { Payments } from '../../src/payments'
+} from '../../src/common/types.js'
+import { EnvironmentName, ZeroAddress } from '../../src/environments.js'
+import { Payments } from '../../src/payments.js'
 import {
   getERC20PriceConfig,
   getExpirableDurationConfig,
@@ -18,20 +18,20 @@ import {
   getNativeTokenPriceConfig,
   getNonExpirableDurationConfig,
   ONE_DAY_DURATION,
-} from '../../src/plans'
+} from '../../src/plans.js'
 import http from 'http'
-import { getRandomBigInt } from '../../src/utils'
+import { getRandomBigInt } from '../../src/utils.js'
 
 describe('Payments API (e2e)', () => {
   const TEST_TIMEOUT = 30_000
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDg4NTcxYjI2ODY2Yzg5ODY5ODJjZWVjZTgyNTJjYjIwMTA2YjZlMzY3NjkxNjFhYzdlNmIyOTY4ZDUyNDVlMWUiLCJleHAiOjE3ODQ5MDU1NDd9.J1-Q2ZEt8J0zYKOMwP-2lzsFj2PSR4R3_lUZThWwJTUIvs8VGo2iNifk9ASumsr2qd8zcpD1nBqiyKjoYg4CVRs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweGMxNTA4ZDEzMTczMkNBNDVlN2JDQTE4OGMyNjA4YUU4ODhmMDI2OGQiLCJqdGkiOiIweDQ3NDZmOThiNjdjOGZmMWM5NTNlMTYyYzY3MTUwMWQ1YmJlNjRiNTNmMTQ5NTViNTdlMTVmOTA1ZDkyMjI3MGEiLCJleHAiOjE3ODUzNDk0NzJ9.h_CUR9IFiG0nUZt4q-wqZCY6VRgsmf1_1MSwosmFH3VacNjzqmRcR31So2jf9kiy63HemPa5AKuKHjQkCWmtYBs'
 
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDgxODljNjQwYTAxMjlhZTA5NzlkNWQ1OGM2ODBhMWUwNDJkOWM1NzFiYjkxYTc4Y2NlYjMyNzBmMDJjZTIzYTgiLCJleHAiOjE3ODQ5MDU1NDV9.4aSxzSfpEon1FqPNGQ-NNaM451UaG03xG5tY8jLpxcRoyhdj6x6Yo28YZRid951JqwYW4jY80f9xOOnxaJuhphs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhmMDQ1QkM3QzA0RjRjYzViNjNjOTcyNWM1YTZCMzI5OWQ0YUMxRTIiLCJqdGkiOiIweDJlZmM5MDdkZmFlOWVlNjA0NDVjMDUwYzIyM2VjOTdmNzNjZWE0NTZkOTY1NDE4YmJjNWNiZmM3YzBiMTA2M2IiLCJleHAiOjE3ODU0MTY3MzR9.jKJtfs2kw7zqBkXhdEtjgn1q92kd8zv5hqnIfxKLego43WQ3rejd2Rosc2JTmY4HLoC3W2K61A3anFg0EG3vbhs'
 
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
@@ -407,18 +407,17 @@ describe('Payments API (e2e)', () => {
           dateCreated: new Date(),
         }
         const agentApi = {
-          endpoints: [ { POST: `${agentURL}` } ]
+          endpoints: [{ POST: `${agentURL}` }],
         }
-        
+
         const result = await paymentsBuilder.agents.updateAgentMetadata(
           agentId,
           agentMetadata,
-          agentApi
+          agentApi,
         )
-        
+
         expect(result).toBeDefined()
         expect(result.success).toBeTruthy()
-        
       },
       TEST_TIMEOUT,
     )
@@ -426,7 +425,6 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to send a request DIRECTLY to the agent',
       async () => {
-
         const agentHTTPOptions = {
           method: 'POST',
           headers: {

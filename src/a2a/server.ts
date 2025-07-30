@@ -13,8 +13,8 @@
 import express from 'express'
 import http from 'http'
 import { InMemoryTaskStore, A2AExpressApp, AgentExecutor } from '@a2a-js/sdk/server'
-import type { AgentCard } from './types.mts'
-import { PaymentsRequestHandler } from './paymentsRequestHandler.mjs'
+import type { AgentCard } from './types.ts'
+import { PaymentsRequestHandler } from './paymentsRequestHandler.ts'
 
 /**
  * Options for starting the PaymentsA2AServer.

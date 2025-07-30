@@ -160,4 +160,4 @@ export type {
 }
 
 // Re-export server options type for convenience
-export type { PaymentsA2AServerOptions } from './server.mjs'
+export type { PaymentsA2AServerOptions } from './server.ts'
