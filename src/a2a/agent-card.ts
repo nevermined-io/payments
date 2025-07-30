@@ -27,7 +27,7 @@ import type { AgentCard } from './types.ts'
 export interface PaymentAgentCardMetadata {
   /** Type of payment model - 'fixed' for set prices, 'dynamic' for variable pricing */
   paymentType: 'fixed' | 'dynamic'
-  /** Number of credits required for this agent's services */
+  /** Number of credits required for this agent's services (0 for trial plans) */
   credits: number
   /** Optional plan ID associated with this agent */
   planId?: string
@@ -35,6 +35,8 @@ export interface PaymentAgentCardMetadata {
   agentId: string
   /** Human-readable description of the cost */
   costDescription?: string
+  /** Whether this is a trial plan (allows 0 credits) */
+  isTrialPlan?: boolean
   /** Additional payment-related metadata */
   [key: string]: unknown // For compatibility with AgentExtension.params
 }
@@ -88,6 +90,30 @@ export function buildPaymentAgentCard(
   baseCard: AgentCard,
   paymentMetadata: PaymentAgentCardMetadata,
 ): AgentCard {
+  // Validate required fields
+  if (!paymentMetadata.paymentType) {
+    throw new Error('paymentType is required')
+  }
+
+  // Validate credits - negative credits are never allowed
+  if (paymentMetadata.credits < 0) {
+    throw new Error('credits cannot be negative')
+  }
+
+  // Validate credits based on trial plan status
+  if (paymentMetadata.isTrialPlan) {
+    // Trial plans can have 0 credits (already validated not negative above)
+  } else {
+    // Non-trial plans must have positive credits
+    if (!paymentMetadata.credits || paymentMetadata.credits <= 0) {
+      throw new Error('credits must be a positive number for paid plans')
+    }
+  }
+
+  if (!paymentMetadata.agentId) {
+    throw new Error('agentId is required')
+  }
+
   return {
     ...baseCard,
     capabilities: {

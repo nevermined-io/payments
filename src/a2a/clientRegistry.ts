@@ -1,6 +1,7 @@
 import { Payments } from '../index.ts'
 import { PaymentsClient } from './paymentsClient.ts'
 import type { ClientRegistryOptions } from './types.ts'
+import { PaymentsError } from '../common/payments.error.ts'
 
 /**
  * Registry for managing multiple PaymentsClient instances by agentId+planId+baseUrl.
@@ -26,6 +27,9 @@ export class ClientRegistry {
    */
   public getClient(options: ClientRegistryOptions): PaymentsClient {
     const { agentBaseUrl, agentId, planId } = options
+    if (!agentBaseUrl || !agentId || !planId) {
+      throw PaymentsError.validation('Missing required fields')
+    }
     const key = `${agentBaseUrl}::${agentId}::${planId}`
     let client = this.clients.get(key)
     if (!client) {

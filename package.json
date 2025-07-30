@@ -23,8 +23,11 @@
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build": "tsc",
     "lint": "eslint ./src",
-    "test": "jest --verbose --config ./tests/jest-unit.json ",
-    "test:e2e": "jest --config ./tests/jest-e2e.json",
+    "test": "jest --verbose --config ./tests/jest.config.json",
+    "test:unit": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/unit",
+    "test:integration": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/integration",
+    "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e",
+    "test:all": "jest --verbose --config ./tests/jest.config.json",
     "format": "prettier --check ./src",
     "prepublishOnly": "yarn build",
     "doc": "typedoc --out docs ./src"

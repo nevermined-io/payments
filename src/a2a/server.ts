@@ -175,6 +175,8 @@ export class PaymentsA2AServer {
    * ```
    */
   static start(options: PaymentsA2AServerOptions): PaymentsA2AServerResult {
+    console.log(`[PaymentsA2A] Starting server on port ${options.port}`)
+
     const {
       agentCard,
       executor,
@@ -250,6 +252,16 @@ export class PaymentsA2AServer {
     }
 
     const server = http.createServer(app)
+
+    // Add error handling for server startup
+    server.on('error', (error: any) => {
+      console.error(`[PaymentsA2A] Server error:`, error)
+      if (error.code === 'EADDRINUSE') {
+        console.error(`[PaymentsA2A] Port ${port} is already in use`)
+      }
+    })
+
+    console.log(`[PaymentsA2A] About to start listening on port ${port}`)
     server.listen(port, () => {
       console.log(`[PaymentsA2A] Server started on http://localhost:${port}${basePath}`)
       if (exposeAgentCard) {
