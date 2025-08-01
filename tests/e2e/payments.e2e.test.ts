@@ -378,6 +378,8 @@ describe('Payments API (e2e)', () => {
     )
 
     it('I should be able to check the credits I own', async () => {
+      //Wait for 3 seconds
+      await new Promise(resolve => setTimeout(resolve, 3000))
       const balanceResult = await paymentsSubscriber.plans.getPlanBalance(creditsPlanId)
       expect(balanceResult).toBeDefined()
       console.log('Balance Result', balanceResult)
