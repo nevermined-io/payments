@@ -5,9 +5,9 @@ import {
   PlanPriceConfig,
   PlanPriceType,
   PlanRedemptionType,
-} from './common/types'
-import { ZeroAddress } from './environments'
-import { isEthereumAddress } from './utils'
+} from './common/types.js'
+import { ZeroAddress } from './environments.js'
+import { isEthereumAddress } from './utils.js'
 
 export const ONE_DAY_DURATION = 86_400n // 24 * 60 * 60 seconds
 export const ONE_WEEK_DURATION = 604_800n // 7 * 24 * 60 * 60 seconds

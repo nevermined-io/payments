@@ -1,5 +1,4 @@
-import { jsonReplacer } from '../common/helper'
-import { PaymentsError } from '../common/payments.error'
+import { PaymentsError } from '../common/payments.error.ts'
 import {
   AgentAccessCredentials,
   AgentAPIAttributes,
@@ -10,8 +9,8 @@ import {
   PlanCreditsConfig,
   PlanMetadata,
   PlanPriceConfig,
-} from '../common/types'
-import { BasePaymentsAPI } from './base-payments'
+} from '../common/types.ts'
+import { BasePaymentsAPI } from './base-payments.ts'
 import {
   API_URL_ADD_PLAN_AGENT,
   API_URL_GET_AGENT,
@@ -21,7 +20,7 @@ import {
   API_URL_REGISTER_AGENTS_AND_PLAN,
   API_URL_REMOVE_PLAN_AGENT,
   API_URL_UPDATE_AGENT,
-} from './nvm-api'
+} from './nvm-api.ts'
 
 /**
  * The AgentsAPI class provides methods to register and interact with AI Agents on Nevermined.
@@ -142,7 +141,6 @@ export class AgentsAPI extends BasePaymentsAPI {
         agentApiAttributes: agentApi,
       },
     }
-    console.log('Registering agent and plan with body:', JSON.stringify(body, jsonReplacer))
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REGISTER_AGENTS_AND_PLAN, this.environment.backend)
 
@@ -237,7 +235,6 @@ export class AgentsAPI extends BasePaymentsAPI {
     const query =
       API_URL_GET_AGENT_PLANS.replace(':agentId', agentId) + '?' + pagination.asQueryParams()
     const url = new URL(query, this.environment.backend)
-    console.log(`Fetching plans for agent ${agentId} from ${url.toString()}`)
     const response = await fetch(url)
     if (!response.ok) {
       throw PaymentsError.fromBackend('Agent not found', await response.json())
@@ -354,7 +351,7 @@ export class AgentsAPI extends BasePaymentsAPI {
   ): Promise<AgentAccessCredentials> {
     const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId).replace(
       ':agentId',
-      agentId!,
+      agentId,
     )
     const options = this.getBackendHTTPOptions('GET')
 

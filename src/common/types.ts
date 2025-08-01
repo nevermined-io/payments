@@ -1,4 +1,4 @@
-import { EnvironmentName } from '../environments'
+import { EnvironmentName } from '../environments.js'
 
 /**
  * Options to initialize the Payments class.
@@ -172,6 +172,12 @@ export interface PlanBalance {
 
 export interface StartAgentRequest {
   agentRequestId: string
+  balance: PlanBalance
+  urlMatching: string
+  verbMatching: string
+}
+
+export interface ValidationAgentRequest {
   balance: PlanBalance
   urlMatching: string
   verbMatching: string

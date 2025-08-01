@@ -21,4 +21,6 @@ jobs:
       - name: Check build
         run: yarn build
       - name: Unit tests
-        run: yarn test
+        run: yarn test:unit
+      - name: Integration tests
+        run: yarn test:integration
