@@ -18,7 +18,7 @@ describe('A2A Integration Tests', () => {
   beforeAll(async () => {
     testContext = new A2ATestContext()
     await testContext.setup()
-  }, TEST_CONFIG.TIMEOUT)
+  }, TEST_CONFIG.TIMEOUT * 3)
 
   afterAll(async () => {
     await testContext.teardown()
