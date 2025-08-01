@@ -335,7 +335,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           { contextId: event.contextId },
         )
       }
-    } catch (err) {}
+    } catch (err) {
+      // Do nothing
+    }
   }
 
   /**
@@ -417,6 +419,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             BigInt(event.metadata.creditsUsed),
           )
         } catch (err) {
+          // Do nothing
         }
       }
       // 2. Handle push notification
@@ -440,7 +443,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
               },
             )
           }
-        } catch (err) {}
+        } catch (err) {
+          // Do nothing
+        }
       }
       yield event
     }
