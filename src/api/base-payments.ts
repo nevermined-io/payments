@@ -32,7 +32,10 @@ export abstract class BasePaymentsAPI {
    */
   protected parseNvmApiKey() {
     try {
-      const jwt = decodeJwt(this.nvmApiKey!)
+      if (!this.nvmApiKey) {
+        throw new PaymentsError('NVM API Key is required')
+      }
+      const jwt = decodeJwt(this.nvmApiKey)
       this.accountAddress = jwt.sub
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')

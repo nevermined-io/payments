@@ -32,6 +32,7 @@ import type {
 } from '@a2a-js/sdk'
 
 import type { ExecutionEventBus, AgentExecutor, RequestContext } from '@a2a-js/sdk/server'
+import type { StartAgentRequest } from '../common/types.ts'
 
 /**
  * Context provided to the user's task handler.
@@ -134,6 +135,7 @@ export type HttpRequestContext = {
   bearerToken?: string
   urlRequested?: string
   httpMethodRequested?: string
+  validation: StartAgentRequest
 }
 
 // Re-export A2A SDK types for convenience

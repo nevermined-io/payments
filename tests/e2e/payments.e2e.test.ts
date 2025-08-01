@@ -7,6 +7,7 @@ import {
   PlanMetadata,
   PlanPriceType,
 } from '../../src/common/types.js'
+import { PaymentsError } from '../../src/common/payments.error.js'
 import { EnvironmentName, ZeroAddress } from '../../src/environments.js'
 import { Payments } from '../../src/payments.js'
 import {
@@ -27,11 +28,11 @@ describe('Payments API (e2e)', () => {
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweGMxNTA4ZDEzMTczMkNBNDVlN2JDQTE4OGMyNjA4YUU4ODhmMDI2OGQiLCJqdGkiOiIweDQ3NDZmOThiNjdjOGZmMWM5NTNlMTYyYzY3MTUwMWQ1YmJlNjRiNTNmMTQ5NTViNTdlMTVmOTA1ZDkyMjI3MGEiLCJleHAiOjE3ODUzNDk0NzJ9.h_CUR9IFiG0nUZt4q-wqZCY6VRgsmf1_1MSwosmFH3VacNjzqmRcR31So2jf9kiy63HemPa5AKuKHjQkCWmtYBs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweGMxNTA4ZDEzMTczMkNBNDVlN2JDQTE4OGMyNjA4YUU4ODhmMDI2OGQiLCJqdGkiOiIweDk1NmMyMzZjMjAyNDQyNDM0MjUzZjY4MmQyOTI3NDMwOGMwNDY2NDExOGU5MjJiMjI2YjA1YThhNDYxYzA3NmYiLCJleHAiOjE3ODU1MDMxMzR9.QjsshT4fbWGG9lASW0ENToI2Mg6E-Z7U_8HANlQk-VIRjlMVvBouSE2xMWnEFjtjkkzt1qbnpXGVtJLyUu4Oghw'
 
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhmMDQ1QkM3QzA0RjRjYzViNjNjOTcyNWM1YTZCMzI5OWQ0YUMxRTIiLCJqdGkiOiIweDJlZmM5MDdkZmFlOWVlNjA0NDVjMDUwYzIyM2VjOTdmNzNjZWE0NTZkOTY1NDE4YmJjNWNiZmM3YzBiMTA2M2IiLCJleHAiOjE3ODU0MTY3MzR9.jKJtfs2kw7zqBkXhdEtjgn1q92kd8zv5hqnIfxKLego43WQ3rejd2Rosc2JTmY4HLoC3W2K61A3anFg0EG3vbhs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhmMDQ1QkM3QzA0RjRjYzViNjNjOTcyNWM1YTZCMzI5OWQ0YUMxRTIiLCJqdGkiOiIweDMxNDYzZWNhMThhMWE3YjA0YmE3OWYwZGQ5MjcyZGJhOTJmN2RhODdjMzk4ZTUzMzI2ZGVlMTIyMmM5NWQ1ODEiLCJleHAiOjE3ODU1MDMwNjl9.-7CTE0shh75g09x66adB1-B4tz1KRx8_1jtm2tqDlj12gXeb29_kiBg1dL3Tc7pgFEuTU0AD5EWrRr8ys4RO2Rw'
 
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
@@ -258,7 +259,6 @@ describe('Payments API (e2e)', () => {
         console.log('Agent ID', agentId)
         const plans = await paymentsBuilder.agents.getAgentPlans(agentId)
         expect(plans).toBeDefined()
-        console.log('Plans associated to an agent', plans)
         expect(plans.total).toBeGreaterThan(0)
       },
       TEST_TIMEOUT,
@@ -463,15 +463,13 @@ describe('Payments API (e2e)', () => {
     )
   })
 
-  describe.skip('Errors', () => {
+  describe('Errors', () => {
     it(
-      'I should not be able to get a that does not exist',
+      'I should not be able to get a plan that does not exist',
       async () => {
-        const result = await paymentsBuilder.plans.getPlan('11111')
-        expect(result).toBeUndefined()
-        // expect(() =>
-        //   paymentsBuilder.getPlan('11111')
-        // ).toThrow(PaymentsError)
+        await expect(
+          paymentsBuilder.plans.getPlan('11111')
+        ).rejects.toThrow()
       },
       TEST_TIMEOUT,
     )

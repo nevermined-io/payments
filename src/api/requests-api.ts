@@ -73,7 +73,10 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     urlRequested: string,
     httpMethodRequested: string,
   ): Promise<StartAgentRequest> {
-    const initializeAgentUrl = API_URL_INITIALIZE_AGENT.replace(':agentId', agentId!)
+    if (!agentId) {
+      throw new PaymentsError('Agent ID is required')
+    }
+    const initializeAgentUrl = API_URL_INITIALIZE_AGENT.replace(':agentId', agentId)
     const body = {
       accessToken,
       endpoint: urlRequested,

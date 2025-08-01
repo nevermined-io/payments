@@ -351,7 +351,7 @@ export class AgentsAPI extends BasePaymentsAPI {
   ): Promise<AgentAccessCredentials> {
     const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId).replace(
       ':agentId',
-      agentId!,
+      agentId,
     )
     const options = this.getBackendHTTPOptions('GET')
 

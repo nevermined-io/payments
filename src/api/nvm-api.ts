@@ -48,7 +48,7 @@ export interface BackendApiOptions {
 
 export class HTTPRequestOptions {
   accessToken?: string
-  sendThroughProxy: boolean = true
+  sendThroughProxy = true
   proxyHost?: string = undefined
   headers?: { [key: string]: string } = {}
 }
@@ -90,7 +90,9 @@ export abstract class AbstractHTTPClient {
   //   }
   // }
 
-  constructor() {}
+  constructor() {
+    // Empty constructor - required for abstract class implementation
+  }
 
   parseUrl(urlRequested: string, reqOptions: HTTPRequestOptions) {
     let _host: URL

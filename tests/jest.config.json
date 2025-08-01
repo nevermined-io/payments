@@ -12,7 +12,6 @@
 
   "testTimeout": 30000,
   "moduleNameMapper": {
-    "^@a2a-js/sdk$": "<rootDir>/__mocks__/@a2a-js/sdk.ts",
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
   "transformIgnorePatterns": ["node_modules/(?!(@a2a-js/sdk)/)"],
