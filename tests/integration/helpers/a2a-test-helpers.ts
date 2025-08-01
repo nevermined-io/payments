@@ -577,7 +577,7 @@ export class A2ATestContext {
    */
   async validateCreditsBurned(initialCredits: bigint, expectedBurned: bigint = 10n): Promise<void> {
     // Wait for credit deduction to complete
-    await A2ATestUtils.wait(3000)
+    await A2ATestUtils.wait(5000)
     
     const finalCredits = await this.getPlanBalance()
     A2AAssertions.assertCreditsBurned(initialCredits, finalCredits, expectedBurned)
