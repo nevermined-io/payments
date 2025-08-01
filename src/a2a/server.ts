@@ -108,7 +108,7 @@ async function bearerTokenMiddleware(
   const paymentExtension = agentCard.capabilities?.extensions?.find(
     (ext) => ext.uri === 'urn:nevermined:payment',
   )
-  
+
   if (!paymentExtension?.params?.agentId) {
     res.status(402).json({
       error: {
@@ -118,17 +118,12 @@ async function bearerTokenMiddleware(
     })
     return
   }
-  
+
   const agentId = paymentExtension.params.agentId as string
 
   let validation: any
   try {
-    validation = await handler.validateRequest(
-      agentId,
-      bearerToken,
-      absoluteUrl,
-      req.method,
-    )
+    validation = await handler.validateRequest(agentId, bearerToken, absoluteUrl, req.method)
     if (!validation?.balance?.isSubscriber) {
       res.status(402).json({
         error: {
@@ -148,7 +143,12 @@ async function bearerTokenMiddleware(
     return
   }
 
-  const context: HttpRequestContext = { bearerToken, urlRequested: absoluteUrl, httpMethodRequested: req.method, validation }
+  const context: HttpRequestContext = {
+    bearerToken,
+    urlRequested: absoluteUrl,
+    httpMethodRequested: req.method,
+    validation,
+  }
   // Try to associate context with taskId or messageId
   const taskId = req.body?.taskId || req.body?.id
   const messageId = req.body?.params?.message?.messageId

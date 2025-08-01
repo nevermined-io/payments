@@ -7,7 +7,12 @@ import type {
   Task,
   Message,
 } from '@a2a-js/sdk'
-import { AgentExecutor, DefaultRequestHandler, ResultManager, ExecutionEventQueue } from '@a2a-js/sdk/server'
+import {
+  AgentExecutor,
+  DefaultRequestHandler,
+  ResultManager,
+  ExecutionEventQueue,
+} from '@a2a-js/sdk/server'
 import type { ExecutionEventBusManager, TaskStore } from '@a2a-js/sdk/server'
 import { A2AError } from '@a2a-js/sdk/server'
 import type { HttpRequestContext } from './types.js'
@@ -145,11 +150,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           }
         }
       }
-              if (options?.firstResultRejector && !firstResultSent) {
-          options.firstResultRejector(
-            A2AError.internalError('Execution finished before a message or task was produced.'),
-          )
-        }
+      if (options?.firstResultRejector && !firstResultSent) {
+        options.firstResultRejector(
+          A2AError.internalError('Execution finished before a message or task was produced.'),
+        )
+      }
     } catch (error) {
       if (options?.firstResultRejector && !firstResultSent) {
         options.firstResultRejector(error)
@@ -172,8 +177,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     const missingParam = !params.message
       ? 'message'
       : !params.message.messageId
-      ? 'message.messageId'
-      : null
+        ? 'message.messageId'
+        : null
     if (missingParam) {
       throw A2AError.invalidParams(`${missingParam} is required.`)
     }
@@ -265,9 +270,15 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     // Determine if execution should be blocking based on client request
     // The blocking parameter comes from params.configuration.blocking
     const isBlocking = params.configuration?.blocking !== false // Default to blocking if not specified
-    
+
     if (isBlocking) {
-      await this.processEventsWithFinalization(taskId, resultManager, eventQueue, bearerToken, validation)
+      await this.processEventsWithFinalization(
+        taskId,
+        resultManager,
+        eventQueue,
+        bearerToken,
+        validation,
+      )
       const finalResult = resultManager.getFinalResult()
       if (!finalResult) {
         throw A2AError.internalError(
@@ -278,10 +289,17 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     } else {
       // Non-blocking execution - return immediately with first result
       return new Promise((resolve, reject) => {
-        this.processEventsWithFinalization(taskId, resultManager, eventQueue, bearerToken, validation, {
-          firstResultResolver: resolve,
-          firstResultRejector: reject,
-        })
+        this.processEventsWithFinalization(
+          taskId,
+          resultManager,
+          eventQueue,
+          bearerToken,
+          validation,
+          {
+            firstResultResolver: resolve,
+            firstResultRejector: reject,
+          },
+        )
       })
     }
   }
@@ -309,7 +327,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         typeof creditsToBurn === 'bigint')
     ) {
       try {
-        const response = await this.paymentsService.requests.redeemCreditsFromRequest(validation.agentRequestId, bearerToken, BigInt(creditsToBurn))
+        const response = await this.paymentsService.requests.redeemCreditsFromRequest(
+          validation.agentRequestId,
+          bearerToken,
+          BigInt(creditsToBurn),
+        )
         const task = resultManager.getCurrentTask()
         if (task) {
           task.metadata = {
@@ -429,10 +451,10 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         event.status?.state &&
         terminalStates.includes(event.status.state)
       ) {
-              try {
-        const taskPushNotificationConfig = await this.getTaskPushNotificationConfig({
-          id: event.taskId,
-        })
+        try {
+          const taskPushNotificationConfig = await this.getTaskPushNotificationConfig({
+            id: event.taskId,
+          })
           if (taskPushNotificationConfig) {
             await this.sendPushNotification(
               event.taskId,

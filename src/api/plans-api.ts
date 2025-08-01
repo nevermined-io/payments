@@ -335,11 +335,11 @@ export class PlansAPI extends BasePaymentsAPI {
     const holderAddress = isEthereumAddress(accountAddress)
       ? accountAddress
       : this.getAccountAddress()
-    
+
     if (!holderAddress) {
       throw new PaymentsError('Holder address is required')
     }
-    
+
     const balanceUrl = API_URL_PLAN_BALANCE.replace(':planId', planId).replace(
       ':holderAddress',
       holderAddress,
