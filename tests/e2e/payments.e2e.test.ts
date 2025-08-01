@@ -22,6 +22,7 @@ import {
 } from '../../src/plans.js'
 import http from 'http'
 import { getRandomBigInt } from '../../src/utils.js'
+import { E2ETestUtils } from './helpers/e2e-test-helpers.js'
 
 describe('Payments API (e2e)', () => {
   const TEST_TIMEOUT = 30_000
@@ -99,11 +100,25 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getERC20PriceConfig(1n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.plans.registerCreditsPlan(
-          planMetadata,
-          priceConfig,
-          creditsConfig,
+        
+        const response = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsBuilder.plans.registerCreditsPlan(
+              planMetadata,
+              priceConfig,
+              creditsConfig,
+            )
+            
+            // Validate the response
+            if (!result.planId) {
+              throw new Error('Credits plan registration failed: no planId returned')
+            }
+            
+            return result
+          },
+          'Credits Plan Registration'
         )
+        
         expect(response).toBeDefined()
         creditsPlanId = response.planId
 
@@ -119,11 +134,25 @@ describe('Payments API (e2e)', () => {
       async () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
         const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
-        const response = await paymentsBuilder.plans.registerTimePlan(
-          planMetadata,
-          priceConfig,
-          expirablePlanConfig,
+        
+        const response = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsBuilder.plans.registerTimePlan(
+              planMetadata,
+              priceConfig,
+              expirablePlanConfig,
+            )
+            
+            // Validate the response
+            if (!result.planId) {
+              throw new Error('Expirable plan registration failed: no planId returned')
+            }
+            
+            return result
+          },
+          'Expirable Plan Registration'
         )
+        
         expect(response).toBeDefined()
         expirablePlanId = response.planId
 
@@ -143,11 +172,25 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getFreePriceConfig()
         const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.plans.registerTimeTrialPlan(
-          trialPlanMetadata,
-          priceConfig,
-          creditsConfig,
+        
+        const response = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsBuilder.plans.registerTimeTrialPlan(
+              trialPlanMetadata,
+              priceConfig,
+              creditsConfig,
+            )
+            
+            // Validate the response
+            if (!result.planId) {
+              throw new Error('Trial plan registration failed: no planId returned')
+            }
+            
+            return result
+          },
+          'Trial Plan Registration'
         )
+        
         expect(response).toBeDefined()
         trialPlanId = response.planId
 
@@ -171,11 +214,25 @@ describe('Payments API (e2e)', () => {
           endpoints: AGENT_ENDPOINTS,
         }
         const paymentPlans = [creditsPlanId, expirablePlanId]
-        const result = await paymentsBuilder.agents.registerAgent(
-          agentMetadata,
-          agentApi,
-          paymentPlans,
+        
+        const result = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const response = await paymentsBuilder.agents.registerAgent(
+              agentMetadata,
+              agentApi,
+              paymentPlans,
+            )
+            
+            // Validate the response
+            if (!response.agentId) {
+              throw new Error('Agent registration failed: no agentId returned')
+            }
+            
+            return response
+          },
+          'Agent Registration'
         )
+        
         agentId = result.agentId
         expect(agentId).toBeDefined()
 
@@ -198,13 +255,26 @@ describe('Payments API (e2e)', () => {
         const nonExpirableConfig = getNonExpirableDurationConfig()
         nonExpirableConfig.durationSecs = getRandomBigInt() // we force the randomness of the plan
 
-        const result = await paymentsBuilder.agents.registerAgentAndPlan(
-          agentMetadata,
-          agentApi,
-          planMetadata,
-          fiatPriceConfig,
-          nonExpirableConfig,
+        const result = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const response = await paymentsBuilder.agents.registerAgentAndPlan(
+              agentMetadata,
+              agentApi,
+              planMetadata,
+              fiatPriceConfig,
+              nonExpirableConfig,
+            )
+            
+            // Validate the response
+            if (!response.planId || !response.agentId) {
+              throw new Error('Agent and plan registration failed: missing planId or agentId')
+            }
+            
+            return response
+          },
+          'Agent and Plan Registration'
         )
+        
         console.log('Agent and Plan Registration Result', result)
         expect(result.planId).toBeDefined()
         expect(result.agentId).toBeDefined()
@@ -271,7 +341,21 @@ describe('Payments API (e2e)', () => {
       async () => {
         console.log(creditsPlanId)
         console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
-        const orderResult = await paymentsSubscriber.plans.orderPlan(creditsPlanId)
+        
+        const orderResult = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsSubscriber.plans.orderPlan(creditsPlanId)
+            
+            // Validate the response
+            if (!result.success) {
+              throw new Error('Plan order failed: success is false')
+            }
+            
+            return result
+          },
+          'Plan Order'
+        )
+        
         expect(orderResult).toBeDefined()
         console.log('Credits Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
@@ -305,7 +389,21 @@ describe('Payments API (e2e)', () => {
       async () => {
         console.log(trialPlanId)
         console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
-        const orderResult = await paymentsSubscriber.plans.orderPlan(trialPlanId)
+        
+        const orderResult = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsSubscriber.plans.orderPlan(trialPlanId)
+            
+            // Validate the response
+            if (!result.success) {
+              throw new Error('Trial plan order failed: success is false')
+            }
+            
+            return result
+          },
+          'Trial Plan Order'
+        )
+        
         expect(orderResult).toBeDefined()
         console.log('Trial Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
@@ -369,10 +467,23 @@ describe('Payments API (e2e)', () => {
     })
 
     it('I should be able to generate the agent access token', async () => {
-      agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
-        creditsPlanId,
-        agentId,
+      agentAccessParams = await E2ETestUtils.retryWithBackoff(
+        async () => {
+          const result = await paymentsSubscriber.agents.getAgentAccessToken(
+            creditsPlanId,
+            agentId,
+          )
+          
+          // Validate the response
+          if (!result.accessToken || result.accessToken.length === 0) {
+            throw new Error('Access token generation failed: no token returned')
+          }
+          
+          return result
+        },
+        'Access Token Generation'
       )
+      
       expect(agentAccessParams).toBeDefined()
       console.log('Agent Access Params', agentAccessParams)
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
@@ -410,10 +521,22 @@ describe('Payments API (e2e)', () => {
           endpoints: [{ POST: `${agentURL}` }],
         }
 
-        const result = await paymentsBuilder.agents.updateAgentMetadata(
-          agentId,
-          agentMetadata,
-          agentApi,
+        const result = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const response = await paymentsBuilder.agents.updateAgentMetadata(
+              agentId,
+              agentMetadata,
+              agentApi,
+            )
+            
+            // Validate the response
+            if (!response.success) {
+              throw new Error('Agent metadata update failed: success is false')
+            }
+            
+            return response
+          },
+          'Agent Metadata Update'
         )
 
         expect(result).toBeDefined()
