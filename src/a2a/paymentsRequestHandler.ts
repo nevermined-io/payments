@@ -93,6 +93,14 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   }
 
   /**
+   * Deletes the HTTP context associated with a taskId.
+   * @param taskId - The taskId to delete context for
+   */
+  public deleteHttpRequestContextForTask(taskId: string): void {
+    this.httpContextByTaskId.delete(taskId)
+  }
+
+  /**
    * Validates a request using the payments service.
    * This method is used by the middleware to validate credits before processing requests.
    *
@@ -340,9 +348,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             txHash: response.txHash,
           }
           await resultManager.processEvent(task)
+          // Delete http context associated with the task
+          this.deleteHttpRequestContextForTask(event.taskId)
         }
       } catch (err) {
-        console.error('[Payments] Failed to redeem credits.', err)
+        // Do nothing
       }
     }
     try {

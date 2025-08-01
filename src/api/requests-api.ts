@@ -196,14 +196,15 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
     const response = await fetch(url, options)
+    const responseBody = await response.json()
     if (!response.ok) {
       throw PaymentsError.fromBackend(
         'Unable to redeem credits from request',
-        await response.json(),
+        responseBody,
       )
     }
 
-    return response.json()
+    return responseBody
   }
 
   /**

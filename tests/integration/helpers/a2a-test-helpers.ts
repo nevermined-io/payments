@@ -20,6 +20,14 @@ export const TEST_CONFIG = {
   WEBHOOK_PORT: 4001,
   TESTING_ENVIRONMENT: 'staging_sandbox' as EnvironmentName,
   
+  // Retry configuration for critical operations
+  RETRY_CONFIG: {
+    MAX_ATTEMPTS: 5,
+    INITIAL_DELAY: 1000, // 1 second
+    MAX_DELAY: 10000,    // 10 seconds
+    BACKOFF_MULTIPLIER: 2,
+  },
+  
   // API Keys (with fallbacks for testing)
   BUILDER_API_KEY: process.env.TEST_BUILDER_API_KEY || 
     'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhmMDQ1QkM3QzA0RjRjYzViNjNjOTcyNWM1YTZCMzI5OWQ0YUMxRTIiLCJqdGkiOiIweDMxNDYzZWNhMThhMWE3YjA0YmE3OWYwZGQ5MjcyZGJhOTJmN2RhODdjMzk4ZTUzMzI2ZGVlMTIyMmM5NWQ1ODEiLCJleHAiOjE3ODU1MDMwNjl9.-7CTE0shh75g09x66adB1-B4tz1KRx8_1jtm2tqDlj12gXeb29_kiBg1dL3Tc7pgFEuTU0AD5EWrRr8ys4RO2Rw',
@@ -202,6 +210,51 @@ export class A2ATestUtils {
    */
   static async wait(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  /**
+   * Retries an operation with exponential backoff
+   * @param operation - The operation to retry
+   * @param operationName - Name of the operation for logging
+   * @param maxAttempts - Maximum number of attempts
+   * @param initialDelay - Initial delay in milliseconds
+   * @param maxDelay - Maximum delay in milliseconds
+   * @param backoffMultiplier - Multiplier for exponential backoff
+   * @returns The result of the operation
+   */
+  static async retryWithBackoff<T>(
+    operation: () => Promise<T>,
+    operationName: string = 'Operation',
+    maxAttempts: number = TEST_CONFIG.RETRY_CONFIG.MAX_ATTEMPTS,
+    initialDelay: number = TEST_CONFIG.RETRY_CONFIG.INITIAL_DELAY,
+    maxDelay: number = TEST_CONFIG.RETRY_CONFIG.MAX_DELAY,
+    backoffMultiplier: number = TEST_CONFIG.RETRY_CONFIG.BACKOFF_MULTIPLIER
+  ): Promise<T> {
+    let lastError: Error | null = null
+    let delay = initialDelay
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[RETRY] ${operationName} - Attempt ${attempt}/${maxAttempts}`)
+        const result = await operation()
+        console.log(`[RETRY] ${operationName} - Success on attempt ${attempt}`)
+        return result
+      } catch (error) {
+        lastError = error as Error
+        console.log(`[RETRY] ${operationName} - Attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}`)
+        
+        if (attempt === maxAttempts) {
+          console.log(`[RETRY] ${operationName} - All ${maxAttempts} attempts failed`)
+          throw new Error(`${operationName} failed after ${maxAttempts} attempts. Last error: ${lastError.message}`)
+        }
+        
+        // Wait before next attempt with exponential backoff
+        await this.wait(delay)
+        delay = Math.min(delay * backoffMultiplier, maxDelay)
+      }
+    }
+    
+    throw lastError!
   }
 
   /**
@@ -594,10 +647,22 @@ export class A2ATestContext {
     const priceConfig = getERC20PriceConfig(1n, TEST_CONFIG.ERC20_ADDRESS, accountAddress)
     const creditsConfig = getFixedCreditsConfig(200n, 10n)
 
-    const planResponse = await this.paymentsBuilder.plans.registerCreditsPlan(
-      TEST_DATA.PLAN_METADATA,
-      priceConfig,
-      creditsConfig,
+    const planResponse = await A2ATestUtils.retryWithBackoff(
+      async () => {
+        const response = await this.paymentsBuilder.plans.registerCreditsPlan(
+          TEST_DATA.PLAN_METADATA,
+          priceConfig,
+          creditsConfig,
+        )
+        
+        // Validate the response
+        if (!response.planId) {
+          throw new Error('Plan registration failed: no planId returned')
+        }
+        
+        return response
+      },
+      'Plan Registration'
     )
 
     this.planId = planResponse.planId
@@ -606,10 +671,23 @@ export class A2ATestContext {
 
   private async setupAgent(): Promise<void> {
     const agentApi = A2ATestFactory.createAgentApi(TEST_CONFIG.PORT)
-    const agentResult = await this.paymentsBuilder.agents.registerAgent(
-      TEST_DATA.AGENT_METADATA, 
-      agentApi, 
-      [this.planId]
+    
+    const agentResult = await A2ATestUtils.retryWithBackoff(
+      async () => {
+        const response = await this.paymentsBuilder.agents.registerAgent(
+          TEST_DATA.AGENT_METADATA, 
+          agentApi, 
+          [this.planId]
+        )
+        
+        // Validate the response
+        if (!response.agentId) {
+          throw new Error('Agent registration failed: no agentId returned')
+        }
+        
+        return response
+      },
+      'Agent Registration'
     )
 
     this.agentId = agentResult.agentId
@@ -629,20 +707,62 @@ export class A2ATestContext {
 
     this.testServer = serverResult.server
 
-    // Wait for server to be ready
-    await new Promise<void>((resolve) => {
-      this.testServer.on('listening', () => resolve())
-    })
+    // Wait for server to be ready with retries
+    await A2ATestUtils.retryWithBackoff(
+      async () => {
+        return new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Server startup timeout'))
+          }, 10000) // 10 second timeout
+          
+          this.testServer.on('listening', () => {
+            clearTimeout(timeout)
+            resolve()
+          })
+          
+          this.testServer.on('error', (error) => {
+            clearTimeout(timeout)
+            reject(new Error(`Server startup error: ${error.message}`))
+          })
+        })
+      },
+      'A2A Server Startup'
+    )
   }
 
   private async setupAccessToken(): Promise<void> {
-    const orderResult = await this.paymentsSubscriber.plans.orderPlan(this.planId)
-    expect(orderResult.success).toBeTruthy()
+    // Order plan with retries
+    const orderResult = await A2ATestUtils.retryWithBackoff(
+      async () => {
+        const response = await this.paymentsSubscriber.plans.orderPlan(this.planId)
+        
+        // Validate the response
+        if (!response.success) {
+          throw new Error('Plan order failed: success is false')
+        }
+        
+        return response
+      },
+      'Plan Order'
+    )
     
     await A2ATestUtils.wait(1000)
     
-    const accessParams = await this.paymentsSubscriber.agents.getAgentAccessToken(this.planId, this.agentId)
-    expect(accessParams.accessToken.length).toBeGreaterThan(0)
+    // Get access token with retries
+    const accessParams = await A2ATestUtils.retryWithBackoff(
+      async () => {
+        const response = await this.paymentsSubscriber.agents.getAgentAccessToken(this.planId, this.agentId)
+        
+        // Validate the response
+        if (!response.accessToken || response.accessToken.length === 0) {
+          throw new Error('Access token retrieval failed: no token returned')
+        }
+        
+        return response
+      },
+      'Access Token Retrieval'
+    )
+    
     this.accessToken = accessParams.accessToken
   }
 } 
