@@ -1,17 +1,17 @@
-import { BasePaymentsAPI } from './base-payments'
+import { BasePaymentsAPI } from './base-payments.ts'
 import {
   PaymentOptions,
   TrackAgentSubTaskDto,
   StartAgentRequest,
   NvmAPIResult,
-} from '../common/types'
+} from '../common/types.ts'
 import {
   API_URL_REDEEM_PLAN,
   API_URL_INITIALIZE_AGENT,
   API_URL_TRACK_AGENT_SUB_TASK,
-} from './nvm-api'
-import { PaymentsError } from '../common/payments.error'
-import { decodeAccessToken } from '../utils'
+} from './nvm-api.ts'
+import { PaymentsError } from '../common/payments.error.ts'
+import { decodeAccessToken } from '../utils.ts'
 
 /**
  * The AgentRequestsAPI class provides methods to manage the requests received by AI Agents integrated with Nevermined.
@@ -73,7 +73,10 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     urlRequested: string,
     httpMethodRequested: string,
   ): Promise<StartAgentRequest> {
-    const initializeAgentUrl = API_URL_INITIALIZE_AGENT.replace(':agentId', agentId!)
+    if (!agentId) {
+      throw new PaymentsError('Agent ID is required')
+    }
+    const initializeAgentUrl = API_URL_INITIALIZE_AGENT.replace(':agentId', agentId)
     const body = {
       accessToken,
       endpoint: urlRequested,
@@ -193,14 +196,12 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
     const response = await fetch(url, options)
+    const responseBody = await response.json()
     if (!response.ok) {
-      throw PaymentsError.fromBackend(
-        'Unable to redeem credits from request',
-        await response.json(),
-      )
+      throw PaymentsError.fromBackend('Unable to redeem credits from request', responseBody)
     }
 
-    return response.json()
+    return responseBody
   }
 
   /**

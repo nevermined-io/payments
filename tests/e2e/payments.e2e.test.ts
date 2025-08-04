@@ -6,9 +6,10 @@ import {
   PaginationOptions,
   PlanMetadata,
   PlanPriceType,
-} from '../../src/common/types'
-import { EnvironmentName, ZeroAddress } from '../../src/environments'
-import { Payments } from '../../src/payments'
+} from '../../src/common/types.js'
+import { PaymentsError } from '../../src/common/payments.error.js'
+import { EnvironmentName, ZeroAddress } from '../../src/environments.js'
+import { Payments } from '../../src/payments.js'
 import {
   getERC20PriceConfig,
   getExpirableDurationConfig,
@@ -18,20 +19,21 @@ import {
   getNativeTokenPriceConfig,
   getNonExpirableDurationConfig,
   ONE_DAY_DURATION,
-} from '../../src/plans'
+} from '../../src/plans.js'
 import http from 'http'
-import { getRandomBigInt } from '../../src/utils'
+import { getRandomBigInt } from '../../src/utils.js'
+import { E2ETestUtils } from './helpers/e2e-test-helpers.js'
 
 describe('Payments API (e2e)', () => {
   const TEST_TIMEOUT = 30_000
   // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDUwNTM4NDE5MkJhNmE0RDRiNTBFQUI4NDZlZTY3ZGIzYjlBOTMzNTkiLCJqdGkiOiIweDg4NTcxYjI2ODY2Yzg5ODY5ODJjZWVjZTgyNTJjYjIwMTA2YjZlMzY3NjkxNjFhYzdlNmIyOTY4ZDUyNDVlMWUiLCJleHAiOjE3ODQ5MDU1NDd9.J1-Q2ZEt8J0zYKOMwP-2lzsFj2PSR4R3_lUZThWwJTUIvs8VGo2iNifk9ASumsr2qd8zcpD1nBqiyKjoYg4CVRs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweGMxNTA4ZDEzMTczMkNBNDVlN2JDQTE4OGMyNjA4YUU4ODhmMDI2OGQiLCJqdGkiOiIweDk1NmMyMzZjMjAyNDQyNDM0MjUzZjY4MmQyOTI3NDMwOGMwNDY2NDExOGU5MjJiMjI2YjA1YThhNDYxYzA3NmYiLCJleHAiOjE3ODU1MDMxMzR9.QjsshT4fbWGG9lASW0ENToI2Mg6E-Z7U_8HANlQk-VIRjlMVvBouSE2xMWnEFjtjkkzt1qbnpXGVtJLyUu4Oghw'
 
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDg5MjQ4MDM0NzJiYjQ1M2I3YzI3YTNDOTgyQTA4Zjc1MTVEN2FBNzIiLCJqdGkiOiIweDgxODljNjQwYTAxMjlhZTA5NzlkNWQ1OGM2ODBhMWUwNDJkOWM1NzFiYjkxYTc4Y2NlYjMyNzBmMDJjZTIzYTgiLCJleHAiOjE3ODQ5MDU1NDV9.4aSxzSfpEon1FqPNGQ-NNaM451UaG03xG5tY8jLpxcRoyhdj6x6Yo28YZRid951JqwYW4jY80f9xOOnxaJuhphs'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhmMDQ1QkM3QzA0RjRjYzViNjNjOTcyNWM1YTZCMzI5OWQ0YUMxRTIiLCJqdGkiOiIweDMxNDYzZWNhMThhMWE3YjA0YmE3OWYwZGQ5MjcyZGJhOTJmN2RhODdjMzk4ZTUzMzI2ZGVlMTIyMmM5NWQ1ODEiLCJleHAiOjE3ODU1MDMwNjl9.-7CTE0shh75g09x66adB1-B4tz1KRx8_1jtm2tqDlj12gXeb29_kiBg1dL3Tc7pgFEuTU0AD5EWrRr8ys4RO2Rw'
 
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
@@ -98,11 +100,25 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getERC20PriceConfig(1n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.plans.registerCreditsPlan(
-          planMetadata,
-          priceConfig,
-          creditsConfig,
+        
+        const response = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsBuilder.plans.registerCreditsPlan(
+              planMetadata,
+              priceConfig,
+              creditsConfig,
+            )
+            
+            // Validate the response
+            if (!result.planId) {
+              throw new Error('Credits plan registration failed: no planId returned')
+            }
+            
+            return result
+          },
+          'Credits Plan Registration'
         )
+        
         expect(response).toBeDefined()
         creditsPlanId = response.planId
 
@@ -118,11 +134,25 @@ describe('Payments API (e2e)', () => {
       async () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
         const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
-        const response = await paymentsBuilder.plans.registerTimePlan(
-          planMetadata,
-          priceConfig,
-          expirablePlanConfig,
+        
+        const response = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsBuilder.plans.registerTimePlan(
+              planMetadata,
+              priceConfig,
+              expirablePlanConfig,
+            )
+            
+            // Validate the response
+            if (!result.planId) {
+              throw new Error('Expirable plan registration failed: no planId returned')
+            }
+            
+            return result
+          },
+          'Expirable Plan Registration'
         )
+        
         expect(response).toBeDefined()
         expirablePlanId = response.planId
 
@@ -130,7 +160,7 @@ describe('Payments API (e2e)', () => {
         expect(BigInt(expirablePlanId) > 0n).toBeTruthy()
         console.log('Expirable Plan ID', expirablePlanId)
       },
-      TEST_TIMEOUT,
+      TEST_TIMEOUT * 2,
     )
 
     it(
@@ -142,17 +172,30 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getFreePriceConfig()
         const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
         console.log(' **** PRICE CONFIG ***', priceConfig)
-        const response = await paymentsBuilder.plans.registerTimeTrialPlan(
-          trialPlanMetadata,
-          priceConfig,
-          creditsConfig,
+        
+        const response = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsBuilder.plans.registerTimeTrialPlan(
+              trialPlanMetadata,
+              priceConfig,
+              creditsConfig,
+            )
+            
+            // Validate the response
+            if (!result.planId) {
+              throw new Error('Trial plan registration failed: no planId returned')
+            }
+            
+            return result
+          },
+          'Trial Plan Registration'
         )
+        
         expect(response).toBeDefined()
         trialPlanId = response.planId
 
         expect(trialPlanId).toBeDefined()
         expect(BigInt(trialPlanId) > 0n).toBeTruthy()
-        console.log('Trial Plan ID', trialPlanId)
       },
       TEST_TIMEOUT,
     )
@@ -170,16 +213,29 @@ describe('Payments API (e2e)', () => {
           endpoints: AGENT_ENDPOINTS,
         }
         const paymentPlans = [creditsPlanId, expirablePlanId]
-        const result = await paymentsBuilder.agents.registerAgent(
-          agentMetadata,
-          agentApi,
-          paymentPlans,
+        
+        const result = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const response = await paymentsBuilder.agents.registerAgent(
+              agentMetadata,
+              agentApi,
+              paymentPlans,
+            )
+            
+            // Validate the response
+            if (!response.agentId) {
+              throw new Error('Agent registration failed: no agentId returned')
+            }
+            
+            return response
+          },
+          'Agent Registration'
         )
+        
         agentId = result.agentId
         expect(agentId).toBeDefined()
 
         expect(agentId.startsWith('did:nv:')).toBeTruthy()
-        console.log('Agent ID', agentId)
       },
       TEST_TIMEOUT,
     )
@@ -197,14 +253,26 @@ describe('Payments API (e2e)', () => {
         const nonExpirableConfig = getNonExpirableDurationConfig()
         nonExpirableConfig.durationSecs = getRandomBigInt() // we force the randomness of the plan
 
-        const result = await paymentsBuilder.agents.registerAgentAndPlan(
-          agentMetadata,
-          agentApi,
-          planMetadata,
-          fiatPriceConfig,
-          nonExpirableConfig,
+        const result = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const response = await paymentsBuilder.agents.registerAgentAndPlan(
+              agentMetadata,
+              agentApi,
+              planMetadata,
+              fiatPriceConfig,
+              nonExpirableConfig,
+            )
+            
+            // Validate the response
+            if (!response.planId || !response.agentId) {
+              throw new Error('Agent and plan registration failed: missing planId or agentId')
+            }
+            
+            return response
+          },
+          'Agent and Plan Registration'
         )
-        console.log('Agent and Plan Registration Result', result)
+        
         expect(result.planId).toBeDefined()
         expect(result.agentId).toBeDefined()
         expect(result.agentId.startsWith('did:nv:')).toBeTruthy()
@@ -221,7 +289,6 @@ describe('Payments API (e2e)', () => {
         const plan = await paymentsBuilder.plans.getPlan(creditsPlanId)
 
         expect(plan).toBeDefined()
-        console.log('Plan', plan)
       },
       TEST_TIMEOUT,
     )
@@ -231,7 +298,6 @@ describe('Payments API (e2e)', () => {
       async () => {
         const agent = await paymentsBuilder.agents.getAgent(agentId)
         expect(agent).toBeDefined()
-        console.log('Agent', agent)
       },
       TEST_TIMEOUT,
     )
@@ -245,7 +311,6 @@ describe('Payments API (e2e)', () => {
           new PaginationOptions({ offset: 5 }),
         )
         expect(agents).toBeDefined()
-        console.log('Agents associated to the Plan', agents)
         expect(agents.total).toBeGreaterThan(0)
       },
       TEST_TIMEOUT,
@@ -255,10 +320,8 @@ describe('Payments API (e2e)', () => {
       'Get plans associated to an agent',
       async () => {
         // /agents/:agentId/plans
-        console.log('Agent ID', agentId)
         const plans = await paymentsBuilder.agents.getAgentPlans(agentId)
         expect(plans).toBeDefined()
-        console.log('Plans associated to an agent', plans)
         expect(plans.total).toBeGreaterThan(0)
       },
       TEST_TIMEOUT,
@@ -269,12 +332,23 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to order a Plan',
       async () => {
-        console.log(creditsPlanId)
-        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
-        const orderResult = await paymentsSubscriber.plans.orderPlan(creditsPlanId)
+        const orderResult = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsSubscriber.plans.orderPlan(creditsPlanId)
+            
+            // Validate the response
+            if (!result.success) {
+              throw new Error('Plan order failed: success is false')
+            }
+            
+            return result
+          },
+          'Plan Order'
+        )
+        
         expect(orderResult).toBeDefined()
-        console.log('Credits Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
+        await new Promise(resolve => setTimeout(resolve, 3000))
       },
       TEST_TIMEOUT * 2,
     )
@@ -283,10 +357,8 @@ describe('Payments API (e2e)', () => {
     it.skip(
       'I should be able to get the link to finalize the order of a Fiat Plan',
       async () => {
-        console.log(fiatPlanId)
         const orderResult = await paymentsSubscriber.plans.orderFiatPlan(fiatPlanId)
         expect(orderResult).toBeDefined()
-        console.log('Fiat Plan - Order Result', orderResult)
         expect(orderResult.result.checkoutLink).toBeDefined()
         expect(orderResult.result.checkoutLink).toContain('https://checkout.stripe.com')
       },
@@ -294,20 +366,30 @@ describe('Payments API (e2e)', () => {
     )
 
     it('I should be able to check the credits I own', async () => {
+      await new Promise(resolve => setTimeout(resolve, 3000))
       const balanceResult = await paymentsSubscriber.plans.getPlanBalance(creditsPlanId)
       expect(balanceResult).toBeDefined()
-      console.log('Balance Result', balanceResult)
       expect(BigInt(balanceResult.balance)).toBeGreaterThan(0)
     })
 
     it(
       'I should be able to get a Trial Plan',
       async () => {
-        console.log(trialPlanId)
-        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
-        const orderResult = await paymentsSubscriber.plans.orderPlan(trialPlanId)
+        const orderResult = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const result = await paymentsSubscriber.plans.orderPlan(trialPlanId)
+            
+            // Validate the response
+            if (!result.success) {
+              throw new Error('Trial plan order failed: success is false')
+            }
+            
+            return result
+          },
+          'Trial Plan Order'
+        )
+        
         expect(orderResult).toBeDefined()
-        console.log('Trial Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
       },
       TEST_TIMEOUT * 2,
@@ -333,7 +415,6 @@ describe('Payments API (e2e)', () => {
 
         const requestedUrl = `http://localhost:41243${req.url}`
         const httpVerb = req.method
-        console.log('Received request:', { endpoint: requestedUrl, httpVerb, authHeader })
         let isValidReq
         try {
           isValidReq = await paymentsBuilder.requests.startProcessingRequest(
@@ -342,12 +423,13 @@ describe('Payments API (e2e)', () => {
             requestedUrl,
             httpVerb!,
           )
-          console.log('isValidReq', isValidReq)
-          if (isValidReq.balance.isSubscriber) {
+          if (isValidReq?.balance?.isSubscriber) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ message: 'Hello from the Agent!' }))
             return
           }
+          console.log('Unauthorized access attempt:', authHeader)
+          throw new Error('Unauthorized access attempt')
         } catch (error) {
           console.log('Unauthorized access attempt:', authHeader)
           console.log('Error details:', error)
@@ -359,22 +441,33 @@ describe('Payments API (e2e)', () => {
       })
 
       server.listen(41243, () => {
-        console.log('Agent server is running on port 41243')
         // done()
       })
-    })
+    }, TEST_TIMEOUT * 6)
 
     afterAll(async () => {
       server.close()
     })
 
     it('I should be able to generate the agent access token', async () => {
-      agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
-        creditsPlanId,
-        agentId,
+      agentAccessParams = await E2ETestUtils.retryWithBackoff(
+        async () => {
+          const result = await paymentsSubscriber.agents.getAgentAccessToken(
+            creditsPlanId,
+            agentId,
+          )
+          
+          // Validate the response
+          if (!result.accessToken || result.accessToken.length === 0) {
+            throw new Error('Access token generation failed: no token returned')
+          }
+          
+          return result
+        },
+        'Access Token Generation'
       )
+      
       expect(agentAccessParams).toBeDefined()
-      console.log('Agent Access Params', agentAccessParams)
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
     })
 
@@ -407,18 +500,29 @@ describe('Payments API (e2e)', () => {
           dateCreated: new Date(),
         }
         const agentApi = {
-          endpoints: [ { POST: `${agentURL}` } ]
+          endpoints: [{ POST: `${agentURL}` }],
         }
-        
-        const result = await paymentsBuilder.agents.updateAgentMetadata(
-          agentId,
-          agentMetadata,
-          agentApi
+
+        const result = await E2ETestUtils.retryWithBackoff(
+          async () => {
+            const response = await paymentsBuilder.agents.updateAgentMetadata(
+              agentId,
+              agentMetadata,
+              agentApi,
+            )
+            
+            // Validate the response
+            if (!response.success) {
+              throw new Error('Agent metadata update failed: success is false')
+            }
+            
+            return response
+          },
+          'Agent Metadata Update'
         )
-        
+
         expect(result).toBeDefined()
         expect(result.success).toBeTruthy()
-        
       },
       TEST_TIMEOUT,
     )
@@ -426,7 +530,6 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to send a request DIRECTLY to the agent',
       async () => {
-
         const agentHTTPOptions = {
           method: 'POST',
           headers: {
@@ -437,7 +540,6 @@ describe('Payments API (e2e)', () => {
         }
         const response = await fetch(new URL(agentURL), agentHTTPOptions)
         expect(response).toBeDefined()
-        console.log(await response.json())
         expect(response.ok).toBeTruthy()
       },
       TEST_TIMEOUT,
@@ -465,15 +567,13 @@ describe('Payments API (e2e)', () => {
     )
   })
 
-  describe.skip('Errors', () => {
+  describe('Errors', () => {
     it(
-      'I should not be able to get a that does not exist',
+      'I should not be able to get a plan that does not exist',
       async () => {
-        const result = await paymentsBuilder.plans.getPlan('11111')
-        expect(result).toBeUndefined()
-        // expect(() =>
-        //   paymentsBuilder.getPlan('11111')
-        // ).toThrow(PaymentsError)
+        await expect(
+          paymentsBuilder.plans.getPlan('11111')
+        ).rejects.toThrow()
       },
       TEST_TIMEOUT,
     )
