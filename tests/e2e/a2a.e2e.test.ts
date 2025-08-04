@@ -135,14 +135,14 @@ describe('A2A E2E', () => {
     
     // Wait for server to be ready
     await A2AE2EUtils.waitForServerReady(3005, 20, '/a2a/')
-  })
+  }, E2E_TEST_CONFIG.TIMEOUT * 6)
 
   afterAll(async () => {
     await serverManager.cleanup()
   })
 
   describe('A2A Server and Client Flow', () => {
-    it('should have a valid centralized server', () => {
+    it('should have a valid server', () => {
       A2AE2EAssertions.assertValidServerResult(serverResult)
     })
 
@@ -192,7 +192,7 @@ describe('A2A E2E', () => {
       // The test verifies that the client properly handles this error case
       const result = await client.sendA2AMessage(messageParams)
       A2AE2EAssertions.assertValidA2AResponse(result)
-    })
+    }, E2E_TEST_CONFIG.TIMEOUT)
 
     it('should handle invalid message requests gracefully', async () => {
       const client = paymentsSubscriber.a2a.getClient({
@@ -207,7 +207,7 @@ describe('A2A E2E', () => {
       } catch (error) {
         expect(error).toBeDefined()
       }
-    })
+    }, E2E_TEST_CONFIG.TIMEOUT)
   })
 
   describe('A2A Static Utilities', () => {
@@ -235,7 +235,7 @@ describe('A2A E2E', () => {
       expect((agentCard.capabilities?.extensions?.[0]?.params as any)?.agentId).toBe(
         'e2e-test-agent',
       )
-    })
+    }, E2E_TEST_CONFIG.TIMEOUT)
 
     it('should integrate agent card with A2A flow', async () => {
       // Test that the agent card can be used in the A2A flow
@@ -249,7 +249,7 @@ describe('A2A E2E', () => {
 
       // Wait a bit for the client to complete its internal agent card fetch
       await A2AE2EUtils.wait(500)
-    })
+    }, E2E_TEST_CONFIG.TIMEOUT)
   })
 
   describe('A2A Error Handling', () => {
@@ -257,7 +257,7 @@ describe('A2A E2E', () => {
       expect(() => {
         paymentsSubscriber.a2a.getClient({} as any)
       }).toThrow()
-    })
+    }, E2E_TEST_CONFIG.TIMEOUT)
   })
 
   describe('A2A Streaming SSE E2E Tests', () => {

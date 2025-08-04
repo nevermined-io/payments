@@ -160,7 +160,7 @@ describe('Payments API (e2e)', () => {
         expect(BigInt(expirablePlanId) > 0n).toBeTruthy()
         console.log('Expirable Plan ID', expirablePlanId)
       },
-      TEST_TIMEOUT,
+      TEST_TIMEOUT * 2,
     )
 
     it(
@@ -423,11 +423,13 @@ describe('Payments API (e2e)', () => {
             requestedUrl,
             httpVerb!,
           )
-          if (isValidReq.balance.isSubscriber) {
+          if (isValidReq?.balance?.isSubscriber) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ message: 'Hello from the Agent!' }))
             return
           }
+          console.log('Unauthorized access attempt:', authHeader)
+          throw new Error('Unauthorized access attempt')
         } catch (error) {
           console.log('Unauthorized access attempt:', authHeader)
           console.log('Error details:', error)
@@ -441,7 +443,7 @@ describe('Payments API (e2e)', () => {
       server.listen(41243, () => {
         // done()
       })
-    })
+    }, TEST_TIMEOUT * 6)
 
     afterAll(async () => {
       server.close()

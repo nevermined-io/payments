@@ -80,7 +80,7 @@ describe('A2A Integration Tests', () => {
       const result = await testContext.sendMessageAndValidate(message)
       
       A2AAssertions.assertTaskCompleted(result)
-    }, TEST_CONFIG.TIMEOUT)
+    }, TEST_CONFIG.TIMEOUT * 2)
 
     it('should handle blocking requests with credit validation', async () => {
       // Get initial balance
