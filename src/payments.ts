@@ -1,10 +1,14 @@
-import { AIQueryApi } from './api/query-api'
-import { PaymentsError } from './common/payments.error'
-import { PaymentOptions } from './common/types'
-import { BasePaymentsAPI } from './api/base-payments'
-import { PlansAPI } from './api/plans-api'
-import { AgentsAPI } from './api/agents-api'
-import { AgentRequestsAPI } from './api/requests-api'
+import { AIQueryApi } from './api/query-api.ts'
+import { PaymentsError } from './common/payments.error.ts'
+import { PaymentOptions } from './common/types.ts'
+import { BasePaymentsAPI } from './api/base-payments.ts'
+import { PlansAPI } from './api/plans-api.ts'
+import { AgentsAPI } from './api/agents-api.ts'
+import { AgentRequestsAPI } from './api/requests-api.ts'
+import { ClientRegistry } from './a2a/clientRegistry.ts'
+import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/server.ts'
+import { PaymentsA2AServer } from './a2a/server.ts'
+import { buildPaymentAgentCard } from './a2a/agent-card.ts'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -23,6 +27,41 @@ export class Payments extends BasePaymentsAPI {
   public plans!: PlansAPI
   public agents!: AgentsAPI
   public requests!: AgentRequestsAPI
+  private _a2aRegistry?: ClientRegistry
+
+  /**
+   * Exposes A2A server and client registry methods.
+   * The client registry is initialized only if getClient is called.
+   */
+  public get a2a() {
+    return {
+      /**
+       * Starts the A2A server with payment integration.
+       * @param options - Server options.
+       */
+      start: (
+        options: Omit<PaymentsA2AServerOptions, 'paymentsService'>,
+      ): PaymentsA2AServerResult => PaymentsA2AServer.start({ ...options, paymentsService: this }),
+
+      /**
+       * Gets (or creates) a RegisteredPaymentsClient for the given alias.
+       * The registry is initialized only on first use.
+       * @param options - ClientRegistryOptions.
+       */
+      getClient: (options: any) => {
+        if (!this._a2aRegistry) {
+          this._a2aRegistry = new ClientRegistry(this)
+        }
+        return this._a2aRegistry.getClient(options)
+      },
+    }
+  }
+
+  /**
+   * Static A2A helpers and utilities.
+   * Example: Payments.a2a.buildPaymentAgentCard(...)
+   */
+  static a2a = { buildPaymentAgentCard }
 
   /**
    * Get an instance of the Payments class for server-side usage.

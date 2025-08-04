@@ -18,6 +18,7 @@ export const API_URL_PLAN_BALANCE = '/api/v1/protocol/plans/:planId/balance/:hol
 export const API_URL_GET_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/:planId/:agentId'
 export const API_URL_INITIALIZE_AGENT = '/api/v1/protocol/agents/initialize/:agentId'
 export const API_URL_TRACK_AGENT_SUB_TASK = '/api/v1/protocol/agent-sub-tasks'
+export const API_URL_VALIDATE_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/validate/:agentId'
 
 export const API_URL_STRIPE_CHECKOUT = '/api/v1/stripe/checkout'
 
@@ -47,7 +48,7 @@ export interface BackendApiOptions {
 
 export class HTTPRequestOptions {
   accessToken?: string
-  sendThroughProxy: boolean = true
+  sendThroughProxy = true
   proxyHost?: string = undefined
   headers?: { [key: string]: string } = {}
 }
@@ -89,7 +90,9 @@ export abstract class AbstractHTTPClient {
   //   }
   // }
 
-  constructor() {}
+  constructor() {
+    // Empty constructor - required for abstract class implementation
+  }
 
   parseUrl(urlRequested: string, reqOptions: HTTPRequestOptions) {
     let _host: URL

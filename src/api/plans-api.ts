@@ -1,4 +1,4 @@
-import { PaymentsError } from '../common/payments.error'
+import { PaymentsError } from '../common/payments.error.ts'
 import {
   Address,
   NvmAPIResult,
@@ -10,9 +10,9 @@ import {
   PlanMetadata,
   PlanPriceConfig,
   StripeCheckoutResult,
-} from '../common/types'
-import { getRandomBigInt, isEthereumAddress } from '../utils'
-import { BasePaymentsAPI } from './base-payments'
+} from '../common/types.ts'
+import { getRandomBigInt, isEthereumAddress } from '../utils.ts'
+import { BasePaymentsAPI } from './base-payments.ts'
 import {
   API_URL_REDEEM_PLAN,
   API_URL_GET_PLAN,
@@ -23,7 +23,7 @@ import {
   API_URL_PLAN_BALANCE,
   API_URL_REGISTER_PLAN,
   API_URL_STRIPE_CHECKOUT,
-} from './nvm-api'
+} from './nvm-api.ts'
 
 /**
  * The PlansAPI class provides methods to register and interact with payment plans on Nevermined.
@@ -303,7 +303,6 @@ export class PlansAPI extends BasePaymentsAPI {
     const query =
       API_URL_GET_PLAN_AGENTS.replace(':planId', planId) + '?' + pagination.asQueryParams()
     const url = new URL(query, this.environment.backend)
-    console.log(`Fetching agents for plan ${planId} from ${url.toString()}`)
     const response = await fetch(url)
     if (!response.ok) {
       throw PaymentsError.fromBackend('Plan not found', await response.json())
@@ -336,9 +335,14 @@ export class PlansAPI extends BasePaymentsAPI {
     const holderAddress = isEthereumAddress(accountAddress)
       ? accountAddress
       : this.getAccountAddress()
+
+    if (!holderAddress) {
+      throw new PaymentsError('Holder address is required')
+    }
+
     const balanceUrl = API_URL_PLAN_BALANCE.replace(':planId', planId).replace(
       ':holderAddress',
-      holderAddress!,
+      holderAddress,
     )
 
     const options = {
