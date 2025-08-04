@@ -187,11 +187,9 @@ describe('PaymentsRequestHandler', () => {
 
 Reusable test data and predefined scenarios:
 
-- `TEST_MESSAGES`: Test messages with different configurations
+- `TEST_MESSAGE`: Test message with basic data
 - `TEST_HTTP_CONTEXTS`: HTTP contexts for different scenarios
-- `TEST_JSON_RPC_REQUESTS`: Predefined JSON-RPC requests
-- `TEST_SCENARIOS`: Complete test scenarios
-- `TEST_ERROR_CASES`: Common error cases
+- `TEST_PUSH_NOTIFICATION_CONFIG`: Configuration for Push Notifications
 - `TestDataFactory`: Factory functions for creating dynamic data
 
 ## Key Improvements in Refactored Version
