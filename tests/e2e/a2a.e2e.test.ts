@@ -139,7 +139,7 @@ describe('A2A E2E', () => {
 
   afterAll(async () => {
     await serverManager.cleanup()
-  })
+  }, E2E_TEST_CONFIG.TIMEOUT)
 
   describe('A2A Server and Client Flow', () => {
     it('should have a valid server', () => {
@@ -393,7 +393,6 @@ describe('A2A E2E', () => {
         
         // Simulate disconnection after receiving a few events
         if (eventCount >= maxInitialEvents) {
-          console.log(`[TEST] Simulating disconnection after ${eventCount} events`)
           break // Exit the loop to simulate disconnection
         }
         
@@ -402,12 +401,6 @@ describe('A2A E2E', () => {
           break
         }
       }
-      
-      // Verify we got a taskId and some initial events
-      expect(taskId).toBeDefined()
-      expect(initialEvents.length).toBeGreaterThan(0)
-      expect(initialEvents.length).toBeLessThanOrEqual(maxInitialEvents)
-      console.log(`[TEST] Received ${initialEvents.length} initial events, taskId: ${taskId}`)
       
       // Wait a bit to simulate the time between disconnection and resubscribe
       await A2AE2EUtils.wait(500)
@@ -426,20 +419,14 @@ describe('A2A E2E', () => {
         }
       }
       
-      // Verify resubscribe worked and returned events
-      expect(resubscribeEvents.length).toBeGreaterThan(0)
-      expect(resubscribeFinalResult).toBeDefined()
-      
-      // The resubscribe should return the same task information
-      expect(resubscribeFinalResult.result.taskId).toBe(taskId)
-      expect(resubscribeFinalResult.result.status.state).toBe('completed')
-      
-      // Verify that we have events from both the initial connection and resubscribe
-      const totalEvents = initialEvents.length + resubscribeEvents.length
-      expect(totalEvents).toBeGreaterThan(maxInitialEvents)
-      
-      // Verify the final result contains the expected metadata
-      expect(resubscribeFinalResult.result.metadata.creditsUsed).toBe(10)
+      // Verify resubscribe response using assertions helper
+      A2AE2EAssertions.assertValidResubscribeResponse(
+        initialEvents,
+        resubscribeEvents,
+        resubscribeFinalResult,
+        taskId!,
+        maxInitialEvents
+      )
     }, E2E_TEST_CONFIG.TIMEOUT)
   })
 })

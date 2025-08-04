@@ -734,6 +734,44 @@ export class A2AE2EAssertions {
     expect(finalResult.result.metadata.operationType).toBe('streaming')
     expect(finalResult.result.metadata.streamingType).toBe('text')
   }
+
+  /**
+   * Asserts that a resubscribe response is valid
+   */
+  static assertValidResubscribeResponse(
+    initialEvents: any[], 
+    resubscribeEvents: any[], 
+    resubscribeFinalResult: any, 
+    taskId: string,
+    maxInitialEvents: number
+  ) {
+    // Verify we got a taskId and some initial events
+    expect(taskId).toBeDefined()
+    expect(initialEvents.length).toBeGreaterThan(0)
+    expect(initialEvents.length).toBeLessThanOrEqual(maxInitialEvents)
+    
+    // Verify resubscribe worked and returned events
+    expect(resubscribeEvents.length).toBeGreaterThan(0)
+    expect(resubscribeFinalResult).toBeDefined()
+    
+    // The resubscribe should return the same task information
+    expect(resubscribeFinalResult.result.taskId).toBe(taskId)
+    expect(resubscribeFinalResult.result.status.state).toBe('completed')
+    
+    // Verify that we have events from both the initial connection and resubscribe
+    const totalEvents = initialEvents.length + resubscribeEvents.length
+    expect(totalEvents).toBeGreaterThan(maxInitialEvents)
+    
+    // Verify the final result contains the expected metadata
+    expect(resubscribeFinalResult.result.metadata.creditsUsed).toBe(10)
+    
+    // Verify resubscribe response structure
+    expect(resubscribeFinalResult.jsonrpc).toBe('2.0')
+    expect(resubscribeFinalResult.result).toBeDefined()
+    expect(resubscribeFinalResult.result.kind).toBe('status-update')
+    expect(resubscribeFinalResult.result.final).toBe(true)
+    expect(resubscribeFinalResult.result.status).toBeDefined()
+  }
 }
 
 // Server Management
@@ -751,17 +789,35 @@ export class A2AE2EServerManager {
    * Cleans up all servers
    */
   async cleanup(): Promise<void> {
-    // Clean up all servers
-    for (const server of this.servers) {
+    // Clean up all servers with timeout
+    const cleanupPromises = this.servers.map(async (server) => {
       if (server && server.server) {
-        await new Promise<void>((resolve) => {
-          server.server.close(() => resolve())
-        })
+        try {
+          // Add timeout to server close
+          const closePromise = new Promise<void>((resolve) => {
+            server.server.close(() => resolve())
+          })
+          
+          // Wait for close with timeout
+          await Promise.race([
+            closePromise,
+            new Promise<void>((resolve) => setTimeout(() => resolve(), 2000)) // 2 second timeout
+          ])
+        } catch (error) {
+          console.warn('Error closing server:', error)
+        }
       }
-    }
+    })
+    
+    // Wait for all servers to close with timeout
+    await Promise.race([
+      Promise.all(cleanupPromises),
+      new Promise<void>((resolve) => setTimeout(() => resolve(), 5000)) // 5 second total timeout
+    ])
+    
     this.servers = []
     
-    // Clean up any pending async operations
-    await A2AE2EUtils.wait(100)
+    // Minimal wait for cleanup
+    await A2AE2EUtils.wait(50)
   }
 } 
