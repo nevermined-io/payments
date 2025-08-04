@@ -63,7 +63,7 @@ describe('A2A E2E', () => {
       dateCreated: new Date(),
     }
     const agentApi = {
-      endpoints: [{ POST: 'http://localhost:3005/a2a/' }],
+      endpoints: [{ POST: 'http://localhost:3005/a2a/' }, { POST: 'http://localhost:3006/a2a/' }],
     }
     
     const agentResult = await E2ETestUtils.retryWithBackoff(
@@ -324,6 +324,122 @@ describe('A2A E2E', () => {
       // Should complete successfully even if there are internal streaming issues
       expect(finalResult.result.status.state).toBe('completed')
       expect(finalResult.result.metadata.creditsUsed).toBe(10)
+    }, E2E_TEST_CONFIG.TIMEOUT)
+
+    it('should handle resubscribe to task streaming using A2A client', async () => {
+      // Create a separate server for resubscribe testing with the specific executor
+      const resubscribeAgentCard = {
+        name: 'E2E A2A Resubscribe Test Agent',
+        description: 'Agent for E2E A2A resubscribe tests',
+        capabilities: {
+          streaming: true,
+          pushNotifications: true,
+          stateTransitionHistory: true,
+        },
+        defaultInputModes: ['text'],
+        defaultOutputModes: ['text'],
+        skills: [],
+        url: 'http://localhost:3006/a2a/',
+        version: '1.0.0',
+      }
+
+      const resubscribeAgentCardWithPayments = Payments.a2a.buildPaymentAgentCard(resubscribeAgentCard, {
+        paymentType: "dynamic",
+        credits: 1,
+        costDescription: "Variable credits based on operation complexity",
+        planId,
+        agentId,
+      });
+      
+      const resubscribeServerResult = await paymentsBuilder.a2a.start({
+        port: 3006,
+        basePath: '/a2a/',
+        agentCard: resubscribeAgentCardWithPayments,
+        executor: A2AE2EFactory.createResubscribeStreamingExecutor(),
+      })
+      
+      serverManager.addServer(resubscribeServerResult)
+      
+      // Wait for server to be ready
+      await A2AE2EUtils.waitForServerReady(3006, 20, '/a2a/')
+
+      // Create A2A client for resubscribe testing
+      const client = paymentsSubscriber.a2a.getClient({
+        agentBaseUrl: 'http://localhost:3006/a2a/',
+        agentId: agentId,
+        planId: planId,
+      })
+      
+      A2AE2EAssertions.assertValidClient(client)
+
+      // First, start a streaming request to get a taskId
+      const message = A2AE2EFactory.createTestMessage('Start streaming for resubscribe test')
+      const messageParams = { message }
+      
+      // Use the streaming method and collect only a few events (simulate disconnection)
+      const initialEvents: any[] = []
+      let taskId: string | null = null
+      let eventCount = 0
+      const maxInitialEvents = 2 // Only receive 2 events before "disconnecting"
+      
+      for await (const event of client.sendA2AMessageStream(messageParams)) {
+        initialEvents.push(event)
+        eventCount++
+        
+        // Extract taskId from the first event that has it
+        if (!taskId && event.result && event.result.id) {
+          taskId = event.result.id
+        }
+        
+        // Simulate disconnection after receiving a few events
+        if (eventCount >= maxInitialEvents) {
+          console.log(`[TEST] Simulating disconnection after ${eventCount} events`)
+          break // Exit the loop to simulate disconnection
+        }
+        
+        // Don't wait for final event - we want to simulate interruption
+        if (event.result && event.result.final) {
+          break
+        }
+      }
+      
+      // Verify we got a taskId and some initial events
+      expect(taskId).toBeDefined()
+      expect(initialEvents.length).toBeGreaterThan(0)
+      expect(initialEvents.length).toBeLessThanOrEqual(maxInitialEvents)
+      console.log(`[TEST] Received ${initialEvents.length} initial events, taskId: ${taskId}`)
+      
+      // Wait a bit to simulate the time between disconnection and resubscribe
+      await A2AE2EUtils.wait(500)
+      
+      // Now test resubscribe using the obtained taskId to complete the streaming
+      const resubscribeParams = { id: taskId }
+      const resubscribeEvents: any[] = []
+      let resubscribeFinalResult: any = null
+      
+      for await (const event of client.resubscribeA2ATask(resubscribeParams)) {
+        resubscribeEvents.push(event)
+        
+        if (event.result && event.result.final) {
+          resubscribeFinalResult = event
+          break
+        }
+      }
+      
+      // Verify resubscribe worked and returned events
+      expect(resubscribeEvents.length).toBeGreaterThan(0)
+      expect(resubscribeFinalResult).toBeDefined()
+      
+      // The resubscribe should return the same task information
+      expect(resubscribeFinalResult.result.taskId).toBe(taskId)
+      expect(resubscribeFinalResult.result.status.state).toBe('completed')
+      
+      // Verify that we have events from both the initial connection and resubscribe
+      const totalEvents = initialEvents.length + resubscribeEvents.length
+      expect(totalEvents).toBeGreaterThan(maxInitialEvents)
+      
+      // Verify the final result contains the expected metadata
+      expect(resubscribeFinalResult.result.metadata.creditsUsed).toBe(10)
     }, E2E_TEST_CONFIG.TIMEOUT)
   })
 })

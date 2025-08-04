@@ -364,13 +364,195 @@ export class A2AE2EFactory {
               timestamp: new Date().toISOString(),
             },
             final: true,
-                          metadata: {
-                creditsUsed: 10,
-                planId: 'test-plan',
-                costDescription: 'Streaming response',
-                operationType: 'streaming',
-                streamingType: 'text',
+            metadata: {
+              creditsUsed: 10,
+              planId: 'test-plan',
+              costDescription: 'Streaming response',
+              operationType: 'streaming',
+              streamingType: 'text',
+            },
+          })
+        } catch (error) {
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'failed',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                  },
+                ],
+                taskId,
+                contextId,
               },
+              timestamp: new Date().toISOString(),
+            },
+            final: true,
+            metadata: { errorType: 'agent_error' },
+          })
+        }
+        
+        eventBus.finished()
+      },
+      cancelTask: async (taskId: string) => {
+        // Mock implementation for cancelTask
+        console.log(`Mock cancelTask called for taskId: ${taskId}`)
+      },
+    }
+  }
+
+  /**
+   * Creates a test executor specifically for resubscribe testing with more events and longer delays
+   */
+  static createResubscribeStreamingExecutor(): AgentExecutor {
+    return {
+      execute: async (requestContext, eventBus) => {
+        const taskId = requestContext.taskId
+        const contextId = requestContext.userMessage.contextId || uuidv4()
+        const userText = requestContext.userMessage.parts[0] && 
+          requestContext.userMessage.parts[0].kind === 'text' 
+            ? requestContext.userMessage.parts[0].text 
+            : ''
+        
+        // Publish initial task
+        eventBus.publish({
+          kind: 'task',
+          id: taskId,
+          contextId,
+          status: {
+            state: 'submitted',
+            timestamp: new Date().toISOString(),
+          },
+          artifacts: [],
+          history: [requestContext.userMessage],
+          metadata: requestContext.userMessage.metadata,
+        })
+
+        try {
+          // This executor is specifically for resubscribe tests with more events and longer delays
+          const totalMessages = 8 // More messages for resubscribe test
+          const delayMs = 300 // Longer delay for resubscribe test
+
+          for (let i = 1; i <= totalMessages; i++) {
+            eventBus.publish({
+              kind: 'status-update',
+              taskId,
+              contextId,
+              status: {
+                state: 'working',
+                message: {
+                  kind: 'message',
+                  role: 'agent',
+                  messageId: uuidv4(),
+                  parts: [
+                    {
+                      kind: 'text',
+                      text: `Streaming message ${i}/${totalMessages}`,
+                    },
+                  ],
+                  taskId,
+                  contextId,
+                },
+                timestamp: new Date().toISOString(),
+              },
+              final: false,
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, delayMs))
+          }
+
+          // Additional intermediate messages for resubscribe testing
+          const additionalMessages = 3
+          for (let i = 1; i <= additionalMessages; i++) {
+            eventBus.publish({
+              kind: 'status-update',
+              taskId,
+              contextId,
+              status: {
+                state: 'working',
+                message: {
+                  kind: 'message',
+                  role: 'agent',
+                  messageId: uuidv4(),
+                  parts: [
+                    {
+                      kind: 'text',
+                      text: `Additional message ${i}/${additionalMessages}`,
+                    },
+                  ],
+                  taskId,
+                  contextId,
+                },
+                timestamp: new Date().toISOString(),
+              },
+              final: false,
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, delayMs))
+          }
+
+          // Final streaming message
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'working',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: 'Streaming finished!',
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: false,
+          })
+
+          // Final status update
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'completed',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: '🚀 Streaming completed successfully!',
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: true,
+            metadata: {
+              creditsUsed: 10,
+              planId: 'test-plan',
+              costDescription: 'Streaming response',
+              operationType: 'streaming',
+              streamingType: 'text',
+            },
           })
         } catch (error) {
           eventBus.publish({
