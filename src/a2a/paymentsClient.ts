@@ -381,7 +381,7 @@ export class PaymentsClient extends A2AClient {
     headers?: Record<string, string>,
   ): Promise<TResponse> {
     const endpoint = await (this as any)._getServiceEndpoint()
-      const requestId = uuidv4()
+    const requestId = uuidv4()
     const rpcRequest = { jsonrpc: '2.0', method, params, id: requestId }
     const httpResponse = await fetch(endpoint, {
       method: 'POST',

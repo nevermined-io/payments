@@ -150,7 +150,7 @@ async function bearerTokenMiddleware(
     validation,
   }
   // Try to associate context with taskId or messageId
-  const taskId = req.body?.taskId 
+  const taskId = req.body?.taskId
   const messageId = req.body?.params?.message?.messageId
 
   if (taskId) {
@@ -221,7 +221,6 @@ export class PaymentsA2AServer {
    * ```
    */
   static start(options: PaymentsA2AServerOptions): PaymentsA2AServerResult {
-
     const {
       agentCard,
       executor,
