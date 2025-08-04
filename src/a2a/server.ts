@@ -150,7 +150,7 @@ async function bearerTokenMiddleware(
     validation,
   }
   // Try to associate context with taskId or messageId
-  const taskId = req.body?.taskId || req.body?.id
+  const taskId = req.body?.taskId 
   const messageId = req.body?.params?.message?.messageId
 
   if (taskId) {
@@ -221,7 +221,6 @@ export class PaymentsA2AServer {
    * ```
    */
   static start(options: PaymentsA2AServerOptions): PaymentsA2AServerResult {
-    console.log(`[PaymentsA2A] Starting server on port ${options.port}`)
 
     const {
       agentCard,
@@ -308,11 +307,7 @@ export class PaymentsA2AServer {
     })
 
     server.listen(port, () => {
-      if (exposeAgentCard) {
-        console.log(
-          `[PaymentsA2A] Agent Card: http://localhost:${port}${basePath}.well-known/agent.json`,
-        )
-      }
+      // Do nothing
     })
 
     return { app, server, handler }

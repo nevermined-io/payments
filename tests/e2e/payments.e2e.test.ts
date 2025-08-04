@@ -196,7 +196,6 @@ describe('Payments API (e2e)', () => {
 
         expect(trialPlanId).toBeDefined()
         expect(BigInt(trialPlanId) > 0n).toBeTruthy()
-        console.log('Trial Plan ID', trialPlanId)
       },
       TEST_TIMEOUT,
     )
@@ -237,7 +236,6 @@ describe('Payments API (e2e)', () => {
         expect(agentId).toBeDefined()
 
         expect(agentId.startsWith('did:nv:')).toBeTruthy()
-        console.log('Agent ID', agentId)
       },
       TEST_TIMEOUT,
     )
@@ -275,7 +273,6 @@ describe('Payments API (e2e)', () => {
           'Agent and Plan Registration'
         )
         
-        console.log('Agent and Plan Registration Result', result)
         expect(result.planId).toBeDefined()
         expect(result.agentId).toBeDefined()
         expect(result.agentId.startsWith('did:nv:')).toBeTruthy()
@@ -292,7 +289,6 @@ describe('Payments API (e2e)', () => {
         const plan = await paymentsBuilder.plans.getPlan(creditsPlanId)
 
         expect(plan).toBeDefined()
-        console.log('Plan', plan)
       },
       TEST_TIMEOUT,
     )
@@ -302,7 +298,6 @@ describe('Payments API (e2e)', () => {
       async () => {
         const agent = await paymentsBuilder.agents.getAgent(agentId)
         expect(agent).toBeDefined()
-        console.log('Agent', agent)
       },
       TEST_TIMEOUT,
     )
@@ -316,7 +311,6 @@ describe('Payments API (e2e)', () => {
           new PaginationOptions({ offset: 5 }),
         )
         expect(agents).toBeDefined()
-        console.log('Agents associated to the Plan', agents)
         expect(agents.total).toBeGreaterThan(0)
       },
       TEST_TIMEOUT,
@@ -326,7 +320,6 @@ describe('Payments API (e2e)', () => {
       'Get plans associated to an agent',
       async () => {
         // /agents/:agentId/plans
-        console.log('Agent ID', agentId)
         const plans = await paymentsBuilder.agents.getAgentPlans(agentId)
         expect(plans).toBeDefined()
         expect(plans.total).toBeGreaterThan(0)
@@ -339,9 +332,6 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to order a Plan',
       async () => {
-        console.log(creditsPlanId)
-        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
-        
         const orderResult = await E2ETestUtils.retryWithBackoff(
           async () => {
             const result = await paymentsSubscriber.plans.orderPlan(creditsPlanId)
@@ -357,7 +347,6 @@ describe('Payments API (e2e)', () => {
         )
         
         expect(orderResult).toBeDefined()
-        console.log('Credits Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
         await new Promise(resolve => setTimeout(resolve, 3000))
       },
@@ -368,10 +357,8 @@ describe('Payments API (e2e)', () => {
     it.skip(
       'I should be able to get the link to finalize the order of a Fiat Plan',
       async () => {
-        console.log(fiatPlanId)
         const orderResult = await paymentsSubscriber.plans.orderFiatPlan(fiatPlanId)
         expect(orderResult).toBeDefined()
-        console.log('Fiat Plan - Order Result', orderResult)
         expect(orderResult.result.checkoutLink).toBeDefined()
         expect(orderResult.result.checkoutLink).toContain('https://checkout.stripe.com')
       },
@@ -382,16 +369,12 @@ describe('Payments API (e2e)', () => {
       await new Promise(resolve => setTimeout(resolve, 3000))
       const balanceResult = await paymentsSubscriber.plans.getPlanBalance(creditsPlanId)
       expect(balanceResult).toBeDefined()
-      console.log('Balance Result', balanceResult)
       expect(BigInt(balanceResult.balance)).toBeGreaterThan(0)
     })
 
     it(
       'I should be able to get a Trial Plan',
       async () => {
-        console.log(trialPlanId)
-        console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
-        
         const orderResult = await E2ETestUtils.retryWithBackoff(
           async () => {
             const result = await paymentsSubscriber.plans.orderPlan(trialPlanId)
@@ -407,7 +390,6 @@ describe('Payments API (e2e)', () => {
         )
         
         expect(orderResult).toBeDefined()
-        console.log('Trial Plan - Order Result', orderResult)
         expect(orderResult.success).toBeTruthy()
       },
       TEST_TIMEOUT * 2,
@@ -433,7 +415,6 @@ describe('Payments API (e2e)', () => {
 
         const requestedUrl = `http://localhost:41243${req.url}`
         const httpVerb = req.method
-        console.log('Received request:', { endpoint: requestedUrl, httpVerb, authHeader })
         let isValidReq
         try {
           isValidReq = await paymentsBuilder.requests.startProcessingRequest(
@@ -442,7 +423,6 @@ describe('Payments API (e2e)', () => {
             requestedUrl,
             httpVerb!,
           )
-          console.log('isValidReq', isValidReq)
           if (isValidReq.balance.isSubscriber) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ message: 'Hello from the Agent!' }))
@@ -459,7 +439,6 @@ describe('Payments API (e2e)', () => {
       })
 
       server.listen(41243, () => {
-        console.log('Agent server is running on port 41243')
         // done()
       })
     })
@@ -487,7 +466,6 @@ describe('Payments API (e2e)', () => {
       )
       
       expect(agentAccessParams).toBeDefined()
-      console.log('Agent Access Params', agentAccessParams)
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
     })
 
@@ -560,7 +538,6 @@ describe('Payments API (e2e)', () => {
         }
         const response = await fetch(new URL(agentURL), agentHTTPOptions)
         expect(response).toBeDefined()
-        console.log(await response.json())
         expect(response.ok).toBeTruthy()
       },
       TEST_TIMEOUT,

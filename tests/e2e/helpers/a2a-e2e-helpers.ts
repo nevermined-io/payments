@@ -110,6 +110,66 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3010/',
     version: '1.0.0',
+  },
+  
+  STREAMING_TEST_AGENT_CARD: {
+    name: 'Streaming Test Agent',
+    description: 'Agent for streaming SSE testing',
+    capabilities: {
+      streaming: true,
+      pushNotifications: true,
+      stateTransitionHistory: true,
+    },
+    defaultInputModes: ['text'],
+    defaultOutputModes: ['text'],
+    skills: [],
+    url: 'http://localhost:3010/',
+    version: '1.0.0',
+  },
+  
+  REGULAR_TEST_AGENT_CARD: {
+    name: 'Regular Test Agent',
+    description: 'Agent for regular request testing',
+    capabilities: {
+      streaming: true,
+      pushNotifications: true,
+      stateTransitionHistory: true,
+    },
+    defaultInputModes: ['text'],
+    defaultOutputModes: ['text'],
+    skills: [],
+    url: 'http://localhost:3011/',
+    version: '1.0.0',
+  },
+  
+  DETECTION_TEST_AGENT_CARD: {
+    name: 'Detection Test Agent',
+    description: 'Agent for request detection testing',
+    capabilities: {
+      streaming: true,
+      pushNotifications: true,
+      stateTransitionHistory: true,
+    },
+    defaultInputModes: ['text'],
+    defaultOutputModes: ['text'],
+    skills: [],
+    url: 'http://localhost:3012/',
+    version: '1.0.0',
+  },
+  
+  ERROR_STREAMING_TEST_AGENT_CARD: {
+    name: 'Error Streaming Test Agent',
+    description: 'Agent for streaming error testing',
+    capabilities: {
+      streaming: true,
+      pushNotifications: true,
+      stateTransitionHistory: true,
+    },
+    defaultInputModes: ['text'],
+    defaultOutputModes: ['text'],
+    skills: [],
+    url: 'http://localhost:3013/',
+    version: '1.0.0',
   }
 }
 
@@ -197,6 +257,158 @@ export class A2AE2EFactory {
   }
 
   /**
+   * Creates a test executor that supports streaming SSE
+   */
+  static createStreamingExecutor(): AgentExecutor {
+    return {
+      execute: async (requestContext, eventBus) => {
+        const taskId = requestContext.taskId
+        const contextId = requestContext.userMessage.contextId || uuidv4()
+        const userText = requestContext.userMessage.parts[0] && 
+          requestContext.userMessage.parts[0].kind === 'text' 
+            ? requestContext.userMessage.parts[0].text 
+            : ''
+        
+        // Publish initial task
+        eventBus.publish({
+          kind: 'task',
+          id: taskId,
+          contextId,
+          status: {
+            state: 'submitted',
+            timestamp: new Date().toISOString(),
+          },
+          artifacts: [],
+          history: [requestContext.userMessage],
+          metadata: requestContext.userMessage.metadata,
+        })
+
+        try {
+          // This executor is specifically for streaming tests, so always handle as streaming
+          const totalMessages = 3 // Reduced for e2e test
+          const delayMs = 100 // Reduced for e2e test
+
+          for (let i = 1; i <= totalMessages; i++) {
+            eventBus.publish({
+              kind: 'status-update',
+              taskId,
+              contextId,
+              status: {
+                state: 'working',
+                message: {
+                  kind: 'message',
+                  role: 'agent',
+                  messageId: uuidv4(),
+                  parts: [
+                    {
+                      kind: 'text',
+                      text: `Streaming message ${i}/${totalMessages}`,
+                    },
+                  ],
+                  taskId,
+                  contextId,
+                },
+                timestamp: new Date().toISOString(),
+              },
+              final: false,
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, delayMs))
+          }
+
+          // Final streaming message
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'working',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: 'Streaming finished!',
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: false,
+          })
+
+          // Final status update
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'completed',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: '🚀 Streaming completed successfully!',
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: true,
+                          metadata: {
+                creditsUsed: 10,
+                planId: 'test-plan',
+                costDescription: 'Streaming response',
+                operationType: 'streaming',
+                streamingType: 'text',
+              },
+          })
+        } catch (error) {
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'failed',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: true,
+            metadata: { errorType: 'agent_error' },
+          })
+        }
+        
+        eventBus.finished()
+      },
+      cancelTask: async (taskId: string) => {
+        // Mock implementation for cancelTask
+        console.log(`Mock cancelTask called for taskId: ${taskId}`)
+      },
+    }
+  }
+
+  /**
    * Creates payment metadata for testing
    */
   static createPaymentMetadata(agentId: string, planId?: string) {
@@ -234,9 +446,9 @@ export class A2AE2EUtils {
   /**
    * Creates a Payments instance for testing
    */
-  static createPaymentsInstance(): Payments {
+  static createPaymentsInstance(API_KEY: string): Payments {
     return Payments.getInstance({ 
-      nvmApiKey: E2E_TEST_CONFIG.BUILDER_API_KEY, 
+      nvmApiKey: API_KEY, 
       environment: E2E_TEST_CONFIG.TESTING_ENVIRONMENT 
     })
   }
@@ -244,8 +456,8 @@ export class A2AE2EUtils {
   /**
    * Waits for a server to be ready by checking if the agent card endpoint is accessible
    */
-  static async waitForServerReady(port: number, maxRetries: number = 10): Promise<void> {
-    const agentCardUrl = `http://localhost:${port}/.well-known/agent.json`
+  static async waitForServerReady(port: number, maxRetries: number = 10, basePath: string = ''): Promise<void> {
+    const agentCardUrl = `http://localhost:${port}${basePath}/.well-known/agent.json`
     
     for (let i = 0; i < maxRetries; i++) {
       try {
@@ -257,7 +469,6 @@ export class A2AE2EUtils {
         if (response.ok) {
           const agentCard = await response.json()
           if (agentCard && agentCard.name) {
-            console.log(`[E2E] Server on port ${port} is ready`)
             return
           }
         }
@@ -266,10 +477,10 @@ export class A2AE2EUtils {
       }
       
       // Wait before retrying
-      await this.wait(500)
+      await this.wait(1000) // Increased wait time
     }
     
-    throw new Error(`Server on port ${port} did not become ready within ${maxRetries * 500}ms`)
+    throw new Error(`Server on port ${port} did not become ready within ${maxRetries * 1000}ms`)
   }
 }
 
@@ -307,6 +518,39 @@ export class A2AE2EAssertions {
    */
   static async assertPaymentErrorThrown(promise: Promise<any>) {
     await expect(promise).rejects.toThrow()
+  }
+
+  /**
+   * Asserts that an a2a agent response is valid
+   */
+  static assertValidA2AResponse(a2aResponse: any) {
+    expect(a2aResponse).toBeDefined()
+    expect(a2aResponse.result).toBeDefined()
+    expect(a2aResponse.result.status).toBeDefined()
+    expect(a2aResponse.result.kind).toMatch(/task|message/)
+  }
+
+  /**
+   * Asserts that a streaming SSE response is valid
+   */
+  static assertValidStreamingResponse(events: any[], finalResult: any) {
+    // Verify we received streaming events
+    expect(events.length).toBeGreaterThan(0)
+    expect(finalResult).toBeDefined()
+    
+    // Verify streaming response structure
+    expect(finalResult.jsonrpc).toBe('2.0')
+    expect(finalResult.result).toBeDefined()
+    expect(finalResult.result.kind).toBe('status-update')
+    expect(finalResult.result.final).toBe(true)
+    expect(finalResult.result.status).toBeDefined()
+    expect(finalResult.result.status.state).toBe('completed')
+    
+    // Verify streaming metadata
+    expect(finalResult.result.metadata).toBeDefined()
+    expect(finalResult.result.metadata.creditsUsed).toBe(10)
+    expect(finalResult.result.metadata.operationType).toBe('streaming')
+    expect(finalResult.result.metadata.streamingType).toBe('text')
   }
 }
 

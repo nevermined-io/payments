@@ -11,6 +11,7 @@ import {
   GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
 import { A2AClient } from '@a2a-js/sdk/client'
+import { v4 as uuidv4 } from 'uuid'
 
 /**
  * PaymentsClient is a high-level client for A2A agents with payments integration.
@@ -90,7 +91,7 @@ export class PaymentsClient extends A2AClient {
       )
     }
     const endpoint = await (this as any)._getServiceEndpoint()
-    const clientRequestId = (this as any).requestIdCounter++
+    const clientRequestId = uuidv4()
     const rpcRequest = {
       jsonrpc: '2.0',
       method: 'message/stream',
@@ -242,7 +243,7 @@ export class PaymentsClient extends A2AClient {
         )
       }
 
-      return a2aStreamResponse.result as TStreamItem
+      return a2aStreamResponse as TStreamItem
     } catch (e: any) {
       // Catch errors from JSON.parse or if it's an error response that was thrown by this function
       if (
@@ -272,7 +273,7 @@ export class PaymentsClient extends A2AClient {
       throw new Error('Agent does not support streaming (required for tasks/resubscribe).')
     }
     const endpoint = await (this as any)._getServiceEndpoint()
-    const clientRequestId = (this as any).requestIdCounter++
+    const clientRequestId = uuidv4()
     const rpcRequest = {
       jsonrpc: '2.0',
       method: 'tasks/resubscribe',
@@ -380,7 +381,7 @@ export class PaymentsClient extends A2AClient {
     headers?: Record<string, string>,
   ): Promise<TResponse> {
     const endpoint = await (this as any)._getServiceEndpoint()
-    const requestId = (this as any).requestIdCounter++
+      const requestId = uuidv4()
     const rpcRequest = { jsonrpc: '2.0', method, params, id: requestId }
     const httpResponse = await fetch(endpoint, {
       method: 'POST',

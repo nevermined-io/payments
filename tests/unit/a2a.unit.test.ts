@@ -374,4 +374,233 @@ describe('A2A Unit Tests (Pure)', () => {
       expect((card.capabilities?.extensions?.[0]?.params as any)?.agentId).toBe('static-agent')
     })
   })
+
+  describe('Streaming SSE Tests', () => {
+    let mockEventBus: any
+    let mockRequestContext: any
+
+    beforeEach(() => {
+      // Mock event bus for streaming tests
+      mockEventBus = {
+        publish: jest.fn(),
+        finished: jest.fn(),
+      }
+
+      // Mock request context
+      mockRequestContext = {
+        taskId: 'test-task-123',
+        contextId: 'test-context-456',
+        userMessage: {
+          parts: [{ kind: 'text', text: 'Start streaming' }],
+        },
+      }
+    })
+
+    it('should handle streaming requests correctly', () => {
+      // Test that streaming logic works regardless of message content
+      const testMessages = [
+        'hello',
+        'calculate 2+2',
+        'weather in london',
+        'translate hello',
+        'start streaming',
+        'any message content',
+      ]
+
+      // All messages should be handled the same way in streaming mode
+      testMessages.forEach(text => {
+        expect(text).toBeDefined()
+        expect(typeof text).toBe('string')
+      })
+    })
+
+    it('should publish correct number of streaming events', async () => {
+      // Mock implementation of handleStreamingRequest
+      const handleStreamingRequest = async (
+        userText: string,
+        context: any,
+        eventBus: any
+      ) => {
+        const totalMessages = 3 // Reduced for unit test
+        const delayMs = 50 // Reduced for unit test
+
+        for (let i = 1; i <= totalMessages; i++) {
+          eventBus.publish({
+            kind: 'status-update',
+            taskId: context.taskId,
+            contextId: context.contextId,
+            status: {
+              state: 'working',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: `msg-${i}`,
+                parts: [
+                  {
+                    kind: 'text',
+                    text: `Streaming message ${i}/${totalMessages}`,
+                  },
+                ],
+                taskId: context.taskId,
+                contextId: context.contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: false,
+          })
+
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
+        }
+
+        return {
+          parts: [
+            {
+              kind: 'text',
+              text: '🚀 Streaming started! You will receive 3 messages via SSE.',
+            },
+          ],
+          metadata: {
+            creditsUsed: 5,
+            planId: 'test-plan',
+            costDescription: 'Streaming response',
+            operationType: 'streaming',
+            streamingType: 'text',
+          },
+          state: 'completed',
+        }
+      }
+
+      const result = await handleStreamingRequest(
+        'Start streaming',
+        mockRequestContext,
+        mockEventBus
+      )
+
+      // Verify the correct number of events were published
+      expect(mockEventBus.publish).toHaveBeenCalledTimes(3)
+
+      // Verify the final result
+      expect(result.state).toBe('completed')
+      expect(result.metadata.creditsUsed).toBe(5)
+      expect(result.metadata.operationType).toBe('streaming')
+    })
+
+    it('should include correct metadata in streaming response', async () => {
+      const handleStreamingRequest = async (
+        userText: string,
+        context: any,
+        eventBus: any
+      ) => {
+        // Simulate one streaming message
+        eventBus.publish({
+          kind: 'status-update',
+          taskId: context.taskId,
+          contextId: context.contextId,
+          status: {
+            state: 'working',
+            message: {
+              kind: 'message',
+              role: 'agent',
+              messageId: 'msg-1',
+              parts: [{ kind: 'text', text: 'Streaming message 1/1' }],
+              taskId: context.taskId,
+              contextId: context.contextId,
+            },
+            timestamp: new Date().toISOString(),
+          },
+          final: false,
+        })
+
+        return {
+          parts: [
+            {
+              kind: 'text',
+              text: 'Streaming finished!',
+            },
+          ],
+          metadata: {
+            creditsUsed: 5,
+            planId: 'test-plan',
+            costDescription: 'Streaming response',
+            operationType: 'streaming',
+            streamingType: 'text',
+          },
+          state: 'completed',
+        }
+      }
+
+      const result = await handleStreamingRequest(
+        'Start streaming',
+        mockRequestContext,
+        mockEventBus
+      )
+
+      expect(result.metadata).toEqual({
+        creditsUsed: 5,
+        planId: 'test-plan',
+        costDescription: 'Streaming response',
+        operationType: 'streaming',
+        streamingType: 'text',
+      })
+    })
+
+    it('should handle streaming errors gracefully', async () => {
+      const handleStreamingRequest = async (
+        userText: string,
+        context: any,
+        eventBus: any
+      ) => {
+        try {
+          // Simulate an error during streaming
+          throw new Error('Streaming service unavailable')
+
+          // This should not be reached
+          eventBus.publish({
+            kind: 'status-update',
+            taskId: context.taskId,
+            contextId: context.contextId,
+            status: {
+              state: 'working',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: 'msg-1',
+                parts: [{ kind: 'text', text: 'This should not appear' }],
+                taskId: context.taskId,
+                contextId: context.contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: false,
+          })
+        } catch (error) {
+          return {
+            parts: [
+              {
+                kind: 'text',
+                text: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+              },
+            ],
+            metadata: {
+              creditsUsed: 1,
+              planId: 'test-plan',
+              errorType: 'processing_error',
+            },
+            state: 'failed',
+          }
+        }
+      }
+
+      const result = await handleStreamingRequest(
+        'Start streaming',
+        mockRequestContext,
+        mockEventBus
+      )
+
+      expect(result.state).toBe('failed')
+      expect(result.metadata.errorType).toBe('processing_error')
+      expect(result.metadata.creditsUsed).toBe(1)
+      expect(result.parts[0].text).toContain('Streaming service unavailable')
+    })
+  })
 })

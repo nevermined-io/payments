@@ -170,6 +170,158 @@ export class A2ATestFactory {
   }
 
   /**
+   * Creates a test executor that supports streaming SSE
+   */
+  static createStreamingExecutor(): AgentExecutor {
+    return {
+      execute: async (requestContext, eventBus) => {
+        const taskId = requestContext.taskId
+        const contextId = requestContext.userMessage.contextId || uuidv4()
+        const userText = requestContext.userMessage.parts[0] && 
+          requestContext.userMessage.parts[0].kind === 'text' 
+            ? requestContext.userMessage.parts[0].text 
+            : ''
+        
+        // Publish initial task
+        eventBus.publish({
+          kind: 'task',
+          id: taskId,
+          contextId,
+          status: {
+            state: 'submitted',
+            timestamp: new Date().toISOString(),
+          },
+          artifacts: [],
+          history: [requestContext.userMessage],
+          metadata: requestContext.userMessage.metadata,
+        })
+
+        try {
+          // This executor is specifically for streaming tests, so always handle as streaming
+          const totalMessages = 3 // Reduced for integration test
+          const delayMs = 100 // Reduced for integration test
+
+          for (let i = 1; i <= totalMessages; i++) {
+            eventBus.publish({
+              kind: 'status-update',
+              taskId,
+              contextId,
+              status: {
+                state: 'working',
+                message: {
+                  kind: 'message',
+                  role: 'agent',
+                  messageId: uuidv4(),
+                  parts: [
+                    {
+                      kind: 'text',
+                      text: `Streaming message ${i}/${totalMessages}`,
+                    },
+                  ],
+                  taskId,
+                  contextId,
+                },
+                timestamp: new Date().toISOString(),
+              },
+              final: false,
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, delayMs))
+          }
+
+          // Final streaming message
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'working',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: 'Streaming finished!',
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: false,
+          })
+
+          // Final status update
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'completed',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: '🚀 Streaming completed successfully!',
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: true,
+                          metadata: {
+                creditsUsed: 10,
+                planId: 'test-plan',
+                costDescription: 'Streaming response',
+                operationType: 'streaming',
+                streamingType: 'text',
+              },
+          })
+        } catch (error) {
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'failed',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: true,
+            metadata: { errorType: 'agent_error' },
+          })
+        }
+        
+        eventBus.finished()
+      },
+      cancelTask: async (taskId: string) => {
+        // Mock implementation for cancelTask
+        console.log(`Mock cancelTask called for taskId: ${taskId}`)
+      },
+    }
+  }
+
+  /**
    * Creates payment metadata for testing
    */
   static createPaymentMetadata(agentId: string) {
@@ -235,16 +387,12 @@ export class A2ATestUtils {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(`[RETRY] ${operationName} - Attempt ${attempt}/${maxAttempts}`)
         const result = await operation()
-        console.log(`[RETRY] ${operationName} - Success on attempt ${attempt}`)
         return result
       } catch (error) {
         lastError = error as Error
-        console.log(`[RETRY] ${operationName} - Attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}`)
         
         if (attempt === maxAttempts) {
-          console.log(`[RETRY] ${operationName} - All ${maxAttempts} attempts failed`)
           throw new Error(`${operationName} failed after ${maxAttempts} attempts. Last error: ${lastError.message}`)
         }
         
@@ -642,7 +790,7 @@ export class A2ATestContext {
     )
   }
 
-  private async setupPaymentPlan(): Promise<void> {
+  protected async setupPaymentPlan(): Promise<void> {
     const accountAddress = this.paymentsBuilder.getAccountAddress() as Address
     const priceConfig = getERC20PriceConfig(1n, TEST_CONFIG.ERC20_ADDRESS, accountAddress)
     const creditsConfig = getFixedCreditsConfig(200n, 10n)
@@ -669,7 +817,7 @@ export class A2ATestContext {
     await A2ATestUtils.wait(1000)
   }
 
-  private async setupAgent(): Promise<void> {
+  protected async setupAgent(): Promise<void> {
     const agentApi = A2ATestFactory.createAgentApi(TEST_CONFIG.PORT)
     
     const agentResult = await A2ATestUtils.retryWithBackoff(
@@ -695,10 +843,10 @@ export class A2ATestContext {
     this.testAgentCard = Payments.a2a.buildPaymentAgentCard(TEST_DATA.BASE_AGENT_CARD, paymentMetadata)
   }
 
-  private async setupA2AServer(): Promise<void> {
+  protected async setupA2AServer(): Promise<void> {
     const serverResult = this.paymentsBuilder.a2a.start({
       agentCard: this.testAgentCard,
-      executor: A2ATestFactory.createTestExecutor(),
+      executor: this.getExecutor(),
       port: TEST_CONFIG.PORT,
       basePath: '/a2a/',
       exposeAgentCard: true,
@@ -730,7 +878,15 @@ export class A2ATestContext {
     )
   }
 
-  private async setupAccessToken(): Promise<void> {
+  /**
+   * Gets the executor to use for the A2A server
+   * Can be overridden by subclasses to use different executors
+   */
+  protected getExecutor(): AgentExecutor {
+    return A2ATestFactory.createTestExecutor()
+  }
+
+  protected async setupAccessToken(): Promise<void> {
     // Order plan with retries
     const orderResult = await A2ATestUtils.retryWithBackoff(
       async () => {

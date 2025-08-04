@@ -48,16 +48,12 @@ export class E2ETestUtils {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(`[E2E RETRY] ${operationName} - Attempt ${attempt}/${maxAttempts}`)
         const result = await operation()
-        console.log(`[E2E RETRY] ${operationName} - Success on attempt ${attempt}`)
         return result
       } catch (error) {
         lastError = error as Error
-        console.log(`[E2E RETRY] ${operationName} - Attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}`)
         
         if (attempt === maxAttempts) {
-          console.log(`[E2E RETRY] ${operationName} - All ${maxAttempts} attempts failed`)
           throw new Error(`${operationName} failed after ${maxAttempts} attempts. Last error: ${lastError.message}`)
         }
         
