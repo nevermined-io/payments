@@ -5,6 +5,7 @@ export * from './common/types.js'
 export * from './common/payments.error.js'
 export * from './common/helper.js'
 export * from './api/query-api.js'
+export * from './api/observability-api.js'
 export type { BackendApiOptions } from './api/nvm-api.js'
 
 export type {
