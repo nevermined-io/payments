@@ -10,16 +10,16 @@
  * Main server class for starting A2A agents with payment integration.
  * Provides complete A2A protocol implementation with credit validation and burning.
  */
-export { PaymentsA2AServer } from './server.ts'
+export { PaymentsA2AServer } from './server.js'
 
 /**
  * Helper function for creating payment-enabled agent cards.
  * Embeds payment metadata in agent cards following A2A standards.
  */
-export { buildPaymentAgentCard } from './agent-card.ts'
+export { buildPaymentAgentCard } from './agent-card.js'
 
 /**
  * Core types and interfaces for the A2A payments integration.
  * Includes TaskContext, TaskHandlerResult, PaymentMetadata, and A2A SDK types.
  */
-export * from './types.ts'
+export * from './types.js'

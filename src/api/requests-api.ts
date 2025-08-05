@@ -1,17 +1,17 @@
-import { BasePaymentsAPI } from './base-payments.ts'
+import { BasePaymentsAPI } from './base-payments.js'
 import {
   PaymentOptions,
   TrackAgentSubTaskDto,
   StartAgentRequest,
   NvmAPIResult,
-} from '../common/types.ts'
+} from '../common/types.js'
 import {
   API_URL_REDEEM_PLAN,
   API_URL_INITIALIZE_AGENT,
   API_URL_TRACK_AGENT_SUB_TASK,
-} from './nvm-api.ts'
-import { PaymentsError } from '../common/payments.error.ts'
-import { decodeAccessToken } from '../utils.ts'
+} from './nvm-api.js'
+import { PaymentsError } from '../common/payments.error.js'
+import { decodeAccessToken } from '../utils.js'
 
 /**
  * The AgentRequestsAPI class provides methods to manage the requests received by AI Agents integrated with Nevermined.

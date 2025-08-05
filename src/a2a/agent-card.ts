@@ -10,7 +10,7 @@
  * information about pricing, credits, and payment configuration.
  */
 
-import type { AgentCard } from './types.ts'
+import type { AgentCard } from './types.js'
 
 /**
  * Payment/pricing information to be included in the AgentCard extensions.

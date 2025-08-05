@@ -1,4 +1,4 @@
-import { PaymentsError } from '../common/payments.error.ts'
+import { PaymentsError } from '../common/payments.error.js'
 import {
   Address,
   NvmAPIResult,
@@ -10,9 +10,9 @@ import {
   PlanMetadata,
   PlanPriceConfig,
   StripeCheckoutResult,
-} from '../common/types.ts'
-import { getRandomBigInt, isEthereumAddress } from '../utils.ts'
-import { BasePaymentsAPI } from './base-payments.ts'
+} from '../common/types.js'
+import { getRandomBigInt, isEthereumAddress } from '../utils.js'
+import { BasePaymentsAPI } from './base-payments.js'
 import {
   API_URL_REDEEM_PLAN,
   API_URL_GET_PLAN,
@@ -23,7 +23,7 @@ import {
   API_URL_PLAN_BALANCE,
   API_URL_REGISTER_PLAN,
   API_URL_STRIPE_CHECKOUT,
-} from './nvm-api.ts'
+} from './nvm-api.js'
 
 /**
  * The PlansAPI class provides methods to register and interact with payment plans on Nevermined.

@@ -1,5 +1,5 @@
-import { Payments } from '../index.ts'
-import { PaymentsError } from '../common/payments.error.ts'
+import { Payments } from '../index.js'
+import { PaymentsError } from '../common/payments.error.js'
 import {
   MessageSendParams,
   SendMessageResponse,

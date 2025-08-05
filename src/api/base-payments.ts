@@ -1,8 +1,8 @@
-import { jsonReplacer } from '../common/helper.ts'
-import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.ts'
-import { PaymentOptions } from '../common/types.ts'
+import { jsonReplacer } from '../common/helper.js'
+import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.js'
+import { PaymentOptions } from '../common/types.js'
+import { PaymentsError } from '../common/payments.error.js'
 import { decodeJwt } from 'jose'
-import { PaymentsError } from '../common/payments.error.ts'
 
 /**
  * Base class extended by all Payments API classes.

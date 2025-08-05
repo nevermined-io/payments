@@ -1,7 +1,7 @@
-import { Payments } from '../index.ts'
-import { PaymentsClient } from './paymentsClient.ts'
-import type { ClientRegistryOptions } from './types.ts'
-import { PaymentsError } from '../common/payments.error.ts'
+import { Payments } from '../index.js'
+import { PaymentsClient } from './paymentsClient.js'
+import type { ClientRegistryOptions } from './types.js'
+import { PaymentsError } from '../common/payments.error.js'
 
 /**
  * Registry for managing multiple PaymentsClient instances by agentId+planId+baseUrl.
