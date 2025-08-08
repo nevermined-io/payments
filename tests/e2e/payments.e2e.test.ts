@@ -52,7 +52,7 @@ describe('Payments API (e2e)', () => {
   let agentId: string
   let builderAddress: Address
   const planMetadata: PlanMetadata = {
-    name: 'E2E test Payments Plan',
+    name: `E2E test Payments Plan ${Date.now()}`,
   }
 
   describe('Payments Setup', () => {
@@ -161,7 +161,7 @@ describe('Payments API (e2e)', () => {
       'I should be able to register a Trial Plan',
       async () => {
         const trialPlanMetadata: PlanMetadata = {
-          name: 'E2E test Trial Payments Plan',
+          name: `E2E test Trial Payments Plan ${Date.now()}`,
         }
         const priceConfig = getFreePriceConfig()
         const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
@@ -407,13 +407,13 @@ describe('Payments API (e2e)', () => {
   describe('E2E Subscriber/Agent flow', () => {
     let server: http.Server
     let agentAccessParams: AgentAccessCredentials
-    const agentURL = 'http://localhost:41243/a2a/'
+    const agentURL = 'http://localhost:41244/a2a/'
 
     beforeAll(async () => {
       server = http.createServer(async (req, res) => {
         const authHeader = req.headers['authorization'] as string
 
-        const requestedUrl = `http://localhost:41243${req.url}`
+        const requestedUrl = `http://localhost:41244${req.url}`
         const httpVerb = req.method
         let isValidReq
         try {
@@ -443,7 +443,7 @@ describe('Payments API (e2e)', () => {
       await new Promise<void>((resolve, reject) => {
         const onError = (err: unknown) => reject(err)
         server.once('error', onError)
-        server.listen(41243, () => {
+        server.listen(41244, () => {
           server.off('error', onError)
           resolve()
         })
