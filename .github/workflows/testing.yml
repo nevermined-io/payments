@@ -11,9 +11,6 @@ jobs:
     name: Lint & Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: payments
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,9 +36,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint_build
     timeout-minutes: 25
-    defaults:
-      run:
-        working-directory: payments
     env:
       CI: true
     steps:
@@ -77,9 +71,6 @@ jobs:
     needs: unit_integration
     continue-on-error: true
     timeout-minutes: 40
-    defaults:
-      run:
-        working-directory: payments
     env:
       TEST_SUBSCRIBER_API_KEY: ${{ secrets.TEST_SUBSCRIBER_API_KEY }}
       TEST_BUILDER_API_KEY: ${{ secrets.TEST_BUILDER_API_KEY }}
