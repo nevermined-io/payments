@@ -26,7 +26,7 @@
     "test": "jest --verbose --config ./tests/jest.config.json",
     "test:unit": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/unit",
     "test:integration": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/integration",
-    "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e",
+    "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e --runInBand",
     "test:all": "jest --verbose --config ./tests/jest.config.json",
     "test:debug": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --require ts-node/register node_modules/.bin/jest --runInBand --config ./tests/jest.config.json",
     "test:debug-integration": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --require ts-node/register node_modules/.bin/jest --runInBand --config ./tests/jest.config.json --testPathPattern=tests/integration",
