@@ -40,10 +40,57 @@ yarn add @nevermined-io/payments
 # npm
 npm install @nevermined-io/payments
 ```
+## A2A Integration (Agents‑to‑Agents)
+
+Nevermined Payments integrates with the A2A protocol to authorize and charge per request between agents:
+
+- Discovery: publish the Agent Card at `/.well-known/agent.json`.
+- Streaming and resubscribe: set `capabilities.streaming: true` for `message/stream` and `tasks/resubscribe`.
+- Authentication: credentials travel in HTTP headers (e.g., `Authorization: Bearer ...`), not in the JSON‑RPC payload.
+- Authorization/charging: the agent emits a final event with `metadata.creditsUsed`; Nevermined validates and burns credits accordingly.
+
+### Payment extension required in the Agent Card
+
+Add a payment extension under `capabilities.extensions` carrying Nevermined metadata:
+
+```json
+{
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": true,
+    "extensions": [
+      {
+        "uri": "urn:nevermined:payment",
+        "description": "Dynamic cost per request",
+        "required": false,
+        "params": {
+          "paymentType": "dynamic",
+          "credits": 1,
+          "planId": "<planId>",
+          "agentId": "<agentId>"
+        }
+      }
+    ]
+  },
+  "url": "https://your-agent.example.com/a2a/"
+}
+```
+
+Important notes:
+- The `url` must match exactly the URL registered in Nevermined for the agent/plan.
+- The final streaming event must include `metadata.creditsUsed` with the consumed cost.
+
 
 ## Requirements
 
 To use the Nevermined Payments Library, you need to get your Nevermined API key. You can get yours freely from the  [Nevermined App](https://nevermined.app).
+
+### Environments
+
+- Public environments: `sandbox`, `live`.
+- Internal/validation: `staging_sandbox`, `staging_live`.
+
+Pick the environment that matches where your agent and plans are registered. The agent card `url` must belong to that environment.
 
 ### Initialize the Payments library in the Browser
 
@@ -99,17 +146,17 @@ Once the app is initialized we can create a payment plan:
 const planMetadata: PlanMetadata = {
     name: 'E2E test Payments Plan',
   }
-const priceConfig = getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
-const creditsConfig = getFixedCreditsConfig(100n)
-const { planId } = await payments.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
+const priceConfig = payments.plans.getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
+const creditsConfig = payments.plans.getFixedCreditsConfig(100n)
+const { planId } = await payments.plans.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
 ```
 
 Or register a plan limited by time:
 
 ```typescript
-const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
-const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
-const response = await payments.registerTimePlan(planMetadata, priceConfig, expirablePlanConfig)
+const priceConfig = payments.plans.getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
+const expirablePlanConfig = payments.plans.getExpirableDurationConfig(payments.plans.ONE_DAY_DURATION) // 1 day
+const response = await payments.plans.registerTimePlan(planMetadata, priceConfig, expirablePlanConfig)
 ```
 
 ### Create an AI Agent/Service
@@ -130,20 +177,20 @@ const agentApi = {
 
 // This is the list of payment plans that the agent will accept
 const paymentPlans = [ creditsPlanId, expirablePlanId ]
-const result = await payments.registerAgent(agentMetadata, agentApi, paymentPlans)
+const result = await payments.agents.registerAgent(agentMetadata, agentApi, paymentPlans)
 
 ```
 
 ### Purchase a Payment Plan
 
 ```typescript
-const orderResult = await payments.orderPlan(creditsPlanId)
+const orderResult = await payments.plans.orderPlan(creditsPlanId)
 ```
 
 And get the balabce of the purchased plan:
 
 ```typescript
-const balance = await payments.getPlanBalance(creditsPlanId)
+const balance = await payments.plans.getPlanBalance(creditsPlanId)
 console.log(`Balance: ${balance}`)
 ```
 
@@ -152,7 +199,7 @@ console.log(`Balance: ${balance}`)
 Once the user has purchased a plan, they can query the agent:
 
 ```typescript
-const params = await payments.getAgentAccessToken(creditsPlanId, agentId)
+const params = await payments.agents.getAgentAccessToken(creditsPlanId, agentId)
 
 const agentHTTPOptions = {
   method: 'POST',

@@ -7,12 +7,14 @@ import {
   PlanBalance,
   PlanCreditsConfig,
   PlanCreditsType,
+  PlanRedemptionType,
   PlanMetadata,
   PlanPriceConfig,
   StripeCheckoutResult,
 } from '../common/types.js'
 import { getRandomBigInt, isEthereumAddress } from '../utils.js'
 import { BasePaymentsAPI } from './base-payments.js'
+import * as Plans from '../plans.js'
 import {
   API_URL_REDEEM_PLAN,
   API_URL_GET_PLAN,
@@ -29,6 +31,142 @@ import {
  * The PlansAPI class provides methods to register and interact with payment plans on Nevermined.
  */
 export class PlansAPI extends BasePaymentsAPI {
+  /** Price helpers */
+  /**
+   * Builds a Fiat price configuration for a plan.
+   *
+   * @param amount - Amount to charge in minor units (e.g., cents) as bigint.
+   * @param receiver - Wallet address that will receive the payment.
+   * @returns The PlanPriceConfig representing a fiat price.
+   */
+  public getFiatPriceConfig(amount: bigint, receiver: Address): PlanPriceConfig {
+    return Plans.getFiatPriceConfig(amount, receiver)
+  }
+
+  /**
+   * Builds a crypto price configuration for a plan.
+   *
+   * @param amount - Amount to charge in token minor units as bigint.
+   * @param receiver - Wallet address that will receive the payment.
+   * @param tokenAddress - Optional ERC20 token address. If omitted, native token is assumed.
+   * @returns The PlanPriceConfig representing a crypto price.
+   */
+  public getCryptoPriceConfig(
+    amount: bigint,
+    receiver: Address,
+    tokenAddress?: Address,
+  ): PlanPriceConfig {
+    return Plans.getCryptoPriceConfig(amount, receiver, tokenAddress)
+  }
+
+  /**
+   * Builds an ERC20 price configuration for a plan.
+   *
+   * @param amount - Amount to charge in token minor units as bigint.
+   * @param tokenAddress - ERC20 token contract address.
+   * @param receiver - Wallet address that will receive the payment.
+   * @returns The PlanPriceConfig representing an ERC20 price.
+   */
+  public getERC20PriceConfig(
+    amount: bigint,
+    tokenAddress: Address,
+    receiver: Address,
+  ): PlanPriceConfig {
+    return Plans.getERC20PriceConfig(amount, tokenAddress, receiver)
+  }
+
+  /**
+   * Builds a FREE price configuration (no payment required).
+   * @returns The PlanPriceConfig representing a free plan.
+   */
+  public getFreePriceConfig(): PlanPriceConfig {
+    return Plans.getFreePriceConfig()
+  }
+
+  /**
+   * Builds a native token price configuration for a plan.
+   *
+   * @param amount - Amount to charge in native token minor units as bigint.
+   * @param receiver - Wallet address that will receive the payment.
+   * @returns The PlanPriceConfig representing a native token price.
+   */
+  public getNativeTokenPriceConfig(amount: bigint, receiver: Address): PlanPriceConfig {
+    return Plans.getNativeTokenPriceConfig(amount, receiver)
+  }
+
+  /** Credits helpers */
+  /**
+   * Builds an EXPIRABLE credits configuration (time-based access).
+   *
+   * @param durationOfPlan - Duration in seconds.
+   * @returns The PlanCreditsConfig representing expirable credits.
+   */
+  public getExpirableDurationConfig(durationOfPlan: bigint): PlanCreditsConfig {
+    return Plans.getExpirableDurationConfig(durationOfPlan)
+  }
+
+  /**
+   * Builds a NON-EXPIRABLE credits configuration (no expiration).
+   * @returns The PlanCreditsConfig representing non-expirable credits.
+   */
+  public getNonExpirableDurationConfig(): PlanCreditsConfig {
+    return Plans.getNonExpirableDurationConfig()
+  }
+
+  /**
+   * Builds a FIXED credits configuration.
+   *
+   * @param creditsGranted - Total credits granted by the plan.
+   * @param creditsPerRequest - Credits spent per request (default 1n).
+   * @returns The PlanCreditsConfig representing fixed credits.
+   */
+  public getFixedCreditsConfig(creditsGranted: bigint, creditsPerRequest = 1n): PlanCreditsConfig {
+    return Plans.getFixedCreditsConfig(creditsGranted, creditsPerRequest)
+  }
+
+  /**
+   * Builds a DYNAMIC credits configuration (range-limited per request).
+   *
+   * @param creditsGranted - Total credits granted by the plan.
+   * @param minCreditsPerRequest - Minimum credits per request.
+   * @param maxCreditsPerRequest - Maximum credits per request.
+   * @returns The PlanCreditsConfig representing dynamic credits.
+   */
+  public getDynamicCreditsConfig(
+    creditsGranted: bigint,
+    minCreditsPerRequest = 1n,
+    maxCreditsPerRequest = 1n,
+  ): PlanCreditsConfig {
+    return Plans.getDynamicCreditsConfig(creditsGranted, minCreditsPerRequest, maxCreditsPerRequest)
+  }
+
+  /**
+   * Sets the redemption type in a credits configuration.
+   *
+   * @param creditsConfig - Credits configuration to modify.
+   * @param redemptionType - Redemption type to set.
+   * @returns The updated PlanCreditsConfig.
+   */
+  public setRedemptionType(
+    creditsConfig: PlanCreditsConfig,
+    redemptionType: PlanRedemptionType,
+  ): PlanCreditsConfig {
+    return Plans.setRedemptionType(creditsConfig, redemptionType)
+  }
+
+  /**
+   * Marks whether proof is required in a credits configuration.
+   *
+   * @param creditsConfig - Credits configuration to modify.
+   * @param proofRequired - Whether proof is required (default true).
+   * @returns The updated PlanCreditsConfig.
+   */
+  public setProofRequired(
+    creditsConfig: PlanCreditsConfig,
+    proofRequired = true,
+  ): PlanCreditsConfig {
+    return Plans.setProofRequired(creditsConfig, proofRequired)
+  }
   /**
    * This method is used to create a singleton instance of the PlansAPI class.
    *
