@@ -10,17 +10,21 @@ export class PaymentsError extends Error {
    * @param message - The error message
    * @param code - The error code (e.g., 'unauthorized', 'payment_required')
    */
-  constructor(message: string, code: string = 'payments_error') {
+  constructor(message: string, code = 'payments_error') {
     super(message)
     this.name = 'PaymentsError'
     this.code = code
+  }
+
+  static fromBackend(message: string, error: any) {
+    return new PaymentsError(`${message}. ${error.message}`, error.code)
   }
 
   /**
    * Creates an unauthorized error (missing or invalid credentials).
    * @param message - Optional custom message
    */
-  static unauthorized(message: string = 'Unauthorized') {
+  static unauthorized(message = 'Unauthorized') {
     return new PaymentsError(message, 'unauthorized')
   }
 
@@ -28,7 +32,7 @@ export class PaymentsError extends Error {
    * Creates a payment required error (insufficient credits, etc.).
    * @param message - Optional custom message
    */
-  static paymentRequired(message: string = 'Payment required') {
+  static paymentRequired(message = 'Payment required') {
     return new PaymentsError(message, 'payment_required')
   }
 
@@ -36,7 +40,7 @@ export class PaymentsError extends Error {
    * Creates a generic validation error.
    * @param message - Optional custom message
    */
-  static validation(message: string = 'Validation error') {
+  static validation(message = 'Validation error') {
     return new PaymentsError(message, 'validation')
   }
 
@@ -44,7 +48,7 @@ export class PaymentsError extends Error {
    * Creates an internal error.
    * @param message - Optional custom message
    */
-  static internal(message: string = 'Internal error') {
+  static internal(message = 'Internal error') {
     return new PaymentsError(message, 'internal')
   }
 }

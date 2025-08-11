@@ -1,8 +1,8 @@
-import { jsonReplacer } from '../common/helper'
-import { EnvironmentInfo, Environments } from '../environments'
-import { PaymentOptions } from '../common/types'
+import { jsonReplacer } from '../common/helper.js'
+import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.js'
+import { PaymentOptions } from '../common/types.js'
+import { PaymentsError } from '../common/payments.error.js'
 import { decodeJwt } from 'jose'
-import { PaymentsError } from '../common/payments.error'
 
 /**
  * Base class extended by all Payments API classes.
@@ -20,7 +20,7 @@ export abstract class BasePaymentsAPI {
   constructor(options: PaymentOptions) {
     this.nvmApiKey = options.nvmApiKey
     this.returnUrl = options.returnUrl || ''
-    this.environment = Environments[options.environment]
+    this.environment = Environments[options.environment as EnvironmentName]
     this.appId = options.appId
     this.version = options.version
     this.parseNvmApiKey()
@@ -32,7 +32,10 @@ export abstract class BasePaymentsAPI {
    */
   protected parseNvmApiKey() {
     try {
-      const jwt = decodeJwt(this.nvmApiKey!)
+      if (!this.nvmApiKey) {
+        throw new PaymentsError('NVM API Key is required')
+      }
+      const jwt = decodeJwt(this.nvmApiKey)
       this.accountAddress = jwt.sub
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')

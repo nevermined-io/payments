@@ -1,4 +1,4 @@
-import { PaymentsError } from '../common/payments.error'
+import { PaymentsError } from '../common/payments.error.js'
 import {
   Address,
   NvmAPIResult,
@@ -7,12 +7,14 @@ import {
   PlanBalance,
   PlanCreditsConfig,
   PlanCreditsType,
+  PlanRedemptionType,
   PlanMetadata,
   PlanPriceConfig,
   StripeCheckoutResult,
-} from '../common/types'
-import { getRandomBigInt, isEthereumAddress } from '../utils'
-import { BasePaymentsAPI } from './base-payments'
+} from '../common/types.js'
+import { getRandomBigInt, isEthereumAddress } from '../utils.js'
+import { BasePaymentsAPI } from './base-payments.js'
+import * as Plans from '../plans.js'
 import {
   API_URL_REDEEM_PLAN,
   API_URL_GET_PLAN,
@@ -23,12 +25,148 @@ import {
   API_URL_PLAN_BALANCE,
   API_URL_REGISTER_PLAN,
   API_URL_STRIPE_CHECKOUT,
-} from './nvm-api'
+} from './nvm-api.js'
 
 /**
  * The PlansAPI class provides methods to register and interact with payment plans on Nevermined.
  */
 export class PlansAPI extends BasePaymentsAPI {
+  /** Price helpers */
+  /**
+   * Builds a Fiat price configuration for a plan.
+   *
+   * @param amount - Amount to charge in minor units (e.g., cents) as bigint.
+   * @param receiver - Wallet address that will receive the payment.
+   * @returns The PlanPriceConfig representing a fiat price.
+   */
+  public getFiatPriceConfig(amount: bigint, receiver: Address): PlanPriceConfig {
+    return Plans.getFiatPriceConfig(amount, receiver)
+  }
+
+  /**
+   * Builds a crypto price configuration for a plan.
+   *
+   * @param amount - Amount to charge in token minor units as bigint.
+   * @param receiver - Wallet address that will receive the payment.
+   * @param tokenAddress - Optional ERC20 token address. If omitted, native token is assumed.
+   * @returns The PlanPriceConfig representing a crypto price.
+   */
+  public getCryptoPriceConfig(
+    amount: bigint,
+    receiver: Address,
+    tokenAddress?: Address,
+  ): PlanPriceConfig {
+    return Plans.getCryptoPriceConfig(amount, receiver, tokenAddress)
+  }
+
+  /**
+   * Builds an ERC20 price configuration for a plan.
+   *
+   * @param amount - Amount to charge in token minor units as bigint.
+   * @param tokenAddress - ERC20 token contract address.
+   * @param receiver - Wallet address that will receive the payment.
+   * @returns The PlanPriceConfig representing an ERC20 price.
+   */
+  public getERC20PriceConfig(
+    amount: bigint,
+    tokenAddress: Address,
+    receiver: Address,
+  ): PlanPriceConfig {
+    return Plans.getERC20PriceConfig(amount, tokenAddress, receiver)
+  }
+
+  /**
+   * Builds a FREE price configuration (no payment required).
+   * @returns The PlanPriceConfig representing a free plan.
+   */
+  public getFreePriceConfig(): PlanPriceConfig {
+    return Plans.getFreePriceConfig()
+  }
+
+  /**
+   * Builds a native token price configuration for a plan.
+   *
+   * @param amount - Amount to charge in native token minor units as bigint.
+   * @param receiver - Wallet address that will receive the payment.
+   * @returns The PlanPriceConfig representing a native token price.
+   */
+  public getNativeTokenPriceConfig(amount: bigint, receiver: Address): PlanPriceConfig {
+    return Plans.getNativeTokenPriceConfig(amount, receiver)
+  }
+
+  /** Credits helpers */
+  /**
+   * Builds an EXPIRABLE credits configuration (time-based access).
+   *
+   * @param durationOfPlan - Duration in seconds.
+   * @returns The PlanCreditsConfig representing expirable credits.
+   */
+  public getExpirableDurationConfig(durationOfPlan: bigint): PlanCreditsConfig {
+    return Plans.getExpirableDurationConfig(durationOfPlan)
+  }
+
+  /**
+   * Builds a NON-EXPIRABLE credits configuration (no expiration).
+   * @returns The PlanCreditsConfig representing non-expirable credits.
+   */
+  public getNonExpirableDurationConfig(): PlanCreditsConfig {
+    return Plans.getNonExpirableDurationConfig()
+  }
+
+  /**
+   * Builds a FIXED credits configuration.
+   *
+   * @param creditsGranted - Total credits granted by the plan.
+   * @param creditsPerRequest - Credits spent per request (default 1n).
+   * @returns The PlanCreditsConfig representing fixed credits.
+   */
+  public getFixedCreditsConfig(creditsGranted: bigint, creditsPerRequest = 1n): PlanCreditsConfig {
+    return Plans.getFixedCreditsConfig(creditsGranted, creditsPerRequest)
+  }
+
+  /**
+   * Builds a DYNAMIC credits configuration (range-limited per request).
+   *
+   * @param creditsGranted - Total credits granted by the plan.
+   * @param minCreditsPerRequest - Minimum credits per request.
+   * @param maxCreditsPerRequest - Maximum credits per request.
+   * @returns The PlanCreditsConfig representing dynamic credits.
+   */
+  public getDynamicCreditsConfig(
+    creditsGranted: bigint,
+    minCreditsPerRequest = 1n,
+    maxCreditsPerRequest = 1n,
+  ): PlanCreditsConfig {
+    return Plans.getDynamicCreditsConfig(creditsGranted, minCreditsPerRequest, maxCreditsPerRequest)
+  }
+
+  /**
+   * Sets the redemption type in a credits configuration.
+   *
+   * @param creditsConfig - Credits configuration to modify.
+   * @param redemptionType - Redemption type to set.
+   * @returns The updated PlanCreditsConfig.
+   */
+  public setRedemptionType(
+    creditsConfig: PlanCreditsConfig,
+    redemptionType: PlanRedemptionType,
+  ): PlanCreditsConfig {
+    return Plans.setRedemptionType(creditsConfig, redemptionType)
+  }
+
+  /**
+   * Marks whether proof is required in a credits configuration.
+   *
+   * @param creditsConfig - Credits configuration to modify.
+   * @param proofRequired - Whether proof is required (default true).
+   * @returns The updated PlanCreditsConfig.
+   */
+  public setProofRequired(
+    creditsConfig: PlanCreditsConfig,
+    proofRequired = true,
+  ): PlanCreditsConfig {
+    return Plans.setProofRequired(creditsConfig, proofRequired)
+  }
   /**
    * This method is used to create a singleton instance of the PlansAPI class.
    *
@@ -274,7 +412,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(query, this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
+      throw PaymentsError.fromBackend('Plan not found', await response.json())
     }
     return response.json()
   }
@@ -303,10 +441,9 @@ export class PlansAPI extends BasePaymentsAPI {
     const query =
       API_URL_GET_PLAN_AGENTS.replace(':planId', planId) + '?' + pagination.asQueryParams()
     const url = new URL(query, this.environment.backend)
-    console.log(`Fetching agents for plan ${planId} from ${url.toString()}`)
     const response = await fetch(url)
     if (!response.ok) {
-      throw new PaymentsError(`Plan not found. ${response.statusText} - ${await response.text()}`)
+      throw PaymentsError.fromBackend('Plan not found', await response.json())
     }
     return response.json()
   }
@@ -336,9 +473,14 @@ export class PlansAPI extends BasePaymentsAPI {
     const holderAddress = isEthereumAddress(accountAddress)
       ? accountAddress
       : this.getAccountAddress()
+
+    if (!holderAddress) {
+      throw new PaymentsError('Holder address is required')
+    }
+
     const balanceUrl = API_URL_PLAN_BALANCE.replace(':planId', planId).replace(
       ':holderAddress',
-      holderAddress!,
+      holderAddress,
     )
 
     const options = {
@@ -351,9 +493,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(balanceUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to get balance. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to get balance', await response.json())
     }
 
     return response.json()
@@ -383,9 +523,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to order plan. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to order plan', await response.json())
     }
 
     return response.json()
@@ -417,9 +555,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to order fiat plan. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to order fiat plan', await response.json())
     }
 
     return response.json()
@@ -456,9 +592,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to mint plan credits. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to mint plan credits', await response.json())
     }
 
     return response.json()
@@ -502,9 +636,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to mint expirable credits. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to mint expirable credits', await response.json())
     }
 
     return response.json()
@@ -552,9 +684,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw new PaymentsError(
-        `Unable to redeem credits. ${response.statusText} - ${await response.text()}`,
-      )
+      throw PaymentsError.fromBackend('Unable to redeem credits', await response.json())
     }
 
     return response.json()

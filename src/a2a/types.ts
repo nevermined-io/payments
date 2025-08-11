@@ -20,11 +20,19 @@ import type {
   TaskState,
   Part,
   TaskStatusUpdateEvent,
-  ExecutionEventBus,
-  AgentExecutor,
-  RequestContext,
   PushNotificationConfig,
+  MessageSendParams,
+  SendMessageResponse,
+  TaskQueryParams,
+  GetTaskResponse,
+  TaskPushNotificationConfig,
+  SetTaskPushNotificationConfigResponse,
+  TaskIdParams,
+  GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
+
+import type { ExecutionEventBus, AgentExecutor, RequestContext } from '@a2a-js/sdk/server'
+import type { StartAgentRequest } from '../common/types.ts'
 
 /**
  * Context provided to the user's task handler.
@@ -103,6 +111,33 @@ export interface PaymentMetadata {
   costDescription?: string
 }
 
+/**
+ * Options required to register or retrieve a client in the registry.
+ */
+export interface ClientRegistryOptions {
+  agentBaseUrl: string
+  agentId: string
+  planId: string
+}
+
+/**
+ * Options for agent interaction methods (used by PaymentsClient).
+ */
+export interface AgentOptions {
+  agentId: string
+  planId?: string
+}
+
+/**
+ * HTTP context associated with a task or message (for internal request tracking).
+ */
+export type HttpRequestContext = {
+  bearerToken?: string
+  urlRequested?: string
+  httpMethodRequested?: string
+  validation: StartAgentRequest
+}
+
 // Re-export A2A SDK types for convenience
 export type {
   AgentCard,
@@ -116,7 +151,15 @@ export type {
   AgentExecutor,
   RequestContext,
   PushNotificationConfig,
+  MessageSendParams,
+  SendMessageResponse,
+  TaskQueryParams,
+  GetTaskResponse,
+  TaskPushNotificationConfig,
+  SetTaskPushNotificationConfigResponse,
+  TaskIdParams,
+  GetTaskPushNotificationConfigResponse,
 }
 
 // Re-export server options type for convenience
-export type { PaymentsA2AServerOptions } from './server'
+export type { PaymentsA2AServerOptions } from './server.ts'

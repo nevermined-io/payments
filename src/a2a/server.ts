@@ -12,9 +12,9 @@
  */
 import express from 'express'
 import http from 'http'
-import { InMemoryTaskStore, A2AExpressApp, AgentExecutor } from '@a2a-js/sdk'
-import type { AgentCard } from './types'
-import { PaymentsRequestHandler } from './paymentsRequestHandler'
+import { InMemoryTaskStore, A2AExpressApp, AgentExecutor } from '@a2a-js/sdk/server'
+import type { AgentCard, HttpRequestContext } from './types.js'
+import { PaymentsRequestHandler } from './paymentsRequestHandler.js'
 
 /**
  * Options for starting the PaymentsA2AServer.
@@ -74,41 +74,83 @@ export interface PaymentsA2AServerResult {
  * @param res - Express response object
  * @param next - Express next function
  */
-function _bearerTokenMiddleware(
+async function bearerTokenMiddleware(
   handler: PaymentsRequestHandler,
   req: express.Request,
   res: express.Response,
   next: express.NextFunction,
 ) {
-  console.log(`[MIDDLEWARE] Processing ${req.method} ${req.url}`)
-
   // Only process POST requests (A2A uses POST for all operations)
   if (req.method !== 'POST') {
-    console.log(`[MIDDLEWARE] Skipping non-POST request`)
     return next()
   }
 
   // Extract bearer token from Authorization header
   const authHeader = req.headers.authorization
-  let bearerToken: string | undefined
+  let bearerToken: string
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     bearerToken = authHeader.substring(7) // Remove 'Bearer ' prefix
-    console.log(`[MIDDLEWARE] Extracted bearer token: ${bearerToken.substring(0, 20)}...`)
   } else {
-    console.log(`[MIDDLEWARE] No bearer token found in headers`)
+    res.status(401).json({
+      error: {
+        code: -32001,
+        message: 'Missing bearer token.',
+      },
+    })
+    return
   }
 
   // Transform relative URL to absolute URL
-  const absoluteUrl = new URL(req.url, req.protocol + '://' + req.get('host')).toString()
-  const context = {
+  const absoluteUrl = new URL(req.originalUrl, req.protocol + '://' + req.get('host')).toString()
+
+  const agentCard = await handler.getAgentCard()
+  const paymentExtension = agentCard.capabilities?.extensions?.find(
+    (ext) => ext.uri === 'urn:nevermined:payment',
+  )
+
+  if (!paymentExtension?.params?.agentId) {
+    res.status(402).json({
+      error: {
+        code: -32001,
+        message: 'Agent ID not found in agent card payment extension.',
+      },
+    })
+    return
+  }
+
+  const agentId = paymentExtension.params.agentId as string
+
+  let validation: any
+  try {
+    validation = await handler.validateRequest(agentId, bearerToken, absoluteUrl, req.method)
+    if (!validation?.balance?.isSubscriber) {
+      res.status(402).json({
+        error: {
+          code: -32001,
+          message: 'Insufficient credits or invalid request.',
+        },
+      })
+      return
+    }
+  } catch (err) {
+    res.status(402).json({
+      error: {
+        code: -32001,
+        message: 'Payment validation failed: ' + (err instanceof Error ? err.message : String(err)),
+      },
+    })
+    return
+  }
+
+  const context: HttpRequestContext = {
     bearerToken,
     urlRequested: absoluteUrl,
     httpMethodRequested: req.method,
+    validation,
   }
-
   // Try to associate context with taskId or messageId
-  const taskId = req.body?.taskId || req.body?.id
+  const taskId = req.body?.taskId
   const messageId = req.body?.params?.message?.messageId
 
   if (taskId) {
@@ -244,7 +286,7 @@ export class PaymentsA2AServer {
     }
 
     if (exposeDefaultRoutes) {
-      appBuilder.setupRoutes(app, basePath) //, [bearerTokenMiddleware.bind(null, handler)])
+      appBuilder.setupRoutes(app, basePath, [bearerTokenMiddleware.bind(null, handler)])
     }
 
     if (exposeAgentCard) {
@@ -254,13 +296,17 @@ export class PaymentsA2AServer {
     }
 
     const server = http.createServer(app)
-    server.listen(port, () => {
-      console.log(`[PaymentsA2A] Server started on http://localhost:${port}${basePath}`)
-      if (exposeAgentCard) {
-        console.log(
-          `[PaymentsA2A] Agent Card: http://localhost:${port}${basePath}.well-known/agent.json`,
-        )
+
+    // Add error handling for server startup
+    server.on('error', (error: any) => {
+      console.error(`[PaymentsA2A] Server error:`, error)
+      if (error.code === 'EADDRINUSE') {
+        console.error(`[PaymentsA2A] Port ${port} is already in use`)
       }
+    })
+
+    server.listen(port, () => {
+      // Do nothing
     })
 
     return { app, server, handler }

@@ -39,12 +39,10 @@ const payments = Payments.getInstance({
 ## Using the Payments Library
 
 The library provides methods to manage AI Agents, Plans & process AI Agent Requests.
-Additionally to it, the library provides an integration with Google Agent2Agent (A2A) framework, allowing AI Agents to communicate with each other and using Nevermined as payment and access control.
 
 Each of these functionalities is encapsulated in its own API class:
 
 * `plans`: Manages AI Plans, including registration and ordering and retrieving plan details.
 * `agents`: Handles AI Agents, including registration of AI Agents and access token generation.
 * `requests`: Manages requests received by AI Agents, including validation and tracking.
-* `a2a`: Exposes A2A agent/server functionality for this Payments instance.
 

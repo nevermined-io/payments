@@ -1,5 +1,5 @@
 import { v4 as uuidv4, validate as uuidValidate } from 'uuid'
-import { Endpoint } from './common/types'
+import { Endpoint } from './common/types.js'
 
 /**
  * Validates if a string is a valid Ethereum address
