@@ -9,6 +9,8 @@ import { ClientRegistry } from './a2a/clientRegistry.js'
 import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/server.js'
 import { PaymentsA2AServer } from './a2a/server.js'
 import { buildPaymentAgentCard } from './a2a/agent-card.js'
+import * as mcpModule from './mcp/index.js'
+import type { PaymentsMCPServerOptions, PaymentsMCPServerResult } from './mcp/index.js'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -53,6 +55,17 @@ export class Payments extends BasePaymentsAPI {
           this._a2aRegistry = new ClientRegistry(this)
         }
         return this._a2aRegistry.getClient(options)
+      },
+    }
+  }
+
+  public get mcp() {
+    return {
+      start: (options: PaymentsMCPServerOptions) => {
+        return mcpModule.PaymentsMCPServer.start({
+          ...options,
+          paymentsService: this,
+        })
       },
     }
   }
