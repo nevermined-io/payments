@@ -1,121 +1,98 @@
-import { z } from "zod";
+import type { Payments } from '../payments.js'
+import { PaywallDecorator } from './core/paywall.js'
+import { PaywallAuthenticator } from './core/auth.js'
+import { CreditsContextProvider } from './core/credits-context.js'
+import type {
+  PaywallOptions,
+  ToolOptions,
+  ResourceOptions,
+  PromptOptions,
+} from './types/paywall.types.js'
+export type {
+  CreditsContext,
+  CreditsOption,
+  PaywallOptions,
+  McpConfig,
+} from './types/paywall.types.js'
 
 /**
- * Options to initialize the MCP server integration with Nevermined Payments.
- * @typedef {Object} PaymentsMCPServerOptions
- * @property {any} mcpServer - Instance of FastMCP server
- * @property {any} paymentsService - Instance of Payments
- * @property {Record<string, any>=} tools - Optional: additional or custom tools to register
+ * Build MCP integration with modular architecture.
+ * Only non-curried API is exposed per product requirement.
  */
-export interface PaymentsMCPServerOptions {
-  mcpServer: any; // FastMCP server instance
-  paymentsService: any; // Payments instance
-  tools?: Record<string, any>; // Optional: additional or custom tools
-}
+export function buildMcpIntegration(paymentsService: Payments) {
+  const authenticator = new PaywallAuthenticator(paymentsService)
+  const creditsContext = new CreditsContextProvider()
+  const paywallDecorator = new PaywallDecorator(paymentsService, authenticator, creditsContext)
 
-/**
- * Result of initializing the MCP server integration with Nevermined Payments.
- * @typedef {Object} PaymentsMCPServerResult
- * @property {string[]} registeredTools - List of registered tool names
- */
-export interface PaymentsMCPServerResult {
-  registeredTools: string[];
-}
-
-/**
- * Class to integrate Nevermined Payments with MCP (FastMCP) servers.
- * Automatically registers all the necessary tools for payment management, access tokens, plan purchase, etc.
- *
- * @class PaymentsMCPServer
- */
-export class PaymentsMCPServer {
-  /**
-   * Registers Nevermined tools in the MCP server.
-   *
-   * @param {PaymentsMCPServerOptions} options - Configuration options
-   * @returns {PaymentsMCPServerResult} - Result with registered tool names
-   *
-   * @example
-   * ```typescript
-   * PaymentsMCPServer.start({
-   *   mcpServer,
-   *   paymentsService,
-   *   tools: { /* custom tools *\/ }
-   * })
-   * ```
-   */
-  static start({
-    mcpServer,
-    paymentsService,
-    tools = {},
-  }: PaymentsMCPServerOptions): PaymentsMCPServerResult {
-    const registeredTools: string[] = [];
-
-    // Tool: Obtain agent access token (secure proxy)
-    mcpServer.addTool({
-      name: "getAgentAccessTokenProxy",
-      description: "Obtain a Nevermined agent access token using your API Key (never stored).",
-      parameters: z.object({
-        nvmApiKey: z.string().min(10, "API Key required"),
-        planId: z.string().min(1, "Plan ID required"),
-        agentId: z.string().min(1, "Agent ID required"),
-      }),
-      /**
-       * @param args - Arguments containing the user's API Key, planId, and agentId
-       * @returns {Promise<object>} - Agent access credentials
-       */
-      execute: async (args: any) => {
-        const userPayments = paymentsService.constructor.getInstance({
-          ...paymentsService.config,
-          nvmApiKey: args.nvmApiKey,
-        });
-        return await userPayments.agents.getAgentAccessToken(args.planId, args.agentId);
-      },
-      ...tools.getAgentAccessTokenProxy,
-    });
-    registeredTools.push("getAgentAccessTokenProxy");
-
-    // Tool: List all payment plans associated with an agent
-    mcpServer.addTool({
-      name: "listAgentPlans",
-      description: "List all payment plans associated with an agent.",
-      parameters: z.object({
-        agentId: z.string().min(1, "Agent ID required"),
-      }),
-      /**
-       * @param args - Arguments containing the agentId
-       * @returns {Promise<object>} - List of plans for the agent
-       */
-      execute: async (args: any) => {
-        return await paymentsService.agents.getAgentPlans(args.agentId);
-      },
-      ...tools.listAgentPlans,
-    });
-    registeredTools.push("listAgentPlans");
-
-    // Tool: Purchase a payment plan for an agent
-    mcpServer.addTool({
-      name: "purchasePlan",
-      description: "Purchase a payment plan for an agent.",
-      parameters: z.object({
-        nvmApiKey: z.string().min(10, "API Key required"),
-        planId: z.string().min(1, "Plan ID required"),
-      }),
-      /**
-       * @param args - Arguments containing the user's API Key and planId
-       * @returns {Promise<object>} - Result of the purchase operation
-       */
-      execute: async (args: any) => {
-        const userPayments = paymentsService.constructor.getInstance({
-          ...paymentsService.config,
-          nvmApiKey: args.nvmApiKey,
-        });
-        return await userPayments.plans.orderPlan(args.planId);
-      },
-      ...tools.purchasePlan,
-    });
-    registeredTools.push("purchasePlan");
-
-    return { registeredTools };
+  function configure(options: { agentId: string; serverName?: string }) {
+    paywallDecorator.configure(options)
   }
-} 
+
+  function withPaywall<TArgs = any>(
+    handler: (args: TArgs, extra?: any) => Promise<any> | any,
+    options: ToolOptions | PromptOptions,
+  ): (args: TArgs, extra?: any) => Promise<any>
+  function withPaywall<TArgs = any>(
+    handler: (args: TArgs, extra?: any) => Promise<any> | any,
+  ): (args: TArgs, extra?: any) => Promise<any>
+  function withPaywall(
+    handler: (
+      uri: URL,
+      variables: Record<string, string | string[]>,
+      extra?: any,
+    ) => Promise<any> | any,
+    options: ResourceOptions,
+  ): (uri: URL, variables: Record<string, string | string[]>, extra?: any) => Promise<any>
+  function withPaywall(handler: any, options?: ToolOptions | PromptOptions | ResourceOptions): any {
+    const opts =
+      (options as PaywallOptions | undefined) ?? ({ kind: 'tool', name: 'unnamed' } as any)
+    return (paywallDecorator.protect as any)(handler, opts)
+  }
+
+  function attach(server: {
+    registerTool: (name: string, config: any, handler: any) => void
+    registerResource: (name: string, template: any, config: any, handler: any) => void
+    registerPrompt: (name: string, config: any, handler: any) => void
+  }) {
+    return {
+      registerTool<TArgs = any>(
+        name: string,
+        config: any,
+        handler: (args: TArgs, extra?: any) => Promise<any> | any,
+        options?: Omit<ToolOptions, 'kind' | 'name'>,
+      ) {
+        const protectedHandler = withPaywall(handler, { kind: 'tool', name, ...(options || {}) })
+        server.registerTool(name, config, protectedHandler)
+      },
+      registerResource(
+        name: string,
+        template: any,
+        config: any,
+        handler: (
+          uri: URL,
+          variables: Record<string, string | string[]>,
+          extra?: any,
+        ) => Promise<any> | any,
+        options?: Omit<ResourceOptions, 'kind' | 'name'>,
+      ) {
+        const protectedHandler = withPaywall(handler, {
+          kind: 'resource',
+          name,
+          ...(options || {}),
+        })
+        server.registerResource(name, template, config, protectedHandler)
+      },
+      registerPrompt<TArgs = any>(
+        name: string,
+        config: any,
+        handler: (args: TArgs, extra?: any) => Promise<any> | any,
+        options?: Omit<PromptOptions, 'kind' | 'name'>,
+      ) {
+        const protectedHandler = withPaywall(handler, { kind: 'prompt', name, ...(options || {}) })
+        server.registerPrompt(name, config, protectedHandler)
+      },
+    }
+  }
+
+  return { configure, withPaywall, attach }
+}

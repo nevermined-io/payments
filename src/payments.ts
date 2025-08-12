@@ -10,7 +10,6 @@ import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/se
 import { PaymentsA2AServer } from './a2a/server.js'
 import { buildPaymentAgentCard } from './a2a/agent-card.js'
 import * as mcpModule from './mcp/index.js'
-import type { PaymentsMCPServerOptions, PaymentsMCPServerResult } from './mcp/index.js'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -30,6 +29,13 @@ export class Payments extends BasePaymentsAPI {
   public agents!: AgentsAPI
   public requests!: AgentRequestsAPI
   private _a2aRegistry?: ClientRegistry
+
+  /**
+   * Cached MCP integration to preserve configuration (e.g., agentId, serverName)
+   * across multiple getter accesses. This ensures callers do not need to retain
+   * a reference to a previously configured instance.
+   */
+  private _mcpIntegration?: ReturnType<typeof mcpModule.buildMcpIntegration>
 
   /**
    * Exposes A2A server and client registry methods.
@@ -59,15 +65,15 @@ export class Payments extends BasePaymentsAPI {
     }
   }
 
+  /**
+   * Returns the MCP integration API. The instance is memoized so that configuration
+   * set via `configure({ agentId, serverName })` persists across calls.
+   */
   public get mcp() {
-    return {
-      start: (options: PaymentsMCPServerOptions) => {
-        return mcpModule.PaymentsMCPServer.start({
-          ...options,
-          paymentsService: this,
-        })
-      },
+    if (!this._mcpIntegration) {
+      this._mcpIntegration = mcpModule.buildMcpIntegration(this)
     }
+    return this._mcpIntegration
   }
 
   /**

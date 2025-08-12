@@ -19,6 +19,16 @@
     "ai-payments",
     "ai-payments-protocol"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
+    }
+  },
   "scripts": {
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build": "tsc",
@@ -27,6 +37,7 @@
     "test:unit": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/unit",
     "test:integration": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/integration",
     "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e --runInBand",
+    "test:e2e:mcp": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e/mcp --runInBand",
     "test:all": "jest --verbose --config ./tests/jest.config.json",
     "test:debug": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --require ts-node/register node_modules/.bin/jest --runInBand --config ./tests/jest.config.json",
     "test:debug-integration": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --require ts-node/register node_modules/.bin/jest --runInBand --config ./tests/jest.config.json --testPathPattern=tests/integration",
@@ -60,7 +71,8 @@
     "tsconfig-paths": "^4.2.0",
     "tslib": "^2.6.2",
     "typedoc": "0.25.13",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@modelcontextprotocol/sdk": "^1.17.2"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.2.5",
