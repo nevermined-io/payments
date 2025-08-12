@@ -1,5 +1,3 @@
-import { PaymentsError } from '../../common/payments.error.js'
-
 /**
  * Error utilities and common JSON-RPC error codes used by the MCP paywall.
  */
@@ -9,16 +7,16 @@ export const ERROR_CODES = {
   PaymentRequired: -32003,
 } as const
 
-const ERROR_CODES_MAP = {
-  [ERROR_CODES.Misconfiguration]: PaymentsError.internal,
-  [ERROR_CODES.PaymentRequired]: PaymentsError.paymentRequired,
-}
-
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
 
 /**
- * Create a JSON-RPC-like error object preserving code and message.
+ * Create a JSON-RPC-like error object preserving numeric code and message.
+ * Returns an Error instance augmented with a numeric `code` and optional `data`.
  */
-export function createRpcError(code: ErrorCode, message: string, _data?: any) {
-  return ERROR_CODES_MAP[code](message)
+export function createRpcError(code: ErrorCode, message: string, data?: any) {
+  const rpcError = new Error(message) as Error & { code: number; data?: any }
+  rpcError.name = 'JSONRpcError'
+  rpcError.code = code
+  if (data !== undefined) rpcError.data = data
+  return rpcError
 }
