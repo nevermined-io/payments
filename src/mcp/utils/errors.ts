@@ -19,6 +19,6 @@ export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
 /**
  * Create a JSON-RPC-like error object preserving code and message.
  */
-export function createRpcError(code: ErrorCode, message: string, data?: any) {
+export function createRpcError(code: ErrorCode, message: string, _data?: any) {
   return ERROR_CODES_MAP[code](message)
 }

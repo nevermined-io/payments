@@ -11,10 +11,10 @@ import { CreditsOption, CreditsContext, AuthResult } from '../types/paywall.type
 export class CreditsContextProvider {
   /**
    * Resolve the credits to redeem based on the provided option.
-   * @param creditsOption Credits configuration (fixed bigint or function).
-   * @param args Original handler arguments.
-   * @param result Handler result.
-   * @param authResult Authentication result with request metadata.
+   * @param creditsOption - Credits configuration (fixed bigint or function).
+   * @param args - Original handler arguments.
+   * @param result - Handler result.
+   * @param authResult - Authentication result with request metadata.
    * @returns Credits to redeem as bigint. Defaults to 1n when option is not provided.
    */
   resolve(
@@ -46,7 +46,7 @@ export class CreditsContextProvider {
 
   /**
    * Extract tool name from a logical MCP URL.
-   * @param logicalUrl Logical URL string.
+   * @param logicalUrl - Logical URL string.
    * @returns Tool name derived from the URL path.
    */
   private extractToolNameFromUrl(logicalUrl: string): string {
