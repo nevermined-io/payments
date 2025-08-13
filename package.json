@@ -37,12 +37,6 @@
     "test:unit": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/unit",
     "test:integration": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/integration",
     "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e --runInBand",
-    "test:e2e:mcp": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e/mcp --runInBand",
-    "test:all": "jest --verbose --config ./tests/jest.config.json",
-    "test:debug": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --require ts-node/register node_modules/.bin/jest --runInBand --config ./tests/jest.config.json",
-    "test:debug-integration": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --require ts-node/register node_modules/.bin/jest --runInBand --config ./tests/jest.config.json --testPathPattern=tests/integration",
-    "debug:direct": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --loader ts-node/esm debug-test.js",
-    "debug:simple": "NODE_OPTIONS='--enable-source-maps --require source-map-support/register' node --inspect-brk --require ts-node/register --require tsconfig-paths/register tests/integration/a2a.integration.test.ts",
     "format": "prettier --check ./src",
     "prepublishOnly": "yarn build",
     "doc": "typedoc --out docs ./src"

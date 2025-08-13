@@ -215,7 +215,14 @@ const response = await fetch(new URL(agentURL), agentHTTPOptions)
 
 ## MCP (Model Context Protocol)
 
-Minimal Nevermined integration to protect MCP handlers and burn credits.
+### What is MCP
+
+- MCP is a protocol for LLM apps to call external tools/resources/prompts via JSON‑RPC over HTTP (plus SSE streams). Think of it as an USB-C interface for LLMs
+- MCP servers expose handlers (tools/resources/prompts) with their logical urls, such as mcp://mcp-server/tools/my-tooling. Clients send requests with `Authorization: Bearer <token>`, protected by Nevermined Payments Engine and receive JSON‑RPC results or errors.
+
+### Integration API
+
+Nevermined integration to protect MCP handlers and burn credits.
 
 ### Steps
 
@@ -228,7 +235,7 @@ const payments = Payments.getInstance({ nvmApiKey, environment })
 // 2) Configure the MCP wrapper
 payments.mcp.configure({ agentId: process.env.NVM_AGENT_ID!, serverName: 'my-mcp' })
 
-// 3) Wrap your handlers
+// 3) Wrap your handlers (works for both high-level and low-level servers)
 // Tool
 const toolHandler = async ({ city }: { city: string }) => ({
   content: [{ type: 'text', text: `Weather for ${city}` }],
@@ -238,9 +245,10 @@ const protectedTool = payments.mcp.withPaywall(toolHandler, {
   name: 'weather.today',
   credits: 2n, // or (ctx) => bigint
 })
-// server.registerTool('weather.today', config, protectedTool)
+// High-level: server.registerTool('weather.today', config, protectedTool)
+// Low-level: const tools = new Map([[ 'weather.today', protectedTool ]])
 
-// Resource (no repetition using attach())
+// Alternative registration:
 const { registerResource } = payments.mcp.attach(server)
 const resourceHandler = async (uri: URL, vars: Record<string, string | string[]>) => ({
   contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify({ city: vars.city }) }],
@@ -248,7 +256,8 @@ const resourceHandler = async (uri: URL, vars: Record<string, string | string[]>
 registerResource('weather-today', template, config, resourceHandler, { credits: 1n })
 ```
 
-Note: `payments.mcp` is memoized internally. Once you call `configure({ agentId, serverName })`, the configuration persists across subsequent `payments.mcp` accesses without needing to keep a reference.
+Notes:
+ - Low-level servers should keep their own routing tables (e.g., Maps) and call protected handlers directly, passing an `extra` object with `headers.Authorization` (e.g., `extra = { headers: req.headers }`). 
 
 ### JSON‑RPC errors
 

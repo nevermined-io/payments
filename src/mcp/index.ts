@@ -14,6 +14,7 @@ export type {
   PaywallOptions,
   McpConfig,
 } from './types/paywall.types.js'
+export { buildExtraFromHttpHeaders, buildExtraFromHttpRequest } from './utils/extra.js'
 
 /**
  * Build MCP integration with modular architecture.

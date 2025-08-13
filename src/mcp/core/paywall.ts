@@ -100,9 +100,16 @@ export class PaywallDecorator {
       // 3. Resolve credits to burn (defaults to 1n when undefined)
       const credits = this.creditsContext.resolve(options?.credits, argsOrVars, result, authResult)
 
-      // 4. Redeem credits
-      await this.redeemCredits(authResult.requestId, authResult.token, credits, options)
+      // 4. If the result is an AsyncIterable (stream), redeem on completion
+      if (isAsyncIterable(result)) {
+        const onFinally = async () => {
+          await this.redeemCredits(authResult.requestId, authResult.token, credits, options)
+        }
+        return wrapAsyncIterable(result, onFinally)
+      }
 
+      // 5. Non-streaming: redeem immediately
+      await this.redeemCredits(authResult.requestId, authResult.token, credits, options)
       return result
     }
   }
@@ -127,4 +134,28 @@ export class PaywallDecorator {
       // Default: ignore redemption errors
     }
   }
+}
+
+/**
+ * Type guard to detect AsyncIterable values.
+ */
+function isAsyncIterable<T = unknown>(value: any): value is AsyncIterable<T> {
+  return value != null && typeof value[Symbol.asyncIterator] === 'function'
+}
+
+/**
+ * Wrap an AsyncIterable so a callback runs when the stream finishes or errors.
+ * The wrapped iterable yields the same chunks and triggers onFinally in a finally block.
+ */
+function wrapAsyncIterable<T>(iterable: AsyncIterable<T>, onFinally: () => Promise<void>) {
+  async function* generator() {
+    try {
+      for await (const chunk of iterable) {
+        yield chunk as T
+      }
+    } finally {
+      await onFinally()
+    }
+  }
+  return generator()
 }

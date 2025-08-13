@@ -137,9 +137,9 @@ describe('MCP Paywall (unit + edge cases)', () => {
       registerPrompt: jest.fn(),
     }
 
-    const { registerResource } = (mcp as any).attach(server)
+    const { registerResource } = mcp.attach(server)
 
-    const handler = async (_uri: URL, _vars: Record<string, string>) => ({
+    const handler = async (_uri: URL, _vars: Record<string, string | string[]>) => ({
       contents: [{ uri: 'mcp://srv/res', mimeType: 'application/json', text: '{}' }],
     })
 
@@ -156,5 +156,93 @@ describe('MCP Paywall (unit + edge cases)', () => {
       'token',
       3n,
     )
+  })
+
+  it('accepts Authorization header from multiple header containers across transports', async () => {
+    const tokens = ['A', 'B', 'C', 'D', 'E']
+    const variants = [
+      { requestInfo: { headers: { authorization: `Bearer ${tokens[0]}` } } },
+      { request: { headers: { Authorization: `Bearer ${tokens[1]}` } } },
+      { headers: { authorization: `Bearer ${tokens[2]}` } },
+      { connection: { headers: { authorization: `Bearer ${tokens[3]}` } } },
+      { socket: { handshake: { headers: { Authorization: `Bearer ${tokens[4]}` } } } },
+    ]
+
+    const payments = createPaymentsMock()
+    const mcp = buildMcpIntegration(payments)
+    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+    const base = async () => ({ ok: true })
+    const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'hdr', credits: 1n })
+
+    for (let i = 0; i < variants.length; i++) {
+      payments.requests.startProcessingRequest.mockClear()
+      payments.requests.redeemCreditsFromRequest.mockClear()
+      await wrapped({}, variants[i] as any)
+      expect(payments.requests.startProcessingRequest).toHaveBeenCalled()
+      expect(payments.requests.redeemCreditsFromRequest).toHaveBeenCalledWith(
+        'req-1',
+        tokens[i],
+        1n,
+      )
+    }
+  })
+
+  it('redeems credits only after an AsyncIterable stream completes', async () => {
+    const payments = createPaymentsMock()
+    const mcp = buildMcpIntegration(payments)
+    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+    const makeIterable = (chunks: string[]): AsyncIterable<string> => ({
+      async *[Symbol.asyncIterator]() {
+        for (const c of chunks) {
+          await Promise.resolve()
+          yield c
+        }
+      },
+    })
+
+    const base = async () => makeIterable(['one', 'two', 'three'])
+    const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'stream', credits: 5n })
+    const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
+
+    const iterable = await wrapped({}, extra)
+    expect(payments.requests.redeemCreditsFromRequest).not.toHaveBeenCalled()
+
+    const received: string[] = []
+    for await (const chunk of iterable as AsyncIterable<string>) {
+      received.push(chunk)
+    }
+
+    expect(received).toEqual(['one', 'two', 'three'])
+    expect(payments.requests.redeemCreditsFromRequest).toHaveBeenCalledWith('req-1', 'tok', 5n)
+  })
+
+  it('redeems credits when consumer stops the stream early (break)', async () => {
+    const payments = createPaymentsMock()
+    const mcp = buildMcpIntegration(payments)
+    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+    const makeIterable = (chunks: string[]): AsyncIterable<string> => ({
+      async *[Symbol.asyncIterator]() {
+        for (const c of chunks) {
+          await Promise.resolve()
+          yield c
+        }
+      },
+    })
+
+    const base = async () => makeIterable(['one', 'two', 'three'])
+    const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'stream', credits: 2n })
+    const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
+
+    const iterable = await wrapped({}, extra)
+    let count = 0
+    for await (const _ of iterable as AsyncIterable<string>) {
+      count++
+      break
+    }
+    expect(count).toBe(1)
+    expect(payments.requests.redeemCreditsFromRequest).toHaveBeenCalledWith('req-1', 'tok', 2n)
   })
 })
