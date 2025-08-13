@@ -46,6 +46,14 @@ export function buildLogicalResourceUrl(
 }
 
 /**
+ * Build a logical URL for MCP meta operations (initialize, tools/list, resources/list, prompts/list).
+ */
+export function buildLogicalMetaUrl(serverName: string, method: string): string {
+  const safe = typeof method === 'string' ? method : 'unknown'
+  return `mcp://${serverName}/meta/${safe}`
+}
+
+/**
  * Build a logical URL based on request kind.
  */
 export function buildLogicalUrl(options: {

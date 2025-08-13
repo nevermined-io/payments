@@ -50,6 +50,19 @@ export function buildMcpIntegration(paymentsService: Payments) {
     return (paywallDecorator.protect as any)(handler, opts)
   }
 
+  /**
+   * Simple helper to authenticate meta MCP operations (e.g., initialize, tools/resources/prompts list).
+   * Usage on server routers: await mcp.authenticateMeta(extra, method)
+   */
+  async function authenticateMeta(extra: any, method: string) {
+    // agentId/serverName are configured via configure(...)
+    // We leverage the same authenticator used by withPaywall for consistent behavior and messages.
+    const cfg: any = (paywallDecorator as any).config || {}
+    const agentId = cfg.agentId || ''
+    const serverName = cfg.serverName || 'mcp-server'
+    return authenticator.authenticateMeta(extra, agentId, serverName, method)
+  }
+
   function attach(server: {
     registerTool: (name: string, config: any, handler: any) => void
     registerResource: (name: string, template: any, config: any, handler: any) => void
@@ -95,5 +108,5 @@ export function buildMcpIntegration(paymentsService: Payments) {
     }
   }
 
-  return { configure, withPaywall, attach }
+  return { configure, withPaywall, attach, authenticateMeta }
 }
