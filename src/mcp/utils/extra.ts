@@ -1,6 +1,6 @@
 /**
  * Build an MCP-compatible extra object from raw HTTP headers.
- * This normalizes the shape to { requestInfo: { headers } } so the
+ * This normalizes the shape to \{ requestInfo: \{ headers \} \} so the
  * authenticator can extract the Authorization header consistently across transports.
  *
  * @param headers - A headers-like record (e.g., Node/Express headers)

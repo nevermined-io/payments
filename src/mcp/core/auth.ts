@@ -125,7 +125,9 @@ export class PaywallAuthenticator {
             .join(', ')
           plansMsg = summary ? ` Available plans: ${summary}...` : ''
         }
-      } catch {}
+      } catch (_err) {
+        void _err
+      }
 
       throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
         reason: 'invalid',
