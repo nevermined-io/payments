@@ -7,6 +7,13 @@ export * from './common/helper.js'
 export * from './api/query-api.js'
 export * from './api/observability-api.js'
 export type { BackendApiOptions } from './api/nvm-api.js'
+// MCP public types
+export type {
+  CreditsContext,
+  CreditsOption,
+  PaywallOptions,
+  McpConfig,
+} from './mcp/types/paywall.types.js'
 
 export type {
   AgentCard,

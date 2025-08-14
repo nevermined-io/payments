@@ -1,6 +1,6 @@
 {
   "name": "@nevermined-io/payments",
-  "version": "1.0.0-rc9",
+  "version": "1.0.0-rc10",
   "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,6 +19,16 @@
     "ai-payments",
     "ai-payments-protocol"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
+    }
+  },
   "scripts": {
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build": "tsc",
@@ -26,12 +36,7 @@
     "test": "jest --verbose --config ./tests/jest.config.json",
     "test:unit": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/unit",
     "test:integration": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/integration",
-    "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e",
-    "test:all": "jest --verbose --config ./tests/jest.config.json",
-    "test:debug": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --require ts-node/register node_modules/.bin/jest --runInBand --config ./tests/jest.config.json",
-    "test:debug-integration": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --require ts-node/register node_modules/.bin/jest --runInBand --config ./tests/jest.config.json --testPathPattern=tests/integration",
-    "debug:direct": "NODE_OPTIONS='--enable-source-maps' node --inspect-brk --loader ts-node/esm debug-test.js",
-    "debug:simple": "NODE_OPTIONS='--enable-source-maps --require source-map-support/register' node --inspect-brk --require ts-node/register --require tsconfig-paths/register tests/integration/a2a.integration.test.ts",
+    "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e --runInBand",
     "format": "prettier --check ./src",
     "prepublishOnly": "yarn build",
     "doc": "typedoc --out docs ./src"
@@ -60,7 +65,8 @@
     "tsconfig-paths": "^4.2.0",
     "tslib": "^2.6.2",
     "typedoc": "0.25.13",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@modelcontextprotocol/sdk": "^1.17.2"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.2.5",
@@ -69,7 +75,8 @@
     "express": "4.21.2",
     "jose": "^5.2.4",
     "js-file-download": "^0.4.12",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "zod": "^4.0.17"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

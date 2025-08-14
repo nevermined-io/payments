@@ -7,7 +7,6 @@ import {
   PlanMetadata,
   PlanPriceType,
 } from '../../src/common/types.js'
-import { PaymentsError } from '../../src/common/payments.error.js'
 import { EnvironmentName, ZeroAddress } from '../../src/environments.js'
 import { Payments } from '../../src/payments.js'
 import {
@@ -16,6 +15,7 @@ import {
   getFiatPriceConfig,
   getFixedCreditsConfig,
   getFreePriceConfig,
+  getDynamicCreditsConfig,
   getNativeTokenPriceConfig,
   getNonExpirableDurationConfig,
   ONE_DAY_DURATION,
@@ -33,7 +33,7 @@ describe('Payments API (e2e)', () => {
 
   const builderNvmApiKeyHash =
     process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhmMDQ1QkM3QzA0RjRjYzViNjNjOTcyNWM1YTZCMzI5OWQ0YUMxRTIiLCJqdGkiOiIweDMxNDYzZWNhMThhMWE3YjA0YmE3OWYwZGQ5MjcyZGJhOTJmN2RhODdjMzk4ZTUzMzI2ZGVlMTIyMmM5NWQ1ODEiLCJleHAiOjE3ODU1MDMwNjl9.-7CTE0shh75g09x66adB1-B4tz1KRx8_1jtm2tqDlj12gXeb29_kiBg1dL3Tc7pgFEuTU0AD5EWrRr8ys4RO2Rw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEU1YThEYUIzMzUxYzU2MTZlYWE3Nzc1M0MwZDdGMmQ4OTRDN0NiRDkiLCJqdGkiOiIweGYwYjFjOWRhYTU0ZjNkNTgwM2U0Zjg4MzgyMjYwNmI2YWNiNThjOTBkNjE5YzQyNjQ2Zjg5ZTQzMTUwZjg2YWMiLCJleHAiOjE3ODY2MzI0NzB9.iis0jzVf1ztZirhxmTf4HTdZzMFEZp2utP0-ckuCtbV3v84yyjVO6eaAnN_hS0P-6RsWRPMhr998BZVk6Skouhs'
 
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
@@ -46,6 +46,7 @@ describe('Payments API (e2e)', () => {
   let paymentsBuilder: Payments
 
   let creditsPlanId: string
+  let dynamicCreditsPlanId: string
   let expirablePlanId: string
   let trialPlanId: string
   let fiatPlanId: string
@@ -95,7 +96,7 @@ describe('Payments API (e2e)', () => {
     })
 
     it(
-      'I should be able to register a new Credits Payment Plan',
+      'I should be able to register a new Fixed Credits Payment Plan',
       async () => {
         const priceConfig = getERC20PriceConfig(1n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
@@ -122,6 +123,38 @@ describe('Payments API (e2e)', () => {
         expect(creditsPlanId).toBeDefined()
         expect(BigInt(creditsPlanId) > 0n).toBeTruthy()
         console.log('Credits Plan ID', creditsPlanId)
+      },
+      TEST_TIMEOUT,
+    )
+
+    it(
+      'I should be able to register a new Dynamic Credits Payment Plan',
+      async () => {
+        const priceConfig = getERC20PriceConfig(10_000n, ERC20_ADDRESS, builderAddress)
+        const creditsConfig = getDynamicCreditsConfig(1000n, 5n, 15n)
+        console.log(' **** PRICE CONFIG ***', priceConfig)
+
+        const response = await E2ETestUtils.retryWithBackoff(async () => {
+          const result = await paymentsBuilder.plans.registerCreditsPlan(
+            { ...planMetadata, name: 'Dynamic Credits Plan' },
+            priceConfig,
+            creditsConfig,
+          )
+
+          // Validate the response
+          if (!result.planId) {
+            throw new Error('Credits plan registration failed: no planId returned')
+          }
+
+          return result
+        }, 'Dynamic Credits Plan Registration')
+
+        expect(response).toBeDefined()
+        dynamicCreditsPlanId = response.planId
+
+        expect(dynamicCreditsPlanId).toBeDefined()
+        expect(BigInt(dynamicCreditsPlanId) > 0n).toBeTruthy()
+        console.log('Dynamic Credits Plan ID', dynamicCreditsPlanId)
       },
       TEST_TIMEOUT,
     )
@@ -203,7 +236,7 @@ describe('Payments API (e2e)', () => {
         const agentApi = {
           endpoints: AGENT_ENDPOINTS,
         }
-        const paymentPlans = [creditsPlanId, expirablePlanId]
+        const paymentPlans = [creditsPlanId, expirablePlanId, dynamicCreditsPlanId]
 
         const result = await E2ETestUtils.retryWithBackoff(async () => {
           const response = await paymentsBuilder.agents.registerAgent(
@@ -216,6 +249,8 @@ describe('Payments API (e2e)', () => {
           if (!response.agentId) {
             throw new Error('Agent registration failed: no agentId returned')
           }
+
+          console.log('Agent registration response', response)
 
           return response
         }, 'Agent Registration')
