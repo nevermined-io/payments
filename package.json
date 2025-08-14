@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.2.5",
+    "@helicone/helpers": "^1.6.0",
     "axios": "^1.7.7",
     "express": "4.21.2",
     "jose": "^5.2.4",

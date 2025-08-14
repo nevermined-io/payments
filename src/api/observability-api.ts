@@ -1,12 +1,12 @@
 /**
- * @file observability-api.ts
- * @description Provides reusable utilities for wrapping API calls with Helicone logging for AI agents
+ * observability-api.ts
+ * Provides reusable utilities for wrapping API calls with Helicone logging for AI agents
  */
 
-import { HeliconeManualLogger } from "@helicone/helpers";
-import { generateDeterministicAgentId, generateSessionId, logSessionInfo } from "../utils.js";
-import { BasePaymentsAPI } from './base-payments.js';
-import { PaymentOptions } from '../common/types.js';
+import { HeliconeManualLogger } from '@helicone/helpers'
+import { generateDeterministicAgentId, generateSessionId, logSessionInfo } from '../utils.js'
+import { BasePaymentsAPI } from './base-payments.js'
+import { PaymentOptions } from '../common/types.js'
 
 // Helicone API URLs
 export const HELICONE_BASE_LOGGING_URL = 'http://localhost:8585/v1/gateway/oai/v1' //'https://oai.helicone.ai/v1
@@ -16,39 +16,39 @@ export const HELICONE_MANUAL_LOGGING_URL = 'http://localhost:8585/v1/trace/custo
  * Configuration for creating a Helicone payload
  */
 export interface HeliconePayloadConfig {
-  model: string;
-  inputData: Record<string, any>;
-  temperature?: number;
-  top_p?: number;
-  frequency_penalty?: number;
-  presence_penalty?: number;
-  n?: number;
-  stream?: boolean;
+  model: string
+  inputData: Record<string, any>
+  temperature?: number
+  top_p?: number
+  frequency_penalty?: number
+  presence_penalty?: number
+  n?: number
+  stream?: boolean
 }
 
 /**
  * Configuration for creating a Helicone response
  */
 export interface HeliconeResponseConfig {
-  idPrefix: string;
-  model: string;
-  resultData: any;
+  idPrefix: string
+  model: string
+  resultData: any
   usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
     prompt_tokens_details?: {
-      cached_tokens: number;
-      audio_tokens: number;
-    };
+      cached_tokens: number
+      audio_tokens: number
+    }
     completion_tokens_details?: {
-      reasoning_tokens: number;
-      audio_tokens: number;
-      accepted_prediction_tokens: number;
-      rejected_prediction_tokens: number;
-    };
-  };
-  systemFingerprint?: string;
+      reasoning_tokens: number
+      audio_tokens: number
+      accepted_prediction_tokens: number
+      rejected_prediction_tokens: number
+    }
+  }
+  systemFingerprint?: string
 }
 
 /**
@@ -65,36 +65,36 @@ export function createHeliconePayload(config: HeliconePayloadConfig) {
     stream: config.stream ?? false,
     messages: [
       {
-        role: "user",
-        content: JSON.stringify(config.inputData)
-      }
-    ]
-  };
+        role: 'user',
+        content: JSON.stringify(config.inputData),
+      },
+    ],
+  }
 }
 
 /**
  * Creates a standardized Helicone response for API logging
  */
 export function createHeliconeResponse(config: HeliconeResponseConfig) {
-  const timestamp = Date.now();
-  
+  const timestamp = Date.now()
+
   return {
     id: `${config.idPrefix}-${timestamp}`,
-    object: "chat.completion",
+    object: 'chat.completion',
     created: Math.floor(timestamp / 1000),
     model: config.model,
     choices: [
       {
         index: 0,
         message: {
-          role: "assistant",
+          role: 'assistant',
           content: JSON.stringify(config.resultData),
           refusal: null,
-          annotations: []
+          annotations: [],
         },
         logprobs: null,
-        finish_reason: "stop"
-      }
+        finish_reason: 'stop',
+      },
     ],
     usage: {
       prompt_tokens: config.usage.prompt_tokens,
@@ -102,23 +102,23 @@ export function createHeliconeResponse(config: HeliconeResponseConfig) {
       total_tokens: config.usage.total_tokens,
       prompt_tokens_details: config.usage.prompt_tokens_details ?? {
         cached_tokens: 0,
-        audio_tokens: 0
+        audio_tokens: 0,
       },
       completion_tokens_details: config.usage.completion_tokens_details ?? {
         reasoning_tokens: 0,
         audio_tokens: 0,
         accepted_prediction_tokens: 0,
-        rejected_prediction_tokens: 0
-      }
+        rejected_prediction_tokens: 0,
+      },
     },
-    service_tier: "default",
-    system_fingerprint: config.systemFingerprint ?? `fp_${timestamp}`
-  };
+    service_tier: 'default',
+    system_fingerprint: config.systemFingerprint ?? `fp_${timestamp}`,
+  }
 }
 
 /**
  * Wraps an async operation with Helicone logging
- * 
+ *
  * @param agentName - Name of the agent for logging purposes
  * @param payloadConfig - Configuration for the Helicone payload
  * @param operation - The async operation to execute (returns internal result with extra data)
@@ -139,52 +139,47 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
   responseIdPrefix: string,
   heliconeApiKey: string,
   customAgentId?: string,
-  customSessionId?: string
+  customSessionId?: string,
 ): Promise<TExtracted> {
-  const agentId = customAgentId ?? generateDeterministicAgentId(customAgentId ?? '');
-  const sessionId = customSessionId ?? generateSessionId();
-  
+  const agentId = customAgentId ?? generateDeterministicAgentId(customAgentId ?? '')
+  const sessionId = customSessionId ?? generateSessionId()
+
   if (!customAgentId || !customSessionId) {
-    logSessionInfo(agentId, sessionId, agentName);
+    logSessionInfo(agentId, sessionId, agentName)
   }
-  
+
   const heliconeLogger = new HeliconeManualLogger({
     apiKey: heliconeApiKey,
     loggingEndpoint: HELICONE_MANUAL_LOGGING_URL,
     headers: {
-      "Helicone-Property-AgentId": agentId,
-      "Helicone-Property-SessionId": sessionId,
-    }
-  });
+      'Helicone-Property-AgentId': agentId,
+      'Helicone-Property-SessionId': sessionId,
+    },
+  })
 
-  const heliconePayload = createHeliconePayload(payloadConfig);
+  const heliconePayload = createHeliconePayload(payloadConfig)
 
-  return await heliconeLogger.logRequest(
-    heliconePayload,
-    async (resultRecorder: any) => {
-      try {
-        const internalResult = await operation();
-        
-        const usage = usageCalculator(internalResult);
-        
-        const extractedResult = resultExtractor(internalResult);
-        
-        const heliconeResponse = createHeliconeResponse({
-          idPrefix: responseIdPrefix,
-          model: payloadConfig.model,
-          resultData: extractedResult,
-          usage,
-          systemFingerprint: (extractedResult as any)?.jobId ? `fp_${(extractedResult as any).jobId}` : undefined
-        });
+  return await heliconeLogger.logRequest(heliconePayload, async (resultRecorder: any) => {
+    const internalResult = await operation()
 
-        resultRecorder.appendResults(heliconeResponse);
-        
-        return extractedResult;
-      } catch (error) {
-        throw error;
-      }
-    }
-  );
+    const usage = usageCalculator(internalResult)
+
+    const extractedResult = resultExtractor(internalResult)
+
+    const heliconeResponse = createHeliconeResponse({
+      idPrefix: responseIdPrefix,
+      model: payloadConfig.model,
+      resultData: extractedResult,
+      usage,
+      systemFingerprint: (extractedResult as any)?.jobId
+        ? `fp_${(extractedResult as any).jobId}`
+        : undefined,
+    })
+
+    resultRecorder.appendResults(heliconeResponse)
+
+    return extractedResult
+  })
 }
 
 /**
@@ -197,15 +192,15 @@ export function calculateImageUsage(pixels: number): HeliconeResponseConfig['usa
     total_tokens: pixels,
     prompt_tokens_details: {
       cached_tokens: 0,
-      audio_tokens: 0
+      audio_tokens: 0,
     },
     completion_tokens_details: {
       reasoning_tokens: 0,
       audio_tokens: 0,
       accepted_prediction_tokens: 0,
-      rejected_prediction_tokens: 0
-    }
-  };
+      rejected_prediction_tokens: 0,
+    },
+  }
 }
 
 /**
@@ -218,15 +213,15 @@ export function calculateVideoUsage(): HeliconeResponseConfig['usage'] {
     total_tokens: 1,
     prompt_tokens_details: {
       cached_tokens: 0,
-      audio_tokens: 0
+      audio_tokens: 0,
     },
     completion_tokens_details: {
       reasoning_tokens: 0,
       audio_tokens: 0,
       accepted_prediction_tokens: 0,
-      rejected_prediction_tokens: 0
-    }
-  };
+      rejected_prediction_tokens: 0,
+    },
+  }
 }
 
 /**
@@ -245,23 +240,23 @@ export function calculateSongUsage(tokens: number): HeliconeResponseConfig['usag
       reasoning_tokens: 0,
       audio_tokens: 0,
       accepted_prediction_tokens: 0,
-      rejected_prediction_tokens: 0
-    }
-  };
+      rejected_prediction_tokens: 0,
+    },
+  }
 }
 
 /**
  * Helper function to calculate usage for dummy song operations
  */
 export function calculateDummySongUsage(): HeliconeResponseConfig['usage'] {
-  return calculateSongUsage(6); // Default dummy token count
+  return calculateSongUsage(6) // Default dummy token count
 }
 
 /**
  * Creates a ChatOpenAI configuration with Helicone logging enabled
- * 
+ *
  * Usage: const llm = new ChatOpenAI(withHeliconeLangchain("gpt-4o-mini", apiKey, heliconeApiKey));
- * 
+ *
  * @param model - The OpenAI model to use (e.g., "gpt-4o-mini", "gpt-4")
  * @param apiKey - The OpenAI API key
  * @param heliconeApiKey - The Helicone API key for logging
@@ -274,13 +269,13 @@ export function withHeliconeLangchain(
   apiKey: string,
   heliconeApiKey: string,
   customAgentId?: string,
-  customSessionId?: string
+  customSessionId?: string,
 ) {
-  const agentId = customAgentId ?? generateDeterministicAgentId(customAgentId ?? '');
-  const sessionId = customSessionId ?? generateSessionId();
-  
+  const agentId = customAgentId ?? generateDeterministicAgentId(customAgentId ?? '')
+  const sessionId = customSessionId ?? generateSessionId()
+
   if (!customAgentId || !customSessionId) {
-    logSessionInfo(agentId, sessionId, 'LangChainChatOpenAI');
+    logSessionInfo(agentId, sessionId, 'LangChainChatOpenAI')
   }
 
   return {
@@ -289,19 +284,19 @@ export function withHeliconeLangchain(
     configuration: {
       baseURL: HELICONE_BASE_LOGGING_URL,
       defaultHeaders: {
-        "Helicone-Auth": `Bearer ${heliconeApiKey}`,
-        "Helicone-Property-AgentId": agentId,
-        "Helicone-Property-SessionId": sessionId,
-      }
-    }
-  };
+        'Helicone-Auth': `Bearer ${heliconeApiKey}`,
+        'Helicone-Property-AgentId': agentId,
+        'Helicone-Property-SessionId': sessionId,
+      },
+    },
+  }
 }
 
 /**
  * Creates an OpenAI client configuration with Helicone logging enabled
- * 
+ *
  * Usage: const openai = new OpenAI(withHeliconeOpenAI(apiKey, heliconeApiKey));
- * 
+ *
  * @param apiKey - The OpenAI API key
  * @param heliconeApiKey - The Helicone API key for logging
  * @param customAgentId - Optional custom agent ID
@@ -312,25 +307,25 @@ export function withHeliconeOpenAI(
   apiKey: string,
   heliconeApiKey: string,
   customAgentId?: string,
-  customSessionId?: string
+  customSessionId?: string,
 ) {
-  const agentId = customAgentId ?? generateDeterministicAgentId(customAgentId ?? '');
-  const sessionId = customSessionId ?? generateSessionId();
-  
+  const agentId = customAgentId ?? generateDeterministicAgentId(customAgentId ?? '')
+  const sessionId = customSessionId ?? generateSessionId()
+
   if (!customAgentId || !customSessionId) {
-    logSessionInfo(agentId, sessionId, 'OpenAI');
+    logSessionInfo(agentId, sessionId, 'OpenAI')
   }
 
   return {
     apiKey,
     baseURL: HELICONE_BASE_LOGGING_URL,
     defaultHeaders: {
-      "Helicone-Auth": `Bearer ${heliconeApiKey}`,
-      "Helicone-Property-AgentId": agentId,
-      "Helicone-Property-SessionId": sessionId,
-    }
-  };
-} 
+      'Helicone-Auth': `Bearer ${heliconeApiKey}`,
+      'Helicone-Property-AgentId': agentId,
+      'Helicone-Property-SessionId': sessionId,
+    },
+  }
+}
 
 /**
  * The ObservabilityAPI class provides methods to wrap API calls with Helicone logging
@@ -348,7 +343,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
 
   /**
    * Wraps an async operation with Helicone logging
-   * 
+   *
    * @param agentName - Name of the agent for logging purposes
    * @param payloadConfig - Configuration for the Helicone payload
    * @param operation - The async operation to execute (returns internal result with extra data)
@@ -369,7 +364,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     responseIdPrefix: string,
     heliconeApiKey: string,
     customAgentId?: string,
-    customSessionId?: string
+    customSessionId?: string,
   ): Promise<TExtracted> {
     return withHeliconeLogging(
       agentName,
@@ -380,15 +375,15 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       responseIdPrefix,
       heliconeApiKey,
       customAgentId,
-      customSessionId
-    );
+      customSessionId,
+    )
   }
 
   /**
    * Creates a ChatOpenAI configuration with Helicone logging enabled
-   * 
+   *
    * Usage: const llm = new ChatOpenAI(observability.withHeliconeLangchain("gpt-4o-mini", apiKey, heliconeApiKey));
-   * 
+   *
    * @param model - The OpenAI model to use (e.g., "gpt-4o-mini", "gpt-4")
    * @param apiKey - The OpenAI API key
    * @param heliconeApiKey - The Helicone API key for logging
@@ -401,16 +396,16 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     apiKey: string,
     heliconeApiKey: string,
     customAgentId?: string,
-    customSessionId?: string
+    customSessionId?: string,
   ) {
-    return withHeliconeLangchain(model, apiKey, heliconeApiKey, customAgentId, customSessionId);
+    return withHeliconeLangchain(model, apiKey, heliconeApiKey, customAgentId, customSessionId)
   }
 
   /**
    * Creates an OpenAI client configuration with Helicone logging enabled
-   * 
+   *
    * Usage: const openai = new OpenAI(observability.withHeliconeOpenAI(apiKey, heliconeApiKey));
-   * 
+   *
    * @param apiKey - The OpenAI API key
    * @param heliconeApiKey - The Helicone API key for logging
    * @param customAgentId - Optional custom agent ID
@@ -421,50 +416,50 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     apiKey: string,
     heliconeApiKey: string,
     customAgentId?: string,
-    customSessionId?: string
+    customSessionId?: string,
   ) {
-    return withHeliconeOpenAI(apiKey, heliconeApiKey, customAgentId, customSessionId);
+    return withHeliconeOpenAI(apiKey, heliconeApiKey, customAgentId, customSessionId)
   }
 
   /**
    * Helper function to calculate usage for image operations based on pixels
    */
   calculateImageUsage(pixels: number): HeliconeResponseConfig['usage'] {
-    return calculateImageUsage(pixels);
+    return calculateImageUsage(pixels)
   }
 
   /**
    * Helper function to calculate usage for video operations (typically 1 token)
    */
   calculateVideoUsage(): HeliconeResponseConfig['usage'] {
-    return calculateVideoUsage();
+    return calculateVideoUsage()
   }
 
   /**
    * Helper function to calculate usage for song operations based on tokens/quota
    */
   calculateSongUsage(tokens: number): HeliconeResponseConfig['usage'] {
-    return calculateSongUsage(tokens);
+    return calculateSongUsage(tokens)
   }
 
   /**
    * Helper function to calculate usage for dummy song operations
    */
   calculateDummySongUsage(): HeliconeResponseConfig['usage'] {
-    return calculateDummySongUsage();
+    return calculateDummySongUsage()
   }
 
   /**
    * Creates a standardized Helicone payload for API logging
    */
   createHeliconePayload(config: HeliconePayloadConfig) {
-    return createHeliconePayload(config);
+    return createHeliconePayload(config)
   }
 
   /**
    * Creates a standardized Helicone response for API logging
    */
   createHeliconeResponse(config: HeliconeResponseConfig) {
-    return createHeliconeResponse(config);
+    return createHeliconeResponse(config)
   }
-} 
+}
