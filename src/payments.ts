@@ -5,7 +5,7 @@ import { BasePaymentsAPI } from './api/base-payments.js'
 import { PlansAPI } from './api/plans-api.js'
 import { AgentsAPI } from './api/agents-api.js'
 import { AgentRequestsAPI } from './api/requests-api.js'
-import { ObservabilityAPI } from './api/observability-api'
+import { ObservabilityAPI } from './api/observability-api.js'
 import { ClientRegistry } from './a2a/clientRegistry.js'
 import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/server.js'
 import { PaymentsA2AServer } from './a2a/server.js'
@@ -23,7 +23,7 @@ import { buildPaymentAgentCard } from './a2a/agent-card.js'
  * - `agents`: Handles AI Agents, including registration of AI Agents and access token generation.
  * - `requests`: Manages requests received by AI Agents, including validation and tracking.
  * - `observability`: Provides observability and logging utilities for AI Agents with Helicone integration
-*/
+ */
 export class Payments extends BasePaymentsAPI {
   public query!: AIQueryApi
   public plans!: PlansAPI
