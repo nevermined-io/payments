@@ -1,6 +1,6 @@
 {
   "name": "@nevermined-io/payments",
-  "version": "1.0.0-rc8",
+  "version": "1.0.0-rc9",
   "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -70,6 +70,7 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.2.5",
+    "@helicone/helpers": "^1.6.0",
     "axios": "^1.7.7",
     "express": "4.21.2",
     "jose": "^5.2.4",

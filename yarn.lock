@@ -982,6 +982,11 @@
   resolved "https://registry.npmjs.org/@eslint/js/-/js-8.57.1.tgz"
   integrity sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==
 
+"@helicone/helpers@^1.6.0":
+  version "1.6.0"
+  resolved "https://registry.yarnpkg.com/@helicone/helpers/-/helpers-1.6.0.tgz#ea2c3509ca5ff5771bc1763cfc703b13197a0c14"
+  integrity sha512-+VkTpoG7MO/IdlsquQHjuP53AnJ2aexMiXUt22ZVWA7+9h3pfloKJDrmUe2Cv863dMCMoUC1E1ak6aIBRceWRA==
+
 "@humanwhocodes/config-array@^0.13.0":
   version "0.13.0"
   resolved "https://registry.npmjs.org/@humanwhocodes/config-array/-/config-array-0.13.0.tgz"
