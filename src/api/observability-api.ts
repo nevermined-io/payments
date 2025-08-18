@@ -350,7 +350,6 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    * @param resultExtractor - Function to extract the user-facing result from internal result
    * @param usageCalculator - Function to calculate usage metrics from the internal result
    * @param responseIdPrefix - Prefix for the response ID
-   * @param heliconeApiKey - The Helicone API key for logging
    * @param customAgentId - Optional custom agent ID
    * @param customSessionId - Optional custom session ID
    * @returns Promise that resolves to the extracted user result
@@ -362,7 +361,6 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     resultExtractor: (internalResult: TInternal) => TExtracted,
     usageCalculator: (internalResult: TInternal) => HeliconeResponseConfig['usage'],
     responseIdPrefix: string,
-    heliconeApiKey: string,
     customAgentId?: string,
     customSessionId?: string,
   ): Promise<TExtracted> {
@@ -373,7 +371,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       resultExtractor,
       usageCalculator,
       responseIdPrefix,
-      heliconeApiKey,
+      this.heliconeApiKey!,
       customAgentId,
       customSessionId,
     )
@@ -394,11 +392,16 @@ export class ObservabilityAPI extends BasePaymentsAPI {
   withHeliconeLangchain(
     model: string,
     apiKey: string,
-    heliconeApiKey: string,
     customAgentId?: string,
     customSessionId?: string,
   ) {
-    return withHeliconeLangchain(model, apiKey, heliconeApiKey, customAgentId, customSessionId)
+    return withHeliconeLangchain(
+      model,
+      apiKey,
+      this.heliconeApiKey!,
+      customAgentId,
+      customSessionId,
+    )
   }
 
   /**
@@ -407,18 +410,12 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    * Usage: const openai = new OpenAI(observability.withHeliconeOpenAI(apiKey, heliconeApiKey));
    *
    * @param apiKey - The OpenAI API key
-   * @param heliconeApiKey - The Helicone API key for logging
    * @param customAgentId - Optional custom agent ID
    * @param customSessionId - Optional custom session ID
    * @returns Configuration object for OpenAI constructor with Helicone enabled
    */
-  withHeliconeOpenAI(
-    apiKey: string,
-    heliconeApiKey: string,
-    customAgentId?: string,
-    customSessionId?: string,
-  ) {
-    return withHeliconeOpenAI(apiKey, heliconeApiKey, customAgentId, customSessionId)
+  withHeliconeOpenAI(apiKey: string, customAgentId?: string, customSessionId?: string) {
+    return withHeliconeOpenAI(apiKey, this.heliconeApiKey!, customAgentId, customSessionId)
   }
 
   /**
