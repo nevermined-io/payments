@@ -15,6 +15,7 @@ export abstract class BasePaymentsAPI {
   protected appId?: string
   protected version?: string
   protected accountAddress?: string
+  protected heliconeApiKey?: string
   public isBrowserInstance = true
 
   constructor(options: PaymentOptions) {
@@ -37,6 +38,7 @@ export abstract class BasePaymentsAPI {
       }
       const jwt = decodeJwt(this.nvmApiKey)
       this.accountAddress = jwt.sub
+      this.heliconeApiKey = jwt.o11y as string
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
     }
