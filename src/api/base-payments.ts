@@ -38,7 +38,7 @@ export abstract class BasePaymentsAPI {
       }
       const jwt = decodeJwt(this.nvmApiKey)
       this.accountAddress = jwt.sub
-      this.heliconeApiKey = jwt.observability as string
+      this.heliconeApiKey = jwt.o11y as string
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
     }

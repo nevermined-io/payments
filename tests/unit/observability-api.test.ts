@@ -2,7 +2,7 @@ import { Payments } from '../../src/payments'
 
 describe('Observability-Api (unit)', () => {
   const nvmApiKeyHash =
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDc3OUEzMDNEYTA3NjkwMzgxNkNBOTRlODhERDViNDJCMjE3M0YyNjciLCJqdGkiOiIweDM0MzAxYmIyMDYzYjNlYjVkNWE0NjFmZDM1YzI2MmVhNzI5Yzg5NDlhMWYzZTFhNzY4YmM2MWZiN2EzMzkyN2IiLCJleHAiOjE3ODcwODMxMzksIm9ic2VydmFiaWxpdHkiOiJzay1oZWxpY29uZS0zMm1hanFpLWZscGVsZGEtdTcyaWZ0eS1mY2VjY3lxIn0.aHNSLRCNOa3TBP2lTvlqOHuGTA0l7JhpuxoSm7VsB91PbXhVixq79wpxzLoe_H7OCSTzIbKLi5HXv_7vLEr7MBw'
+    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDA2OEVkMDBjRjA0NDFlNDgyOUQ5Nzg0ZkNCZTdiOWUyNkQ0QkQ4ZDAiLCJzdWIiOiIweDQzQ0FDZUQxNURhRWE4MDE2RTIzNDI5NThFZjgyQTk0NTAxMTJlMTgiLCJqdGkiOiIweDJmNzZlN2ZkYzI3ZWIyYmYzYjQ0ODRlYmY1Mzk4YWQ5MjllMjMxYTYwODlmMDE5Zjk5ZDAzMjk3Mjk4YWYzZTkiLCJleHAiOjE3ODczMjc3MDEsIm8xMXkiOiJzay1oZWxpY29uZS1tamZ6MzJhLXF4aXVpMnEteDV5YmNoeS11NnJjZXhpIn0.KdMMHlHvpENmvT6ozVdfmtNC6KFMnh_XNNQEV_qxPpFgzvUM86vM21E5YKFVWkjK_yMAnNh6XVJGVjqPVuew6xs'
 
   it('should initialize correctly with the helicone api key', () => {
     const payments = Payments.getInstance({
@@ -12,7 +12,7 @@ describe('Observability-Api (unit)', () => {
 
     const cfg = payments.observability.withHeliconeOpenAI('sk-openai')
     expect(cfg.defaultHeaders['Helicone-Auth']).toBe(
-      'Bearer sk-helicone-32majqi-flpelda-u72ifty-fceccyq',
+      'Bearer sk-helicone-mjfz32a-qxiui2q-x5ybchy-u6rcexi',
     )
   })
 })
