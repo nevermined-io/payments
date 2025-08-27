@@ -19,7 +19,7 @@ jobs:
       # Build process
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22.17
 
       - name: Set version to env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
@@ -31,7 +31,7 @@ jobs:
 
       - name: Update Docs
         run: |
-          yarn run doc      
+          yarn run doc
 
       - name: Update CHANGELOG.md
         id: changelog
@@ -55,7 +55,7 @@ jobs:
             commit_branch=${commit_branch//[[:blank:]]/}
           fi
           commit_branch="${commit_branch//remotes\/origin\//}"
-          echo "COMMIT_BRANCH=${commit_branch}" >> $GITHUB_ENV    
+          echo "COMMIT_BRANCH=${commit_branch}" >> $GITHUB_ENV
 
       - name: Commit Documentation
         uses: stefanzweifel/git-auto-commit-action@v4
