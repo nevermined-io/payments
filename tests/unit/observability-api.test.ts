@@ -10,7 +10,10 @@ describe('Observability-Api (unit)', () => {
       environment: 'staging_sandbox',
     })
 
-    const cfg = payments.observability.withHeliconeOpenAI('sk-openai')
+    const cfg = payments.observability.withHeliconeOpenAI('sk-openai', {
+      agentid: 'test-agent',
+      sessionid: 'test-session',
+    })
     expect(cfg.defaultHeaders['Helicone-Auth']).toBe(
       'Bearer sk-helicone-mjfz32a-qxiui2q-x5ybchy-u6rcexi',
     )
