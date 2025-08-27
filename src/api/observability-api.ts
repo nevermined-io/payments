@@ -142,6 +142,7 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
   usageCalculator: (internalResult: TInternal) => HeliconeResponseConfig['usage'],
   responseIdPrefix: string,
   heliconeApiKey: string,
+  accountAddress: string,
   customProperties: CustomProperties,
 ): Promise<TExtracted> {
   // Extract agentId and sessionId from properties, or generate defaults
@@ -169,6 +170,7 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
     loggingEndpoint: HELICONE_MANUAL_LOGGING_URL,
     headers: {
       ...customHeaders,
+      'Helicone-Property-accountAddress': accountAddress,
     },
   })
 
@@ -282,6 +284,7 @@ export function withHeliconeLangchain(
   model: string,
   apiKey: string,
   heliconeApiKey: string,
+  accountAddress: string,
   customProperties: CustomProperties,
 ) {
   // Extract agentId and sessionId from properties, or generate defaults
@@ -311,6 +314,7 @@ export function withHeliconeLangchain(
       baseURL: HELICONE_BASE_LOGGING_URL,
       defaultHeaders: {
         'Helicone-Auth': `Bearer ${heliconeApiKey}`,
+        'Helicone-Property-accountAddress': accountAddress,
         ...customHeaders,
       },
     },
@@ -330,6 +334,7 @@ export function withHeliconeLangchain(
 export function withHeliconeOpenAI(
   apiKey: string,
   heliconeApiKey: string,
+  accountAddress: string,
   customProperties: CustomProperties,
 ) {
   // Extract agentId and sessionId from properties, or generate defaults
@@ -357,6 +362,7 @@ export function withHeliconeOpenAI(
     baseURL: HELICONE_BASE_LOGGING_URL,
     defaultHeaders: {
       'Helicone-Auth': `Bearer ${heliconeApiKey}`,
+      'Helicone-Property-accountAddress': accountAddress,
       ...customHeaders,
     },
   }
@@ -405,6 +411,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       usageCalculator,
       responseIdPrefix,
       this.heliconeApiKey!,
+      this.accountAddress!,
       customProperties,
     )
   }
@@ -420,7 +427,13 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    * @returns Configuration object for ChatOpenAI constructor with Helicone enabled
    */
   withHeliconeLangchain(model: string, apiKey: string, customProperties: CustomProperties) {
-    return withHeliconeLangchain(model, apiKey, this.heliconeApiKey!, customProperties)
+    return withHeliconeLangchain(
+      model,
+      apiKey,
+      this.heliconeApiKey!,
+      this.accountAddress!,
+      customProperties,
+    )
   }
 
   /**
@@ -434,7 +447,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    * @returns Configuration object for OpenAI constructor with Helicone enabled
    */
   withHeliconeOpenAI(apiKey: string, customProperties: CustomProperties): any {
-    return withHeliconeOpenAI(apiKey, this.heliconeApiKey!, customProperties)
+    return withHeliconeOpenAI(apiKey, this.heliconeApiKey!, this.accountAddress!, customProperties)
   }
 
   /**
