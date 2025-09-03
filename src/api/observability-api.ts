@@ -190,6 +190,10 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
   const fallbackRequestId = crypto.randomUUID()
   requestId = requestId || fallbackRequestId
 
+  console.log(`Request ID: ${requestId}`)
+  console.log(`Helicone API Key: ${heliconeApiKey}`)
+  console.log(`Helicone Manual Logging URL: ${heliconeManualLoggingUrl}`)
+
   const heliconeLogger = new HeliconeManualLogger({
     apiKey: heliconeApiKey,
     loggingEndpoint: heliconeManualLoggingUrl,
@@ -549,7 +553,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       this.environment.heliconeUrl,
     ).toString()
     this.heliconeManualLoggingUrl = new URL(
-      '/v1/trace/custom/log',
+      '/v1/trace/custom/v1/log',
       this.environment.heliconeUrl,
     ).toString()
   }
