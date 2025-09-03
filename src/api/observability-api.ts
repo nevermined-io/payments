@@ -4,6 +4,7 @@
  */
 
 import { HeliconeManualLogger } from '@helicone/helpers'
+import axios from 'axios'
 import { generateDeterministicAgentId, generateSessionId, logSessionInfo } from '../utils.js'
 import { BasePaymentsAPI } from './base-payments.js'
 import { PaymentOptions } from '../common/types.js'
@@ -54,6 +55,7 @@ export type CustomProperties = {
 
 export type DefaultHeliconeHeaders = {
   'Helicone-Auth': string
+  'Helicone-Request-Id': string
   'Helicone-Property-accountAddress': string
 } & Record<string, string>
 
@@ -62,7 +64,7 @@ export type ChatOpenAIConfiguration = {
   apiKey: string
   configuration: {
     baseURL: string
-    defaultHeaders: DefaultHeliconeHeaders
+    defaultHeaders: DefaultHeliconeHeaders,
   }
 }
 
@@ -162,6 +164,7 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
   heliconeApiKey: string,
   heliconeManualLoggingUrl: string,
   accountAddress: string,
+  requestId: string | undefined,
   customProperties: CustomProperties,
 ): Promise<TExtracted> {
   // Extract agentId and sessionId from properties, or generate defaults
@@ -184,12 +187,16 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
     customHeaders[`Helicone-Property-${key}`] = String(value)
   }
 
+  const fallbackRequestId = crypto.randomUUID()
+  requestId = requestId || fallbackRequestId
+
   const heliconeLogger = new HeliconeManualLogger({
     apiKey: heliconeApiKey,
     loggingEndpoint: heliconeManualLoggingUrl,
     headers: {
       ...customHeaders,
       'Helicone-Property-accountAddress': accountAddress,
+      'Helicone-Request-Id': requestId,
     },
   })
 
@@ -307,6 +314,7 @@ export function withHeliconeLangchain(
   heliconeApiKey: string,
   heliconeBaseLoggingUrl: string,
   accountAddress: string,
+  requestId: string | undefined,
   customProperties: CustomProperties,
 ): ChatOpenAIConfiguration {
   // Extract agentId and sessionId from properties, or generate defaults
@@ -329,6 +337,9 @@ export function withHeliconeLangchain(
     customHeaders[`Helicone-Property-${key}`] = String(value)
   }
 
+  const fallbackRequestId = crypto.randomUUID()
+  requestId = requestId || fallbackRequestId
+
   return {
     model,
     apiKey,
@@ -337,10 +348,131 @@ export function withHeliconeLangchain(
       defaultHeaders: {
         'Helicone-Auth': `Bearer ${heliconeApiKey}`,
         'Helicone-Property-accountAddress': accountAddress,
+        'Helicone-Request-Id': requestId,
         ...customHeaders,
       },
     },
   }
+}
+
+/**
+ * Applies margin-based pricing to a specific request ID with polling/retry logic
+ *
+ * @param requestId - The Helicone request ID to update
+ * @param marginPercent - Margin percentage to apply (e.g., 25 for 25%)
+ * @param backendUrl - Optional backend URL override
+ * @param maxRetries - Maximum number of retry attempts (default: 6)
+ * @param retryDelayMs - Initial delay between retries in milliseconds (default: 5000)
+ * @param initialDelayMs - Initial delay before first attempt in milliseconds (default: 1000)
+ * @returns Promise that resolves to updated cost data or null if not found
+ */
+export async function applyMarginPricing(
+  requestId: string,
+  marginPercent: number,
+  backendUrl?: string,
+  maxRetries = 6,
+  retryDelayMs = 5000,
+  initialDelayMs = 1000
+): Promise<any | null> {
+  const url = `${backendUrl || 'http://localhost:3001'}/api/cost/${encodeURIComponent(requestId)}/apply-margin`
+  
+  // Initial delay before first attempt
+  if (initialDelayMs > 0) {
+    await new Promise(resolve => setTimeout(resolve, initialDelayMs))
+  }
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.post(url, {
+        margin: marginPercent
+      })
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Unknown error from pricing backend')
+      }
+      
+      // Successfully applied margin pricing
+      return response.data.data
+      
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // Data not found yet, might need more time for Helicone to process
+        if (attempt < maxRetries) {
+          console.log(`Cost data not found for margin pricing ${requestId} (attempt ${attempt}/${maxRetries}). Retrying in ${retryDelayMs}ms...`)
+          await new Promise(resolve => setTimeout(resolve, retryDelayMs))
+          // Increase delay for next attempt (exponential backoff)
+          retryDelayMs = Math.min(retryDelayMs * 1.5, 15000) // Cap at 15 seconds
+          continue
+        } else {
+          console.warn(`Request not found for margin pricing after ${maxRetries} attempts: ${requestId}`)
+          return null
+        }
+      } else {
+        // Other errors (network, server error, etc.) - don't retry
+        console.error('Error applying margin pricing:', error.message || error)
+        return null
+      }
+    }
+  }
+  
+  return null
+}
+
+/**
+ * Fetches cost data for a specific request ID from the pricing analysis backend with polling/retry logic
+ *
+ * @param requestId - The Helicone request ID to get cost data for
+ * @param maxRetries - Maximum number of retry attempts (default: 6)
+ * @param retryDelayMs - Initial delay between retries in milliseconds (default: 5000)
+ * @param initialDelayMs - Initial delay before first attempt in milliseconds (default: 1000)
+ * @returns Promise that resolves to cost data or null if not found after all retries
+ */
+export async function getCostByRequestId(
+  requestId: string,
+  maxRetries = 6,
+  retryDelayMs = 5000,
+  initialDelayMs = 1000,
+): Promise<any | null> {
+  const backendUrl = process.env.PRICING_ANALYSIS_BACKEND_URL || 'http://localhost:3001'
+  const url = `${backendUrl || 'http://localhost:3001'}/api/cost/${encodeURIComponent(requestId)}`
+  
+  // Initial delay before first attempt
+  if (initialDelayMs > 0) {
+    await new Promise(resolve => setTimeout(resolve, initialDelayMs))
+  }
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.get(url)
+      
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Unknown error from pricing backend')
+      }
+      // Successfully found cost data
+      return response.data.data
+      
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        // Data not found yet, might need more time for Helicone to process
+        if (attempt < maxRetries) {
+          console.log(`Cost data not found for request ID ${requestId} (attempt ${attempt}/${maxRetries}). Retrying in ${retryDelayMs}ms...`)
+          await new Promise(resolve => setTimeout(resolve, retryDelayMs))
+          // Increase delay for next attempt (exponential backoff)
+          retryDelayMs = Math.min(retryDelayMs * 1.5, 15000) // Cap at 15 seconds
+          continue
+        } else {
+          console.warn(`Cost data not found for request ID ${requestId} after ${maxRetries} attempts`)
+          return null
+        }
+      } else {
+        // Other errors (network, server error, etc.) - don't retry
+        console.error('Error fetching cost data:', error.message || error)
+        return null
+      }
+    }
+  }
+  
+  return null
 }
 
 /**
@@ -360,6 +492,7 @@ export function withHeliconeOpenAI(
   heliconeApiKey: string,
   heliconeBaseLoggingUrl: string,
   accountAddress: string,
+  requestId: string | undefined,
   customProperties: CustomProperties,
 ): OpenAIConfiguration {
   // Extract agentId and sessionId from properties, or generate defaults
@@ -382,12 +515,16 @@ export function withHeliconeOpenAI(
     customHeaders[`Helicone-Property-${key}`] = String(value)
   }
 
+  const fallbackRequestId = crypto.randomUUID()
+  requestId = requestId || fallbackRequestId
+
   return {
     apiKey,
     baseURL: heliconeBaseLoggingUrl,
     defaultHeaders: {
       'Helicone-Auth': `Bearer ${heliconeApiKey}`,
       'Helicone-Property-accountAddress': accountAddress,
+      'Helicone-Request-Id': requestId,
       ...customHeaders,
     },
   }
@@ -445,6 +582,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     resultExtractor: (internalResult: TInternal) => TExtracted,
     usageCalculator: (internalResult: TInternal) => HeliconeResponseConfig['usage'],
     responseIdPrefix: string,
+    requestId: string | undefined,
     customProperties: CustomProperties,
   ): Promise<TExtracted> {
     return withHeliconeLogging(
@@ -457,6 +595,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       this.heliconeApiKey!,
       this.heliconeManualLoggingUrl,
       this.accountAddress!,
+      requestId,
       customProperties,
     )
   }
@@ -474,6 +613,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
   withHeliconeLangchain(
     model: string,
     apiKey: string,
+    requestId: string | undefined,
     customProperties: CustomProperties,
   ): ChatOpenAIConfiguration {
     return withHeliconeLangchain(
@@ -482,6 +622,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       this.heliconeApiKey!,
       this.heliconeBaseLoggingUrl,
       this.accountAddress!,
+      requestId,
       customProperties,
     )
   }
@@ -496,14 +637,54 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    * @param customProperties - Custom properties to add as Helicone headers (should include agentid and sessionid)
    * @returns Configuration object for OpenAI constructor with Helicone enabled
    */
-  withHeliconeOpenAI(apiKey: string, customProperties: CustomProperties): OpenAIConfiguration {
+  withHeliconeOpenAI(apiKey: string, requestId: string | undefined, customProperties: CustomProperties): OpenAIConfiguration {
     return withHeliconeOpenAI(
       apiKey,
       this.heliconeApiKey!,
       this.heliconeBaseLoggingUrl,
       this.accountAddress!,
+      requestId,
       customProperties,
     )
+  }
+
+  /**
+   * Applies margin-based pricing to a specific request ID with polling/retry logic
+   *
+   * @param requestId - The Helicone request ID to update
+   * @param marginPercent - Margin percentage to apply (e.g., 25 for 25%)
+   * @param maxRetries - Maximum number of retry attempts (default: 6)
+   * @param retryDelayMs - Initial delay between retries in milliseconds (default: 5000)
+   * @param initialDelayMs - Initial delay before first attempt in milliseconds (default: 1000)
+   * @returns Promise that resolves to updated cost data or null if not found
+   */
+  async applyMarginPricing(
+    requestId: string, 
+    marginPercent: number,
+    maxRetries = 6,
+    retryDelayMs = 5000,
+    initialDelayMs = 1000
+  ): Promise<any | null> {
+    const backendUrl = process.env.PRICING_ANALYSIS_BACKEND_URL || 'http://localhost:3001'
+    return applyMarginPricing(requestId, marginPercent, backendUrl, maxRetries, retryDelayMs, initialDelayMs)
+  }
+
+  /**
+   * Fetches cost data for a specific request ID from the pricing analysis backend
+   * 
+   * @param requestId - The Helicone request ID to get cost data for
+   * @param maxRetries - Maximum number of retry attempts (default: 6)
+   * @param retryDelayMs - Initial delay between retries in milliseconds (default: 5000)
+   * @param initialDelayMs - Initial delay before first attempt in milliseconds (default: 1000)
+   * @returns Promise that resolves to cost data or null if not found after all retries
+   */
+  async getCostByRequestId(
+    requestId: string,
+    maxRetries = 6,
+    retryDelayMs = 5000,
+    initialDelayMs = 1000
+  ): Promise<any | null> {
+    return getCostByRequestId(requestId, maxRetries, retryDelayMs, initialDelayMs)
   }
 
   /**
