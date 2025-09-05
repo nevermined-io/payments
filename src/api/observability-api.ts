@@ -190,10 +190,6 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
   const fallbackRequestId = crypto.randomUUID()
   requestId = requestId || fallbackRequestId
 
-  console.log(`Request ID: ${requestId}`)
-  console.log(`Helicone API Key: ${heliconeApiKey}`)
-  console.log(`Helicone Manual Logging URL: ${heliconeManualLoggingUrl}`)
-
   const heliconeLogger = new HeliconeManualLogger({
     apiKey: heliconeApiKey,
     loggingEndpoint: heliconeManualLoggingUrl,
@@ -361,9 +357,9 @@ export function withHeliconeLangchain(
 
 /**
  * Applies margin-based pricing to a specific request ID with polling/retry logic
+ * The margin percentage is retrieved from the database record associated with the request ID
  *
  * @param requestId - The Helicone request ID to update
- * @param marginPercent - Margin percentage to apply (e.g., 25 for 25%)
  * @param backendUrl - Optional backend URL override
  * @param maxRetries - Maximum number of retry attempts (default: 6)
  * @param retryDelayMs - Initial delay between retries in milliseconds (default: 5000)
@@ -372,7 +368,6 @@ export function withHeliconeLangchain(
  */
 export async function applyMarginPricing(
   requestId: string,
-  marginPercent: number,
   backendUrl?: string,
   maxRetries = 6,
   retryDelayMs = 5000,
@@ -387,9 +382,7 @@ export async function applyMarginPricing(
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await axios.post(url, {
-        margin: marginPercent
-      })
+      const response = await axios.post(url)
       
       if (!response.data.success) {
         throw new Error(response.data.error || 'Unknown error from pricing backend')
@@ -654,23 +647,22 @@ export class ObservabilityAPI extends BasePaymentsAPI {
 
   /**
    * Applies margin-based pricing to a specific request ID with polling/retry logic
+   * The margin percentage is retrieved from the database record associated with the request ID
    *
    * @param requestId - The Helicone request ID to update
-   * @param marginPercent - Margin percentage to apply (e.g., 25 for 25%)
    * @param maxRetries - Maximum number of retry attempts (default: 6)
    * @param retryDelayMs - Initial delay between retries in milliseconds (default: 5000)
    * @param initialDelayMs - Initial delay before first attempt in milliseconds (default: 1000)
    * @returns Promise that resolves to updated cost data or null if not found
    */
   async applyMarginPricing(
-    requestId: string, 
-    marginPercent: number,
+    requestId: string,
     maxRetries = 6,
     retryDelayMs = 5000,
     initialDelayMs = 1000
   ): Promise<any | null> {
     const backendUrl = process.env.PRICING_ANALYSIS_BACKEND_URL || 'http://localhost:3001'
-    return applyMarginPricing(requestId, marginPercent, backendUrl, maxRetries, retryDelayMs, initialDelayMs)
+    return applyMarginPricing(requestId, backendUrl, maxRetries, retryDelayMs, initialDelayMs)
   }
 
   /**
