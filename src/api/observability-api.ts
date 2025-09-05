@@ -356,10 +356,11 @@ export function withHeliconeLangchain(
 }
 
 /**
- * Applies margin-based pricing to a specific request ID with polling/retry logic
- * The margin percentage is retrieved from the database record associated with the request ID
+ * Applies margin-based pricing to a specific request ID or batch ID with polling/retry logic
+ * The margin percentage is retrieved from the database record associated with the request/batch ID
  *
- * @param requestId - The Helicone request ID to update
+ * @param requestId - The Helicone request ID to update (can be any value if using batchId)
+ * @param batchId - Optional batch ID for batch margin pricing
  * @param backendUrl - Optional backend URL override
  * @param maxRetries - Maximum number of retry attempts (default: 6)
  * @param retryDelayMs - Initial delay between retries in milliseconds (default: 5000)
@@ -368,6 +369,7 @@ export function withHeliconeLangchain(
  */
 export async function applyMarginPricing(
   requestId: string,
+  batchId?: string,
   backendUrl?: string,
   maxRetries = 6,
   retryDelayMs = 5000,
@@ -382,7 +384,10 @@ export async function applyMarginPricing(
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await axios.post(url)
+      // Prepare request body - include batchId if provided
+      const requestBody = batchId ? { batchId } : {}
+      
+      const response = await axios.post(url, requestBody)
       
       if (!response.data.success) {
         throw new Error(response.data.error || 'Unknown error from pricing backend')
@@ -395,13 +400,15 @@ export async function applyMarginPricing(
       if (error.response?.status === 404) {
         // Data not found yet, might need more time for Helicone to process
         if (attempt < maxRetries) {
-          console.log(`Cost data not found for margin pricing ${requestId} (attempt ${attempt}/${maxRetries}). Retrying in ${retryDelayMs}ms...`)
+          const target = batchId ? `batch ${batchId}` : `request ${requestId}`
+          console.log(`Cost data not found for margin pricing ${target} (attempt ${attempt}/${maxRetries}). Retrying in ${retryDelayMs}ms...`)
           await new Promise(resolve => setTimeout(resolve, retryDelayMs))
           // Increase delay for next attempt (exponential backoff)
           retryDelayMs = Math.min(retryDelayMs * 1.5, 15000) // Cap at 15 seconds
           continue
         } else {
-          console.warn(`Request not found for margin pricing after ${maxRetries} attempts: ${requestId}`)
+          const target = batchId ? `batch ${batchId}` : `request ${requestId}`
+          console.warn(`${target} not found for margin pricing after ${maxRetries} attempts`)
           return null
         }
       } else {
@@ -646,10 +653,11 @@ export class ObservabilityAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Applies margin-based pricing to a specific request ID with polling/retry logic
-   * The margin percentage is retrieved from the database record associated with the request ID
+   * Applies margin-based pricing to a specific request ID or batch ID with polling/retry logic
+   * The margin percentage is retrieved from the database record associated with the request/batch ID
    *
-   * @param requestId - The Helicone request ID to update
+   * @param requestId - The Helicone request ID to update (can be any value if using batchId)
+   * @param batchId - Optional batch ID for batch margin pricing
    * @param maxRetries - Maximum number of retry attempts (default: 6)
    * @param retryDelayMs - Initial delay between retries in milliseconds (default: 5000)
    * @param initialDelayMs - Initial delay before first attempt in milliseconds (default: 1000)
@@ -657,12 +665,13 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    */
   async applyMarginPricing(
     requestId: string,
+    batchId?: string,
     maxRetries = 6,
     retryDelayMs = 5000,
     initialDelayMs = 1000
   ): Promise<any | null> {
     const backendUrl = process.env.PRICING_ANALYSIS_BACKEND_URL || 'http://localhost:3001'
-    return applyMarginPricing(requestId, backendUrl, maxRetries, retryDelayMs, initialDelayMs)
+    return applyMarginPricing(requestId, batchId, backendUrl, maxRetries, retryDelayMs, initialDelayMs)
   }
 
   /**
