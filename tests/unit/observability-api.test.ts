@@ -18,7 +18,7 @@ describe('Observability-Api (unit)', () => {
     expect(cfg.defaultHeaders['Helicone-Auth']).toBe(
       'Bearer sk-helicone-mjfz32a-qxiui2q-x5ybchy-u6rcexi',
     )
-    expect(cfg.baseURL).toBe('http://localhost:8585/v1/gateway/oai/v1')
+    expect(cfg.baseURL).toBe('http://localhost:8585/jawn/v1/gateway/oai/v1')
   })
 
   it('should override the helicone api key and helicone url', () => {
@@ -36,7 +36,7 @@ describe('Observability-Api (unit)', () => {
     })
 
     expect(cfg.defaultHeaders['Helicone-Auth']).toBe('Bearer sk-custom-helicone-key')
-    expect(cfg.baseURL).toBe('https://custom.helicone.com/v1/gateway/oai/v1')
+    expect(cfg.baseURL).toBe('https://custom.helicone.com/jawn/v1/gateway/oai/v1')
 
     process.env = originalEnv
     Environments.custom = originalCustom

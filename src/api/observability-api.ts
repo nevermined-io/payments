@@ -408,14 +408,15 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     this.heliconeApiKey = process.env.HELICONE_API_KEY ?? this.heliconeApiKey
 
     this.heliconeBaseLoggingUrl = new URL(
-      '/v1/gateway/oai/v1',
+      'jawn/v1/gateway/oai/v1',
       this.environment.heliconeUrl,
     ).toString()
     this.heliconeManualLoggingUrl = new URL(
-      '/v1/trace/custom/log',
+      'jawn/v1/trace/custom/log',
       this.environment.heliconeUrl,
     ).toString()
   }
+
   /**
    * This method is used to create a singleton instance of the ObservabilityAPI class.
    *

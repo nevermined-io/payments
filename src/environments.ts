@@ -20,13 +20,13 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     frontend: 'https://nevermined.dev',
     backend: 'https://api.sandbox.nevermined.dev/',
     proxy: 'https://proxy.sandbox.nevermined.dev',
-    heliconeUrl: process.env.HELICONE_URL || 'http://localhost:8585', // TODO: Update when helicone is deployed
+    heliconeUrl: 'https://helicone.nevermined.dev',
   },
   staging_live: {
     frontend: 'https://nevermined.dev',
     backend: 'https://api.live.nevermined.dev/',
     proxy: 'https://proxy.live.nevermined.dev',
-    heliconeUrl: process.env.HELICONE_URL || 'http://localhost:8585', // TODO: Update when helicone is deployed
+    heliconeUrl: 'https://helicone.nevermined.dev',
   },
   /**
    * The Production environment URLs.
@@ -35,13 +35,13 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     frontend: 'https://nevermined.app',
     backend: 'https://api.sandbox.nevermined.app/',
     proxy: 'https://proxy.sandbox.nevermined.app',
-    heliconeUrl: process.env.HELICONE_URL || 'http://localhost:8585', // TODO: Update when helicone is deployed
+    heliconeUrl: 'https://helicone.nevermined.dev',
   },
   live: {
     frontend: 'https://nevermined.app',
     backend: 'https://api.live.nevermined.app/',
     proxy: 'https://proxy.live.nevermined.app',
-    heliconeUrl: process.env.HELICONE_URL || 'http://localhost:8585', // TODO: Update when helicone is deployed
+    heliconeUrl: 'https://helicone.nevermined.dev',
   },
   /**
    * A custom environment URLs.
