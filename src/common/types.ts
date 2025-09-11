@@ -164,14 +164,19 @@ export enum PlanRedemptionType {
 
 export interface PlanBalance {
   planId: string
+  planName: string
+  planType: string
   holderAddress: Address
   balance: bigint
   creditsContract: Address
   isSubscriber: boolean
+  pricePerCredit: number
 }
 
 export interface StartAgentRequest {
   agentRequestId: string
+  agentName: string
+  agentId: string
   balance: PlanBalance
   urlMatching: string
   verbMatching: string

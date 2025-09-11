@@ -11,34 +11,39 @@ import { decodeJwt } from 'jose'
 export abstract class BasePaymentsAPI {
   protected nvmApiKey: string
   protected environment: EnvironmentInfo
+  protected environmentName: EnvironmentName
   protected returnUrl: string
   protected appId?: string
   protected version?: string
-  protected accountAddress?: string
-  protected heliconeApiKey?: string
+  protected accountAddress: string
+  protected heliconeApiKey: string
   public isBrowserInstance = true
 
   constructor(options: PaymentOptions) {
     this.nvmApiKey = options.nvmApiKey
     this.returnUrl = options.returnUrl || ''
     this.environment = Environments[options.environment as EnvironmentName]
+    this.environmentName = options.environment
     this.appId = options.appId
     this.version = options.version
-    this.parseNvmApiKey()
+    const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
+    this.accountAddress = accountAddress
+    this.heliconeApiKey = heliconeApiKey
   }
 
   /**
    * Parses the NVM API Key to extract the account address.
    * @throws PaymentsError if the API key is invalid.
    */
-  protected parseNvmApiKey() {
+  protected parseNvmApiKey(): { accountAddress: string; heliconeApiKey: string } {
     try {
       if (!this.nvmApiKey) {
         throw new PaymentsError('NVM API Key is required')
       }
       const jwt = decodeJwt(this.nvmApiKey)
-      this.accountAddress = jwt.sub
-      this.heliconeApiKey = jwt.o11y as string
+      const accountAddress = jwt.sub as string
+      const heliconeApiKey = jwt.o11y as string
+      return { accountAddress, heliconeApiKey }
     } catch (error) {
       throw new PaymentsError('Invalid NVM API Key')
     }
