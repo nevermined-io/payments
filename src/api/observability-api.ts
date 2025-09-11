@@ -48,7 +48,7 @@ export interface HeliconeResponseConfig {
   systemFingerprint?: string
 }
 
-export type CustomProperties = Record<string, string | number>
+export type CustomProperties = Record<string, string>
 
 export type NeverminedHeliconeHeaders = {
   'Helicone-Auth': string
@@ -60,7 +60,7 @@ export type NeverminedHeliconeHeaders = {
   'Helicone-Property-planName': string
   'Helicone-Property-agentName': string
   'Helicone-Property-agentRequestId': string
-  'Helicone-Property-pricePerCredit': number
+  'Helicone-Property-pricePerCredit': string
   'Helicone-Property-environmentName': string
 }
 
@@ -98,7 +98,7 @@ function getDefaultHeliconeHeaders(
     'Helicone-Property-planName': agentRequest.balance.planName,
     'Helicone-Property-agentName': agentRequest.agentName,
     'Helicone-Property-agentRequestId': agentRequest.agentRequestId,
-    'Helicone-Property-pricePerCredit': agentRequest.balance.pricePerCredit,
+    'Helicone-Property-pricePerCredit': agentRequest.balance.pricePerCredit.toString(),
     'Helicone-Property-environmentName': environmentName,
   }
 
@@ -408,7 +408,9 @@ export function withHeliconeOpenAI(
   return {
     apiKey,
     baseURL: heliconeBaseLoggingUrl,
-    defaultHeaders,
+    defaultHeaders: {
+      ...defaultHeaders,
+    },
   }
 }
 
