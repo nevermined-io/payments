@@ -187,7 +187,7 @@ const result = await payments.agents.registerAgent(agentMetadata, agentApi, paym
 const orderResult = await payments.plans.orderPlan(creditsPlanId)
 ```
 
-And get the balabce of the purchased plan:
+And get the balance of the purchased plan:
 
 ```typescript
 const balance = await payments.plans.getPlanBalance(creditsPlanId)
