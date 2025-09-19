@@ -209,12 +209,22 @@ describe('MCP Paywall (unit + edge cases)', () => {
     const iterable = await wrapped({}, extra)
     expect(payments.requests.redeemCreditsFromRequest).not.toHaveBeenCalled()
 
-    const received: string[] = []
-    for await (const chunk of iterable as AsyncIterable<string>) {
+    const received: any[] = []
+    for await (const chunk of iterable as AsyncIterable<any>) {
       received.push(chunk)
     }
 
-    expect(received).toEqual(['one', 'two', 'three'])
+    // Should have 3 data chunks + 1 metadata chunk
+    expect(received).toHaveLength(4)
+    expect(received.slice(0, 3)).toEqual(['one', 'two', 'three'])
+    expect(received[3]).toMatchObject({
+      metadata: {
+        txHash: undefined, // Mock returns undefined for txHash
+        requestId: 'req-1',
+        creditsRedeemed: '5',
+        success: true,
+      },
+    })
     expect(payments.requests.redeemCreditsFromRequest).toHaveBeenCalledWith('req-1', 'tok', 5n)
   })
 
@@ -238,7 +248,7 @@ describe('MCP Paywall (unit + edge cases)', () => {
 
     const iterable = await wrapped({}, extra)
     let count = 0
-    for await (const _ of iterable as AsyncIterable<string>) {
+    for await (const _ of iterable as AsyncIterable<any>) {
       count++
       break
     }
