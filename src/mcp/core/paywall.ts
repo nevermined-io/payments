@@ -12,6 +12,7 @@ import {
   PromptOptions,
 } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
+import { NvmAPIResult } from '../../common/types.js'
 
 /**
  * Main class for creating paywall-protected MCP handlers
@@ -103,13 +104,27 @@ export class PaywallDecorator {
       // 4. If the result is an AsyncIterable (stream), redeem on completion
       if (isAsyncIterable(result)) {
         const onFinally = async () => {
-          await this.redeemCredits(authResult.requestId, authResult.token, credits, options)
+          return await this.redeemCredits(authResult.requestId, authResult.token, credits, options)
         }
-        return wrapAsyncIterable(result, onFinally)
+        return wrapAsyncIterable(result, onFinally, authResult.requestId, credits)
       }
 
       // 5. Non-streaming: redeem immediately
-      await this.redeemCredits(authResult.requestId, authResult.token, credits, options)
+      const creditsResult = await this.redeemCredits(
+        authResult.requestId,
+        authResult.token,
+        credits,
+        options,
+      )
+      if (creditsResult.success) {
+        result.metadata = {
+          ...result.metadata,
+          txHash: creditsResult.txHash,
+          requestId: authResult.requestId,
+          creditsRedeemed: credits.toString(),
+          success: true,
+        }
+      }
       return result
     }
   }
@@ -122,10 +137,14 @@ export class PaywallDecorator {
     token: string,
     credits: bigint,
     options: PaywallOptions,
-  ): Promise<void> {
+  ): Promise<NvmAPIResult> {
+    let ret: NvmAPIResult = {
+      success: true,
+      txHash: '',
+    }
     try {
       if (credits && credits > 0n) {
-        await this.payments.requests.redeemCreditsFromRequest(requestId, token, credits)
+        ret = await this.payments.requests.redeemCreditsFromRequest(requestId, token, credits)
       }
     } catch (e) {
       if (options.onRedeemError === 'propagate') {
@@ -133,6 +152,7 @@ export class PaywallDecorator {
       }
       // Default: ignore redemption errors
     }
+    return ret
   }
 }
 
@@ -144,18 +164,34 @@ function isAsyncIterable<T = unknown>(value: any): value is AsyncIterable<T> {
 }
 
 /**
- * Wrap an AsyncIterable so a callback runs when the stream finishes or errors.
- * The wrapped iterable yields the same chunks and triggers onFinally in a finally block.
+ * Wrap an AsyncIterable with metadata injection at the end of the stream
  */
-function wrapAsyncIterable<T>(iterable: AsyncIterable<T>, onFinally: () => Promise<void>) {
+function wrapAsyncIterable<T>(
+  iterable: AsyncIterable<T>,
+  onFinally: () => Promise<any>,
+  requestId: string,
+  credits: bigint,
+) {
   async function* generator() {
+    let creditsResult: any = null
     try {
       for await (const chunk of iterable) {
         yield chunk as T
       }
     } finally {
-      await onFinally()
+      creditsResult = await onFinally()
     }
+
+    // Yield a metadata chunk at the end with the redemption result
+    const metadataChunk = {
+      metadata: {
+        txHash: creditsResult?.txHash,
+        requestId: requestId,
+        creditsRedeemed: credits.toString(),
+        success: creditsResult?.success || false,
+      },
+    }
+    yield metadataChunk as T
   }
   return generator()
 }
