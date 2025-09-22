@@ -6,7 +6,7 @@
 import { HeliconeManualLogger } from '@helicone/helpers'
 import { generateDeterministicAgentId, generateSessionId, logSessionInfo } from '../utils.js'
 import { BasePaymentsAPI } from './base-payments.js'
-import { PaymentOptions, StartAgentRequest } from '../common/types.js'
+import { StartAgentRequest, PaymentOptions } from '../common/types.js'
 import { EnvironmentName } from '../environments.js'
 
 /**
@@ -85,20 +85,20 @@ function getDefaultHeliconeHeaders(
   heliconeApiKey: string,
   accountAddress: string,
   environmentName: EnvironmentName,
-  agentRequest: StartAgentRequest,
+  startAgentRequest: StartAgentRequest,
   customProperties: CustomProperties,
 ): DefaultHeliconeHeaders {
   const neverminedHeliconeHeaders: NeverminedHeliconeHeaders = {
     'Helicone-Auth': `Bearer ${heliconeApiKey}`,
     'Helicone-Property-accountAddress': accountAddress,
-    'Helicone-Property-consumerAddress': agentRequest.balance.holderAddress,
-    'Helicone-Property-agentId': agentRequest.agentId,
-    'Helicone-Property-planId': agentRequest.balance.planId,
-    'Helicone-Property-planType': agentRequest.balance.planType,
-    'Helicone-Property-planName': agentRequest.balance.planName,
-    'Helicone-Property-agentName': agentRequest.agentName,
-    'Helicone-Property-agentRequestId': agentRequest.agentRequestId,
-    'Helicone-Property-pricePerCredit': agentRequest.balance.pricePerCredit.toString(),
+    'Helicone-Property-consumerAddress': startAgentRequest.balance.holderAddress,
+    'Helicone-Property-agentId': startAgentRequest.agentId,
+    'Helicone-Property-planId': startAgentRequest.balance.planId,
+    'Helicone-Property-planType': startAgentRequest.balance.planType,
+    'Helicone-Property-planName': startAgentRequest.balance.planName,
+    'Helicone-Property-agentName': startAgentRequest.agentName,
+    'Helicone-Property-agentRequestId': startAgentRequest.agentRequestId,
+    'Helicone-Property-pricePerCredit': startAgentRequest.balance.pricePerCredit.toString(),
     'Helicone-Property-environmentName': environmentName,
   }
 
@@ -205,6 +205,8 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
   heliconeApiKey: string,
   heliconeManualLoggingUrl: string,
   accountAddress: string,
+  environmentName: EnvironmentName,
+  startAgentRequest: StartAgentRequest,
   customProperties: CustomProperties,
 ): Promise<TExtracted> {
   // Extract agentId and sessionId from properties, or generate defaults
@@ -220,19 +222,20 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
     logSessionInfo(agentId, sessionId, agentName)
   }
 
-  // Build custom property headers from all properties
-  const customHeaders: Record<string, string> = {}
-  for (const [key, value] of Object.entries(customProperties)) {
-    // Convert property names to Helicone-Property format and ensure string values
-    customHeaders[`Helicone-Property-${key}`] = String(value)
-  }
+  const defaultHeaders = getDefaultHeliconeHeaders(
+    heliconeApiKey,
+    accountAddress,
+    environmentName,
+    startAgentRequest,
+    customProperties,
+  )
 
   const heliconeLogger = new HeliconeManualLogger({
     apiKey: heliconeApiKey,
     loggingEndpoint: heliconeManualLoggingUrl,
     headers: {
-      ...customHeaders,
-      'Helicone-Property-accountAddress': accountAddress,
+      ...defaultHeaders,
+      // 'Helicone-Property-accountAddress': accountAddress,
     },
   })
 
@@ -353,14 +356,14 @@ export function withHeliconeLangchain(
   heliconeBaseLoggingUrl: string,
   accountAddress: string,
   environmentName: EnvironmentName,
-  agentRequest: StartAgentRequest,
+  startAgentRequest: StartAgentRequest,
   customProperties: CustomProperties,
 ): ChatOpenAIConfiguration {
   const defaultHeaders = getDefaultHeliconeHeaders(
     heliconeApiKey,
     accountAddress,
     environmentName,
-    agentRequest,
+    startAgentRequest,
     customProperties,
   )
 
@@ -394,14 +397,14 @@ export function withHeliconeOpenAI(
   heliconeBaseLoggingUrl: string,
   accountAddress: string,
   environmentName: EnvironmentName,
-  agentRequest: StartAgentRequest,
+  startAgentRequest: StartAgentRequest,
   customProperties: CustomProperties,
 ): OpenAIConfiguration {
   const defaultHeaders = getDefaultHeliconeHeaders(
     heliconeApiKey,
     accountAddress,
     environmentName,
-    agentRequest,
+    startAgentRequest,
     customProperties,
   )
 
@@ -433,7 +436,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       this.environment.heliconeUrl,
     ).toString()
     this.heliconeManualLoggingUrl = new URL(
-      'jawn/v1/trace/custom/log',
+      'jawn/v1/trace/custom/v1/log',
       this.environment.heliconeUrl,
     ).toString()
   }
@@ -467,6 +470,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     resultExtractor: (internalResult: TInternal) => TExtracted,
     usageCalculator: (internalResult: TInternal) => HeliconeResponseConfig['usage'],
     responseIdPrefix: string,
+    startAgentRequest: StartAgentRequest,
     customProperties: CustomProperties,
   ): Promise<TExtracted> {
     return withHeliconeLogging(
@@ -479,6 +483,8 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       this.heliconeApiKey,
       this.heliconeManualLoggingUrl,
       this.accountAddress,
+      this.environmentName,
+      startAgentRequest,
       customProperties,
     )
   }
@@ -525,7 +531,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    */
   withHeliconeOpenAI(
     apiKey: string,
-    agentRequest: StartAgentRequest,
+    startAgentRequest: StartAgentRequest,
     customProperties: CustomProperties,
   ): OpenAIConfiguration {
     return withHeliconeOpenAI(
@@ -534,7 +540,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       this.heliconeBaseLoggingUrl,
       this.accountAddress,
       this.environmentName,
-      agentRequest,
+      startAgentRequest,
       customProperties,
     )
   }
