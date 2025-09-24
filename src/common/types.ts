@@ -180,6 +180,7 @@ export interface StartAgentRequest {
   balance: PlanBalance
   urlMatching: string
   verbMatching: string
+  batch: boolean
 }
 
 export interface ValidationAgentRequest {

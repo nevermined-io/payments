@@ -62,6 +62,7 @@ export type NeverminedHeliconeHeaders = {
   'Helicone-Property-agentRequestId': string
   'Helicone-Property-pricePerCredit': string
   'Helicone-Property-environmentName': string
+  'Helicone-Property-batch': string
 }
 
 export type DefaultHeliconeHeaders = NeverminedHeliconeHeaders & CustomProperties
@@ -100,6 +101,7 @@ function getDefaultHeliconeHeaders(
     'Helicone-Property-agentRequestId': agentRequest.agentRequestId,
     'Helicone-Property-pricePerCredit': agentRequest.balance.pricePerCredit.toString(),
     'Helicone-Property-environmentName': environmentName,
+    'Helicone-Property-batch': agentRequest.batch.toString(),
   }
 
   // Build custom property headers from all properties
