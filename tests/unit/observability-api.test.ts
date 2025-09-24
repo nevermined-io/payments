@@ -17,6 +17,7 @@ describe('Observability-Api (unit)', () => {
     },
     urlMatching: 'test-url-matching',
     verbMatching: 'test-verb-matching',
+    batch: false,
   } as StartAgentRequest
 
   it('should initialize correctly with the helicone api key and helicone url', () => {
