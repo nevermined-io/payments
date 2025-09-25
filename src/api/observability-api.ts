@@ -334,9 +334,9 @@ export function calculateDummySongUsage(): HeliconeResponseConfig['usage'] {
 }
 
 /**
- * Creates a ChatOpenAI configuration with Helicone logging enabled
+ * Creates a ChatOpenAI configuration with logging enabled
  *
- * Usage: const llm = new ChatOpenAI(withHeliconeLangchain("gpt-4o-mini", apiKey, heliconeApiKey, heliconeBaseLoggingUrl, accountAddress, agentRequest, customProperties));
+ * Usage: const llm = new ChatOpenAI(withLangchain("gpt-4o-mini", apiKey, heliconeApiKey, heliconeBaseLoggingUrl, accountAddress, agentRequest, customProperties));
  *
  * @param model - The OpenAI model to use (e.g., "gpt-4o-mini", "gpt-4")
  * @param apiKey - The OpenAI API key
@@ -346,9 +346,9 @@ export function calculateDummySongUsage(): HeliconeResponseConfig['usage'] {
  * @param environmentName - The environment name for logging purposes
  * @param agentRequest - The agent request for logging purposes
  * @param customProperties - Custom properties to add as Helicone headers
- * @returns Configuration object for ChatOpenAI constructor with Helicone enabled
+ * @returns Configuration object for ChatOpenAI constructor with logging enabled
  */
-export function withHeliconeLangchain(
+export function withLangchain(
   model: string,
   apiKey: string,
   heliconeApiKey: string,
@@ -377,9 +377,9 @@ export function withHeliconeLangchain(
 }
 
 /**
- * Creates an OpenAI client configuration with Helicone logging enabled
+ * Creates an OpenAI client configuration with logging enabled
  *
- * Usage: const openai = new OpenAI(withHeliconeOpenAI(apiKey, heliconeApiKey, heliconeBaseLoggingUrl, accountAddress, agentRequest, customProperties));
+ * Usage: const openai = new OpenAI(withOpenAI(apiKey, heliconeApiKey, heliconeBaseLoggingUrl, accountAddress, agentRequest, customProperties));
  *
  * @param apiKey - The OpenAI API key
  * @param heliconeApiKey - The Helicone API key for logging
@@ -388,9 +388,9 @@ export function withHeliconeLangchain(
  * @param environmentName - The environment name for logging purposes
  * @param agentRequest - The agent request for logging purposes
  * @param customProperties - Custom properties to add as Helicone headers
- * @returns Configuration object for OpenAI constructor with Helicone enabled
+ * @returns Configuration object for OpenAI constructor with logging enabled
  */
-export function withHeliconeOpenAI(
+export function withOpenAI(
   apiKey: string,
   heliconeApiKey: string,
   heliconeBaseLoggingUrl: string,
@@ -486,23 +486,23 @@ export class ObservabilityAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Creates a ChatOpenAI configuration with Helicone logging enabled
+   * Creates a ChatOpenAI configuration with logging enabled
    *
-   * Usage: const llm = new ChatOpenAI(observability.withHeliconeLangchain("gpt-4o-mini", apiKey, agentRequest, customProperties));
+   * Usage: const llm = new ChatOpenAI(observability.withLangchain("gpt-4o-mini", apiKey, agentRequest, customProperties));
    *
    * @param model - The OpenAI model to use (e.g., "gpt-4o-mini", "gpt-4")
    * @param apiKey - The OpenAI API key
    * @param agentRequest - The agent request for logging purposes
    * @param customProperties - Custom properties to add as Helicone headers (should include agentid and sessionid)
-   * @returns Configuration object for ChatOpenAI constructor with Helicone enabled
+   * @returns Configuration object for ChatOpenAI constructor with logging enabled
    */
-  withHeliconeLangchain(
+  withLangchain(
     model: string,
     apiKey: string,
     startAgentRequest: StartAgentRequest,
     customProperties: CustomProperties,
   ): ChatOpenAIConfiguration {
-    return withHeliconeLangchain(
+    return withLangchain(
       model,
       apiKey,
       this.heliconeApiKey,
@@ -515,22 +515,21 @@ export class ObservabilityAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Creates an OpenAI client configuration with Helicone logging enabled
+   * Creates an OpenAI client configuration with logging enabled
    *
-   * Usage: const openai = new OpenAI(observability.withHeliconeOpenAI(apiKey, heliconeApiKey, agentRequest, customProperties));
+   * Usage: const openai = new OpenAI(observability.withOpenAI(apiKey, heliconeApiKey, agentRequest, customProperties));
    *
    * @param apiKey - The OpenAI API key
-   * @param heliconeApiKey - The Helicone API key for logging
    * @param agentRequest - The agent request for logging purposes
    * @param customProperties - Custom properties to add as Helicone headers (should include agentid and sessionid)
-   * @returns Configuration object for OpenAI constructor with Helicone enabled
+   * @returns Configuration object for OpenAI constructor with logging enabled
    */
-  withHeliconeOpenAI(
+  withOpenAI(
     apiKey: string,
     agentRequest: StartAgentRequest,
     customProperties: CustomProperties,
   ): OpenAIConfiguration {
-    return withHeliconeOpenAI(
+    return withOpenAI(
       apiKey,
       this.heliconeApiKey,
       this.heliconeBaseLoggingUrl,
