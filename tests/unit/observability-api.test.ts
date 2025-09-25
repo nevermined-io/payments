@@ -26,7 +26,7 @@ describe('Observability-Api (unit)', () => {
       environment: 'custom',
     })
 
-    const cfg = payments.observability.withHeliconeOpenAI('sk-openai', agentRequest, {
+    const cfg = payments.observability.withOpenAI('sk-openai', agentRequest, {
       agentid: 'test-agent',
       sessionid: 'test-session',
     })
@@ -45,7 +45,7 @@ describe('Observability-Api (unit)', () => {
     Environments.custom = { ...originalCustom, heliconeUrl: 'https://custom.helicone.com' }
 
     const payments = Payments.getInstance({ nvmApiKey: nvmApiKeyHash, environment: 'custom' })
-    const cfg = payments.observability.withHeliconeOpenAI('sk-openai', agentRequest, {
+    const cfg = payments.observability.withOpenAI('sk-openai', agentRequest, {
       agentid: 'test-agent',
       sessionid: 'test-session',
     })
