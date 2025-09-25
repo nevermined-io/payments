@@ -7,12 +7,15 @@ import type {
   ToolOptions,
   ResourceOptions,
   PromptOptions,
+  PaywallContext,
 } from './types/paywall.types.js'
 export type {
   CreditsContext,
   CreditsOption,
   PaywallOptions,
   McpConfig,
+  PaywallContext,
+  AuthResult,
 } from './types/paywall.types.js'
 export { buildExtraFromHttpHeaders, buildExtraFromHttpRequest } from './utils/extra.js'
 
@@ -30,17 +33,18 @@ export function buildMcpIntegration(paymentsService: Payments) {
   }
 
   function withPaywall<TArgs = any>(
-    handler: (args: TArgs, extra?: any) => Promise<any> | any,
+    handler: (args: TArgs, extra?: any, context?: PaywallContext) => Promise<any> | any,
     options: ToolOptions | PromptOptions,
   ): (args: TArgs, extra?: any) => Promise<any>
   function withPaywall<TArgs = any>(
-    handler: (args: TArgs, extra?: any) => Promise<any> | any,
+    handler: (args: TArgs, extra?: any, context?: PaywallContext) => Promise<any> | any,
   ): (args: TArgs, extra?: any) => Promise<any>
   function withPaywall(
     handler: (
       uri: URL,
       variables: Record<string, string | string[]>,
       extra?: any,
+      context?: PaywallContext,
     ) => Promise<any> | any,
     options: ResourceOptions,
   ): (uri: URL, variables: Record<string, string | string[]>, extra?: any) => Promise<any>
@@ -72,7 +76,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
       registerTool<TArgs = any>(
         name: string,
         config: any,
-        handler: (args: TArgs, extra?: any) => Promise<any> | any,
+        handler: (args: TArgs, extra?: any, context?: PaywallContext) => Promise<any> | any,
         options?: Omit<ToolOptions, 'kind' | 'name'>,
       ) {
         const protectedHandler = withPaywall(handler, { kind: 'tool', name, ...(options || {}) })
@@ -86,6 +90,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
           uri: URL,
           variables: Record<string, string | string[]>,
           extra?: any,
+          context?: PaywallContext,
         ) => Promise<any> | any,
         options?: Omit<ResourceOptions, 'kind' | 'name'>,
       ) {
@@ -99,7 +104,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
       registerPrompt<TArgs = any>(
         name: string,
         config: any,
-        handler: (args: TArgs, extra?: any) => Promise<any> | any,
+        handler: (args: TArgs, extra?: any, context?: PaywallContext) => Promise<any> | any,
         options?: Omit<PromptOptions, 'kind' | 'name'>,
       ) {
         const protectedHandler = withPaywall(handler, { kind: 'prompt', name, ...(options || {}) })

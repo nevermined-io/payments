@@ -1,6 +1,7 @@
 /**
  * Type definitions for MCP paywall functionality
  */
+import type { StartAgentRequest } from '../../common/types.js'
 
 /**
  * Context provided to dynamic credits functions
@@ -65,6 +66,16 @@ export interface AuthResult {
   token: string
   agentId: string
   logicalUrl: string
+  agentRequest: StartAgentRequest
+}
+
+/**
+ * Context provided to paywall-protected handlers
+ */
+export interface PaywallContext {
+  authResult: AuthResult
+  credits: bigint
+  agentRequest: StartAgentRequest
 }
 
 /**

@@ -54,6 +54,7 @@ export class PaywallAuthenticator {
         token: accessToken,
         agentId,
         logicalUrl,
+        agentRequest: start,
       }
     } catch (e) {
       // Enrich denial with suggested plans (best-effort)
@@ -113,6 +114,7 @@ export class PaywallAuthenticator {
         token: accessToken,
         agentId,
         logicalUrl,
+        agentRequest: start,
       }
     } catch (e) {
       let plansMsg = ''

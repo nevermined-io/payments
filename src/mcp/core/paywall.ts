@@ -10,6 +10,7 @@ import {
   ToolOptions,
   ResourceOptions,
   PromptOptions,
+  PaywallContext,
 } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
 import { NvmAPIResult } from '../../common/types.js'
@@ -95,13 +96,28 @@ export class PaywallDecorator {
         argsOrVars,
       )
 
-      // 2. Execute original handler
-      const result = await (handler as any)(...allArgs)
+      // 2. Resolve initial credits (for context)
+      const initialCredits = this.creditsContext.resolve(
+        options?.credits,
+        argsOrVars,
+        null,
+        authResult,
+      )
 
-      // 3. Resolve credits to burn (defaults to 1n when undefined)
+      // 3. Create paywall context
+      const paywallContext: PaywallContext = {
+        authResult,
+        credits: initialCredits,
+        agentRequest: authResult.agentRequest,
+      }
+
+      // 4. Execute original handler with context
+      const result = await (handler as any)(...allArgs, paywallContext)
+
+      // 5. Resolve final credits to burn (may be different if credits are dynamic)
       const credits = this.creditsContext.resolve(options?.credits, argsOrVars, result, authResult)
 
-      // 4. If the result is an AsyncIterable (stream), redeem on completion
+      // 6. If the result is an AsyncIterable (stream), redeem on completion
       if (isAsyncIterable(result)) {
         const onFinally = async () => {
           return await this.redeemCredits(authResult.requestId, authResult.token, credits, options)
@@ -109,7 +125,7 @@ export class PaywallDecorator {
         return wrapAsyncIterable(result, onFinally, authResult.requestId, credits)
       }
 
-      // 5. Non-streaming: redeem immediately
+      // 7. Non-streaming: redeem immediately
       const creditsResult = await this.redeemCredits(
         authResult.requestId,
         authResult.token,
