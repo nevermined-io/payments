@@ -11,7 +11,7 @@ import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/se
 import { PaymentsA2AServer } from './a2a/server.js'
 import { buildPaymentAgentCard } from './a2a/agent-card.js'
 import * as mcpModule from './mcp/index.js'
-import { OrganizationsAPI } from './api/organizations-api.js'
+import { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
 
 /**
  * Main class that interacts with the Nevermined payments API.
