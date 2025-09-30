@@ -413,9 +413,3 @@ export interface TrackAgentSubTaskDto {
    */
   status?: AgentTaskStatus
 }
-
-export enum OrganizationMemberRole {
-  Admin = 'Admin',
-  Member = 'Member',
-  Client = 'Client',
-}

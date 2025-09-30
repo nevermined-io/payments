@@ -25,6 +25,7 @@ import {
   API_URL_PLAN_BALANCE,
   API_URL_REGISTER_PLAN,
   API_URL_STRIPE_CHECKOUT,
+  API_URL_GET_PLANS,
 } from './nvm-api.js'
 
 /**
@@ -415,6 +416,30 @@ export class PlansAPI extends BasePaymentsAPI {
       throw PaymentsError.fromBackend('Plan not found', await response.json())
     }
     return response.json()
+  }
+
+  /**
+   *
+   * @param page - The page number to retrieve.
+   * @param offset - The number of items per page.
+   * @param sortBy - The field to sort the results by.
+   * @param sortOrder - The order in which to sort the results.
+   * @returns A promise that resolves to the list of all different plans.
+   */
+  public async getPlans(page = 1, offset = 100, sortBy = 'created', sortOrder = 'desc') {
+    const url = new URL(API_URL_GET_PLANS, this.environment.backend)
+    url.searchParams.set('page', page.toString())
+    url.searchParams.set('offset', offset.toString())
+    url.searchParams.set('sortBy', sortBy)
+    url.searchParams.set('sortOrder', sortOrder)
+    const options = this.getBackendHTTPOptions('GET')
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw PaymentsError.fromBackend('Unable to get plans', await response.json())
+    }
+
+    const data = await response.json()
+    return data
   }
 
   /**
