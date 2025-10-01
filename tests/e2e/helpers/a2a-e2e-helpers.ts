@@ -4,20 +4,22 @@
  */
 
 import { Payments } from '../../../src/payments.js'
-import { AgentExecutor } from '@a2a-js/sdk/server'
+import { AgentExecutor } from '../../../src/a2a/types.js'
 import { v4 as uuidv4 } from 'uuid'
 
 // Test Configuration
 export const E2E_TEST_CONFIG = {
   TIMEOUT: 30_000,
   TESTING_ENVIRONMENT: 'staging_sandbox' as const,
-  
+
   // API Keys (with fallbacks for testing)
-  BUILDER_API_KEY: process.env.TEST_BUILDER_API_KEY || 
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDhmMDQ1QkM3QzA0RjRjYzViNjNjOTcyNWM1YTZCMzI5OWQ0YUMxRTIiLCJqdGkiOiIweDMxNDYzZWNhMThhMWE3YjA0YmE3OWYwZGQ5MjcyZGJhOTJmN2RhODdjMzk4ZTUzMzI2ZGVlMTIyMmM5NWQ1ODEiLCJleHAiOjE3ODU1MDMwNjl9.-7CTE0shh75g09x66adB1-B4tz1KRx8_1jtm2tqDlj12gXeb29_kiBg1dL3Tc7pgFEuTU0AD5EWrRr8ys4RO2Rw',
-  
-  SUBSCRIBER_API_KEY: process.env.TEST_SUBSCRIBER_API_KEY || 
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweGMxNTA4ZDEzMTczMkNBNDVlN2JDQTE4OGMyNjA4YUU4ODhmMDI2OGQiLCJqdGkiOiIweDk1NmMyMzZjMjAyNDQyNDM0MjUzZjY4MmQyOTI3NDMwOGMwNDY2NDExOGU5MjJiMjI2YjA1YThhNDYxYzA3NmYiLCJleHAiOjE3ODU1MDMxMzR9.QjsshT4fbWGG9lASW0ENToI2Mg6E-Z7U_8HANlQk-VIRjlMVvBouSE2xMWnEFjtjkkzt1qbnpXGVtJLyUu4Oghw'
+  BUILDER_API_KEY:
+    process.env.TEST_BUILDER_API_KEY ||
+    'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDgwN2U2MjhBNzc5QzBGMTFhNzUxMzNmODFBNjZDNjQ2OTU4QjJmNEQiLCJqdGkiOiIweDFlZDA3MTBkNTBkMjEyNTZlZGY3NGQ0YTNjMGZhYmE3YTlhZDc2YmU2NmRkMTBmOTBjNDAyZGZkYWRhYWNkYjMiLCJleHAiOjE3OTA3ODgyNDIsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.P5Ceh11SOiFp_I5wQHPg0WuiDjSY_MzC7RQJe0JAKy4IPfLkGpwGV7Dv37_iR_VQFdk3-lNF-EvxUE5Hlogp4Bw',
+
+  SUBSCRIBER_API_KEY:
+    process.env.TEST_SUBSCRIBER_API_KEY ||
+    'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEU3OGRiMkJGMEIyMjcwM2RjZDNGNDUzMDRkODUxZTdCNjY1MDU3N2UiLCJqdGkiOiIweGYyYTIzZmIzM2EzNzhiNWM3YTRmYzNmNWUyODVlODQwN2IyYjk5OTg2ZDEwNDM4ZmQ5ZDliNGVmNmMyZjMzZmQiLCJleHAiOjE3OTA3ODg1NjQsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.0Eg3M5qyNDHoyKBHDq_Kqg-ko3-6ArKE6dtEb0UvoL9p4eOqipEnjAQxxzV92XyUUH57ylcRwJ_UIXpuvgjbjRs',
 }
 
 // Test Data
@@ -36,7 +38,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3000/',
     version: '1.0.0',
   },
-  
+
   CLIENT_TEST_AGENT_CARD: {
     name: 'Client Test Agent',
     description: 'Test agent for client testing',
@@ -51,7 +53,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3005/',
     version: '1.0.0',
   },
-  
+
   MULTI_CLIENT_TEST_AGENT_CARD: {
     name: 'Multi Client Test Agent',
     description: 'Test agent for multiple client testing',
@@ -66,7 +68,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3006/',
     version: '1.0.0',
   },
-  
+
   PAYMENT_TEST_AGENT_CARD: {
     name: 'Payment Test Agent',
     description: 'Agent for payment testing',
@@ -81,7 +83,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3008/',
     version: '1.0.0',
   },
-  
+
   ERROR_TEST_AGENT_CARD: {
     name: 'Error Test Agent',
     description: 'Agent for error testing',
@@ -96,7 +98,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3009/',
     version: '1.0.0',
   },
-  
+
   INTEGRATION_TEST_AGENT_CARD: {
     name: 'Integration Test Agent',
     description: 'Agent for integration testing',
@@ -111,7 +113,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3010/',
     version: '1.0.0',
   },
-  
+
   STREAMING_TEST_AGENT_CARD: {
     name: 'Streaming Test Agent',
     description: 'Agent for streaming SSE testing',
@@ -126,7 +128,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3010/',
     version: '1.0.0',
   },
-  
+
   REGULAR_TEST_AGENT_CARD: {
     name: 'Regular Test Agent',
     description: 'Agent for regular request testing',
@@ -141,7 +143,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3011/',
     version: '1.0.0',
   },
-  
+
   DETECTION_TEST_AGENT_CARD: {
     name: 'Detection Test Agent',
     description: 'Agent for request detection testing',
@@ -156,7 +158,7 @@ export const E2E_TEST_DATA = {
     url: 'http://localhost:3012/',
     version: '1.0.0',
   },
-  
+
   ERROR_STREAMING_TEST_AGENT_CARD: {
     name: 'Error Streaming Test Agent',
     description: 'Agent for streaming error testing',
@@ -170,7 +172,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3013/',
     version: '1.0.0',
-  }
+  },
 }
 
 // Factory Functions
@@ -183,7 +185,7 @@ export class A2AE2EFactory {
       execute: async (requestContext, eventBus) => {
         const taskId = requestContext.taskId
         const contextId = requestContext.userMessage.contextId || uuidv4()
-        
+
         // Publish initial task if it doesn't exist
         if (!requestContext.task) {
           const initialTask = {
@@ -199,7 +201,7 @@ export class A2AE2EFactory {
           }
           eventBus.publish(initialTask)
         }
-        
+
         // Publish working status
         const workingStatusUpdate = {
           kind: 'status-update' as const,
@@ -220,10 +222,10 @@ export class A2AE2EFactory {
           final: false,
         }
         eventBus.publish(workingStatusUpdate)
-        
+
         // Simulate processing time
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
+        await new Promise((resolve) => setTimeout(resolve, 100))
+
         // Publish final completed status
         const agentMessage = {
           kind: 'message' as const,
@@ -233,7 +235,7 @@ export class A2AE2EFactory {
           taskId: taskId,
           contextId: contextId,
         }
-        
+
         const finalUpdate = {
           kind: 'status-update' as const,
           taskId: taskId,
@@ -264,11 +266,11 @@ export class A2AE2EFactory {
       execute: async (requestContext, eventBus) => {
         const taskId = requestContext.taskId
         const contextId = requestContext.userMessage.contextId || uuidv4()
-        const userText = requestContext.userMessage.parts[0] && 
-          requestContext.userMessage.parts[0].kind === 'text' 
-            ? requestContext.userMessage.parts[0].text 
+        const userText =
+          requestContext.userMessage.parts[0] && requestContext.userMessage.parts[0].kind === 'text'
+            ? requestContext.userMessage.parts[0].text
             : ''
-        
+
         // Publish initial task
         eventBus.publish({
           kind: 'task',
@@ -398,7 +400,7 @@ export class A2AE2EFactory {
             metadata: { errorType: 'agent_error' },
           })
         }
-        
+
         eventBus.finished()
       },
       cancelTask: async (taskId: string) => {
@@ -416,11 +418,11 @@ export class A2AE2EFactory {
       execute: async (requestContext, eventBus) => {
         const taskId = requestContext.taskId
         const contextId = requestContext.userMessage.contextId || uuidv4()
-        const userText = requestContext.userMessage.parts[0] && 
-          requestContext.userMessage.parts[0].kind === 'text' 
-            ? requestContext.userMessage.parts[0].text 
+        const userText =
+          requestContext.userMessage.parts[0] && requestContext.userMessage.parts[0].kind === 'text'
+            ? requestContext.userMessage.parts[0].text
             : ''
-        
+
         // Publish initial task
         eventBus.publish({
           kind: 'task',
@@ -580,7 +582,7 @@ export class A2AE2EFactory {
             metadata: { errorType: 'agent_error' },
           })
         }
-        
+
         eventBus.finished()
       },
       cancelTask: async (taskId: string) => {
@@ -622,32 +624,36 @@ export class A2AE2EUtils {
    * Waits for a specified amount of time
    */
   static async wait(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   /**
    * Creates a Payments instance for testing
    */
   static createPaymentsInstance(API_KEY: string): Payments {
-    return Payments.getInstance({ 
-      nvmApiKey: API_KEY, 
-      environment: E2E_TEST_CONFIG.TESTING_ENVIRONMENT 
+    return Payments.getInstance({
+      nvmApiKey: API_KEY,
+      environment: E2E_TEST_CONFIG.TESTING_ENVIRONMENT,
     })
   }
 
   /**
    * Waits for a server to be ready by checking if the agent card endpoint is accessible
    */
-  static async waitForServerReady(port: number, maxRetries: number = 10, basePath: string = ''): Promise<void> {
+  static async waitForServerReady(
+    port: number,
+    maxRetries: number = 10,
+    basePath: string = '',
+  ): Promise<void> {
     const agentCardUrl = `http://localhost:${port}${basePath}/.well-known/agent.json`
-    
+
     for (let i = 0; i < maxRetries; i++) {
       try {
         const response = await fetch(agentCardUrl, {
           method: 'GET',
-          headers: { 'Accept': 'application/json' }
+          headers: { Accept: 'application/json' },
         })
-        
+
         if (response.ok) {
           const agentCard = await response.json()
           if (agentCard && agentCard.name) {
@@ -657,11 +663,11 @@ export class A2AE2EUtils {
       } catch (error) {
         // Server not ready yet, continue waiting
       }
-      
+
       // Wait before retrying
       await this.wait(1000) // Increased wait time
     }
-    
+
     throw new Error(`Server on port ${port} did not become ready within ${maxRetries * 1000}ms`)
   }
 }
@@ -719,7 +725,7 @@ export class A2AE2EAssertions {
     // Verify we received streaming events
     expect(events.length).toBeGreaterThan(0)
     expect(finalResult).toBeDefined()
-    
+
     // Verify streaming response structure
     expect(finalResult.jsonrpc).toBe('2.0')
     expect(finalResult.result).toBeDefined()
@@ -727,7 +733,7 @@ export class A2AE2EAssertions {
     expect(finalResult.result.final).toBe(true)
     expect(finalResult.result.status).toBeDefined()
     expect(finalResult.result.status.state).toBe('completed')
-    
+
     // Verify streaming metadata
     expect(finalResult.result.metadata).toBeDefined()
     expect(finalResult.result.metadata.creditsUsed).toBe(10)
@@ -739,32 +745,32 @@ export class A2AE2EAssertions {
    * Asserts that a resubscribe response is valid
    */
   static assertValidResubscribeResponse(
-    initialEvents: any[], 
-    resubscribeEvents: any[], 
-    resubscribeFinalResult: any, 
+    initialEvents: any[],
+    resubscribeEvents: any[],
+    resubscribeFinalResult: any,
     taskId: string,
-    maxInitialEvents: number
+    maxInitialEvents: number,
   ) {
     // Verify we got a taskId and some initial events
     expect(taskId).toBeDefined()
     expect(initialEvents.length).toBeGreaterThan(0)
     expect(initialEvents.length).toBeLessThanOrEqual(maxInitialEvents)
-    
+
     // Verify resubscribe worked and returned events
     expect(resubscribeEvents.length).toBeGreaterThan(0)
     expect(resubscribeFinalResult).toBeDefined()
-    
+
     // The resubscribe should return the same task information
     expect(resubscribeFinalResult.result.taskId).toBe(taskId)
     expect(resubscribeFinalResult.result.status.state).toBe('completed')
-    
+
     // Verify that we have events from both the initial connection and resubscribe
     const totalEvents = initialEvents.length + resubscribeEvents.length
     expect(totalEvents).toBeGreaterThan(maxInitialEvents)
-    
+
     // Verify the final result contains the expected metadata
     expect(resubscribeFinalResult.result.metadata.creditsUsed).toBe(10)
-    
+
     // Verify resubscribe response structure
     expect(resubscribeFinalResult.jsonrpc).toBe('2.0')
     expect(resubscribeFinalResult.result).toBeDefined()
@@ -797,27 +803,27 @@ export class A2AE2EServerManager {
           const closePromise = new Promise<void>((resolve) => {
             server.server.close(() => resolve())
           })
-          
+
           // Wait for close with timeout
           await Promise.race([
             closePromise,
-            new Promise<void>((resolve) => setTimeout(() => resolve(), 2000)) // 2 second timeout
+            new Promise<void>((resolve) => setTimeout(() => resolve(), 2000)), // 2 second timeout
           ])
         } catch (error) {
           console.warn('Error closing server:', error)
         }
       }
     })
-    
+
     // Wait for all servers to close with timeout
     await Promise.race([
       Promise.all(cleanupPromises),
-      new Promise<void>((resolve) => setTimeout(() => resolve(), 5000)) // 5 second total timeout
+      new Promise<void>((resolve) => setTimeout(() => resolve(), 5000)), // 5 second total timeout
     ])
-    
+
     this.servers = []
-    
+
     // Minimal wait for cleanup
     await A2AE2EUtils.wait(50)
   }
-} 
+}

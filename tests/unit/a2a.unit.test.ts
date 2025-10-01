@@ -5,9 +5,7 @@
 import { ClientRegistry } from '../../src/a2a/clientRegistry'
 import { Payments } from '../../src/payments'
 import { buildPaymentAgentCard } from '../../src/a2a/agent-card'
-import { PaymentsError } from '../../src/common/payments.error'
 
-// Minimal mock only for network requests in unit tests
 jest.mock('@a2a-js/sdk/client', () => ({
   A2AClient: jest.fn().mockImplementation(() => ({
     agentCardPromise: Promise.resolve({
@@ -31,7 +29,7 @@ describe('A2A Unit Tests (Pure)', () => {
 
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweGMxNTA4ZDEzMTczMkNBNDVlN2JDQTE4OGMyNjA4YUU4ODhmMDI2OGQiLCJqdGkiOiIweDQ3NDZmOThiNjdjOGZmMWM5NTNlMTYyYzY3MTUwMWQ1YmJlNjRiNTNmMTQ5NTViNTdlMTVmOTA1ZDkyMjI3MGEiLCJleHAiOjE3ODUzNDk0NzJ9.h_CUR9IFiG0nUZt4q-wqZCY6VRgsmf1_1MSwosmFH3VacNjzqmRcR31So2jf9kiy63HemPa5AKuKHjQkCWmtYBs'
+    'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEU3OGRiMkJGMEIyMjcwM2RjZDNGNDUzMDRkODUxZTdCNjY1MDU3N2UiLCJqdGkiOiIweGYyYTIzZmIzM2EzNzhiNWM3YTRmYzNmNWUyODVlODQwN2IyYjk5OTg2ZDEwNDM4ZmQ5ZDliNGVmNmMyZjMzZmQiLCJleHAiOjE3OTA3ODg1NjQsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.0Eg3M5qyNDHoyKBHDq_Kqg-ko3-6ArKE6dtEb0UvoL9p4eOqipEnjAQxxzV92XyUUH57ylcRwJ_UIXpuvgjbjRs'
 
   beforeEach(() => {
     payments = Payments.getInstance({ nvmApiKey: subscriberNvmApiKeyHash, environment: 'sandbox' })
@@ -408,7 +406,7 @@ describe('A2A Unit Tests (Pure)', () => {
       ]
 
       // All messages should be handled the same way in streaming mode
-      testMessages.forEach(text => {
+      testMessages.forEach((text) => {
         expect(text).toBeDefined()
         expect(typeof text).toBe('string')
       })
@@ -416,11 +414,7 @@ describe('A2A Unit Tests (Pure)', () => {
 
     it('should publish correct number of streaming events', async () => {
       // Mock implementation of handleStreamingRequest
-      const handleStreamingRequest = async (
-        userText: string,
-        context: any,
-        eventBus: any
-      ) => {
+      const handleStreamingRequest = async (userText: string, context: any, eventBus: any) => {
         const totalMessages = 3 // Reduced for unit test
         const delayMs = 50 // Reduced for unit test
 
@@ -473,7 +467,7 @@ describe('A2A Unit Tests (Pure)', () => {
       const result = await handleStreamingRequest(
         'Start streaming',
         mockRequestContext,
-        mockEventBus
+        mockEventBus,
       )
 
       // Verify the correct number of events were published
@@ -486,11 +480,7 @@ describe('A2A Unit Tests (Pure)', () => {
     })
 
     it('should include correct metadata in streaming response', async () => {
-      const handleStreamingRequest = async (
-        userText: string,
-        context: any,
-        eventBus: any
-      ) => {
+      const handleStreamingRequest = async (userText: string, context: any, eventBus: any) => {
         // Simulate one streaming message
         eventBus.publish({
           kind: 'status-update',
@@ -532,7 +522,7 @@ describe('A2A Unit Tests (Pure)', () => {
       const result = await handleStreamingRequest(
         'Start streaming',
         mockRequestContext,
-        mockEventBus
+        mockEventBus,
       )
 
       expect(result.metadata).toEqual({
@@ -545,11 +535,7 @@ describe('A2A Unit Tests (Pure)', () => {
     })
 
     it('should handle streaming errors gracefully', async () => {
-      const handleStreamingRequest = async (
-        userText: string,
-        context: any,
-        eventBus: any
-      ) => {
+      const handleStreamingRequest = async (userText: string, context: any, eventBus: any) => {
         try {
           // Simulate an error during streaming
           throw new Error('Streaming service unavailable')
@@ -594,7 +580,7 @@ describe('A2A Unit Tests (Pure)', () => {
       const result = await handleStreamingRequest(
         'Start streaming',
         mockRequestContext,
-        mockEventBus
+        mockEventBus,
       )
 
       expect(result.state).toBe('failed')
