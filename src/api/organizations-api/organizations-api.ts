@@ -10,13 +10,13 @@ export class OrganizationsAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Create a new user in the organization
-   * @param userId - The unique external ID of the user
-   * @param userEmail - The email of the user
-   * @param userRole - The role of the user
-   * @returns The created user
+   * Create a new member in the organization
+   * @param userId - The unique external ID of the new member
+   * @param userEmail - The email of the new member
+   * @param userRole - The role of the new member
+   * @returns The created member
    */
-  async createUser(
+  async createMember(
     userId: string,
     userEmail?: string,
     userRole?: OrganizationMemberRole,

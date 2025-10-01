@@ -23,7 +23,7 @@ describe('Organizations Integration Test', () => {
 
   it('should create a builder and a subscriber user', async () => {
     // create builder user
-    const builder = await paymentsOrganization.organizations.createUser(
+    const builder = await paymentsOrganization.organizations.createMember(
       randomUUID().toString(),
       `${randomUUID().toString()}@example.com`,
       OrganizationMemberRole.Client,
@@ -35,7 +35,7 @@ describe('Organizations Integration Test', () => {
     expect(builder.nvmApiKey).toBeDefined()
 
     // create subscriber user
-    const subscriber = await paymentsOrganization.organizations.createUser(
+    const subscriber = await paymentsOrganization.organizations.createMember(
       randomUUID().toString(),
       `${randomUUID().toString()}@example.com`,
       OrganizationMemberRole.Client,
