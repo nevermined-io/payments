@@ -206,7 +206,8 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    *
    * @param agentRequestId - The unique identifier of the agent request.
    * @param requestAccessToken - The access token of the request.
-   * @param creditsToBurn - The number of credits to burn.
+   * @param creditsToBurn - The number of credits to burn (optional if marginPercent is provided).
+   * @param marginPercent - The margin percentage to apply (optional if creditsToBurn is provided).
    * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
    * @throws PaymentsError if unable to redeem credits from the request.
    *
@@ -227,9 +228,10 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
   public async redeemCreditsFromBatchRequest(
     agentRequestId: string,
     requestAccessToken: string,
-    creditsToBurn: bigint,
+    creditsToBurn?: bigint,
+    marginPercent?: number,
   ): Promise<NvmAPIResult> {
-    return this.redeemCreditsFromRequest(agentRequestId, requestAccessToken, creditsToBurn, true)
+    return this.redeemCreditsFromRequest(agentRequestId, requestAccessToken, creditsToBurn, marginPercent, true)
   }
 
   /**
@@ -237,7 +239,8 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    *
    * @param agentRequestId - The unique identifier of the agent request.
    * @param requestAccessToken - The access token of the request.
-   * @param creditsToBurn - The number of credits to burn.
+   * @param creditsToBurn - The number of credits to burn (optional if marginPercent is provided).
+   * @param marginPercent - The margin percentage to apply (optional if creditsToBurn is provided).
    * @param batch - Whether the request is a batch request.
    * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
    * @throws PaymentsError if unable to redeem credits from the request.
@@ -259,9 +262,16 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
   public async redeemCreditsFromRequest(
     agentRequestId: string,
     requestAccessToken: string,
-    creditsToBurn: bigint,
+    creditsToBurn?: bigint,
+    marginPercent?: number,
     batch = false,
   ): Promise<NvmAPIResult> {
+    // Validate mutually exclusive parameters
+    if ((creditsToBurn !== undefined && marginPercent !== undefined) ||
+        (creditsToBurn === undefined && marginPercent === undefined)) {
+      throw new PaymentsError('Either creditsToBurn or marginPercent must be provided, but not both')
+    }
+
     // Decode the access token to get the wallet address and plan ID
     const decodedToken = decodeAccessToken(requestAccessToken)
     if (!decodedToken) {
@@ -280,7 +290,8 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
       agentRequestId,
       planId: BigInt(planId),
       redeemFrom: walletAddress,
-      amount: creditsToBurn,
+      ...(creditsToBurn !== undefined && { amount: creditsToBurn }),
+      ...(marginPercent !== undefined && { marginPercent }),
       batch,
     }
 
