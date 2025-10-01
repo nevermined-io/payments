@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { Payments } from '../../src/payments'
 import { OrganizationMemberRole } from '../../src/api/organizations-api'
 import { PlanMetadata } from '../../src'
-import { getExpirableDurationConfig, getFreePriceConfig, ONE_DAY_DURATION } from '../../src/plans'
+import { getFixedCreditsConfig, getFreePriceConfig } from '../../src/plans'
 
 describe('Organizations Integration Test', () => {
   const organizationAdminApiKey =
@@ -28,7 +28,6 @@ describe('Organizations Integration Test', () => {
       `${randomUUID().toString()}@example.com`,
       OrganizationMemberRole.Client,
     )
-    console.log('organization address', paymentsOrganization.getAccountAddress())
     expect(builder).toBeDefined()
     expect(builder.alreadyMember).toBe(false)
     expect(builder.userId).toBeDefined()
@@ -53,8 +52,9 @@ describe('Organizations Integration Test', () => {
 
   it('should get the members for the organization', async () => {
     const members = await paymentsOrganization.organizations.getMembers()
-    console.log('members', members)
     expect(members).toBeDefined()
+    expect(members.members.length).toBeGreaterThanOrEqual(2)
+    expect(members.total).toBeGreaterThanOrEqual(2)
   })
 
   it('should create a plan for the builder', async () => {
@@ -62,16 +62,13 @@ describe('Organizations Integration Test', () => {
       nvmApiKey: builderNvmApiKey,
       environment: 'staging_sandbox',
     })
-    console.log('builder address', paymentsBuilder.getAccountAddress())
 
     const trialPlanMetadata: PlanMetadata = {
       name: `Organization User Trial Payments Plan ${Date.now()}`,
     }
     const priceConfig = getFreePriceConfig()
-    const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
-    console.log('priceConfig', priceConfig)
-    console.log('creditsConfig', creditsConfig)
-    const result = await paymentsBuilder.plans.registerTimeTrialPlan(
+    const creditsConfig = getFixedCreditsConfig(100n)
+    const result = await paymentsBuilder.plans.registerPlan(
       trialPlanMetadata,
       priceConfig,
       creditsConfig,
@@ -98,7 +95,6 @@ describe('Organizations Integration Test', () => {
       nvmApiKey: subscriberNvmApiKey,
       environment: 'staging_sandbox',
     })
-    console.log('subscriber address', paymentsSubscriber.getAccountAddress())
 
     const orderResult = await paymentsSubscriber.plans.orderPlan(trialPlanId)
     expect(orderResult).toBeDefined()
@@ -107,7 +103,7 @@ describe('Organizations Integration Test', () => {
 
   it('should get the plan balance for the subscriber', async () => {
     const balance = await paymentsSubscriber.plans.getPlanBalance(trialPlanId)
-    console.log('balance', balance)
     expect(balance).toBeDefined()
+    expect(balance.isSubscriber).toBeTruthy()
   })
 })

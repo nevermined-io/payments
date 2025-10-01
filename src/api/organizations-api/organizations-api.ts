@@ -1,6 +1,6 @@
 import { BasePaymentsAPI } from '../base-payments.js'
 import { PaymentOptions } from '../../common/types.js'
-import { CreateUserResponse, OrganizationMemberRole } from './types.js'
+import { CreateUserResponse, OrganizationMemberRole, OrganizationMembersResponse } from './types.js'
 import { PaymentsError } from '../../common/payments.error.js'
 import { API_URL_CREATE_USER, API_URL_GET_MEMBERS } from '../nvm-api.js'
 
@@ -41,22 +41,28 @@ export class OrganizationsAPI extends BasePaymentsAPI {
     }
   }
 
+  /**
+   *
+   * @param role - The role of the members to get
+   * @param isActive - The active status of the members to get
+   * @param page - The page of the members to get
+   * @param offset - The number of members to get per page
+   * @returns The list of members
+   */
   async getMembers(
     role?: OrganizationMemberRole,
     isActive?: boolean,
     page = 1,
     offset = 100,
-    sortBy = 'created',
-    sortOrder = 'desc',
-  ) {
-    const options = this.getBackendHTTPOptions('GET')
+  ): Promise<OrganizationMembersResponse> {
+    const body = {
+      role,
+      isActive,
+      page,
+      offset,
+    }
     const url = new URL(API_URL_GET_MEMBERS, this.environment.backend)
-    role && url.searchParams.set('role', role.toString())
-    isActive && url.searchParams.set('isActive', isActive.toString())
-    url.searchParams.set('page', page.toString())
-    url.searchParams.set('offset', offset.toString())
-    url.searchParams.set('sortBy', sortBy)
-    url.searchParams.set('sortOrder', sortOrder)
+    const options = this.getBackendHTTPOptions('POST', body)
 
     const response = await fetch(url, options)
     if (!response.ok) {
@@ -65,6 +71,9 @@ export class OrganizationsAPI extends BasePaymentsAPI {
     }
 
     const data = await response.json()
-    return data
+    return {
+      members: data.members,
+      total: data.totalResults,
+    }
   }
 }
