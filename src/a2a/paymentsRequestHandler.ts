@@ -15,7 +15,13 @@ import {
 } from '@a2a-js/sdk/server'
 import type { ExecutionEventBusManager, TaskStore } from '@a2a-js/sdk/server'
 import { A2AError } from '@a2a-js/sdk/server'
-import type { HttpRequestContext } from './types.js'
+import type {
+  HttpRequestContext,
+  PaymentsRequestContext,
+  AgentRequestContext,
+  A2AAuthResult,
+  A2AStreamEvent,
+} from './types.js'
 import { StartAgentRequest } from '../common/types.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { Payments } from '../payments.js'
@@ -235,9 +241,28 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     const eventBus = this.getEventBusManager().createOrGetByTaskId(taskId)
     const eventQueue = new ExecutionEventQueue(eventBus)
 
-    // 7. Continue with the logic from the parent class
+    // 6. Create PaymentsRequestContext
+    const authResult: A2AAuthResult = {
+      requestId: validation.agentRequestId,
+      token: bearerToken,
+      agentId: validation.agentId,
+      agentRequest: validation,
+    }
+
+    const agentRequestContext: AgentRequestContext = {
+      authResult,
+      httpContext,
+    }
+
+    // 7. Create extended request context with agent request data
+    const paymentsRequestContext: PaymentsRequestContext = {
+      ...requestContext,
+      payments: agentRequestContext,
+    }
+
+    // 8. Execute agent with extended context
     this.getAgentExecutor()
-      .execute(requestContext, eventBus)
+      .execute(paymentsRequestContext, eventBus)
       .catch((err: any) => {
         const errorTask: Task = {
           id: requestContext.task?.id || uuidv4(),
@@ -298,7 +323,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       // Non-blocking execution - return immediately with first result
       return new Promise((resolve, reject) => {
         this.processEventsWithFinalization(
-          taskId,
+          taskId!,
           resultManager,
           eventQueue,
           bearerToken,
@@ -378,7 +403,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @param params - Message send parameters
    * @returns Async generator of events
    */
-  async *sendMessageStream(params: MessageSendParams) {
+  async *sendMessageStream(
+    params: MessageSendParams,
+  ): AsyncGenerator<A2AStreamEvent, void, undefined> {
     // 0. Get HTTP context for the task or message
     const taskId = params.message.taskId
     let httpContext: HttpRequestContext | undefined
