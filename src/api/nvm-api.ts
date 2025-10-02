@@ -7,6 +7,7 @@ export const API_URL_GET_AGENT = '/api/v1/protocol/agents/:agentId'
 export const API_URL_UPDATE_AGENT = '/api/v1/protocol/agents/:agentId'
 export const API_URL_GET_AGENT_PLANS = '/api/v1/protocol/agents/:agentId/plans'
 export const API_URL_GET_PLAN = '/api/v1/protocol/plans/:planId'
+export const API_URL_GET_PLANS = '/api/v1/protocol/plans'
 export const API_URL_GET_PLAN_AGENTS = '/api/v1/protocol/plans/:planId/agents'
 export const API_URL_ORDER_PLAN = '/api/v1/protocol/plans/:planId/order'
 export const API_URL_MINT_PLAN = '/api/v1/protocol/plans/mint'
@@ -19,8 +20,9 @@ export const API_URL_GET_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/:planId/:a
 export const API_URL_INITIALIZE_AGENT = '/api/v1/protocol/agents/initialize/:agentId'
 export const API_URL_TRACK_AGENT_SUB_TASK = '/api/v1/protocol/agent-sub-tasks'
 export const API_URL_VALIDATE_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/validate/:agentId'
-
 export const API_URL_STRIPE_CHECKOUT = '/api/v1/stripe/checkout'
+export const API_URL_CREATE_USER = '/api/v1/organizations/account'
+export const API_URL_GET_MEMBERS = '/api/v1/organizations/members'
 
 export interface BackendApiOptions {
   /**
