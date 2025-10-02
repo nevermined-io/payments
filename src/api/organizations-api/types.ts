@@ -26,3 +26,12 @@ export type OrganizationMembersResponse = {
   members: OrganizationMember[]
   total: number
 }
+
+export type StripeCheckoutResult = {
+  stripeAccountId: string
+  stripeAccountLink: string
+  userId: string
+  userCountryCode: string
+  linkCreatedAt: number
+  linkExpiresAt: number
+}
