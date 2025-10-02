@@ -1,8 +1,8 @@
-import { BasePaymentsAPI } from '../base-payments.js'
-import { PaymentOptions } from '../../common/types.js'
-import { CreateUserResponse, OrganizationMemberRole, OrganizationMembersResponse } from './types.js'
 import { PaymentsError } from '../../common/payments.error.js'
-import { API_URL_CREATE_USER, API_URL_GET_MEMBERS } from '../nvm-api.js'
+import { PaymentOptions } from '../../common/types.js'
+import { BasePaymentsAPI } from '../base-payments.js'
+import { API_URL_CONNECT_STRIPE_ACCOUNT, API_URL_CREATE_USER, API_URL_GET_MEMBERS } from '../nvm-api.js'
+import { CreateUserResponse, OrganizationMemberRole, OrganizationMembersResponse, StripeCheckoutResult } from './types.js'
 
 export class OrganizationsAPI extends BasePaymentsAPI {
   static getInstance(options: PaymentOptions): OrganizationsAPI {
@@ -74,6 +74,37 @@ export class OrganizationsAPI extends BasePaymentsAPI {
     return {
       members: data.members,
       total: data.totalResults,
+    }
+  }
+
+  /**
+   * Connect user with Stripe
+   * @param userEmail - The email of the user
+   * @param userCountryCode - The country code of the user
+   * @param returnUrl - The return URL after the Stripe connection is completed
+   * @returns The Stripe checkout result
+   */
+  async connectStripeAccount(userEmail: string, userCountryCode: string, returnUrl: string): Promise<StripeCheckoutResult> {
+    const body = {
+      userEmail,
+      userCountryCode,
+      returnUrl,
+    }
+    const url = new URL(API_URL_CONNECT_STRIPE_ACCOUNT, this.environment.backend)
+    const options = this.getBackendHTTPOptions('POST', body)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Unknown error' }))
+      throw PaymentsError.fromBackend('Unable to connect with Stripe', error)
+    }
+    const data = await response.json()
+    return {
+      stripeAccountLink: data.stripeAccountLink,
+      stripeAccountId: data.stripeAccountId,
+      userId: data.userId, userCountryCode:
+      data.userCountryCode,
+      linkCreatedAt: data.linkCreatedAt,
+      linkExpiresAt: data.linkExpiresAt
     }
   }
 }
