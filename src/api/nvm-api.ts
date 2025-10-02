@@ -23,6 +23,7 @@ export const API_URL_VALIDATE_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/valid
 export const API_URL_STRIPE_CHECKOUT = '/api/v1/stripe/checkout'
 export const API_URL_CREATE_USER = '/api/v1/organizations/account'
 export const API_URL_GET_MEMBERS = '/api/v1/organizations/members'
+export const API_URL_CONNECT_STRIPE_ACCOUNT = '/api/v1/stripe/account'
 
 export interface BackendApiOptions {
   /**
