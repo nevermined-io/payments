@@ -212,7 +212,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    *
    * @example
    * ```
-   * const result = await payments.requests.redeemMarginFromRequest(
+   * const result = await payments.requests.redeemWithMarginFromRequest(
    *   'request-id-12345', // The request ID to track the operation
    *    accessToken, // The access token of the request
    *    0.2 // The margin percentage to apply
@@ -224,7 +224,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    * // }
    * ```
    */
-  public async redeemMarginFromRequest(
+  public async redeemWithMarginFromRequest(
     agentRequestId: string,
     requestAccessToken: string,
     marginPercent: number,
@@ -243,7 +243,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    *
    * @example
    * ```
-   * const result = await payments.requests.redeemMarginFromBatchRequest(
+   * const result = await payments.requests.redeemWithMarginFromBatchRequest(
    *   'request-id-12345', // The request ID to track the operation
    *    accessToken, // The access token of the request
    *    0.2 // The margin percentage to apply
@@ -255,7 +255,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    * // }
    * ```
    */
-  public async redeemMarginFromBatchRequest(
+  public async redeemWithMarginFromBatchRequest(
     agentRequestId: string,
     requestAccessToken: string,
     marginPercent: number,
