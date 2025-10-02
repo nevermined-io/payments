@@ -82,7 +82,8 @@ export class OrganizationsAPI extends BasePaymentsAPI {
    * @param userEmail - The email of the user
    * @param userCountryCode - The country code of the user
    * @param returnUrl - The return URL after the Stripe connection is completed
-   * @returns The Stripe checkout result
+   * @returns The Stripe checkout result including the stripe account link, stripe account id, user id, user country code, link created at and link expires at.
+   * The stripe account link is the link that the user needs to click to connect with Stripe.
    */
   async connectStripeAccount(userEmail: string, userCountryCode: string, returnUrl: string): Promise<StripeCheckoutResult> {
     const body = {
