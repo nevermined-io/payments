@@ -198,6 +198,8 @@ export function createHeliconeResponse(config: HeliconeResponseConfig) {
  * @param heliconeApiKey - The Helicone API key for logging
  * @param heliconeManualLoggingUrl - The Helicone manual logging endpoint URL
  * @param accountAddress - The account address for logging purposes
+ * @param environmentName - The environment name for logging purposes
+ * @param startAgentRequest - The agent request for logging purposes
  * @param customProperties - Custom properties to add as Helicone headers (should include agentid and sessionid)
  * @returns Promise that resolves to the extracted user result
  */
@@ -211,6 +213,8 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
   heliconeApiKey: string,
   heliconeManualLoggingUrl: string,
   accountAddress: string,
+  environmentName: EnvironmentName,
+  startAgentRequest: StartAgentRequest,
   customProperties: CustomProperties,
 ): Promise<TExtracted> {
   // Extract agentId and sessionId from properties, or generate defaults
@@ -226,20 +230,18 @@ export async function withHeliconeLogging<TInternal = any, TExtracted = any>(
     logSessionInfo(agentId, sessionId, agentName)
   }
 
-  // Build custom property headers from all properties
-  const customHeaders: Record<string, string> = {}
-  for (const [key, value] of Object.entries(customProperties)) {
-    // Convert property names to Helicone-Property format and ensure string values
-    customHeaders[`Helicone-Property-${key}`] = String(value)
-  }
+  const defaultHeaders = getDefaultHeliconeHeaders(
+    heliconeApiKey,
+    accountAddress,
+    environmentName,
+    startAgentRequest,
+    customProperties,
+  )
 
   const heliconeLogger = new HeliconeManualLogger({
     apiKey: heliconeApiKey,
     loggingEndpoint: heliconeManualLoggingUrl,
-    headers: {
-      ...customHeaders,
-      'Helicone-Property-accountAddress': accountAddress,
-    },
+    headers: defaultHeaders,
   })
 
   const heliconePayload = createHeliconePayload(payloadConfig)
@@ -439,7 +441,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       this.environment.heliconeUrl,
     ).toString()
     this.heliconeManualLoggingUrl = new URL(
-      'jawn/v1/trace/custom/log',
+      'jawn/v1/trace/custom/v1/log',
       this.environment.heliconeUrl,
     ).toString()
   }
@@ -463,6 +465,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    * @param resultExtractor - Function to extract the user-facing result from internal result
    * @param usageCalculator - Function to calculate usage metrics from the internal result
    * @param responseIdPrefix - Prefix for the response ID
+   * @param startAgentRequest - The agent request for logging purposes
    * @param customProperties - Custom properties to add as Helicone headers (should include agentid and sessionid)
    * @returns Promise that resolves to the extracted user result
    */
@@ -473,6 +476,7 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     resultExtractor: (internalResult: TInternal) => TExtracted,
     usageCalculator: (internalResult: TInternal) => HeliconeResponseConfig['usage'],
     responseIdPrefix: string,
+    startAgentRequest: StartAgentRequest,
     customProperties: CustomProperties,
   ): Promise<TExtracted> {
     return withHeliconeLogging(
@@ -485,6 +489,8 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       this.heliconeApiKey,
       this.heliconeManualLoggingUrl,
       this.accountAddress,
+      this.environmentName,
+      startAgentRequest,
       customProperties,
     )
   }
