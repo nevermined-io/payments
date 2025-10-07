@@ -11,186 +11,19 @@ import { EnvironmentName } from '../../environments.js'
 import * as traceloop from '@traceloop/node-server-sdk'
 import { Span as ApiSpan, Context, trace } from '@opentelemetry/api'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
-import { AsyncLoggerProviders } from './types.js'
-
-/**
- * Configuration for creating a Helicone payload
- */
-export interface HeliconePayloadConfig {
-  model: string
-  inputData: Record<string, any>
-  temperature?: number
-  top_p?: number
-  frequency_penalty?: number
-  presence_penalty?: number
-  n?: number
-  stream?: boolean
-}
-
-/**
- * Configuration for creating a Helicone response
- */
-export interface HeliconeResponseConfig {
-  idPrefix: string
-  model: string
-  resultData: any
-  usage: {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
-    prompt_tokens_details?: {
-      cached_tokens: number
-      audio_tokens: number
-    }
-    completion_tokens_details?: {
-      reasoning_tokens: number
-      audio_tokens: number
-      accepted_prediction_tokens: number
-      rejected_prediction_tokens: number
-    }
-  }
-  systemFingerprint?: string
-}
-
-export type CustomProperties = Record<string, string>
-
-export type NeverminedHeliconeHeaders = {
-  'Helicone-Auth': string
-  'Helicone-Property-accountaddress': string
-  'Helicone-Property-consumeraddress': string
-  'Helicone-Property-agentid': string
-  'Helicone-Property-planid': string
-  'Helicone-Property-plantype': string
-  'Helicone-Property-planname': string
-  'Helicone-Property-agentname': string
-  'Helicone-Property-agentrequestid': string
-  'Helicone-Property-pricepercredit': string
-  'Helicone-Property-environmentname': string
-  'Helicone-Property-batch': string
-  'Helicone-Property-ismarginbased': string
-  'Helicone-Property-marginpercent': string
-}
-
-export type DefaultHeliconeHeaders = NeverminedHeliconeHeaders & CustomProperties
-
-export type ChatOpenAIConfiguration = {
-  model: string
-  apiKey: string
-  configuration: {
-    baseURL: string
-    defaultHeaders: DefaultHeliconeHeaders
-  }
-}
-
-export type OpenAIConfiguration = {
-  apiKey: string
-  baseURL: string
-  defaultHeaders: DefaultHeliconeHeaders
-}
-
-function getDefaultHeliconeHeaders(
-  heliconeApiKey: string,
-  accountAddress: string,
-  environmentName: EnvironmentName,
-  agentRequest: StartAgentRequest,
-  customProperties?: CustomProperties,
-): DefaultHeliconeHeaders {
-  const neverminedHeliconeHeaders: NeverminedHeliconeHeaders = {
-    'Helicone-Auth': `Bearer ${heliconeApiKey}`,
-    'Helicone-Property-accountaddress': accountAddress,
-    'Helicone-Property-consumeraddress': agentRequest.balance.holderAddress,
-    'Helicone-Property-agentid': agentRequest.agentId,
-    'Helicone-Property-planid': agentRequest.balance.planId,
-    'Helicone-Property-plantype': agentRequest.balance.planType,
-    'Helicone-Property-planname': agentRequest.balance.planName,
-    'Helicone-Property-agentname': agentRequest.agentName,
-    'Helicone-Property-agentrequestid': agentRequest.agentRequestId,
-    'Helicone-Property-pricepercredit': agentRequest.balance.pricePerCredit.toString(),
-    'Helicone-Property-environmentname': environmentName,
-    'Helicone-Property-batch': agentRequest.batch.toString(),
-    'Helicone-Property-ismarginbased': 'false',
-    'Helicone-Property-marginpercent': '0',
-  }
-
-  // Build custom property headers from all properties
-  const customHeaders: CustomProperties = {}
-  if (customProperties) {
-    for (const [key, value] of Object.entries(customProperties)) {
-      // Convert property names to Helicone-Property format
-      customHeaders[`Helicone-Property-${key.toLowerCase()}`] = value
-    }
-  }
-
-  return {
-    ...neverminedHeliconeHeaders,
-    ...customHeaders,
-  }
-}
-
-/**
- * Creates a standardized Helicone payload for API logging
- */
-export function createHeliconePayload(config: HeliconePayloadConfig) {
-  return {
-    model: config.model,
-    temperature: config.temperature ?? 1,
-    top_p: config.top_p ?? 1,
-    frequency_penalty: config.frequency_penalty ?? 0,
-    presence_penalty: config.presence_penalty ?? 0,
-    n: config.n ?? 1,
-    stream: config.stream ?? false,
-    messages: [
-      {
-        role: 'user',
-        content: JSON.stringify(config.inputData),
-      },
-    ],
-  }
-}
-
-/**
- * Creates a standardized Helicone response for API logging
- */
-export function createHeliconeResponse(config: HeliconeResponseConfig) {
-  const timestamp = Date.now()
-
-  return {
-    id: `${config.idPrefix}-${timestamp}`,
-    object: 'chat.completion',
-    created: Math.floor(timestamp / 1000),
-    model: config.model,
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: JSON.stringify(config.resultData),
-          refusal: null,
-          annotations: [],
-        },
-        logprobs: null,
-        finish_reason: 'stop',
-      },
-    ],
-    usage: {
-      prompt_tokens: config.usage.prompt_tokens,
-      completion_tokens: config.usage.completion_tokens,
-      total_tokens: config.usage.total_tokens,
-      prompt_tokens_details: config.usage.prompt_tokens_details ?? {
-        cached_tokens: 0,
-        audio_tokens: 0,
-      },
-      completion_tokens_details: config.usage.completion_tokens_details ?? {
-        reasoning_tokens: 0,
-        audio_tokens: 0,
-        accepted_prediction_tokens: 0,
-        rejected_prediction_tokens: 0,
-      },
-    },
-    service_tier: 'default',
-    system_fingerprint: config.systemFingerprint ?? `fp_${timestamp}`,
-  }
-}
+import {
+  AsyncLoggerProviders,
+  CustomProperties,
+  HeliconePayloadConfig,
+  HeliconeResponseConfig,
+  ChatOpenAIConfiguration,
+  OpenAIConfiguration,
+} from './types.js'
+import {
+  getDefaultHeliconeHeaders,
+  createHeliconePayload,
+  createHeliconeResponse,
+} from './utils.js'
 
 /**
  * Wraps an async operation with Helicone logging
@@ -722,7 +555,6 @@ export class ObservabilityAPI extends BasePaymentsAPI {
       customProperties,
     )
   }
-
   /**
    * Helper function to calculate usage for image operations based on pixels
    */

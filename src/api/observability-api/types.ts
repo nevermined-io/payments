@@ -21,3 +21,78 @@ export type AsyncLoggerProviders = {
     toolsModule?: typeof ToolsModule
   }
 }
+
+/**
+ * Configuration for creating a Helicone payload
+ */
+export interface HeliconePayloadConfig {
+  model: string
+  inputData: Record<string, any>
+  temperature?: number
+  top_p?: number
+  frequency_penalty?: number
+  presence_penalty?: number
+  n?: number
+  stream?: boolean
+}
+
+/**
+ * Configuration for creating a Helicone response
+ */
+export interface HeliconeResponseConfig {
+  idPrefix: string
+  model: string
+  resultData: any
+  usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+    prompt_tokens_details?: {
+      cached_tokens: number
+      audio_tokens: number
+    }
+    completion_tokens_details?: {
+      reasoning_tokens: number
+      audio_tokens: number
+      accepted_prediction_tokens: number
+      rejected_prediction_tokens: number
+    }
+  }
+  systemFingerprint?: string
+}
+
+export type CustomProperties = Record<string, string>
+
+export type NeverminedHeliconeHeaders = {
+  'Helicone-Auth': string
+  'Helicone-Property-accountaddress': string
+  'Helicone-Property-consumeraddress': string
+  'Helicone-Property-agentid': string
+  'Helicone-Property-planid': string
+  'Helicone-Property-plantype': string
+  'Helicone-Property-planname': string
+  'Helicone-Property-agentname': string
+  'Helicone-Property-agentrequestid': string
+  'Helicone-Property-pricepercredit': string
+  'Helicone-Property-environmentname': string
+  'Helicone-Property-batch': string
+  'Helicone-Property-ismarginbased': string
+  'Helicone-Property-marginpercent': string
+}
+
+export type DefaultHeliconeHeaders = NeverminedHeliconeHeaders & CustomProperties
+
+export type ChatOpenAIConfiguration = {
+  model: string
+  apiKey: string
+  configuration: {
+    baseURL: string
+    defaultHeaders: DefaultHeliconeHeaders
+  }
+}
+
+export type OpenAIConfiguration = {
+  apiKey: string
+  baseURL: string
+  defaultHeaders: DefaultHeliconeHeaders
+}
