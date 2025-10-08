@@ -307,12 +307,6 @@ function withAsyncLogger(
 
   return {
     init: () => {
-      console.log(
-        '[Helicone] Initializing async logger with',
-        Object.keys(defaultHeaders).filter((k) => k.startsWith('Helicone-Property-')).length,
-        'properties',
-      )
-
       // Create custom OTLP exporter with exact URL (jawn uses /v1/trace/log not /v1/traces)
       const customExporter = new OTLPTraceExporter({
         url: heliconeAsyncLoggingUrl,
@@ -338,45 +332,30 @@ function withAsyncLogger(
         },
       })
 
-      console.log(
-        '[Helicone] Traceloop initialized with providers:',
-        Object.keys(providers).join(', '),
-      )
-
       // Wrap the span processor to automatically inject properties into all spans
-      try {
-        // Access the real TracerProvider (hidden behind a proxy)
-        const proxyProvider = trace.getTracerProvider() as any
-        const realProvider = proxyProvider?._delegate || proxyProvider
-        const activeProcessor = realProvider?._activeSpanProcessor
 
-        if (activeProcessor && typeof activeProcessor.onStart === 'function') {
-          console.log('[Helicone] Wrapping SpanProcessor to auto-inject properties')
+      // Access the real TracerProvider (hidden behind a proxy)
+      const proxyProvider = trace.getTracerProvider() as any
+      const realProvider = proxyProvider?._delegate || proxyProvider
+      const activeProcessor = realProvider?._activeSpanProcessor
 
-          // Store the original onStart method
-          const originalOnStart = activeProcessor.onStart.bind(activeProcessor)
+      if (activeProcessor && typeof activeProcessor.onStart === 'function') {
+        // Store the original onStart method
+        const originalOnStart = activeProcessor.onStart.bind(activeProcessor)
 
-          // Wrap it to inject our Helicone properties
-          activeProcessor.onStart = (span: ApiSpan, parentContext: Context) => {
-            // Call the original onStart first
-            originalOnStart(span, parentContext)
+        // Wrap it to inject our Helicone properties
+        activeProcessor.onStart = (span: ApiSpan, parentContext: Context) => {
+          // Call the original onStart first
+          originalOnStart(span, parentContext)
 
-            // Add only Helicone-Property-* headers as span attributes
-            for (const [key, value] of Object.entries(defaultHeaders)) {
-              if (key.startsWith('Helicone-Property-')) {
-                const attributeKey = `traceloop.association.properties.${key}`
-                span.setAttribute(attributeKey, value)
-              }
+          // Add only Helicone-Property-* headers as span attributes
+          for (const [key, value] of Object.entries(defaultHeaders)) {
+            if (key.startsWith('Helicone-Property-')) {
+              const attributeKey = `traceloop.association.properties.${key}`
+              span.setAttribute(attributeKey, value)
             }
           }
-
-          console.log('[Helicone] ✓ Properties will be auto-injected into all spans')
         }
-      } catch (error) {
-        console.error('[Helicone] Failed to wrap SpanProcessor:', error)
-        console.warn(
-          '[Helicone] Properties will not be automatically added. Use logger.withProperties() to add them.',
-        )
       }
     },
   }

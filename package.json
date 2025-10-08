@@ -1,6 +1,6 @@
 {
   "name": "@nevermined-io/payments",
-  "version": "1.0.0-rc18",
+  "version": "1.0.0-rc19",
   "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -42,8 +42,11 @@
     "doc": "typedoc --out docs ./src"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.901.0",
     "@babel/core": "^7.27.4",
     "@babel/preset-env": "^7.27.2",
+    "@google-cloud/aiplatform": "^5.7.0",
     "@modelcontextprotocol/sdk": "^1.17.2",
     "@types/express": "4.17.23",
     "@types/jest": "^29.5.13",
@@ -53,32 +56,31 @@
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "babel-jest": "^30.0.2",
+    "cohere-ai": "^7.19.0",
     "eslint": "^8.56.0",
     "eslint-config-nevermined": "^0.3.0",
     "eslint-config-next": "^15.1.5",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-tsdoc": "^0.2.17",
     "jest": "^29.7.0",
+    "langchain": "^0.3.35",
+    "openai": "^6.2.0",
     "prettier": "^3.2.5",
     "source-map-support": "^0.5.21",
+    "together-ai": "^0.22.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "tslib": "^2.6.2",
     "typedoc": "0.25.13",
-    "typescript": "^5.3.3",
-    "@anthropic-ai/sdk": "^0.65.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.901.0",
-    "@google-cloud/aiplatform": "^5.7.0",
-    "cohere-ai": "^7.19.0",
-    "langchain": "^0.3.35",
-    "openai": "^6.2.0",
-    "together-ai": "^0.22.0"
+    "typescript": "^5.3.3"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.2.5",
-    "@helicone/async": "^2.0.2",
     "@helicone/helpers": "^1.6.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.203.0",
+    "@traceloop/node-server-sdk": "^0.14.6",
     "axios": "^1.7.7",
     "express": "4.21.2",
     "jose": "^5.2.4",
@@ -86,14 +88,5 @@
     "uuid": "^10.0.0",
     "zod": "^4.0.17"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
-  "peerDependencies": {
-    "@anthropic-ai/sdk": "^0.65.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.901.0",
-    "@google-cloud/aiplatform": "^5.7.0",
-    "cohere-ai": "^7.19.0",
-    "langchain": "^0.3.35",
-    "openai": "^6.2.0",
-    "together-ai": "^0.22.0"
-  }
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

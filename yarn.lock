@@ -1648,14 +1648,6 @@
     protobufjs "^7.5.3"
     yargs "^17.7.2"
 
-"@helicone/async@^2.0.2":
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/@helicone/async/-/async-2.0.2.tgz#4812b81e5e46ea11945c6c6b820b6cb9deab38f5"
-  integrity sha512-0gfbZMgeJ2f21Ocg2QeDZO6hhw+1B4+XVPlpj43k9O0Z4KJ7nDVvdndDKMcwl0kOLJKa3nwDN9K5DdbhhWkJ3Q==
-  dependencies:
-    "@opentelemetry/exporter-trace-otlp-http" "^0.203.0"
-    "@traceloop/node-server-sdk" "^0.14.6"
-
 "@helicone/helpers@^1.6.0":
   version "1.6.0"
   resolved "https://registry.npmjs.org/@helicone/helpers/-/helpers-1.6.0.tgz"
