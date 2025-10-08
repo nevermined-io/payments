@@ -4,187 +4,26 @@
  */
 
 import { HeliconeManualLogger } from '@helicone/helpers'
-import { generateDeterministicAgentId, generateSessionId, logSessionInfo } from '../utils.js'
-import { BasePaymentsAPI } from './base-payments.js'
-import { PaymentOptions, StartAgentRequest } from '../common/types.js'
-import { EnvironmentName } from '../environments.js'
-
-/**
- * Configuration for creating a Helicone payload
- */
-export interface HeliconePayloadConfig {
-  model: string
-  inputData: Record<string, any>
-  temperature?: number
-  top_p?: number
-  frequency_penalty?: number
-  presence_penalty?: number
-  n?: number
-  stream?: boolean
-}
-
-/**
- * Configuration for creating a Helicone response
- */
-export interface HeliconeResponseConfig {
-  idPrefix: string
-  model: string
-  resultData: any
-  usage: {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
-    prompt_tokens_details?: {
-      cached_tokens: number
-      audio_tokens: number
-    }
-    completion_tokens_details?: {
-      reasoning_tokens: number
-      audio_tokens: number
-      accepted_prediction_tokens: number
-      rejected_prediction_tokens: number
-    }
-  }
-  systemFingerprint?: string
-}
-
-export type CustomProperties = Record<string, string>
-
-export type NeverminedHeliconeHeaders = {
-  'Helicone-Auth': string
-  'Helicone-Property-accountAddress': string
-  'Helicone-Property-consumerAddress': string
-  'Helicone-Property-agentId': string
-  'Helicone-Property-planId': string
-  'Helicone-Property-planType': string
-  'Helicone-Property-planName': string
-  'Helicone-Property-agentName': string
-  'Helicone-Property-agentRequestId': string
-  'Helicone-Property-pricePerCredit': string
-  'Helicone-Property-environmentName': string
-  'Helicone-Property-batch': string
-  'Helicone-Property-ismarginBased': string
-  'Helicone-Property-marginPercent': string
-}
-
-export type DefaultHeliconeHeaders = NeverminedHeliconeHeaders & CustomProperties
-
-export type ChatOpenAIConfiguration = {
-  model: string
-  apiKey: string
-  configuration: {
-    baseURL: string
-    defaultHeaders: DefaultHeliconeHeaders
-  }
-}
-
-export type OpenAIConfiguration = {
-  apiKey: string
-  baseURL: string
-  defaultHeaders: DefaultHeliconeHeaders
-}
-
-function getDefaultHeliconeHeaders(
-  heliconeApiKey: string,
-  accountAddress: string,
-  environmentName: EnvironmentName,
-  agentRequest: StartAgentRequest,
-  customProperties: CustomProperties,
-): DefaultHeliconeHeaders {
-  const neverminedHeliconeHeaders: NeverminedHeliconeHeaders = {
-    'Helicone-Auth': `Bearer ${heliconeApiKey}`,
-    'Helicone-Property-accountAddress': accountAddress,
-    'Helicone-Property-consumerAddress': agentRequest.balance.holderAddress,
-    'Helicone-Property-agentId': agentRequest.agentId,
-    'Helicone-Property-planId': agentRequest.balance.planId,
-    'Helicone-Property-planType': agentRequest.balance.planType,
-    'Helicone-Property-planName': agentRequest.balance.planName,
-    'Helicone-Property-agentName': agentRequest.agentName,
-    'Helicone-Property-agentRequestId': agentRequest.agentRequestId,
-    'Helicone-Property-pricePerCredit': agentRequest.balance.pricePerCredit.toString(),
-    'Helicone-Property-environmentName': environmentName,
-    'Helicone-Property-batch': agentRequest.batch.toString(),
-    'Helicone-Property-ismarginBased': 'false',
-    'Helicone-Property-marginPercent': '0',
-  }
-
-  // Build custom property headers from all properties
-  const customHeaders: CustomProperties = {}
-  for (const [key, value] of Object.entries(customProperties)) {
-    // Convert property names to Helicone-Property format
-    customHeaders[`Helicone-Property-${key}`] = value
-  }
-
-  return {
-    ...neverminedHeliconeHeaders,
-    ...customHeaders,
-  }
-}
-
-/**
- * Creates a standardized Helicone payload for API logging
- */
-export function createHeliconePayload(config: HeliconePayloadConfig) {
-  return {
-    model: config.model,
-    temperature: config.temperature ?? 1,
-    top_p: config.top_p ?? 1,
-    frequency_penalty: config.frequency_penalty ?? 0,
-    presence_penalty: config.presence_penalty ?? 0,
-    n: config.n ?? 1,
-    stream: config.stream ?? false,
-    messages: [
-      {
-        role: 'user',
-        content: JSON.stringify(config.inputData),
-      },
-    ],
-  }
-}
-
-/**
- * Creates a standardized Helicone response for API logging
- */
-export function createHeliconeResponse(config: HeliconeResponseConfig) {
-  const timestamp = Date.now()
-
-  return {
-    id: `${config.idPrefix}-${timestamp}`,
-    object: 'chat.completion',
-    created: Math.floor(timestamp / 1000),
-    model: config.model,
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: JSON.stringify(config.resultData),
-          refusal: null,
-          annotations: [],
-        },
-        logprobs: null,
-        finish_reason: 'stop',
-      },
-    ],
-    usage: {
-      prompt_tokens: config.usage.prompt_tokens,
-      completion_tokens: config.usage.completion_tokens,
-      total_tokens: config.usage.total_tokens,
-      prompt_tokens_details: config.usage.prompt_tokens_details ?? {
-        cached_tokens: 0,
-        audio_tokens: 0,
-      },
-      completion_tokens_details: config.usage.completion_tokens_details ?? {
-        reasoning_tokens: 0,
-        audio_tokens: 0,
-        accepted_prediction_tokens: 0,
-        rejected_prediction_tokens: 0,
-      },
-    },
-    service_tier: 'default',
-    system_fingerprint: config.systemFingerprint ?? `fp_${timestamp}`,
-  }
-}
+import { generateDeterministicAgentId, generateSessionId, logSessionInfo } from '../../utils.js'
+import { BasePaymentsAPI } from '../base-payments.js'
+import { PaymentOptions, StartAgentRequest } from '../../common/types.js'
+import { EnvironmentName } from '../../environments.js'
+import * as traceloop from '@traceloop/node-server-sdk'
+import { Span as ApiSpan, Context, trace } from '@opentelemetry/api'
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
+import {
+  AsyncLoggerProviders,
+  CustomProperties,
+  HeliconePayloadConfig,
+  HeliconeResponseConfig,
+  ChatOpenAIConfiguration,
+  OpenAIConfiguration,
+} from './types.js'
+import {
+  getDefaultHeliconeHeaders,
+  createHeliconePayload,
+  createHeliconeResponse,
+} from './utils.js'
 
 /**
  * Wraps an async operation with Helicone logging
@@ -423,11 +262,112 @@ export function withOpenAI(
 }
 
 /**
+ * Creates an async logger with Helicone logging enabled using automatic property injection
+ *
+ * This implementation wraps the OpenTelemetry SpanProcessor to automatically add Helicone
+ * properties to ALL spans. This mimics Python's Traceloop.set_association_properties() -
+ * no wrapping of individual LLM calls needed!
+ *
+ * @example
+ * ```typescript
+ * import OpenAI from 'openai';
+ * const logger = withAsyncLogger({ openAI: OpenAI }, heliconeApiKey, url, account, env, request, props);
+ * logger.init();
+ *
+ * // Make LLM calls normally - properties are automatically added to all spans!
+ * const openai = new OpenAI({ apiKey });
+ * const result = await openai.chat.completions.create({ ... });
+ * ```
+ *
+ * @param providers - AI SDK modules to instrument (OpenAI, Anthropic, etc.)
+ * @param heliconeApiKey - The Helicone API key for logging
+ * @param heliconeAsyncLoggingUrl - The Helicone async logging URL
+ * @param accountAddress - The account address for logging purposes
+ * @param environmentName - The environment name for logging purposes
+ * @param agentRequest - The agent request for logging purposes
+ * @param customProperties - Custom properties to add as Helicone headers
+ * @returns The async logger instance with init() method
+ */
+function withAsyncLogger(
+  providers: AsyncLoggerProviders,
+  heliconeApiKey: string,
+  heliconeAsyncLoggingUrl: string,
+  accountAddress: string,
+  environmentName: EnvironmentName,
+  agentRequest: StartAgentRequest,
+  customProperties?: CustomProperties,
+): { init: () => void } {
+  const defaultHeaders = getDefaultHeliconeHeaders(
+    heliconeApiKey,
+    accountAddress,
+    environmentName,
+    agentRequest,
+    customProperties,
+  )
+
+  return {
+    init: () => {
+      // Create custom OTLP exporter with exact URL (jawn uses /v1/trace/log not /v1/traces)
+      const customExporter = new OTLPTraceExporter({
+        url: heliconeAsyncLoggingUrl,
+        headers: {
+          Authorization: `Bearer ${heliconeApiKey}`,
+        },
+      })
+
+      // Initialize traceloop SDK with custom exporter and provider instrumentation
+      traceloop.initialize({
+        apiKey: heliconeApiKey,
+        baseUrl: heliconeAsyncLoggingUrl,
+        disableBatch: true,
+        exporter: customExporter,
+        instrumentModules: {
+          openAI: providers.openAI as any,
+          anthropic: providers.anthropic as any,
+          cohere: providers.cohere as any,
+          bedrock: providers.bedrock as any,
+          google_aiplatform: providers.google_aiplatform as any,
+          together: providers.together as any,
+          langchain: providers.langchain as any,
+        },
+      })
+
+      // Wrap the span processor to automatically inject properties into all spans
+
+      // Access the real TracerProvider (hidden behind a proxy)
+      const proxyProvider = trace.getTracerProvider() as any
+      const realProvider = proxyProvider?._delegate || proxyProvider
+      const activeProcessor = realProvider?._activeSpanProcessor
+
+      if (activeProcessor && typeof activeProcessor.onStart === 'function') {
+        // Store the original onStart method
+        const originalOnStart = activeProcessor.onStart.bind(activeProcessor)
+
+        // Wrap it to inject our Helicone properties
+        activeProcessor.onStart = (span: ApiSpan, parentContext: Context) => {
+          // Call the original onStart first
+          originalOnStart(span, parentContext)
+
+          // Add only Helicone-Property-* headers as span attributes
+          for (const [key, value] of Object.entries(defaultHeaders)) {
+            if (key.startsWith('Helicone-Property-')) {
+              const attributeKey = `traceloop.association.properties.${key}`
+              span.setAttribute(attributeKey, value)
+            }
+          }
+        }
+      }
+    },
+  }
+}
+
+/**
  * The ObservabilityAPI class provides methods to wrap API calls with Helicone logging
  */
 export class ObservabilityAPI extends BasePaymentsAPI {
   protected readonly heliconeBaseLoggingUrl: string
   protected readonly heliconeManualLoggingUrl: string
+  protected readonly heliconeAsyncLoggingUrl: string
 
   constructor(options: PaymentOptions) {
     super(options)
@@ -442,6 +382,11 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     ).toString()
     this.heliconeManualLoggingUrl = new URL(
       'jawn/v1/trace/custom/v1/log',
+      this.environment.heliconeUrl,
+    ).toString()
+    // For async logging, the full OTLP endpoint URL (jawn uses /v1/trace/log not /v1/traces)
+    this.heliconeAsyncLoggingUrl = new URL(
+      'jawn/v1/trace/log',
       this.environment.heliconeUrl,
     ).toString()
   }
@@ -550,6 +495,45 @@ export class ObservabilityAPI extends BasePaymentsAPI {
     )
   }
 
+  /**
+   * Creates an async logger with Nevermined logging enabled and automatic property injection
+   *
+   * This method wraps the OpenTelemetry SpanProcessor to automatically add all Helicone
+   * properties to every span. This mimics Python's Traceloop.set_association_properties() -
+   * no wrapping of individual LLM calls needed!
+   *
+   * @example
+   * ```typescript
+   * import OpenAI from 'openai';
+   *
+   * const logger = observability.withAsyncLogger({ openAI: OpenAI }, agentRequest);
+   * logger.init();
+   *
+   * // Make LLM calls normally - properties are automatically added to all spans!
+   * const openai = new OpenAI({ apiKey });
+   * const result = await openai.chat.completions.create({ ... });
+   * ```
+   *
+   * @param providers - AI SDK modules to instrument (OpenAI, Anthropic, etc.)
+   * @param agentRequest - The agent request for logging purposes
+   * @param customProperties - Custom properties to add as Helicone headers
+   * @returns The async logger instance with init() method
+   */
+  withAsyncLogger(
+    providers: AsyncLoggerProviders,
+    agentRequest: StartAgentRequest,
+    customProperties?: CustomProperties,
+  ): { init: () => void } {
+    return withAsyncLogger(
+      providers,
+      this.heliconeApiKey,
+      this.heliconeAsyncLoggingUrl,
+      this.accountAddress,
+      this.environmentName,
+      agentRequest,
+      customProperties,
+    )
+  }
   /**
    * Helper function to calculate usage for image operations based on pixels
    */
