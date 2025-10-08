@@ -506,12 +506,12 @@ export class ObservabilityAPI extends BasePaymentsAPI {
    * ```typescript
    * import OpenAI from 'openai';
    *
-   * const logger = observability.withAsyncLogger(\{ openAI: OpenAI \}, agentRequest);
+   * const logger = observability.withAsyncLogger({ openAI: OpenAI }, agentRequest);
    * logger.init();
    *
    * // Make LLM calls normally - properties are automatically added to all spans!
-   * const openai = new OpenAI(\{ apiKey \});
-   * const result = await openai.chat.completions.create(\{ ... \});
+   * const openai = new OpenAI({ apiKey });
+   * const result = await openai.chat.completions.create({ ... });
    * ```
    *
    * @param providers - AI SDK modules to instrument (OpenAI, Anthropic, etc.)
