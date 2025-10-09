@@ -24,16 +24,30 @@ import { v4 as uuidv4 } from 'uuid'
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
 
 /**
+ * Options for configuring the PaymentsRequestHandler
+ */
+export interface PaymentsRequestHandlerOptions {
+  /** Whether to execute tasks asynchronously */
+  asyncExecution?: boolean
+  /** Default batch mode for all requests (can be overridden per-request) */
+  defaultBatch?: boolean
+  /** Default margin percentage for all requests (can be overridden per-request) */
+  defaultMarginPercent?: number
+}
+
+/**
  * PaymentsRequestHandler extends DefaultRequestHandler to add payments validation and burning.
  * It validates credits before executing a task and burns credits after successful execution.
  * It also sends push notifications when a task reaches a terminal state.
- * @param options - Handler options, including asyncExecution to control synchronous/asynchronous behavior
+ * @param options - Handler options, including asyncExecution, defaultBatch, and defaultMarginPercent
  */
 export class PaymentsRequestHandler extends DefaultRequestHandler {
   private paymentsService: Payments
   private httpContextByTaskId: Map<string, HttpRequestContext> = new Map()
   private httpContextByMessageId: Map<string, HttpRequestContext> = new Map()
   private asyncExecution: boolean
+  private defaultBatch: boolean
+  private defaultMarginPercent?: number
 
   /**
    * Store HTTP context temporarily by messageId (used in middleware when taskId is not yet available).
@@ -59,7 +73,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @param agentExecutor - The business logic executor
    * @param paymentsService - The payments service for validation and burning
    * @param eventBusManager - The event bus manager (optional)
-   * @param options - Handler options (asyncExecution: boolean)
+   * @param options - Handler options (asyncExecution, defaultBatch, defaultMarginPercent)
    */
   constructor(
     agentCard: AgentCard,
@@ -67,11 +81,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     agentExecutor: AgentExecutor,
     paymentsService: any,
     eventBusManager?: ExecutionEventBusManager,
-    options?: { asyncExecution?: boolean },
+    options?: PaymentsRequestHandlerOptions,
   ) {
     super(agentCard, taskStore, agentExecutor, eventBusManager)
     this.paymentsService = paymentsService
     this.asyncExecution = options?.asyncExecution ?? false
+    this.defaultBatch = options?.defaultBatch ?? false
+    this.defaultMarginPercent = options?.defaultMarginPercent
   }
 
   /**
@@ -108,6 +124,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @param bearerToken - The bearer token for authentication
    * @param urlRequested - The URL being requested
    * @param httpMethodRequested - The HTTP method being used
+   * @param batch - Whether this is a batch request (default: false)
    * @returns Promise resolving to the validation result
    */
   public async validateRequest(
@@ -115,12 +132,14 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     bearerToken: string,
     urlRequested: string,
     httpMethodRequested: string,
+    batch = false,
   ): Promise<any> {
     return this.paymentsService.requests.startProcessingRequest(
       agentId,
       bearerToken,
       urlRequested,
       httpMethodRequested,
+      batch,
     )
   }
 
@@ -315,6 +334,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Handles credits burning and push notification when a task reaches a terminal state.
    * This is called asynchronously from the eventBus listener.
+   * Supports batch and margin-based redemptions.
    * @param resultManager - The result manager
    * @param event - The status-update event with final state
    * @param bearerToken - The bearer token for payment validation
@@ -325,27 +345,67 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     bearerToken: string,
     validation: StartAgentRequest,
   ) {
+    // Extract batch and margin settings from event metadata with fallbacks
+    const isBatch = event.metadata?.isBatch ?? this.defaultBatch
+    const marginPercent = event.metadata?.marginPercent ?? this.defaultMarginPercent
     const creditsToBurn = event.metadata?.creditsUsed
-    if (
-      creditsToBurn !== undefined &&
+
+    // Validate margin percent is a number
+    const validMarginPercent = typeof marginPercent === 'number' ? marginPercent : undefined
+
+    // Validate credits to burn is a valid type for BigInt
+    const validCreditsToBurn = (creditsToBurn !== undefined &&
       creditsToBurn !== null &&
-      bearerToken &&
       (typeof creditsToBurn === 'string' ||
-        typeof creditsToBurn === 'number' ||
-        typeof creditsToBurn === 'bigint')
-    ) {
+       typeof creditsToBurn === 'number' ||
+       typeof creditsToBurn === 'bigint')) ? creditsToBurn : undefined
+
+    // Determine if we should redeem credits
+    const shouldRedeem = validMarginPercent !== undefined || validCreditsToBurn !== undefined
+
+    if (shouldRedeem && bearerToken) {
       try {
-        const response = await this.paymentsService.requests.redeemCreditsFromRequest(
-          validation.agentRequestId,
-          bearerToken,
-          BigInt(creditsToBurn),
-        )
+        let response: any
+
+        // Choose redemption method based on batch and margin flags
+        if (isBatch && validMarginPercent !== undefined) {
+          // Batch + Margin
+          response = await this.paymentsService.requests.redeemWithMarginFromBatchRequest(
+            validation.agentRequestId,
+            bearerToken,
+            validMarginPercent,
+          )
+        } else if (isBatch && validCreditsToBurn !== undefined) {
+          // Batch + Fixed Credits
+          response = await this.paymentsService.requests.redeemCreditsFromBatchRequest(
+            validation.agentRequestId,
+            bearerToken,
+            BigInt(validCreditsToBurn),
+          )
+        } else if (validMarginPercent !== undefined) {
+          // Single + Margin
+          response = await this.paymentsService.requests.redeemWithMarginFromRequest(
+            validation.agentRequestId,
+            bearerToken,
+            validMarginPercent,
+          )
+        } else if (validCreditsToBurn !== undefined) {
+          // Single + Fixed Credits (default)
+          response = await this.paymentsService.requests.redeemCreditsFromRequest(
+            validation.agentRequestId,
+            bearerToken,
+            BigInt(validCreditsToBurn),
+          )
+        }
+
         const task = resultManager.getCurrentTask()
         if (task) {
           task.metadata = {
             ...task.metadata,
             ...event.metadata,
             txHash: response.txHash,
+            // Store the actual credits charged (especially important for margin-based)
+            creditsCharged: response.amountOfCredits ? Number(response.amountOfCredits) : creditsToBurn,
           }
           await resultManager.processEvent(task)
           // Delete http context associated with the task
@@ -434,24 +494,68 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     const stream = super.sendMessageStream(params)
     for await (const event of stream) {
       // 1. Handle credits burning
-      if (
-        event.kind === 'status-update' &&
-        event.final &&
-        event?.metadata?.creditsUsed !== undefined &&
-        event?.metadata?.creditsUsed !== null &&
-        bearerToken &&
-        (typeof event.metadata.creditsUsed === 'string' ||
-          typeof event.metadata.creditsUsed === 'number' ||
-          typeof event.metadata.creditsUsed === 'bigint')
-      ) {
-        try {
-          await this.paymentsService.requests.redeemCreditsFromRequest(
-            validation.agentRequestId,
-            bearerToken,
-            BigInt(event.metadata.creditsUsed),
-          )
-        } catch (err) {
-          // Do nothing
+      if (event.kind === 'status-update' && event.final && bearerToken) {
+        // Extract batch and margin settings from event metadata with fallbacks
+        const isBatch = event.metadata?.isBatch ?? this.defaultBatch
+        const marginPercent = event.metadata?.marginPercent ?? this.defaultMarginPercent
+        const creditsToBurn = event.metadata?.creditsUsed
+
+        // Validate margin percent is a number
+        const validMarginPercent = typeof marginPercent === 'number' ? marginPercent : undefined
+
+        // Validate credits to burn is a valid type for BigInt
+        const validCreditsToBurn = (creditsToBurn !== undefined &&
+          creditsToBurn !== null &&
+          (typeof creditsToBurn === 'string' ||
+           typeof creditsToBurn === 'number' ||
+           typeof creditsToBurn === 'bigint')) ? creditsToBurn : undefined
+
+        // Determine if we should redeem credits
+        const shouldRedeem = validMarginPercent !== undefined || validCreditsToBurn !== undefined
+
+        if (shouldRedeem) {
+          try {
+            let response: any
+
+            // Choose redemption method based on batch and margin flags
+            if (isBatch && validMarginPercent !== undefined) {
+              // Batch + Margin
+              response = await this.paymentsService.requests.redeemWithMarginFromBatchRequest(
+                validation.agentRequestId,
+                bearerToken,
+                validMarginPercent,
+              )
+            } else if (isBatch && validCreditsToBurn !== undefined) {
+              // Batch + Fixed Credits
+              response = await this.paymentsService.requests.redeemCreditsFromBatchRequest(
+                validation.agentRequestId,
+                bearerToken,
+                BigInt(validCreditsToBurn),
+              )
+            } else if (validMarginPercent !== undefined) {
+              // Single + Margin
+              response = await this.paymentsService.requests.redeemWithMarginFromRequest(
+                validation.agentRequestId,
+                bearerToken,
+                validMarginPercent,
+              )
+            } else if (validCreditsToBurn !== undefined) {
+              // Single + Fixed Credits (default)
+              response = await this.paymentsService.requests.redeemCreditsFromRequest(
+                validation.agentRequestId,
+                bearerToken,
+                BigInt(validCreditsToBurn),
+              )
+            }
+
+            // Update event metadata with response data if we have a response
+            if (response && event.metadata) {
+              event.metadata.txHash = response.txHash
+              event.metadata.creditsCharged = response.amountOfCredits ? Number(response.amountOfCredits) : creditsToBurn
+            }
+          } catch (err) {
+            // Do nothing
+          }
         }
       }
       // 2. Handle push notification

@@ -121,9 +121,14 @@ async function bearerTokenMiddleware(
 
   const agentId = paymentExtension.params.agentId as string
 
+  // Extract batch flag from message metadata (can be overridden per-request)
+  const isBatch = req.body?.params?.message?.metadata?.isBatch ?? false
+
   let validation: any
   try {
-    validation = await handler.validateRequest(agentId, bearerToken, absoluteUrl, req.method)
+    // Validate request with batch flag
+    validation = await handler.validateRequest(agentId, bearerToken, absoluteUrl, req.method, isBatch)
+
     if (!validation?.balance?.isSubscriber) {
       res.status(402).json({
         error: {
@@ -157,6 +162,12 @@ async function bearerTokenMiddleware(
     handler.setHttpRequestContextForTask(taskId, context)
   } else if (messageId) {
     handler.setHttpRequestContextForMessage(messageId, context)
+  }
+
+  // Inject validation result into message metadata for executor access
+  // This allows the executor to access StartAgentRequest without redundant API calls
+  if (req.body?.params?.message?.metadata) {
+    req.body.params.message.metadata.validation = validation
   }
 
   next()
