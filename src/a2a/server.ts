@@ -41,6 +41,12 @@ export interface PaymentsA2AServerOptions {
   expressApp?: express.Express
   /** Custom request handler to override JSON-RPC method handling */
   customRequestHandler?: any
+  /** Options for configuring the PaymentsRequestHandler behavior */
+  handlerOptions?: {
+    asyncExecution?: boolean
+    defaultBatch?: boolean
+    defaultMarginPercent?: number
+  }
   /** Hooks for intercepting requests before/after processing */
   hooks?: {
     /** Called before processing any JSON-RPC request */
@@ -121,12 +127,14 @@ async function bearerTokenMiddleware(
 
   const agentId = paymentExtension.params.agentId as string
 
-  // Extract batch flag from message metadata (can be overridden per-request)
-  const isBatch = req.body?.params?.message?.metadata?.isBatch ?? false
+  // Get batch setting from handler options (server-side configuration)
+  // This ensures the agent builder controls batch mode, not the client
+  const handlerOptions = handler.getHandlerOptions()
+  const isBatch = handlerOptions.defaultBatch ?? false
 
   let validation: any
   try {
-    // Validate request with batch flag
+    // Validate request with batch flag from server configuration
     validation = await handler.validateRequest(agentId, bearerToken, absoluteUrl, req.method, isBatch)
 
     if (!validation?.balance?.isSubscriber) {
@@ -243,6 +251,7 @@ export class PaymentsA2AServer {
       exposeDefaultRoutes = true,
       expressApp,
       customRequestHandler,
+      handlerOptions,
       hooks,
     } = options
 
@@ -250,7 +259,7 @@ export class PaymentsA2AServer {
     const store = taskStore || new InMemoryTaskStore()
     const handler =
       customRequestHandler ||
-      new PaymentsRequestHandler(agentCard, store, executor, paymentsService)
+      new PaymentsRequestHandler(agentCard, store, executor, paymentsService, undefined, handlerOptions)
     const appBuilder = new A2AExpressApp(handler)
 
     const app = expressApp || express()

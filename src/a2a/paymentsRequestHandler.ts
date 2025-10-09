@@ -91,6 +91,19 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   }
 
   /**
+   * Get the handler options (defaultBatch, defaultMarginPercent).
+   * Used by middleware to determine default redemption behavior.
+   * @returns The handler options
+   */
+  public getHandlerOptions(): PaymentsRequestHandlerOptions {
+    return {
+      asyncExecution: this.asyncExecution,
+      defaultBatch: this.defaultBatch,
+      defaultMarginPercent: this.defaultMarginPercent,
+    }
+  }
+
+  /**
    * Retrieve the HTTP context for a given taskId.
    * @param taskId - The taskId of the task
    * @returns The HTTP context (bearerToken, url, method) or undefined
