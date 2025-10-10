@@ -20,6 +20,7 @@ export { buildPaymentAgentCard } from './agent-card.js'
 
 /**
  * Core types and interfaces for the A2A payments integration.
- * Includes TaskContext, TaskHandlerResult, PaymentMetadata, and A2A SDK types.
+ * Includes TaskContext, TaskHandlerResult, PaymentMetadata, PaymentsRequestContext,
+ * A2AStreamEvent, and A2A SDK types.
  */
 export * from './types.js'

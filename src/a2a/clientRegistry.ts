@@ -22,18 +22,26 @@ export class ClientRegistry {
   /**
    * Gets (or creates) a PaymentsClient for the given agentBaseUrl, agentId, and planId.
    * The combination of these three is used as a unique key.
+   * It derives the Agent Card path when needed.
    * @param options - ClientRegistryOptions with agentBaseUrl, agentId, planId (all required).
    * @returns The PaymentsClient instance
    */
-  public getClient(options: ClientRegistryOptions): PaymentsClient {
-    const { agentBaseUrl, agentId, planId } = options
+  public async getClient(options: ClientRegistryOptions): Promise<PaymentsClient> {
+    const { agentBaseUrl, agentId, planId, agentCardPath } = options
     if (!agentBaseUrl || !agentId || !planId) {
       throw PaymentsError.validation('Missing required fields')
     }
+
     const key = `${agentBaseUrl}::${agentId}::${planId}`
     let client = this.clients.get(key)
     if (!client) {
-      client = new PaymentsClient(agentBaseUrl, this.payments, agentId, planId)
+      client = await PaymentsClient.create(
+        agentBaseUrl,
+        this.payments,
+        agentId,
+        planId,
+        agentCardPath,
+      )
       this.clients.set(key, client)
     }
     return client

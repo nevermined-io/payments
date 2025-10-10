@@ -20,6 +20,7 @@ import type {
   TaskState,
   Part,
   TaskStatusUpdateEvent,
+  TaskArtifactUpdateEvent,
   PushNotificationConfig,
   MessageSendParams,
   SendMessageResponse,
@@ -33,6 +34,14 @@ import type {
 
 import type { ExecutionEventBus, AgentExecutor, RequestContext } from '@a2a-js/sdk/server'
 import type { StartAgentRequest } from '../common/types.ts'
+
+/**
+ * Union type for A2A streaming events
+ *
+ * This type represents all possible events that can be yielded by A2A streaming methods.
+ * It includes messages, tasks, status updates, and artifact updates.
+ */
+export type A2AStreamEvent = Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent
 
 /**
  * Context provided to the user's task handler.
@@ -118,6 +127,7 @@ export interface ClientRegistryOptions {
   agentBaseUrl: string
   agentId: string
   planId: string
+  agentCardPath?: string
 }
 
 /**
@@ -136,6 +146,45 @@ export type HttpRequestContext = {
   urlRequested?: string
   httpMethodRequested?: string
   validation: StartAgentRequest
+}
+
+/**
+ * Authentication result for A2A requests (equivalent to MCP AuthResult)
+ */
+export interface A2AAuthResult {
+  /** The agent request ID for tracking */
+  requestId: string
+  /** The bearer token for authentication */
+  token: string
+  /** The agent ID */
+  agentId: string
+  /** The agent request data */
+  agentRequest: StartAgentRequest
+}
+
+/**
+ * Agent request context provided to A2A AgentExecutors
+ *
+ * This context contains all the payment-related data that an AgentExecutor needs
+ * to process requests with payment integration. The agent is responsible for
+ * calculating and specifying credits in its final response.
+ */
+export interface AgentRequestContext {
+  /** Authentication result with request metadata */
+  authResult: A2AAuthResult
+  /** The HTTP context with request details */
+  httpContext: HttpRequestContext
+}
+
+/**
+ * Extended RequestContext with agent request data injection
+ *
+ * This extends the standard A2A RequestContext to include agent request context
+ * while maintaining compatibility with the A2A protocol.
+ */
+export interface PaymentsRequestContext extends RequestContext {
+  /** Agent request context injection (following MCP pattern) */
+  payments?: AgentRequestContext
 }
 
 // Re-export A2A SDK types for convenience

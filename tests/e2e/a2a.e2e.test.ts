@@ -92,6 +92,7 @@ describe('A2A E2E', () => {
       skills: [],
       url: BASE_URL_3005,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
 
     const agentCard = Payments.a2a.buildPaymentAgentCard(baseAgentCard, {
@@ -115,7 +116,7 @@ describe('A2A E2E', () => {
     serverManager.addServer(serverResult)
 
     // Wait for server to be ready
-    await A2AE2EUtils.waitForServerReady(3005, 20, '/a2a/')
+    await A2AE2EUtils.waitForServerReady(3005, 20, '/a2a')
   }, E2E_TEST_CONFIG.TIMEOUT * 6)
 
   afterAll(async () => {
@@ -128,7 +129,7 @@ describe('A2A E2E', () => {
     })
 
     it('should register and retrieve a client through Payments.a2a.getClient', async () => {
-      const client = paymentsSubscriber.a2a.getClient({
+      const client = await paymentsSubscriber.a2a.getClient({
         agentBaseUrl: BASE_URL_3005,
         agentId: agentId,
         planId: planId,
@@ -138,12 +139,12 @@ describe('A2A E2E', () => {
     })
 
     it('should handle multiple client registrations', async () => {
-      const client1 = paymentsSubscriber.a2a.getClient({
+      const client1 = await paymentsSubscriber.a2a.getClient({
         agentBaseUrl: BASE_URL_3005,
         agentId: agentId,
         planId: planId,
       })
-      const client2 = paymentsSubscriber.a2a.getClient({
+      const client2 = await paymentsSubscriber.a2a.getClient({
         agentBaseUrl: BASE_URL_3005,
         agentId: agentId,
         planId: planId,
@@ -170,7 +171,7 @@ describe('A2A E2E', () => {
     it(
       'should process an A2A message through the client',
       async () => {
-        const client = paymentsSubscriber.a2a.getClient({
+        const client = await paymentsSubscriber.a2a.getClient({
           agentBaseUrl: BASE_URL_3005,
           agentId: agentId,
           planId: planId,
@@ -192,7 +193,7 @@ describe('A2A E2E', () => {
     it(
       'should handle invalid message requests gracefully',
       async () => {
-        const client = paymentsSubscriber.a2a.getClient({
+        const client = await paymentsSubscriber.a2a.getClient({
           agentBaseUrl: BASE_URL_3005,
           agentId: agentId,
           planId: planId,
@@ -226,6 +227,7 @@ describe('A2A E2E', () => {
           skills: [],
           url: 'http://localhost:3003',
           version: '1.0.0',
+          protocolVersion: '0.3.0' as const,
         }
         const paymentMetadata = A2AE2EFactory.createPaymentMetadata('e2e-test-agent')
 
@@ -244,7 +246,7 @@ describe('A2A E2E', () => {
       'should integrate agent card with A2A flow',
       async () => {
         // Test that the agent card can be used in the A2A flow
-        const client = paymentsSubscriber.a2a.getClient({
+        const client = await paymentsSubscriber.a2a.getClient({
           agentBaseUrl: BASE_URL_3005,
           agentId: agentId,
           planId: planId,
@@ -262,16 +264,87 @@ describe('A2A E2E', () => {
   describe('A2A Error Handling', () => {
     it(
       'should handle client registration errors',
-      () => {
-        expect(() => {
-          paymentsSubscriber.a2a.getClient({} as any)
-        }).toThrow()
+      async () => {
+        await expect(paymentsSubscriber.a2a.getClient({} as any)).rejects.toThrow()
       },
       E2E_TEST_CONFIG.TIMEOUT,
     )
   })
 
   describe('A2A Streaming SSE E2E Tests', () => {
+    it(
+      'should pass PaymentsRequestContext to executor (E2E)',
+      async () => {
+        // Start a dedicated server with context-asserting executor
+        const resubscribeAgentCard = {
+          name: 'E2E A2A Ctx Test Agent',
+          description: 'Agent for E2E context passing tests',
+          capabilities: {
+            streaming: true,
+            pushNotifications: true,
+            stateTransitionHistory: true,
+          },
+          defaultInputModes: ['text'],
+          defaultOutputModes: ['text'],
+          skills: [],
+          url: 'http://localhost:3006/a2a/',
+          version: '1.0.0',
+          protocolVersion: '0.3.0' as const,
+        }
+
+        const resubscribeAgentCardWithPayments = Payments.a2a.buildPaymentAgentCard(
+          resubscribeAgentCard,
+          {
+            paymentType: 'dynamic',
+            credits: 1,
+            costDescription: 'Variable credits based on operation complexity',
+            planId,
+            agentId,
+          },
+        )
+
+        const contextServer = await paymentsBuilder.a2a.start({
+          port: 3006,
+          basePath: '/a2a/',
+          agentCard: resubscribeAgentCardWithPayments,
+          executor: A2AE2EFactory.createResubscribeStreamingExecutorWithContextAssert(),
+        })
+        serverManager.addServer(contextServer)
+        await A2AE2EUtils.waitForServerReady(3006, 20, '/a2a/')
+
+        const client = paymentsSubscriber.a2a.getClient({
+          agentBaseUrl: 'http://localhost:3006/a2a/',
+          agentId: agentId,
+          planId: planId,
+        })
+
+        const message = A2AE2EFactory.createTestMessage('Start E2E ctx passing')
+        const messageParams = { message }
+
+        const events: any[] = []
+        let finalResult: any = null
+        let sawContextCheck = false
+        for await (const event of client.sendA2AMessageStream(messageParams)) {
+          events.push(event)
+          const text = event?.result?.status?.message?.parts?.[0]?.text || ''
+          if (typeof text === 'string' && text.startsWith('CTX_OK:')) {
+            sawContextCheck = true
+            // Expect the executor to see payments context with auth
+            expect(text).toContain('CTX_OK:1')
+            expect(text).toContain('AGENT:')
+            expect(text).toContain('TOKEN:1')
+          }
+          if (event.result && event.result.final) {
+            finalResult = event
+            break
+          }
+        }
+
+        expect(sawContextCheck).toBe(true)
+        A2AE2EAssertions.assertValidStreamingResponse(events, finalResult)
+      },
+      E2E_TEST_CONFIG.TIMEOUT,
+    )
     it(
       'should handle streaming requests with SSE events using A2A client',
       async () => {
@@ -280,7 +353,7 @@ describe('A2A E2E', () => {
         const beforeBalance = BigInt(beforeBalanceResult.balance)
 
         // Create A2A client with real credentials
-        const client = paymentsSubscriber.a2a.getClient({
+        const client = await paymentsSubscriber.a2a.getClient({
           agentBaseUrl: 'http://localhost:3005/a2a/',
           agentId: agentId,
           planId: planId,
@@ -335,7 +408,7 @@ describe('A2A E2E', () => {
         const beforeBalance = BigInt(beforeBalanceResult.balance)
 
         // Create A2A client with real credentials
-        const client = paymentsSubscriber.a2a.getClient({
+        const client = await paymentsSubscriber.a2a.getClient({
           agentBaseUrl: 'http://localhost:3005/a2a/',
           agentId: agentId,
           planId: planId,
@@ -408,6 +481,7 @@ describe('A2A E2E', () => {
           skills: [],
           url: BASE_URL_3005,
           version: '1.0.0',
+          protocolVersion: '0.3.0' as const,
         }
 
         const resubscribeAgentCardWithPayments = Payments.a2a.buildPaymentAgentCard(
@@ -424,7 +498,7 @@ describe('A2A E2E', () => {
         // Reuse the same server on 3005; no need to start another instance
 
         // Create A2A client for resubscribe testing
-        const client = paymentsSubscriber.a2a.getClient({
+        const client = await paymentsSubscriber.a2a.getClient({
           agentBaseUrl: BASE_URL_3005,
           agentId: agentId,
           planId: planId,

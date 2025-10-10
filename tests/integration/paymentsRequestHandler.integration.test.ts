@@ -9,10 +9,11 @@ import {
   PaymentsRequestHandlerTestUtils,
   PaymentsRequestHandlerAssertions,
   PaymentsRequestHandlerTestScenarios,
-  PaymentsRequestHandlerErrorCases,
   MockPaymentsService,
   MockAgentExecutor,
 } from './helpers/payments-request-handler-helpers.js'
+// @ts-ignore - Module resolution issue with @a2a-js/sdk/server in linter
+import { InMemoryTaskStore } from '@a2a-js/sdk/server'
 
 describe('PaymentsRequestHandler Integration', () => {
   let handler: any
@@ -23,18 +24,19 @@ describe('PaymentsRequestHandler Integration', () => {
     // Create fresh mocks for each test
     mockPaymentsService = MockPaymentsService.create()
     mockAgentExecutor = MockAgentExecutor.create()
-    
+
     handler = PaymentsRequestHandlerFactory.create(
       undefined, // Use default agent card
       undefined, // Use default task store
       mockAgentExecutor,
-      mockPaymentsService
+      mockPaymentsService,
     )
   })
 
   describe('Message Validation', () => {
     describe('Invalid Message Scenarios', () => {
-      const validationScenarios = PaymentsRequestHandlerTestScenarios.getMessageValidationScenarios()
+      const validationScenarios =
+        PaymentsRequestHandlerTestScenarios.getMessageValidationScenarios()
 
       validationScenarios.forEach(({ name, params, expectedError }) => {
         it(`should return JSON-RPC error when ${name}`, async () => {
@@ -43,9 +45,9 @@ describe('PaymentsRequestHandler Integration', () => {
             expect(true).toBe(false) // Should not reach here
           } catch (error: any) {
             PaymentsRequestHandlerAssertions.assertJsonRpcError(
-              error, 
-              expectedError.code, 
-              expectedError.message
+              error,
+              expectedError.code,
+              expectedError.message,
             )
           }
         })
@@ -64,7 +66,7 @@ describe('PaymentsRequestHandler Integration', () => {
           const params = { message }
 
           const result = await handler.sendMessage(params)
-          
+
           PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
           PaymentsRequestHandlerAssertions.assertTaskCompleted(result)
         })
@@ -75,42 +77,50 @@ describe('PaymentsRequestHandler Integration', () => {
   describe('HTTP Context Handling', () => {
     it('should handle valid message with HTTP context', async () => {
       const testScenario = await PaymentsRequestHandlerTestUtils.createTestScenario()
-      
+
       const result = await testScenario.handler.sendMessage(testScenario.params)
-      
+
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
       PaymentsRequestHandlerAssertions.assertTaskCompleted(result)
     })
 
     it('should handle HTTP context with custom validation', async () => {
       const customHttpContext = PaymentsRequestHandlerTestUtils.createHttpContext({
-        validation: { 
-          balance: { 
-            isSubscriber: true
-          } 
-        }
+        validation: {
+          balance: {
+            isSubscriber: true,
+          },
+        },
       })
 
       const message = PaymentsRequestHandlerTestUtils.createTestMessage()
-      PaymentsRequestHandlerTestUtils.setupHttpContext(handler, message.messageId, customHttpContext)
+      PaymentsRequestHandlerTestUtils.setupHttpContext(
+        handler,
+        message.messageId,
+        customHttpContext,
+      )
 
       const params = { message }
       const result = await handler.sendMessage(params)
-      
+
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
     })
 
     it('should handle HTTP context with custom bearer token', async () => {
       const customHttpContext = PaymentsRequestHandlerTestUtils.createHttpContext({
-        bearerToken: 'custom-test-token-123'
+        bearerToken: 'custom-test-token-123',
       })
 
       const message = PaymentsRequestHandlerTestUtils.createTestMessage()
-      PaymentsRequestHandlerTestUtils.setupHttpContext(handler, message.messageId, customHttpContext)
+      PaymentsRequestHandlerTestUtils.setupHttpContext(
+        handler,
+        message.messageId,
+        customHttpContext,
+      )
 
       const params = { message }
       const result = await handler.sendMessage(params)
-      
+
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
     })
   })
@@ -118,9 +128,9 @@ describe('PaymentsRequestHandler Integration', () => {
   describe('Service Integration', () => {
     it('should process messages successfully', async () => {
       const testScenario = await PaymentsRequestHandlerTestUtils.createTestScenario()
-      
+
       const result = await testScenario.handler.sendMessage(testScenario.params)
-      
+
       // Verify the result is valid
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
       PaymentsRequestHandlerAssertions.assertTaskCompleted(result)
@@ -128,21 +138,21 @@ describe('PaymentsRequestHandler Integration', () => {
 
     it('should handle multiple message processing', async () => {
       const testScenario = await PaymentsRequestHandlerTestUtils.createTestScenario()
-      
+
       // Send first message
       const result1 = await testScenario.handler.sendMessage(testScenario.params)
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result1)
-      
+
       // Send second message
       const secondMessage = PaymentsRequestHandlerTestUtils.createTestMessage({
-        parts: [{ kind: 'text' as const, text: 'Second test message' }]
+        parts: [{ kind: 'text' as const, text: 'Second test message' }],
       })
       PaymentsRequestHandlerTestUtils.setupHttpContext(
-        testScenario.handler, 
-        secondMessage.messageId, 
-        testScenario.httpContext
+        testScenario.handler,
+        secondMessage.messageId,
+        testScenario.httpContext,
       )
-      
+
       const result2 = await testScenario.handler.sendMessage({ message: secondMessage })
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result2)
     })
@@ -165,7 +175,7 @@ describe('PaymentsRequestHandler Integration', () => {
       // Create a mock executor with a jest function that can be modified
       const mockExecute = jest.fn().mockRejectedValue(new Error('Agent execution error'))
       const mockCancelTask = jest.fn().mockResolvedValue(undefined)
-      
+
       const mockAgentExecutor = {
         execute: mockExecute,
         cancelTask: mockCancelTask,
@@ -175,7 +185,7 @@ describe('PaymentsRequestHandler Integration', () => {
         undefined,
         undefined,
         mockAgentExecutor as any,
-        MockPaymentsService.create()
+        MockPaymentsService.create(),
       )
 
       const message = PaymentsRequestHandlerTestUtils.createTestMessage()
@@ -187,10 +197,10 @@ describe('PaymentsRequestHandler Integration', () => {
 
       // Verify that we get a failed task response (not an exception)
       PaymentsRequestHandlerAssertions.assertTaskFailed(result)
-      
+
       // Verify the error message contains the executor error
       expect((result as any).status.message.parts[0].text).toContain('Agent execution error')
-      
+
       // Verify that the execute method was called
       expect(mockExecute).toHaveBeenCalledTimes(1)
     })
@@ -205,10 +215,10 @@ describe('PaymentsRequestHandler Integration', () => {
           extensions: [
             {
               uri: 'urn:nevermined:payment',
-              params: { 
+              params: {
                 agentId: 'custom-agent-id',
                 paymentType: 'credits',
-                credits: 5
+                credits: 5,
               },
             },
           ],
@@ -218,40 +228,40 @@ describe('PaymentsRequestHandler Integration', () => {
         skills: [],
         url: 'http://localhost:3000',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
 
       const customHandler = PaymentsRequestHandlerFactory.createWithCustomConfig({
         agentCard: customAgentCard,
         agentExecutor: MockAgentExecutor.create(),
-        paymentsService: MockPaymentsService.create()
+        paymentsService: MockPaymentsService.create(),
       })
 
       const testScenario = await PaymentsRequestHandlerTestUtils.createTestScenario({
-        handler: customHandler
+        handler: customHandler,
       })
 
       const result = await testScenario.handler.sendMessage(testScenario.params)
-      
+
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
       PaymentsRequestHandlerAssertions.assertTaskCompleted(result)
     })
 
     it('should work with custom task store', async () => {
-      const { InMemoryTaskStore } = await import('@a2a-js/sdk/server')
       const customTaskStore = new InMemoryTaskStore()
 
       const customHandler = PaymentsRequestHandlerFactory.createWithCustomConfig({
         taskStore: customTaskStore,
         agentExecutor: MockAgentExecutor.create(),
-        paymentsService: MockPaymentsService.create()
+        paymentsService: MockPaymentsService.create(),
       })
 
       const testScenario = await PaymentsRequestHandlerTestUtils.createTestScenario({
-        handler: customHandler
+        handler: customHandler,
       })
 
       const result = await testScenario.handler.sendMessage(testScenario.params)
-      
+
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
       PaymentsRequestHandlerAssertions.assertTaskCompleted(result)
     })
@@ -260,15 +270,15 @@ describe('PaymentsRequestHandler Integration', () => {
   describe('Edge Cases', () => {
     it('should handle message with empty parts array', async () => {
       const message = PaymentsRequestHandlerTestUtils.createTestMessage({
-        parts: []
+        parts: [],
       })
 
       const testScenario = await PaymentsRequestHandlerTestUtils.createTestScenario({
-        message
+        message,
       })
 
       const result = await testScenario.handler.sendMessage(testScenario.params)
-      
+
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
     })
 
@@ -276,16 +286,16 @@ describe('PaymentsRequestHandler Integration', () => {
       const message = PaymentsRequestHandlerTestUtils.createTestMessage({
         parts: [
           { kind: 'text' as const, text: 'First part' },
-          { kind: 'text' as const, text: 'Second part' }
-        ]
+          { kind: 'text' as const, text: 'Second part' },
+        ],
       })
 
       const testScenario = await PaymentsRequestHandlerTestUtils.createTestScenario({
-        message
+        message,
       })
 
       const result = await testScenario.handler.sendMessage(testScenario.params)
-      
+
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
       PaymentsRequestHandlerAssertions.assertTaskCompleted(result)
     })
@@ -295,19 +305,19 @@ describe('PaymentsRequestHandler Integration', () => {
         metadata: {
           userId: 'test-user-123',
           sessionId: 'test-session-456',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       })
 
       const testScenario = await PaymentsRequestHandlerTestUtils.createTestScenario({
-        message
+        message,
       })
 
       const result = await testScenario.handler.sendMessage(testScenario.params)
-      
+
       PaymentsRequestHandlerAssertions.assertValidTaskResponse(result)
       expect(result.metadata).toBeDefined()
       expect(result.metadata?.userId).toBe('test-user-123')
     })
   })
-}) 
+})

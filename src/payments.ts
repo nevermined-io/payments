@@ -61,11 +61,11 @@ export class Payments extends BasePaymentsAPI {
        * The registry is initialized only on first use.
        * @param options - ClientRegistryOptions.
        */
-      getClient: (options: any) => {
+      getClient: async (options: any) => {
         if (!this._a2aRegistry) {
           this._a2aRegistry = new ClientRegistry(this)
         }
-        return this._a2aRegistry.getClient(options)
+        return await this._a2aRegistry.getClient(options)
       },
     }
   }

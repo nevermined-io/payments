@@ -2,16 +2,11 @@
 # yarn lockfile v1
 
 
-"@a2a-js/sdk@^0.2.5":
-  version "0.2.5"
-  resolved "https://registry.npmjs.org/@a2a-js/sdk/-/sdk-0.2.5.tgz"
-  integrity sha512-VTDuRS5V0ATbJ/LkaQlisMnTAeYKXAK6scMguVBstf+KIBQ7HIuKhiXLv+G/hvejkV+THoXzoNifInAkU81P1g==
+"@a2a-js/sdk@^0.3.4":
+  version "0.3.4"
+  resolved "https://registry.yarnpkg.com/@a2a-js/sdk/-/sdk-0.3.4.tgz#4b46a1b966d67e35d300cf28e2925a7283ad0bfd"
+  integrity sha512-WXMk/UspvQFxesvb8hXyfPE8d3ibpiRie24Yw/5ruMqNJcdwxjfZ1G0gj6vYE/I9RAZD145CNzedpZA2cLV2JQ==
   dependencies:
-    "@types/cors" "^2.8.17"
-    "@types/express" "^4.17.23"
-    body-parser "^2.2.0"
-    cors "^2.8.5"
-    express "^4.21.2"
     uuid "^11.1.0"
 
 "@ampproject/remapping@^2.2.0":
@@ -3207,13 +3202,6 @@
   dependencies:
     "@types/node" "*"
 
-"@types/cors@^2.8.17":
-  version "2.8.19"
-  resolved "https://registry.npmjs.org/@types/cors/-/cors-2.8.19.tgz"
-  integrity sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg==
-  dependencies:
-    "@types/node" "*"
-
 "@types/express-serve-static-core@^4.17.33":
   version "4.19.6"
   resolved "https://registry.npmjs.org/@types/express-serve-static-core/-/express-serve-static-core-4.19.6.tgz"
@@ -3224,9 +3212,9 @@
     "@types/range-parser" "*"
     "@types/send" "*"
 
-"@types/express@4.17.23", "@types/express@^4.17.23":
+"@types/express@4.17.23":
   version "4.17.23"
-  resolved "https://registry.npmjs.org/@types/express/-/express-4.17.23.tgz"
+  resolved "https://registry.yarnpkg.com/@types/express/-/express-4.17.23.tgz#35af3193c640bfd4d7fe77191cd0ed411a433bef"
   integrity sha512-Crp6WY9aTYP3qPi2wGDo9iUe/rceX01UMhnF1jmwDcKCFM6cx7YhGP/Mpr3y9AASpfHixIG0E6azCcL5OcDHsQ==
   dependencies:
     "@types/body-parser" "*"
@@ -4532,6 +4520,11 @@ doctrine@^3.0.0:
   dependencies:
     esutils "^2.0.2"
 
+dotenv@^17.2.3:
+  version "17.2.3"
+  resolved "https://registry.yarnpkg.com/dotenv/-/dotenv-17.2.3.tgz#ad995d6997f639b11065f419a22fabf567cdb9a2"
+  integrity sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==
+
 dunder-proto@^1.0.0, dunder-proto@^1.0.1:
   version "1.0.1"
   resolved "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz"
@@ -5066,9 +5059,9 @@ express-rate-limit@^7.5.0:
   resolved "https://registry.yarnpkg.com/express-rate-limit/-/express-rate-limit-7.5.1.tgz#8c3a42f69209a3a1c969890070ece9e20a879dec"
   integrity sha512-7iN8iPMDzOMHPUYllBEsQdWVB6fPDMPqwjBaFrgr4Jgr/+okjvzAy+UHlYYL/Vs0OsOrMkwS6PJDkFlJwoxUnw==
 
-express@4.21.2, express@^4.21.2:
+express@4.21.2:
   version "4.21.2"
-  resolved "https://registry.npmjs.org/express/-/express-4.21.2.tgz"
+  resolved "https://registry.yarnpkg.com/express/-/express-4.21.2.tgz#cf250e48362174ead6cea4a566abef0162c1ec32"
   integrity sha512-28HqgMZAmih1Czt9ny7qr6ek2qddF4FclbMzwhCREB6OFfH+rXAnuNCwo1/wFvrtbgsQDb4kSbX9de9lFbrXnA==
   dependencies:
     accepts "~1.3.8"

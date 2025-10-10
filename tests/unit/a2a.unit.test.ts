@@ -5,9 +5,8 @@
 import { ClientRegistry } from '../../src/a2a/clientRegistry'
 import { Payments } from '../../src/payments'
 import { buildPaymentAgentCard } from '../../src/a2a/agent-card'
-import { PaymentsError } from '../../src/common/payments.error'
 
-// Minimal mock only for network requests in unit tests
+// Mock A2AClient only for this test file
 jest.mock('@a2a-js/sdk/client', () => ({
   A2AClient: jest.fn().mockImplementation(() => ({
     agentCardPromise: Promise.resolve({
@@ -23,15 +22,46 @@ jest.mock('@a2a-js/sdk/client', () => ({
       url: 'http://localhost:3001',
       version: '1.0.0',
     }),
+    getAgentCard: jest.fn().mockResolvedValue({
+      name: 'Mock Agent',
+      description: 'Mock agent for testing',
+      capabilities: {
+        tools: ['text-generation'],
+        extensions: [],
+      },
+      defaultInputModes: ['text'],
+      defaultOutputModes: ['text'],
+      skills: [],
+      url: 'http://localhost:3001',
+      version: '1.0.0',
+    }),
   })),
 }))
+
+// Add static method mock
+const MockA2AClient = require('@a2a-js/sdk/client').A2AClient
+MockA2AClient.fromCardUrl = jest.fn().mockResolvedValue({
+  getAgentCard: jest.fn().mockResolvedValue({
+    name: 'Mock Agent',
+    description: 'Mock agent for testing',
+    capabilities: {
+      tools: ['text-generation'],
+      extensions: [],
+    },
+    defaultInputModes: ['text'],
+    defaultOutputModes: ['text'],
+    skills: [],
+    url: 'http://localhost:3001',
+    version: '1.0.0',
+  }),
+})
 
 describe('A2A Unit Tests (Pure)', () => {
   let payments: Payments
 
   const subscriberNvmApiKeyHash =
     process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweGMxNTA4ZDEzMTczMkNBNDVlN2JDQTE4OGMyNjA4YUU4ODhmMDI2OGQiLCJqdGkiOiIweDQ3NDZmOThiNjdjOGZmMWM5NTNlMTYyYzY3MTUwMWQ1YmJlNjRiNTNmMTQ5NTViNTdlMTVmOTA1ZDkyMjI3MGEiLCJleHAiOjE3ODUzNDk0NzJ9.h_CUR9IFiG0nUZt4q-wqZCY6VRgsmf1_1MSwosmFH3VacNjzqmRcR31So2jf9kiy63HemPa5AKuKHjQkCWmtYBs'
+    'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEU3OGRiMkJGMEIyMjcwM2RjZDNGNDUzMDRkODUxZTdCNjY1MDU3N2UiLCJqdGkiOiIweGYyYTIzZmIzM2EzNzhiNWM3YTRmYzNmNWUyODVlODQwN2IyYjk5OTg2ZDEwNDM4ZmQ5ZDliNGVmNmMyZjMzZmQiLCJleHAiOjE3OTA3ODg1NjQsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.0Eg3M5qyNDHoyKBHDq_Kqg-ko3-6ArKE6dtEb0UvoL9p4eOqipEnjAQxxzV92XyUUH57ylcRwJ_UIXpuvgjbjRs'
 
   beforeEach(() => {
     payments = Payments.getInstance({ nvmApiKey: subscriberNvmApiKeyHash, environment: 'sandbox' })
@@ -58,12 +88,12 @@ describe('A2A Unit Tests (Pure)', () => {
   describe('ClientRegistry', () => {
     it('should register and retrieve a client by agentId and planId', async () => {
       const registry = new ClientRegistry(payments)
-      const client1 = registry.getClient({
+      const client1 = await registry.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'alice-agent',
         planId: 'plan-1',
       })
-      const client2 = registry.getClient({
+      const client2 = await registry.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'alice-agent',
         planId: 'plan-1',
@@ -75,12 +105,12 @@ describe('A2A Unit Tests (Pure)', () => {
 
     it('should create different clients for different combinations', async () => {
       const registry = new ClientRegistry(payments)
-      const client1 = registry.getClient({
+      const client1 = await registry.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'alice-agent',
         planId: 'plan-1',
       })
-      const client2 = registry.getClient({
+      const client2 = await registry.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'bob-agent',
         planId: 'plan-1',
@@ -90,9 +120,9 @@ describe('A2A Unit Tests (Pure)', () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
     })
 
-    it('should throw if required fields are missing', () => {
+    it('should throw if required fields are missing', async () => {
       const registry = new ClientRegistry(payments)
-      expect(() => registry.getClient({} as any)).toThrow('Missing required fields')
+      await expect(registry.getClient({} as any)).rejects.toThrow('Missing required fields')
     })
   })
 
@@ -110,6 +140,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       const paymentMetadata = {
         paymentType: 'fixed' as const,
@@ -138,6 +169,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3002',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       const paymentMetadata = {
         paymentType: 'dynamic' as const,
@@ -167,6 +199,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3004',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       const paymentMetadata = {
         paymentType: 'fixed' as const,
@@ -197,6 +230,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       expect(() => buildPaymentAgentCard(baseCard, {} as any)).toThrow('paymentType is required')
     })
@@ -214,6 +248,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
 
       // Missing credits for paid plan
@@ -256,6 +291,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
 
       // Trial plan with 0 credits
@@ -292,6 +328,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       expect(() =>
         buildPaymentAgentCard(baseCard, {
@@ -310,7 +347,7 @@ describe('A2A Unit Tests (Pure)', () => {
     })
 
     it('should initialize client registry only when getClient is called', async () => {
-      const client = payments.a2a.getClient({
+      const client = await payments.a2a.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'test-agent',
         planId: 'test-plan',
@@ -322,13 +359,13 @@ describe('A2A Unit Tests (Pure)', () => {
     })
 
     it('should reuse existing registry on subsequent getClient calls', async () => {
-      const client1 = payments.a2a.getClient({
+      const client1 = await payments.a2a.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'test-agent',
         planId: 'test-plan',
       })
 
-      const client2 = payments.a2a.getClient({
+      const client2 = await payments.a2a.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'test-agent-2',
         planId: 'test-plan',
@@ -361,6 +398,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3003',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       const paymentMetadata = {
         paymentType: 'fixed' as const,
@@ -408,7 +446,7 @@ describe('A2A Unit Tests (Pure)', () => {
       ]
 
       // All messages should be handled the same way in streaming mode
-      testMessages.forEach(text => {
+      testMessages.forEach((text) => {
         expect(text).toBeDefined()
         expect(typeof text).toBe('string')
       })
@@ -416,11 +454,7 @@ describe('A2A Unit Tests (Pure)', () => {
 
     it('should publish correct number of streaming events', async () => {
       // Mock implementation of handleStreamingRequest
-      const handleStreamingRequest = async (
-        userText: string,
-        context: any,
-        eventBus: any
-      ) => {
+      const handleStreamingRequest = async (userText: string, context: any, eventBus: any) => {
         const totalMessages = 3 // Reduced for unit test
         const delayMs = 50 // Reduced for unit test
 
@@ -473,7 +507,7 @@ describe('A2A Unit Tests (Pure)', () => {
       const result = await handleStreamingRequest(
         'Start streaming',
         mockRequestContext,
-        mockEventBus
+        mockEventBus,
       )
 
       // Verify the correct number of events were published
@@ -486,11 +520,7 @@ describe('A2A Unit Tests (Pure)', () => {
     })
 
     it('should include correct metadata in streaming response', async () => {
-      const handleStreamingRequest = async (
-        userText: string,
-        context: any,
-        eventBus: any
-      ) => {
+      const handleStreamingRequest = async (userText: string, context: any, eventBus: any) => {
         // Simulate one streaming message
         eventBus.publish({
           kind: 'status-update',
@@ -532,7 +562,7 @@ describe('A2A Unit Tests (Pure)', () => {
       const result = await handleStreamingRequest(
         'Start streaming',
         mockRequestContext,
-        mockEventBus
+        mockEventBus,
       )
 
       expect(result.metadata).toEqual({
@@ -545,11 +575,7 @@ describe('A2A Unit Tests (Pure)', () => {
     })
 
     it('should handle streaming errors gracefully', async () => {
-      const handleStreamingRequest = async (
-        userText: string,
-        context: any,
-        eventBus: any
-      ) => {
+      const handleStreamingRequest = async (userText: string, context: any, eventBus: any) => {
         try {
           // Simulate an error during streaming
           throw new Error('Streaming service unavailable')
@@ -594,7 +620,7 @@ describe('A2A Unit Tests (Pure)', () => {
       const result = await handleStreamingRequest(
         'Start streaming',
         mockRequestContext,
-        mockEventBus
+        mockEventBus,
       )
 
       expect(result.state).toBe('failed')
