@@ -5,12 +5,13 @@ import { BasePaymentsAPI } from './api/base-payments.js'
 import { PlansAPI } from './api/plans-api.js'
 import { AgentsAPI } from './api/agents-api.js'
 import { AgentRequestsAPI } from './api/requests-api.js'
-import { ObservabilityAPI } from './api/observability-api.js'
+import { ObservabilityAPI } from './api/observability-api/observability-api.js'
 import { ClientRegistry } from './a2a/clientRegistry.js'
 import type { PaymentsA2AServerOptions, PaymentsA2AServerResult } from './a2a/server.js'
 import { PaymentsA2AServer } from './a2a/server.js'
 import { buildPaymentAgentCard } from './a2a/agent-card.js'
 import * as mcpModule from './mcp/index.js'
+import { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -31,6 +32,7 @@ export class Payments extends BasePaymentsAPI {
   public agents!: AgentsAPI
   public requests!: AgentRequestsAPI
   public observability!: ObservabilityAPI
+  public organizations!: OrganizationsAPI
   private _a2aRegistry?: ClientRegistry
 
   /**
@@ -166,6 +168,7 @@ export class Payments extends BasePaymentsAPI {
     this.agents = AgentsAPI.getInstance(options)
     this.requests = AgentRequestsAPI.getInstance(options)
     this.observability = ObservabilityAPI.getInstance(options)
+    this.organizations = OrganizationsAPI.getInstance(options)
     this.query = AIQueryApi.getInstance()
   }
 

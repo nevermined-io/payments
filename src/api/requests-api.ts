@@ -202,6 +202,68 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
   }
 
   /**
+   * Allows the agent to redeem credits based on margin percentage from a request.
+   *
+   * @param agentRequestId - The unique identifier of the agent request.
+   * @param requestAccessToken - The access token of the request.
+   * @param marginPercent - The margin percentage to apply.
+   * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
+   * @throws PaymentsError if unable to redeem credits from the request.
+   *
+   * @example
+   * ```
+   * const result = await payments.requests.redeemWithMarginFromRequest(
+   *   'request-id-12345', // The request ID to track the operation
+   *    accessToken, // The access token of the request
+   *    0.2 // The margin percentage to apply
+   * )
+   *
+   * // {
+   * //   txHash: '0x8d29d5769e832a35e53f80cd4e8890d941c50a09c33dbd975533debc894f2535',
+   * //   success: true
+   * // }
+   * ```
+   */
+  public async redeemWithMarginFromRequest(
+    agentRequestId: string,
+    requestAccessToken: string,
+    marginPercent: number,
+  ): Promise<NvmAPIResult> {
+    return this.redeemCredits(agentRequestId, requestAccessToken, false, undefined, marginPercent)
+  }
+
+  /**
+   * Allows the agent to redeem credits based on margin percentage from a batch request.
+   *
+   * @param agentRequestId - The unique identifier of the agent request.
+   * @param requestAccessToken - The access token of the request.
+   * @param marginPercent - The margin percentage to apply.
+   * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
+   * @throws PaymentsError if unable to redeem credits from the request.
+   *
+   * @example
+   * ```
+   * const result = await payments.requests.redeemWithMarginFromBatchRequest(
+   *   'request-id-12345', // The request ID to track the operation
+   *    accessToken, // The access token of the request
+   *    0.2 // The margin percentage to apply
+   * )
+   *
+   * // {
+   * //   txHash: '0x8d29d5769e832a35e53f80cd4e8890d941c50a09c33dbd975533debc894f2535',
+   * //   success: true
+   * // }
+   * ```
+   */
+  public async redeemWithMarginFromBatchRequest(
+    agentRequestId: string,
+    requestAccessToken: string,
+    marginPercent: number,
+  ): Promise<NvmAPIResult> {
+    return this.redeemCredits(agentRequestId, requestAccessToken, true, undefined, marginPercent)
+  }
+
+  /**
    * Allows the agent to redeem credits from a batch request.
    *
    * @param agentRequestId - The unique identifier of the agent request.
@@ -229,7 +291,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     requestAccessToken: string,
     creditsToBurn: bigint,
   ): Promise<NvmAPIResult> {
-    return this.redeemCreditsFromRequest(agentRequestId, requestAccessToken, creditsToBurn, true)
+    return this.redeemCredits(agentRequestId, requestAccessToken, true, creditsToBurn, undefined)
   }
 
   /**
@@ -238,7 +300,6 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
    * @param agentRequestId - The unique identifier of the agent request.
    * @param requestAccessToken - The access token of the request.
    * @param creditsToBurn - The number of credits to burn.
-   * @param batch - Whether the request is a batch request.
    * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
    * @throws PaymentsError if unable to redeem credits from the request.
    *
@@ -260,8 +321,24 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     agentRequestId: string,
     requestAccessToken: string,
     creditsToBurn: bigint,
-    batch = false,
   ): Promise<NvmAPIResult> {
+    return this.redeemCredits(agentRequestId, requestAccessToken, false, creditsToBurn, undefined)
+  }
+
+  private async redeemCredits(
+    agentRequestId: string,
+    requestAccessToken: string,
+    batch = false,
+    creditsToBurn?: bigint,
+    marginPercent?: number,
+  ): Promise<NvmAPIResult> {
+    // Validate mutually exclusive parameters
+    if ((creditsToBurn && marginPercent) || (!creditsToBurn && !marginPercent)) {
+      throw new PaymentsError(
+        'Either creditsToBurn or marginPercent must be provided, but not both',
+      )
+    }
+
     // Decode the access token to get the wallet address and plan ID
     const decodedToken = decodeAccessToken(requestAccessToken)
     if (!decodedToken) {
@@ -280,7 +357,8 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
       agentRequestId,
       planId: BigInt(planId),
       redeemFrom: walletAddress,
-      amount: creditsToBurn,
+      ...(creditsToBurn !== undefined && { amount: creditsToBurn }),
+      ...(marginPercent !== undefined && { marginPercent }),
       batch,
     }
 
