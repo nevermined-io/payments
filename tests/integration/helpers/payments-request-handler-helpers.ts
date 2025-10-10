@@ -4,8 +4,10 @@
  */
 
 import { PaymentsRequestHandler } from '../../../src/a2a/paymentsRequestHandler.js'
+// @ts-ignore - Module resolution issue with @a2a-js/sdk/server in linter
 import { InMemoryTaskStore } from '@a2a-js/sdk/server'
-import { AgentExecutor } from '@a2a-js/sdk/server'
+// @ts-ignore - Module resolution issue with @a2a-js/sdk/server in linter
+import type { AgentExecutor } from '@a2a-js/sdk/server'
 import { AgentCard } from '../../../src/a2a/types.js'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -17,14 +19,14 @@ export const PAYMENTS_REQUEST_HANDLER_TEST_DATA = {
     kind: 'message' as const,
     parts: [{ kind: 'text' as const, text: 'test message' }],
   },
-  
+
   VALID_HTTP_CONTEXT: {
     bearerToken: 'test-token',
     urlRequested: 'http://localhost:3000/a2a/',
     httpMethodRequested: 'POST',
     validation: { balance: { isSubscriber: true } },
   },
-  
+
   AGENT_CARD: {
     name: 'Test Agent',
     description: 'Test agent for PaymentsRequestHandler tests',
@@ -41,6 +43,7 @@ export const PAYMENTS_REQUEST_HANDLER_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3000',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   } as AgentCard,
 }
 
@@ -73,7 +76,7 @@ export class MockAgentExecutor {
         // Simulate successful execution
         const taskId = requestContext.taskId
         const contextId = requestContext.userMessage.contextId || 'test-context'
-        
+
         // Publish submitted status
         eventBus.publish({
           kind: 'task',
@@ -191,7 +194,7 @@ export class PaymentsRequestHandlerFactory {
     agentCard?: AgentCard,
     taskStore?: InMemoryTaskStore,
     agentExecutor?: AgentExecutor,
-    paymentsService?: any
+    paymentsService?: any,
   ): PaymentsRequestHandler {
     return new PaymentsRequestHandler(
       agentCard || PAYMENTS_REQUEST_HANDLER_TEST_DATA.AGENT_CARD,
@@ -214,7 +217,7 @@ export class PaymentsRequestHandlerFactory {
       config.agentCard,
       config.taskStore,
       config.agentExecutor,
-      config.paymentsService
+      config.paymentsService,
     )
   }
 }
@@ -224,13 +227,15 @@ export class PaymentsRequestHandlerTestUtils {
   /**
    * Creates a test message with optional overrides
    */
-  static createTestMessage(overrides: Partial<{
-    messageId?: string
-    role?: 'user'
-    parts?: Array<{ kind: 'text'; text: string }>
-    contextId?: string
-    metadata?: any
-  }> = {}) {
+  static createTestMessage(
+    overrides: Partial<{
+      messageId?: string
+      role?: 'user'
+      parts?: Array<{ kind: 'text'; text: string }>
+      contextId?: string
+      metadata?: any
+    }> = {},
+  ) {
     return {
       ...PAYMENTS_REQUEST_HANDLER_TEST_DATA.VALID_MESSAGE,
       messageId: uuidv4(),
@@ -242,12 +247,14 @@ export class PaymentsRequestHandlerTestUtils {
   /**
    * Creates HTTP context with optional overrides
    */
-  static createHttpContext(overrides: Partial<{
-    bearerToken?: string
-    urlRequested?: string
-    httpMethodRequested?: string
-    validation?: any
-  }> = {}) {
+  static createHttpContext(
+    overrides: Partial<{
+      bearerToken?: string
+      urlRequested?: string
+      httpMethodRequested?: string
+      validation?: any
+    }> = {},
+  ) {
     return {
       ...PAYMENTS_REQUEST_HANDLER_TEST_DATA.VALID_HTTP_CONTEXT,
       ...overrides,
@@ -265,11 +272,13 @@ export class PaymentsRequestHandlerTestUtils {
   /**
    * Creates a complete test scenario with handler and context
    */
-  static async createTestScenario(options: {
-    message?: any
-    httpContext?: any
-    handler?: PaymentsRequestHandler
-  } = {}) {
+  static async createTestScenario(
+    options: {
+      message?: any
+      httpContext?: any
+      handler?: PaymentsRequestHandler
+    } = {},
+  ) {
     const handler = options.handler || PaymentsRequestHandlerFactory.create()
     const message = options.message || this.createTestMessage()
     const httpContext = options.httpContext || this.createHttpContext()
@@ -342,19 +351,22 @@ export class PaymentsRequestHandlerAssertions {
   /**
    * Asserts that payments service methods were called correctly
    */
-  static assertPaymentsServiceCalls(paymentsService: any, expectedCalls: {
-    startProcessingRequest?: number
-    redeemCreditsFromRequest?: number
-  } = {}) {
+  static assertPaymentsServiceCalls(
+    paymentsService: any,
+    expectedCalls: {
+      startProcessingRequest?: number
+      redeemCreditsFromRequest?: number
+    } = {},
+  ) {
     if (expectedCalls.startProcessingRequest !== undefined) {
       expect(paymentsService.requests.startProcessingRequest).toHaveBeenCalledTimes(
-        expectedCalls.startProcessingRequest
+        expectedCalls.startProcessingRequest,
       )
     }
-    
+
     if (expectedCalls.redeemCreditsFromRequest !== undefined) {
       expect(paymentsService.plans.redeemCreditsFromRequest).toHaveBeenCalledTimes(
-        expectedCalls.redeemCreditsFromRequest
+        expectedCalls.redeemCreditsFromRequest,
       )
     }
   }
@@ -362,14 +374,17 @@ export class PaymentsRequestHandlerAssertions {
   /**
    * Asserts that agent executor methods were called correctly
    */
-  static assertAgentExecutorCalls(agentExecutor: any, expectedCalls: {
-    execute?: number
-    cancelTask?: number
-  } = {}) {
+  static assertAgentExecutorCalls(
+    agentExecutor: any,
+    expectedCalls: {
+      execute?: number
+      cancelTask?: number
+    } = {},
+  ) {
     if (expectedCalls.execute !== undefined) {
       expect(agentExecutor.execute).toHaveBeenCalledTimes(expectedCalls.execute)
     }
-    
+
     if (expectedCalls.cancelTask !== undefined) {
       expect(agentExecutor.cancelTask).toHaveBeenCalledTimes(expectedCalls.cancelTask)
     }
@@ -387,11 +402,11 @@ export class PaymentsRequestHandlerErrorCases {
         name: 'payments service throws error',
         setup: (paymentsService: any) => {
           paymentsService.requests.startProcessingRequest.mockRejectedValue(
-            new Error('Payment service error')
+            new Error('Payment service error'),
           )
         },
         expectedError: 'Payment service error',
       },
     ]
   }
-} 
+}

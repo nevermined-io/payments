@@ -6,6 +6,7 @@ import { ClientRegistry } from '../../src/a2a/clientRegistry'
 import { Payments } from '../../src/payments'
 import { buildPaymentAgentCard } from '../../src/a2a/agent-card'
 
+// Mock A2AClient only for this test file
 jest.mock('@a2a-js/sdk/client', () => ({
   A2AClient: jest.fn().mockImplementation(() => ({
     agentCardPromise: Promise.resolve({
@@ -21,8 +22,39 @@ jest.mock('@a2a-js/sdk/client', () => ({
       url: 'http://localhost:3001',
       version: '1.0.0',
     }),
+    getAgentCard: jest.fn().mockResolvedValue({
+      name: 'Mock Agent',
+      description: 'Mock agent for testing',
+      capabilities: {
+        tools: ['text-generation'],
+        extensions: [],
+      },
+      defaultInputModes: ['text'],
+      defaultOutputModes: ['text'],
+      skills: [],
+      url: 'http://localhost:3001',
+      version: '1.0.0',
+    }),
   })),
 }))
+
+// Add static method mock
+const MockA2AClient = require('@a2a-js/sdk/client').A2AClient
+MockA2AClient.fromCardUrl = jest.fn().mockResolvedValue({
+  getAgentCard: jest.fn().mockResolvedValue({
+    name: 'Mock Agent',
+    description: 'Mock agent for testing',
+    capabilities: {
+      tools: ['text-generation'],
+      extensions: [],
+    },
+    defaultInputModes: ['text'],
+    defaultOutputModes: ['text'],
+    skills: [],
+    url: 'http://localhost:3001',
+    version: '1.0.0',
+  }),
+})
 
 describe('A2A Unit Tests (Pure)', () => {
   let payments: Payments
@@ -56,12 +88,12 @@ describe('A2A Unit Tests (Pure)', () => {
   describe('ClientRegistry', () => {
     it('should register and retrieve a client by agentId and planId', async () => {
       const registry = new ClientRegistry(payments)
-      const client1 = registry.getClient({
+      const client1 = await registry.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'alice-agent',
         planId: 'plan-1',
       })
-      const client2 = registry.getClient({
+      const client2 = await registry.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'alice-agent',
         planId: 'plan-1',
@@ -73,12 +105,12 @@ describe('A2A Unit Tests (Pure)', () => {
 
     it('should create different clients for different combinations', async () => {
       const registry = new ClientRegistry(payments)
-      const client1 = registry.getClient({
+      const client1 = await registry.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'alice-agent',
         planId: 'plan-1',
       })
-      const client2 = registry.getClient({
+      const client2 = await registry.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'bob-agent',
         planId: 'plan-1',
@@ -88,9 +120,9 @@ describe('A2A Unit Tests (Pure)', () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
     })
 
-    it('should throw if required fields are missing', () => {
+    it('should throw if required fields are missing', async () => {
       const registry = new ClientRegistry(payments)
-      expect(() => registry.getClient({} as any)).toThrow('Missing required fields')
+      await expect(registry.getClient({} as any)).rejects.toThrow('Missing required fields')
     })
   })
 
@@ -108,6 +140,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       const paymentMetadata = {
         paymentType: 'fixed' as const,
@@ -136,6 +169,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3002',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       const paymentMetadata = {
         paymentType: 'dynamic' as const,
@@ -165,6 +199,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3004',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       const paymentMetadata = {
         paymentType: 'fixed' as const,
@@ -195,6 +230,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       expect(() => buildPaymentAgentCard(baseCard, {} as any)).toThrow('paymentType is required')
     })
@@ -212,6 +248,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
 
       // Missing credits for paid plan
@@ -254,6 +291,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
 
       // Trial plan with 0 credits
@@ -290,6 +328,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3001',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       expect(() =>
         buildPaymentAgentCard(baseCard, {
@@ -308,7 +347,7 @@ describe('A2A Unit Tests (Pure)', () => {
     })
 
     it('should initialize client registry only when getClient is called', async () => {
-      const client = payments.a2a.getClient({
+      const client = await payments.a2a.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'test-agent',
         planId: 'test-plan',
@@ -320,13 +359,13 @@ describe('A2A Unit Tests (Pure)', () => {
     })
 
     it('should reuse existing registry on subsequent getClient calls', async () => {
-      const client1 = payments.a2a.getClient({
+      const client1 = await payments.a2a.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'test-agent',
         planId: 'test-plan',
       })
 
-      const client2 = payments.a2a.getClient({
+      const client2 = await payments.a2a.getClient({
         agentBaseUrl: 'http://localhost:3001',
         agentId: 'test-agent-2',
         planId: 'test-plan',
@@ -359,6 +398,7 @@ describe('A2A Unit Tests (Pure)', () => {
         skills: [],
         url: 'http://localhost:3003',
         version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
       }
       const paymentMetadata = {
         paymentType: 'fixed' as const,
