@@ -321,9 +321,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       return finalResult
     } else {
       // Non-blocking execution - return immediately with first result
+      if (!taskId) {
+        throw A2AError.internalError('Task ID is required for non-blocking execution.')
+      }
+      const validTaskId = taskId
       return new Promise((resolve, reject) => {
         this.processEventsWithFinalization(
-          taskId!,
+          validTaskId,
           resultManager,
           eventQueue,
           bearerToken,

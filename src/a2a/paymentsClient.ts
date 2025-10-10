@@ -49,7 +49,7 @@ export class PaymentsClient extends A2AClient {
     payments: Payments,
     agentId: string,
     planId: string,
-    agentCardPath: string = '.well-known/agent-card.json',
+    agentCardPath = '.well-known/agent-card.json',
   ): Promise<PaymentsClient> {
     const agentCardUrl = new URL(agentCardPath, agentBaseUrl).toString()
     const a2a = await A2AClient.fromCardUrl(agentCardUrl)
