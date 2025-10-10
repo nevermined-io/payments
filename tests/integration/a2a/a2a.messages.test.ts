@@ -177,6 +177,7 @@ class A2AMessagesTestContext {
       skills: [],
       url: `http://localhost:${MSG_TEST_CONFIG.PORT}`,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
 
     const agentApi = {

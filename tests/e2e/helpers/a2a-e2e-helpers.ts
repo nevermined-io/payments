@@ -37,6 +37,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3000/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   CLIENT_TEST_AGENT_CARD: {
@@ -52,6 +53,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3005/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   MULTI_CLIENT_TEST_AGENT_CARD: {
@@ -67,6 +69,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3006/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   PAYMENT_TEST_AGENT_CARD: {
@@ -82,6 +85,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3008/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   ERROR_TEST_AGENT_CARD: {
@@ -97,6 +101,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3009/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   INTEGRATION_TEST_AGENT_CARD: {
@@ -112,6 +117,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3010/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   STREAMING_TEST_AGENT_CARD: {
@@ -127,6 +133,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3010/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   REGULAR_TEST_AGENT_CARD: {
@@ -142,6 +149,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3011/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   DETECTION_TEST_AGENT_CARD: {
@@ -157,6 +165,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3012/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 
   ERROR_STREAMING_TEST_AGENT_CARD: {
@@ -172,6 +181,7 @@ export const E2E_TEST_DATA = {
     skills: [],
     url: 'http://localhost:3013/',
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   },
 }
 
@@ -593,6 +603,111 @@ export class A2AE2EFactory {
   }
 
   /**
+   * Creates a resubscribe-capable executor that also validates PaymentsRequestContext is present
+   * and publishes a context check event. Used to E2E-verify that payments context is injected.
+   */
+  static createResubscribeStreamingExecutorWithContextAssert(): AgentExecutor {
+    return {
+      execute: async (requestContext: any, eventBus: any) => {
+        // Assert extended context exists
+        const hasPaymentsCtx = !!requestContext?.payments && !!requestContext?.payments?.authResult
+        const agentIdFromCtx = requestContext?.payments?.authResult?.agentId || 'unknown'
+        const tokenPresent = !!requestContext?.payments?.authResult?.token
+
+        const taskId = requestContext.taskId
+        const contextId = requestContext.userMessage.contextId || uuidv4()
+
+        // Publish initial task
+        eventBus.publish({
+          kind: 'task',
+          id: taskId,
+          contextId,
+          status: { state: 'submitted', timestamp: new Date().toISOString() },
+          artifacts: [],
+          history: [requestContext.userMessage],
+          metadata: requestContext.userMessage.metadata,
+        })
+
+        // Publish a context-check status-update
+        eventBus.publish({
+          kind: 'status-update',
+          taskId,
+          contextId,
+          status: {
+            state: 'working',
+            message: {
+              kind: 'message',
+              role: 'agent',
+              messageId: uuidv4(),
+              parts: [
+                {
+                  kind: 'text',
+                  text: `CTX_OK:${hasPaymentsCtx ? '1' : '0'} AGENT:${agentIdFromCtx} TOKEN:${
+                    tokenPresent ? '1' : '0'
+                  }`,
+                },
+              ],
+              taskId,
+              contextId,
+            },
+            timestamp: new Date().toISOString(),
+          },
+          final: false,
+        })
+
+        // Then proceed with the regular resubscribe streaming behavior (shortened)
+        const totalMessages = 3
+        const delayMs = 100
+        for (let i = 1; i <= totalMessages; i++) {
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'working',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [{ kind: 'text', text: `Streaming message ${i}/${totalMessages}` }],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: false,
+          })
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
+        }
+
+        // Final success
+        eventBus.publish({
+          kind: 'status-update',
+          taskId,
+          contextId,
+          status: {
+            state: 'completed',
+            message: {
+              kind: 'message',
+              role: 'agent',
+              messageId: uuidv4(),
+              parts: [{ kind: 'text', text: 'Streaming completed (ctx asserted).' }],
+              taskId,
+              contextId,
+            },
+            timestamp: new Date().toISOString(),
+          },
+          final: true,
+          metadata: { creditsUsed: 10, operationType: 'streaming', streamingType: 'text' },
+        })
+
+        eventBus.finished()
+      },
+      cancelTask: async (_taskId: string) => {},
+    }
+  }
+
+  /**
    * Creates payment metadata for testing
    */
   static createPaymentMetadata(agentId: string, planId?: string) {
@@ -645,7 +760,7 @@ export class A2AE2EUtils {
     maxRetries: number = 10,
     basePath: string = '',
   ): Promise<void> {
-    const agentCardUrl = `http://localhost:${port}${basePath}/.well-known/agent.json`
+    const agentCardUrl = `http://localhost:${port}${basePath}/.well-known/agent-card.json`
 
     for (let i = 0; i < maxRetries; i++) {
       try {

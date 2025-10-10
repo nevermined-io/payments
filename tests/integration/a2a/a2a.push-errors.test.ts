@@ -138,6 +138,7 @@ class A2APushErrorsTestContext {
       skills: [],
       url: `http://localhost:${PUSH_ERR_TEST_CONFIG.PORT}`,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
       endpoints: [

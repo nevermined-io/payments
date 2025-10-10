@@ -131,6 +131,7 @@ class A2AContextTestContext {
       skills: [],
       url: `http://localhost:${CTX_TEST_CONFIG.PORT}`,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
       endpoints: [{ POST: `http://localhost:${CTX_TEST_CONFIG.PORT}${CTX_TEST_CONFIG.BASE_PATH}` }],

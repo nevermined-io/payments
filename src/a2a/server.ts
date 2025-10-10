@@ -4,7 +4,7 @@
  *
  * The server provides a complete A2A protocol implementation with:
  * - JSON-RPC endpoint for A2A messages
- * - Agent Card endpoint (.well-known/agent.json)
+ * - Agent Card endpoint (.well-known/agent-card.json)
  * - Bearer token extraction and validation
  * - Credit validation and burning
  * - Task execution and streaming
@@ -12,9 +12,35 @@
  */
 import express from 'express'
 import http from 'http'
-import { InMemoryTaskStore, A2AExpressApp, AgentExecutor } from '@a2a-js/sdk/server'
+import { InMemoryTaskStore, JsonRpcTransportHandler, AgentExecutor } from '@a2a-js/sdk/server'
 import type { AgentCard, HttpRequestContext } from './types.js'
 import { PaymentsRequestHandler } from './paymentsRequestHandler.js'
+
+/**
+ * Checks if a value is an AsyncIterable (used to detect streaming responses)
+ */
+function isAsyncIterable<T>(value: any): value is AsyncIterable<T> {
+  return value && typeof value[Symbol.asyncIterator] === 'function'
+}
+
+/**
+ * Sends a JSON-RPC result. If it's an async iterator, streams as SSE; otherwise returns JSON.
+ */
+async function sendRpcResult(res: express.Response, result: any): Promise<void> {
+  if (isAsyncIterable(result)) {
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    const anyRes = res as any
+    if (typeof anyRes.flushHeaders === 'function') anyRes.flushHeaders()
+    for await (const chunk of result as AsyncGenerator<any, void, undefined>) {
+      res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+    }
+    res.end()
+    return
+  }
+  res.json(result)
+}
 
 /**
  * Options for starting the PaymentsA2AServer.
@@ -33,7 +59,7 @@ export interface PaymentsA2AServerOptions {
   taskStore?: any
   /** Base path for all A2A routes (defaults to '/') */
   basePath?: string
-  /** Whether to expose the agent card at .well-known/agent.json */
+  /** Whether to expose the agent card at .well-known/agent-card.json */
   exposeAgentCard?: boolean
   /** Whether to expose default A2A JSON-RPC routes */
   exposeDefaultRoutes?: boolean
@@ -240,7 +266,7 @@ export class PaymentsA2AServer {
     const handler =
       customRequestHandler ||
       new PaymentsRequestHandler(agentCard, store, executor, paymentsService)
-    const appBuilder = new A2AExpressApp(handler)
+    const transport = new JsonRpcTransportHandler(handler)
 
     const app = expressApp || express()
 
@@ -286,11 +312,23 @@ export class PaymentsA2AServer {
     }
 
     if (exposeDefaultRoutes) {
-      appBuilder.setupRoutes(app, basePath, [bearerTokenMiddleware.bind(null, handler)])
+      // Apply bearer token middleware for all requests under basePath
+      app.use(basePath, express.json(), bearerTokenMiddleware.bind(null, handler))
+
+      app.post(basePath, async (req, res) => {
+        try {
+          const result = await transport.handle(req.body)
+          await sendRpcResult(res, result)
+        } catch (err: any) {
+          res.status(500).json({
+            error: { code: -32603, message: err?.message || 'Internal server error' },
+          })
+        }
+      })
     }
 
     if (exposeAgentCard) {
-      app.get(`${basePath}.well-known/agent.json`, (req, res) => {
+      app.get(`${basePath}.well-known/agent-card.json`, (req, res) => {
         res.json(agentCard)
       })
     }

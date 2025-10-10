@@ -11,7 +11,6 @@ import type { EnvironmentName } from '../../../src/environments.js'
 import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
-import { PaymentsClient } from '../../../src/a2a/paymentsClient.js'
 
 const SRES_TEST_CONFIG = {
   TIMEOUT: 60_000,
@@ -147,6 +146,7 @@ class A2AStreamingResubTestContext {
       skills: [],
       url: `http://localhost:${SRES_TEST_CONFIG.PORT}/a2a/`,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
       endpoints: [
@@ -227,18 +227,17 @@ describe('A2A Streaming Resubscribe', () => {
     // Ensure server is accessible before creating the client to avoid 404 race conditions
     await retryOperation(async () => {
       const health = await fetch(
-        `http://localhost:${SRES_TEST_CONFIG.PORT}${SRES_TEST_CONFIG.BASE_PATH}.well-known/agent.json`,
+        `http://localhost:${SRES_TEST_CONFIG.PORT}${SRES_TEST_CONFIG.BASE_PATH}.well-known/agent-card.json`,
       )
       if (!health.ok) throw new Error('Server not ready')
       return true
     })
 
-    const client = new PaymentsClient(
-      `http://localhost:${SRES_TEST_CONFIG.PORT}${SRES_TEST_CONFIG.BASE_PATH}`,
-      ctx.subscriber as any,
-      ctx.agentId,
-      ctx.planId,
-    )
+    const client = await ctx.subscriber.a2a.getClient({
+      agentBaseUrl: `http://localhost:${SRES_TEST_CONFIG.PORT}${SRES_TEST_CONFIG.BASE_PATH}`,
+      agentId: ctx.agentId,
+      planId: ctx.planId,
+    })
 
     const message = {
       kind: 'message' as const,
@@ -254,7 +253,6 @@ describe('A2A Streaming Resubscribe', () => {
 
     for await (const event of client.sendA2AMessageStream({ message })) {
       initialEvents.push(event)
-      console.log('BEFORE: Is it final?', event.result && event.result.final)
       consumed++
       if (!taskId) {
         taskId = event.result?.id ?? event.result?.taskId ?? null

@@ -127,6 +127,7 @@ export interface ClientRegistryOptions {
   agentBaseUrl: string
   agentId: string
   planId: string
+  agentCardPath?: string
 }
 
 /**

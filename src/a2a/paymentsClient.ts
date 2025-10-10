@@ -12,6 +12,7 @@ import {
 } from '@a2a-js/sdk'
 import { A2AClient } from '@a2a-js/sdk/client'
 import { v4 as uuidv4 } from 'uuid'
+import type { AgentCard } from './types.js'
 
 /**
  * PaymentsClient is a high-level client for A2A agents with payments integration.
@@ -21,20 +22,39 @@ export class PaymentsClient extends A2AClient {
   public payments: Payments
   private readonly agentId: string
   private readonly planId: string
-  private accessToken: string | null = null
+  private accessToken: string | null
 
   /**
    * Creates a new PaymentsClient instance.
-   * @param agentBaseUrl - The base URL of the agent.
+   * @param agentBaseUrl - The base URL of the agent (e.g. http://localhost:3005/a2a/).
    * @param payments - The Payments object.
    * @param agentId - The ID of the agent.
    * @param planId - The ID of the plan.
+   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent-card.json').
    */
-  constructor(agentBaseUrl: string, payments: Payments, agentId: string, planId: string) {
-    super(agentBaseUrl)
+  private constructor(agentCard: AgentCard, payments: Payments, agentId: string, planId: string) {
+    super(agentCard)
     this.payments = payments
     this.agentId = agentId
     this.planId = planId
+    this.accessToken = null
+  }
+
+  /**
+   * Creates a PaymentsClient by fetching the AgentCard first and then
+   * constructing the underlying A2AClient with the AgentCard object.
+   */
+  public static async create(
+    agentBaseUrl: string,
+    payments: Payments,
+    agentId: string,
+    planId: string,
+    agentCardPath: string = '.well-known/agent-card.json',
+  ): Promise<PaymentsClient> {
+    const agentCardUrl = new URL(agentCardPath, agentBaseUrl).toString()
+    const a2a = await A2AClient.fromCardUrl(agentCardUrl)
+    const agentCard = await (a2a as any).getAgentCard()
+    return new PaymentsClient(agentCard as AgentCard, payments, agentId, planId)
   }
 
   /**

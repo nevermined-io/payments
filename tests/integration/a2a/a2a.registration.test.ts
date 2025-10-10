@@ -91,6 +91,7 @@ class A2ARegistrationTestContext {
       skills: [],
       url: `http://localhost:${REG_TEST_CONFIG.PORT}`,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
 
     const agentApi = {
@@ -178,7 +179,7 @@ describe('A2A Registration (plan, agent, token)', () => {
 
   it('should expose agent card with payment extension', async () => {
     const res = await fetch(
-      `http://localhost:${REG_TEST_CONFIG.PORT}${REG_TEST_CONFIG.BASE_PATH}.well-known/agent.json`,
+      `http://localhost:${REG_TEST_CONFIG.PORT}${REG_TEST_CONFIG.BASE_PATH}.well-known/agent-card.json`,
     )
     expect(res.ok).toBe(true)
     const card = await res.json()

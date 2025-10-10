@@ -157,6 +157,7 @@ class A2AStreamingTestContext {
       skills: [],
       url: `http://localhost:${STR_TEST_CONFIG.PORT}`,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
       endpoints: [{ POST: `http://localhost:${STR_TEST_CONFIG.PORT}${STR_TEST_CONFIG.BASE_PATH}` }],

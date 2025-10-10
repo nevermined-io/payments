@@ -159,6 +159,7 @@ class A2ACreditsTestContext {
       skills: [],
       url: `http://localhost:${CR_TEST_CONFIG.PORT}`,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
       endpoints: [{ POST: `http://localhost:${CR_TEST_CONFIG.PORT}${CR_TEST_CONFIG.BASE_PATH}` }],
@@ -323,6 +324,7 @@ describe('A2A Credits', () => {
       skills: [],
       url: `http://localhost:${lowPort}`,
       version: '1.0.0',
+      protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
       endpoints: [{ POST: `http://localhost:${lowPort}${CR_TEST_CONFIG.BASE_PATH}` }],

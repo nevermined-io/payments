@@ -25,6 +25,7 @@ function buildBaseTestAgentCard(): AgentCard {
     skills: [],
     url: `http://localhost:${SERVER_TEST_CONFIG.PORT}`,
     version: '1.0.0',
+    protocolVersion: '0.3.0' as const,
   }
 }
 
@@ -106,9 +107,9 @@ describe('A2A Server Startup', () => {
     expect(ctx.server.listening).toBe(true)
   })
 
-  it('should expose agent card at .well-known/agent.json', async () => {
+  it('should expose agent card at .well-known/agent-card.json', async () => {
     const res = await fetch(
-      `http://localhost:${SERVER_TEST_CONFIG.PORT}${SERVER_TEST_CONFIG.BASE_PATH}.well-known/agent.json`,
+      `http://localhost:${SERVER_TEST_CONFIG.PORT}${SERVER_TEST_CONFIG.BASE_PATH}.well-known/agent-card.json`,
     )
     expect(res.ok).toBe(true)
     const card = await res.json()

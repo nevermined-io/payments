@@ -9,6 +9,9 @@
   ],
   "collectCoverageFrom": ["src/**/*.ts", "!src/**/*.d.ts"],
   "coverageDirectory": "coverage",
+  "detectOpenHandles": true,
+  "forceExit": true,
+  "setupFiles": ["<rootDir>/setup/jest.setup.ts"],
 
   "testTimeout": 30000,
   "moduleNameMapper": {
