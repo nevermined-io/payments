@@ -413,3 +413,10 @@ export interface TrackAgentSubTaskDto {
    */
   status?: AgentTaskStatus
 }
+
+export type SimulationRequestOptions = {
+  agentName?: string
+  planName?: string
+  batch?: boolean
+  pricePerCredit?: number
+}
