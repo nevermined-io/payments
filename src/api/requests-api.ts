@@ -219,11 +219,45 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
       marginPercent,
       batch,
     })
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to finish simulation request', await response.json())
+
+    // Since this method is usually called immediately after the llm call
+    // the request might not be immediately available on helicone, so we need to retry.
+    const maxRetries = 3
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options)
+        if (!response.ok) {
+          lastError = PaymentsError.fromBackend(
+            'Unable to finish simulation request',
+            await response.json(),
+          )
+          if (attempt < maxRetries - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            continue
+          }
+          throw lastError
+        }
+        return response.json()
+      } catch (error) {
+        if (error instanceof PaymentsError) {
+          lastError = error
+        } else {
+          lastError = PaymentsError.fromBackend('Unable to finish simulation request', {
+            error: String(error),
+          })
+        }
+        if (attempt < maxRetries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          continue
+        }
+        throw lastError
+      }
     }
-    return response.json()
+
+    // This should never be reached, but TypeScript requires it
+    throw lastError || new PaymentsError('Unable to finish simulation request')
   }
 
   /**
