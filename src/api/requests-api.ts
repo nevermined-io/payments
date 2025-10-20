@@ -4,11 +4,14 @@ import {
   TrackAgentSubTaskDto,
   StartAgentRequest,
   NvmAPIResult,
+  SimulationRequestOptions,
 } from '../common/types.js'
 import {
   API_URL_REDEEM_PLAN,
   API_URL_INITIALIZE_AGENT,
   API_URL_TRACK_AGENT_SUB_TASK,
+  API_URL_SIMULATE_AGENT_REQUEST,
+  API_URL_SIMULATE_REDEEM_AGENT_REQUEST,
 } from './nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { decodeAccessToken } from '../utils.js'
@@ -148,6 +151,113 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     }
 
     return response.json()
+  }
+
+  /**
+   * This method simulates an agent request.
+   *
+   * @remarks
+   * This method is used to simulate an agent request.
+   *
+   * @param opts - The options for the simulation request.
+   * @returns @see {@link StartAgentRequest} The information about the simulation of the request.
+   * @throws PaymentsError if unable to simulate the agent request.
+   *
+   * @example
+   * ```
+   * const result = await payments.requests.startSimulationRequest()
+   *
+   * // {
+   * //   agentRequestId: '3921032910321',
+   * //   urlMatching: 'https://api.example.com/agent-endpoint/1234',
+   * //   verbMatching: 'POST'
+   * // }
+   * ```
+   */
+  public async startSimulationRequest(
+    opts: SimulationRequestOptions = {},
+  ): Promise<StartAgentRequest> {
+    const url = new URL(API_URL_SIMULATE_AGENT_REQUEST, this.environment.backend).toString()
+    const options = this.getBackendHTTPOptions('POST', opts)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw PaymentsError.fromBackend('Unable to start simulation request', await response.json())
+    }
+    return response.json()
+  }
+
+  /**
+   * This method simulates the redemption of credits for an agent request.
+   *
+   * @remarks
+   * This method is used to simulate the redemption of credits for an agent request.
+   *
+   * @param agentRequestId - The unique identifier of the agent request.
+   * @param marginPercent - The margin percentage to apply. Defaults to 20%.
+   * @param batch - Whether the request is a batch request. Defaults to false.
+   * @returns @see {@link NvmAPIResult} The result of the simulation.
+   * @throws PaymentsError if unable to finish the simulation request.
+   *
+   * @example
+   * ```
+   * const result = await payments.requests.finishSimulationRequest('arId-3921032910321', 0.2, true)
+   *
+   * // {
+   * //   creditsToRedeem: '10',
+   * //   success: true
+   * // }
+   * ```
+   */
+  public async finishSimulationRequest(
+    agentRequestId: string,
+    marginPercent = 0.2,
+    batch = false,
+  ): Promise<NvmAPIResult> {
+    const url = new URL(API_URL_SIMULATE_REDEEM_AGENT_REQUEST, this.environment.backend).toString()
+    const options = this.getBackendHTTPOptions('POST', {
+      agentRequestId,
+      marginPercent,
+      batch,
+    })
+
+    // Since this method is usually called immediately after the llm call
+    // the request might not be immediately available on helicone, so we need to retry.
+    const maxRetries = 3
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options)
+        if (!response.ok) {
+          lastError = PaymentsError.fromBackend(
+            'Unable to finish simulation request',
+            await response.json(),
+          )
+          if (attempt < maxRetries - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            continue
+          }
+          throw lastError
+        }
+        return response.json()
+      } catch (error) {
+        if (error instanceof PaymentsError) {
+          lastError = error
+        } else {
+          lastError = PaymentsError.fromBackend('Unable to finish simulation request', {
+            error: String(error),
+          })
+        }
+        if (attempt < maxRetries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          continue
+        }
+        throw lastError
+      }
+    }
+
+    // This should never be reached, but TypeScript requires it
+    throw lastError || new PaymentsError('Unable to finish simulation request')
   }
 
   /**
