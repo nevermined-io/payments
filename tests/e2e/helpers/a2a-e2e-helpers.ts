@@ -4,7 +4,7 @@
  */
 
 import { Payments } from '../../../src/payments.js'
-import { AgentExecutor } from '../../../src/a2a/types.js'
+import { AgentExecutor, PaymentsRequestContext, ExecutionEventBus } from '../../../src/a2a/types.js'
 import { v4 as uuidv4 } from 'uuid'
 
 // Test Configuration
@@ -608,7 +608,7 @@ export class A2AE2EFactory {
    */
   static createResubscribeStreamingExecutorWithContextAssert(): AgentExecutor {
     return {
-      execute: async (requestContext: any, eventBus: any) => {
+      execute: async (requestContext: PaymentsRequestContext, eventBus: ExecutionEventBus) => {
         // Assert extended context exists
         const hasPaymentsCtx = !!requestContext?.payments && !!requestContext?.payments?.authResult
         const agentIdFromCtx = requestContext?.payments?.authResult?.agentId || 'unknown'
@@ -910,35 +910,26 @@ export class A2AE2EServerManager {
    * Cleans up all servers
    */
   async cleanup(): Promise<void> {
-    // Clean up all servers with timeout
-    const cleanupPromises = this.servers.map(async (server) => {
-      if (server && server.server) {
-        try {
-          // Add timeout to server close
-          const closePromise = new Promise<void>((resolve) => {
-            server.server.close(() => resolve())
-          })
+    console.log(`Cleaning up ${this.servers.length} servers...`)
 
-          // Wait for close with timeout
-          await Promise.race([
-            closePromise,
-            new Promise<void>((resolve) => setTimeout(() => resolve(), 2000)), // 2 second timeout
-          ])
-        } catch (error) {
-          console.warn('Error closing server:', error)
-        }
+    // Close all servers
+    const closePromises = this.servers.map(async (server, index) => {
+      if (server?.server) {
+        try {
+          await new Promise<void>((resolve) => {
+            server.server.close(() => {
+              resolve()
+            })
+          })
+        } catch (error) {}
       }
     })
 
-    // Wait for all servers to close with timeout
-    await Promise.race([
-      Promise.all(cleanupPromises),
-      new Promise<void>((resolve) => setTimeout(() => resolve(), 5000)), // 5 second total timeout
-    ])
+    // Wait for all servers to close with a timeout
+    try {
+      await Promise.all(closePromises)
+    } catch (error) {}
 
     this.servers = []
-
-    // Minimal wait for cleanup
-    await A2AE2EUtils.wait(50)
   }
 }

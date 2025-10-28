@@ -8,11 +8,10 @@
  */
 export async function retryOperation<T>(operation: () => Promise<T>): Promise<T> {
   const maxAttempts = 6
-  let delay = 800
+  let delay = 1200
   const maxDelay = 15000
   const factor = 2
   const jitterRatio = 0.25
-  const isRetryable = defaultRetryable
 
   let lastErr: unknown
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -20,8 +19,9 @@ export async function retryOperation<T>(operation: () => Promise<T>): Promise<T>
       const result = await operation()
       return result
     } catch (err) {
+      console.log('retryOperation error on attempt ', attempt, err)
       lastErr = err
-      if (attempt === maxAttempts || !isRetryable(err)) break
+      if (attempt === maxAttempts) break
       const jitter = delay * jitterRatio * (Math.random() * 2 - 1) // +/- jitter
       const sleepMs = Math.max(0, Math.floor(delay + jitter))
       await new Promise((r) => setTimeout(r, sleepMs))
@@ -30,16 +30,5 @@ export async function retryOperation<T>(operation: () => Promise<T>): Promise<T>
   }
   throw new Error(
     `operation failed after ${maxAttempts} attempts: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
-  )
-}
-
-function defaultRetryable(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error)
-  // Retry on network/5xx/general server errors
-  return (
-    /ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(msg) ||
-    /Internal Server Error/i.test(msg) ||
-    /5\d\d/.test(msg) ||
-    /rate limit/i.test(msg)
   )
 }

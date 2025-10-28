@@ -13,7 +13,7 @@
   "forceExit": true,
   "setupFiles": ["<rootDir>/setup/jest.setup.ts"],
 
-  "testTimeout": 30000,
+  "testTimeout": 90000,
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },

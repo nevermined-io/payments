@@ -32,7 +32,7 @@ import type {
   GetTaskPushNotificationConfigResponse,
 } from '@a2a-js/sdk'
 
-import type { ExecutionEventBus, AgentExecutor, RequestContext } from '@a2a-js/sdk/server'
+import type { ExecutionEventBus, AgentExecutor } from '@a2a-js/sdk/server'
 import type { StartAgentRequest } from '../common/types.ts'
 
 /**
@@ -97,6 +97,21 @@ export interface TaskHandlerResult {
 }
 
 /**
+ * Configuration for credit redemption behavior
+ *
+ * This interface defines how credits should be redeemed for a specific agent.
+ * The configuration is set at the server level and cannot be manipulated by clients.
+ */
+export interface PaymentRedemptionConfig {
+  /** Whether to use batch processing for redemptions */
+  useBatch?: boolean
+  /** Whether to use margin-based redemptions (if false, uses fixed credits) */
+  useMargin?: boolean
+  /** Margin percentage (0-100) when using margin-based redemptions */
+  marginPercent?: number
+}
+
+/**
  * Metadata for payment/credits information to be included in A2A objects.
  *
  * This interface defines the payment-related metadata that can be included
@@ -118,6 +133,10 @@ export interface PaymentMetadata {
   paymentType?: 'fixed' | 'dynamic'
   /** Human-readable description of the cost */
   costDescription?: string
+  /** Agent ID for payment tracking */
+  agentId?: string
+  /** Configuration for credit redemption behavior */
+  redemptionConfig?: PaymentRedemptionConfig
 }
 
 /**
@@ -177,6 +196,23 @@ export interface AgentRequestContext {
 }
 
 /**
+ * Base RequestContext interface (local definition based on actual usage)
+ *
+ * This defines the structure that the A2A SDK RequestContext actually has
+ * based on how it's used in PaymentsRequestHandler.
+ */
+export interface RequestContext {
+  /** The original message from the user containing the request */
+  userMessage: Message
+  /** Unique identifier for the task */
+  taskId: string
+  /** Additional metadata from the original request */
+  requestMetadata?: Record<string, any>
+  /** Any existing task state (for task continuation scenarios) */
+  existingTask?: Task
+}
+
+/**
  * Extended RequestContext with agent request data injection
  *
  * This extends the standard A2A RequestContext to include agent request context
@@ -185,6 +221,13 @@ export interface AgentRequestContext {
 export interface PaymentsRequestContext extends RequestContext {
   /** Agent request context injection (following MCP pattern) */
   payments?: AgentRequestContext
+}
+
+/**
+ * Payments-specific AgentExecutor that uses PaymentsRequestContext
+ */
+export interface PaymentsAgentExecutor {
+  execute(requestContext: PaymentsRequestContext, eventBus: ExecutionEventBus): Promise<void>
 }
 
 // Re-export A2A SDK types for convenience
@@ -196,9 +239,6 @@ export type {
   TaskState,
   Part,
   TaskStatusUpdateEvent,
-  ExecutionEventBus,
-  AgentExecutor,
-  RequestContext,
   PushNotificationConfig,
   MessageSendParams,
   SendMessageResponse,
@@ -208,6 +248,8 @@ export type {
   SetTaskPushNotificationConfigResponse,
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
+  ExecutionEventBus,
+  AgentExecutor,
 }
 
 // Re-export server options type for convenience
