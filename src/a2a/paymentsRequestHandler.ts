@@ -329,6 +329,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     const agentRequestContext: AgentRequestContext = {
       authResult,
       httpContext,
+      paymentsService: this.paymentsService,
     }
 
     // 7. Create extended request context with agent request data
@@ -387,20 +388,27 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             // Get redemption configuration from server (not from client metadata)
             const redemptionConfig = await this.getRedemptionConfig(event.taskId)
 
-            // Execute redemption with server configuration
-            const response = await this.executeRedemption(
-              validation,
-              bearerToken,
-              BigInt(event.metadata.creditsUsed),
-              redemptionConfig,
-            )
+            // Skip automatic redemption for batch requests - let executor handle it manually
+            if (redemptionConfig.useBatch) {
+              console.log(
+                `Skipping automatic redemption for batch streaming request ${event.taskId}`,
+              )
+            } else {
+              // Execute redemption with server configuration for non-batch requests
+              const response = await this.executeRedemption(
+                validation,
+                bearerToken,
+                BigInt(event.metadata.creditsUsed),
+                redemptionConfig,
+              )
 
-            // Update event metadata with response data
-            if (response && event.metadata) {
-              event.metadata.txHash = response.txHash
-              event.metadata.creditsCharged = response.amountOfCredits
-                ? Number(response.amountOfCredits)
-                : event.metadata.creditsUsed
+              // Update event metadata with response data
+              if (response && event.metadata) {
+                event.metadata.txHash = response.txHash
+                event.metadata.creditsCharged = response.amountOfCredits
+                  ? Number(response.amountOfCredits)
+                  : event.metadata.creditsUsed
+              }
             }
           } catch (err) {
             // Do nothing
@@ -621,18 +629,20 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         // Get redemption configuration from server (not from client metadata)
         const redemptionConfig = await this.getRedemptionConfig(event.taskId)
 
-        // Execute redemption with server configuration
-        const response = await this.executeRedemption(
-          validation,
-          bearerToken,
-          BigInt(creditsToBurn),
-          redemptionConfig,
-        )
+        // Skip automatic redemption for batch requests - let executor handle it manually
+        if (redemptionConfig.useBatch) {
+          console.log(`Skipping automatic redemption for batch request ${event.taskId}`)
+        } else {
+          // Execute redemption with server configuration for non-batch requests
+          const response = await this.executeRedemption(
+            validation,
+            bearerToken,
+            BigInt(creditsToBurn),
+            redemptionConfig,
+          )
 
-        const task = resultManager.getCurrentTask()
-        if (task) {
-          // Update both task metadata and event metadata
-          const updatedMetadata = {
+          // Update event metadata with redemption results
+          event.metadata = {
             ...event.metadata,
             txHash: response.txHash,
             // Store the actual credits charged (especially important for margin-based)
@@ -640,14 +650,16 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
               ? Number(response.amountOfCredits)
               : creditsToBurn,
           }
+        }
 
+        // Always update task metadata and process the task
+        const task = resultManager.getCurrentTask()
+        if (task) {
+          // Update task metadata with current event metadata (from executor or redemption)
           task.metadata = {
             ...task.metadata,
-            ...updatedMetadata,
+            ...event.metadata,
           }
-
-          // Also update the event metadata for consistency
-          event.metadata = updatedMetadata
 
           await resultManager.processEvent(task)
           // Delete http context associated with the task

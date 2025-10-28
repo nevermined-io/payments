@@ -910,9 +910,6 @@ export class A2AE2EServerManager {
    * Cleans up all servers
    */
   async cleanup(): Promise<void> {
-    console.log(`Cleaning up ${this.servers.length} servers...`)
-
-    // Close all servers
     const closePromises = this.servers.map(async (server, index) => {
       if (server?.server) {
         try {

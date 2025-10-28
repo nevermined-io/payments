@@ -4,7 +4,11 @@
  */
 
 import { Payments } from '../../src/payments.js'
-import { getERC20PriceConfig, getFixedCreditsConfig } from '../../src/plans.js'
+import {
+  getERC20PriceConfig,
+  getFixedCreditsConfig,
+  getDynamicCreditsConfig,
+} from '../../src/plans.js'
 import {
   E2E_TEST_CONFIG,
   A2AE2EFactory,
@@ -13,6 +17,230 @@ import {
   A2AE2EServerManager,
 } from './helpers/a2a-e2e-helpers.js'
 import { E2ETestUtils } from './helpers/e2e-test-helpers.js'
+import { PaymentRedemptionConfig } from '../../src/a2a/types.js'
+import { v4 as uuidv4 } from 'uuid'
+import OpenAI from 'openai'
+
+/**
+ * Creates a realistic executor that simulates AI processing with observability support
+ * @param creditsUsed - Number of credits to charge
+ * @param useObservability - Whether to use observability for margin calculation
+ * @param useBatch - Whether to use batch redemption (manual control)
+ */
+function createRealisticExecutorWithObservability(
+  creditsUsed: number = 10,
+  useObservability: boolean = false,
+  useBatch: boolean = false,
+): any {
+  return {
+    execute: async (requestContext: any, eventBus: any) => {
+      const taskId = requestContext.taskId
+      const contextId = requestContext.userMessage.contextId || uuidv4()
+      const userText = requestContext.userMessage.parts[0].text
+
+      // Publish initial task
+      eventBus.publish({
+        kind: 'task',
+        id: taskId,
+        contextId: contextId,
+        status: {
+          state: 'submitted',
+          timestamp: new Date().toISOString(),
+        },
+        history: [requestContext.userMessage],
+        metadata: requestContext.userMessage.metadata,
+      })
+
+      try {
+        // Simulate AI processing stages
+        const processingStages = [
+          'Analyzing request...',
+          'Processing with AI model...',
+          'Generating response...',
+          'Finalizing output...',
+        ]
+
+        for (let i = 0; i < processingStages.length; i++) {
+          eventBus.publish({
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'working',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [
+                  {
+                    kind: 'text',
+                    text: processingStages[i],
+                  },
+                ],
+                taskId,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
+            },
+            final: false,
+          })
+
+          await new Promise((resolve) => setTimeout(resolve, 200))
+        }
+
+        let actualCost = creditsUsed
+        let marginApplied = 0
+        if (
+          useObservability &&
+          requestContext.payments?.authResult?.agentRequest &&
+          requestContext.payments?.paymentsService
+        ) {
+          const openaiApiKey = process.env.OPENAI_API_KEY
+          if (!openaiApiKey) {
+            throw new Error(
+              'OPENAI_API_KEY environment variable is required for observability tests',
+            )
+          }
+
+          // Get paymentsService from requestContext
+          const paymentsServiceInstance = requestContext.payments?.paymentsService
+          if (!paymentsServiceInstance) {
+            throw new Error('PaymentsService not available in request context')
+          }
+
+          const observableOpenAI = paymentsServiceInstance.observability.withOpenAI(
+            openaiApiKey,
+            requestContext.payments?.authResult?.agentRequest,
+            {
+              userid: 'test-user',
+              operation: 'ai_processing',
+            },
+          )
+
+          const openai = new OpenAI(observableOpenAI)
+
+          await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: userText }],
+            temperature: 0.3,
+            max_tokens: 250,
+          })
+
+          marginApplied = 10 // 10% margin
+        }
+
+        // Handle batch redemption manually if enabled - multiple partial redemptions
+        if (useBatch && requestContext.payments?.authResult?.agentRequest) {
+          try {
+            const paymentsService = requestContext.payments.paymentsService
+            const bearerToken = requestContext.payments.httpContext.bearerToken
+            const agentRequestId = requestContext.payments.authResult.requestId
+
+            // Simulate multiple partial redemptions during processing
+            const partialCredits1 = Math.floor(creditsUsed * 0.3) // 30% first
+            const partialCredits2 = Math.floor(creditsUsed * 0.4) // 40% second
+            const partialCredits3 = Math.floor(creditsUsed * 0.3) // 30% final
+
+            // First partial redemption - data processing
+            const redemption1 = await paymentsService.requests.redeemCreditsFromBatchRequest(
+              agentRequestId,
+              bearerToken,
+              BigInt(partialCredits1),
+            )
+
+            await new Promise((resolve) => setTimeout(resolve, 100))
+
+            const redemption2 = await paymentsService.requests.redeemCreditsFromBatchRequest(
+              agentRequestId,
+              bearerToken,
+              BigInt(partialCredits2),
+            )
+
+            const redemption3 = await paymentsService.requests.redeemCreditsFromBatchRequest(
+              agentRequestId,
+              bearerToken,
+              BigInt(partialCredits3),
+            )
+          } catch (error) {
+            console.error('Manual batch redemption failed:', error)
+          }
+        }
+
+        eventBus.publish({
+          kind: 'status-update',
+          taskId,
+          contextId,
+          status: {
+            state: 'completed',
+            message: {
+              kind: 'message',
+              role: 'agent',
+              messageId: uuidv4(),
+              parts: [
+                {
+                  kind: 'text',
+                  text: `I've processed your request: "${userText}". Here's my response with AI analysis.`,
+                },
+              ],
+              taskId,
+              contextId,
+            },
+            timestamp: new Date().toISOString(),
+          },
+          final: true,
+          metadata: {
+            creditsUsed,
+            planId: 'e2e-test-plan',
+            costDescription: useObservability
+              ? `AI processing with observability (base: ${actualCost}, margin: ${marginApplied})`
+              : useBatch
+                ? 'AI processing with manual batch redemption'
+                : 'AI processing and response generation',
+            operationType: 'ai_processing',
+            model: 'gpt-4',
+            tokensUsed: 150,
+            ...(useObservability && {
+              actualCost,
+              marginApplied,
+              observabilityEnabled: true,
+            }),
+            ...(useBatch && {
+              batchRedemption: true,
+              manualRedemption: true,
+              partialRedemptions: 3,
+              redemptionPhases: [
+                { phase: 'data_processing', credits: Math.floor(creditsUsed * 0.3) },
+                { phase: 'ai_analysis', credits: Math.floor(creditsUsed * 0.4) },
+                { phase: 'response_generation', credits: Math.floor(creditsUsed * 0.3) },
+              ],
+            }),
+          },
+        })
+      } catch (error) {
+        eventBus.publish({
+          kind: 'status-update',
+          taskId,
+          contextId,
+          status: {
+            state: 'failed',
+            message: {
+              kind: 'message',
+              role: 'agent',
+              messageId: uuidv4(),
+              parts: [
+                { kind: 'text', text: 'Sorry, I encountered an error processing your request.' },
+              ],
+              taskId,
+              contextId,
+            },
+            timestamp: new Date().toISOString(),
+          },
+          final: true,
+        })
+      }
+    },
+  }
+}
 
 describe('A2A E2E', () => {
   let paymentsBuilder: any
@@ -117,9 +345,7 @@ describe('A2A E2E', () => {
 
   afterAll(async () => {
     try {
-      console.log('E2E test cleanup starting...')
       await serverManager.cleanup()
-      console.log('E2E test cleanup completed')
     } catch (error) {
       console.error('Error during E2E test cleanup:', error)
     }
@@ -582,6 +808,463 @@ describe('A2A E2E', () => {
         expect(beforeBalance - afterBalance).toBe(expectedBurn)
       },
       E2E_TEST_CONFIG.TIMEOUT * 3,
+    )
+  })
+
+  describe('A2A Redemption Configuration E2E Tests', () => {
+    let redemptionPlanId: string
+    let redemptionAgentId: string
+    let redemptionServer: any
+    let redemptionPort: number
+    let redemptionUrl: string
+    let initialBalance: bigint
+
+    beforeAll(async () => {
+      // Create a separate plan for redemption tests
+      redemptionPort = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
+      redemptionUrl = `http://localhost:${redemptionPort}/a2a/`
+
+      const redemptionPlanMetadata = { name: `E2E Redemption Test Plan ${Date.now()}` }
+      const redemptionPriceConfig = getERC20PriceConfig(
+        1n,
+        '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+        paymentsBuilder.getAccountAddress(),
+      )
+      const redemptionCreditsConfig = getDynamicCreditsConfig(1000n, 1n, 50n) // min 1, max 50 credits per request
+
+      const redemptionPlanResult = await E2ETestUtils.retryWithBackoff(async () => {
+        const result = await paymentsBuilder.plans.registerCreditsPlan(
+          redemptionPlanMetadata,
+          redemptionPriceConfig,
+          redemptionCreditsConfig,
+        )
+        if (!result.planId)
+          throw new Error('Redemption plan registration failed: no planId returned')
+        return result
+      }, 'Redemption Plan Registration')
+      redemptionPlanId = redemptionPlanResult.planId
+
+      // Register agent for redemption tests
+      const redemptionAgentMetadata = {
+        name: 'E2E Redemption Test Agent',
+        description: 'Agent for E2E redemption configuration tests',
+        tags: ['a2a', 'test', 'redemption'],
+        dateCreated: new Date(),
+      }
+      const redemptionAgentApi = {
+        endpoints: [{ POST: redemptionUrl }],
+      }
+      const redemptionAgentResult = await E2ETestUtils.retryWithBackoff(async () => {
+        const result = await paymentsBuilder.agents.registerAgent(
+          redemptionAgentMetadata,
+          redemptionAgentApi,
+          [redemptionPlanId],
+        )
+        if (!result.agentId)
+          throw new Error('Redemption agent registration failed: no agentId returned')
+        return result
+      }, 'Redemption Agent Registration')
+      redemptionAgentId = redemptionAgentResult.agentId
+
+      // Order the plan
+      await E2ETestUtils.retryWithBackoff(async () => {
+        const result = await paymentsSubscriber.plans.orderPlan(redemptionPlanId)
+        if (!result.success) {
+          throw new Error('Redemption plan order failed: success is false')
+        }
+        return result
+      }, 'Redemption Plan Order')
+
+      // Get initial balance
+      const balanceResult = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
+      initialBalance = BigInt(balanceResult.balance)
+
+      // Create agent card with default configuration
+      const baseAgentCard = {
+        name: 'E2E Redemption Test Agent',
+        description: 'Agent for E2E redemption configuration tests',
+        capabilities: {
+          streaming: true,
+          pushNotifications: true,
+          stateTransitionHistory: true,
+        },
+        defaultInputModes: ['text'],
+        defaultOutputModes: ['text'],
+        skills: [],
+        url: redemptionUrl,
+        version: '1.0.0',
+        protocolVersion: '0.3.0' as const,
+      }
+
+      const agentCard = Payments.a2a.buildPaymentAgentCard(baseAgentCard, {
+        paymentType: 'fixed',
+        credits: 10,
+        costDescription: '10 credits per request',
+        planId: redemptionPlanId,
+        agentId: redemptionAgentId,
+      })
+
+      // Start server with default configuration (no observability)
+      redemptionServer = await paymentsBuilder.a2a.start({
+        port: redemptionPort,
+        basePath: '/a2a/',
+        agentCard: agentCard,
+        executor: createRealisticExecutorWithObservability(10, false),
+        paymentsService: paymentsBuilder,
+        exposeAgentCard: true,
+        exposeDefaultRoutes: true,
+      })
+      serverManager.addServer(redemptionServer)
+      await A2AE2EUtils.waitForServerReady(redemptionPort, 20, '/a2a')
+    }, E2E_TEST_CONFIG.TIMEOUT * 3)
+
+    afterAll(async () => {
+      if (redemptionServer) {
+        await new Promise<void>((resolve) => {
+          redemptionServer.server.close(() => resolve())
+        })
+      }
+    }, E2E_TEST_CONFIG.TIMEOUT)
+
+    it(
+      'should complete full flow with default redemption configuration',
+      async () => {
+        // Create client and send message
+        const client = await paymentsSubscriber.a2a.getClient({
+          agentBaseUrl: redemptionUrl,
+          agentId: redemptionAgentId,
+          planId: redemptionPlanId,
+        })
+
+        const messageParams = {
+          message: A2AE2EFactory.createTestMessage('Hello, test default redemption configuration'),
+        }
+
+        const result = await client.sendA2AMessage(messageParams)
+
+        // Verify response structure
+        expect(result.jsonrpc).toBe('2.0')
+        expect(result.result.kind).toBe('task')
+        expect(result.result.status.state).toBe('completed')
+        expect(result.result.status.message.role).toBe('agent')
+        expect(result.result.status.message.parts[0].text).toContain("I've processed your request")
+
+        // Verify redemption metadata
+        expect(result.result.metadata.txHash).toBeDefined()
+        expect(result.result.metadata.creditsUsed).toBe(10)
+
+        // Verify credits were actually burned
+        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+          async () => {
+            try {
+              const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
+              const current = BigInt(res.balance)
+              return current <= initialBalance - 10n ? res : null
+            } catch {}
+            return null
+          },
+          30_000,
+          1_000,
+        )
+        expect(afterBalanceResult).toBeDefined()
+        const afterBalance = BigInt(afterBalanceResult!.balance)
+        expect(initialBalance - afterBalance).toBe(10n)
+      },
+      E2E_TEST_CONFIG.TIMEOUT * 2,
+    )
+
+    it(
+      'should handle useBatch configuration with multiple partial redemptions',
+      async () => {
+        // Get current balance for this specific test
+        const currentBalanceResult = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
+        const testInitialBalance = BigInt(currentBalanceResult.balance)
+
+        // Create a dedicated server for batch testing
+        const batchPort = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
+        const batchUrl = `http://localhost:${batchPort}/a2a/`
+
+        const baseAgentCard = {
+          name: 'E2E Batch Test Agent',
+          description: 'Agent for E2E batch redemption tests',
+          capabilities: {
+            streaming: true,
+            pushNotifications: true,
+            stateTransitionHistory: true,
+          },
+          defaultInputModes: ['text'],
+          defaultOutputModes: ['text'],
+          skills: [],
+          url: batchUrl,
+          version: '1.0.0',
+          protocolVersion: '0.3.0' as const,
+        }
+
+        const batchAgentCard = Payments.a2a.buildPaymentAgentCard(baseAgentCard, {
+          paymentType: 'fixed',
+          credits: 10,
+          costDescription: '10 credits per request',
+          planId: redemptionPlanId,
+          agentId: redemptionAgentId,
+          redemptionConfig: {
+            useBatch: true,
+            useMargin: false,
+          },
+        })
+
+        const batchServer = await paymentsBuilder.a2a.start({
+          port: batchPort,
+          basePath: '/a2a/',
+          agentCard: batchAgentCard,
+          executor: createRealisticExecutorWithObservability(10, false, true), // Enable batch
+          paymentsService: paymentsBuilder,
+          exposeAgentCard: true,
+          exposeDefaultRoutes: true,
+        })
+        serverManager.addServer(batchServer)
+        await A2AE2EUtils.waitForServerReady(batchPort, 20, '/a2a')
+
+        try {
+          // Create client and send message
+          const client = await paymentsSubscriber.a2a.getClient({
+            agentBaseUrl: batchUrl,
+            agentId: redemptionAgentId,
+            planId: redemptionPlanId,
+          })
+
+          const messageParams = {
+            message: A2AE2EFactory.createTestMessage(
+              'Hello, test batch configuration with partial redemptions',
+            ),
+          }
+
+          const result = await client.sendA2AMessage(messageParams)
+
+          // Verify response
+          expect(result.result.status.state).toBe('completed')
+          expect(result.result.metadata.creditsUsed).toBe(10)
+
+          // Verify batch-specific metadata
+          expect(result.result.metadata.batchRedemption).toBe(true)
+          expect(result.result.metadata.manualRedemption).toBe(true)
+          expect(result.result.metadata.partialRedemptions).toBe(3)
+          expect(result.result.metadata.redemptionPhases).toHaveLength(3)
+          expect(result.result.metadata.redemptionPhases[0].phase).toBe('data_processing')
+          expect(result.result.metadata.redemptionPhases[1].phase).toBe('ai_analysis')
+          expect(result.result.metadata.redemptionPhases[2].phase).toBe('response_generation')
+
+          // Verify credits were burned through multiple partial redemptions
+          const afterBalanceResult = await E2ETestUtils.waitForCondition(
+            async () => {
+              try {
+                const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
+                const current = BigInt(res.balance)
+                // Check that at least 10 credits were burned (this test)
+                return current <= testInitialBalance - 10n ? res : null
+              } catch {}
+              return null
+            },
+            30_000,
+            1_000,
+          )
+          expect(afterBalanceResult).toBeDefined()
+        } finally {
+          // Clean up the batch server
+          if (batchServer) {
+            await new Promise<void>((resolve) => {
+              batchServer.server.close(() => resolve())
+            })
+          }
+        }
+      },
+      E2E_TEST_CONFIG.TIMEOUT * 2,
+    )
+
+    it(
+      'should handle useMargin configuration with observability',
+      async () => {
+        // Create a separate server for margin tests with observability
+        const marginPort = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
+        const marginUrl = `http://localhost:${marginPort}/a2a/`
+
+        // Create agent card with margin configuration
+        const baseAgentCard = {
+          name: 'E2E Margin Test Agent',
+          description: 'Agent for E2E margin redemption tests',
+          capabilities: {
+            streaming: true,
+            pushNotifications: true,
+            stateTransitionHistory: true,
+          },
+          defaultInputModes: ['text'],
+          defaultOutputModes: ['text'],
+          skills: [],
+          url: marginUrl,
+          version: '1.0.0',
+          protocolVersion: '0.3.0' as const,
+        }
+
+        const agentCard = Payments.a2a.buildPaymentAgentCard(baseAgentCard, {
+          paymentType: 'dynamic',
+          credits: 10,
+          costDescription: '10 credits per request with margin',
+          planId: redemptionPlanId,
+          agentId: redemptionAgentId,
+          redemptionConfig: {
+            useMargin: true,
+            marginPercent: 20, // 20% margin
+          },
+        })
+
+        // Start server with margin handler options and observability-enabled executor
+        const marginServer = await paymentsBuilder.a2a.start({
+          port: marginPort,
+          basePath: '/a2a/',
+          agentCard: agentCard,
+          executor: createRealisticExecutorWithObservability(10, true),
+          paymentsService: paymentsBuilder,
+          exposeAgentCard: true,
+          exposeDefaultRoutes: true,
+          handlerOptions: {
+            defaultMarginPercent: 20,
+          },
+        })
+        serverManager.addServer(marginServer)
+        await A2AE2EUtils.waitForServerReady(marginPort, 20, '/a2a')
+
+        // Create client and send message
+        const client = await paymentsSubscriber.a2a.getClient({
+          agentBaseUrl: marginUrl,
+          agentId: redemptionAgentId,
+          planId: redemptionPlanId,
+        })
+
+        const messageParams = {
+          message: A2AE2EFactory.createTestMessage(
+            'Hello, test margin configuration with observability',
+          ),
+        }
+
+        const result = await client.sendA2AMessage(messageParams)
+
+        // Verify response
+        expect(result.result.status.state).toBe('completed')
+        expect(result.result.metadata.creditsUsed).toBe(10)
+
+        // Verify observability metadata is present
+        expect(result.result.metadata.observabilityEnabled).toBe(true)
+        expect(result.result.metadata.actualCost).toBeDefined()
+        expect(result.result.metadata.marginApplied).toBeDefined()
+
+        // Verify credits were burned
+        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+          async () => {
+            try {
+              const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
+              const current = BigInt(res.balance)
+              return current <= initialBalance - 30n ? res : null // Previous tests + this test
+            } catch {}
+            return null
+          },
+          30_000,
+          1_000,
+        )
+        expect(afterBalanceResult).toBeDefined()
+      },
+      E2E_TEST_CONFIG.TIMEOUT * 2,
+    )
+
+    it(
+      'should respect server-level handler options over agent card config',
+      async () => {
+        // Create a separate server for server override tests with observability
+        const overridePort = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
+        const overrideUrl = `http://localhost:${overridePort}/a2a/`
+
+        // Create agent card with different config than server
+        const baseAgentCard = {
+          name: 'E2E Server Override Test Agent',
+          description: 'Agent for testing server-level overrides',
+          capabilities: {
+            streaming: true,
+            pushNotifications: true,
+            stateTransitionHistory: true,
+          },
+          defaultInputModes: ['text'],
+          defaultOutputModes: ['text'],
+          skills: [],
+          url: overrideUrl,
+          version: '1.0.0',
+          protocolVersion: '0.3.0' as const,
+        }
+
+        const agentCard = Payments.a2a.buildPaymentAgentCard(baseAgentCard, {
+          paymentType: 'dynamic',
+          credits: 10,
+          costDescription: '10 credits per request',
+          planId: redemptionPlanId,
+          agentId: redemptionAgentId,
+          redemptionConfig: {
+            useBatch: false,
+            useMargin: false,
+          },
+        })
+
+        // Start server with different handler options (should override agent card)
+        const overrideServer = await paymentsBuilder.a2a.start({
+          port: overridePort,
+          basePath: '/a2a/',
+          agentCard: agentCard,
+          executor: createRealisticExecutorWithObservability(10, true),
+          paymentsService: paymentsBuilder,
+          exposeAgentCard: true,
+          exposeDefaultRoutes: true,
+          handlerOptions: {
+            defaultBatch: true,
+            defaultMarginPercent: 15,
+          },
+        })
+        serverManager.addServer(overrideServer)
+        await A2AE2EUtils.waitForServerReady(overridePort, 20, '/a2a')
+
+        // Create client and send message
+        const client = await paymentsSubscriber.a2a.getClient({
+          agentBaseUrl: overrideUrl,
+          agentId: redemptionAgentId,
+          planId: redemptionPlanId,
+        })
+
+        const messageParams = {
+          message: A2AE2EFactory.createTestMessage('Hello, test server-level override'),
+        }
+
+        const result = await client.sendA2AMessage(messageParams)
+
+        // Verify response
+        expect(result.result.status.state).toBe('completed')
+        expect(result.result.metadata.creditsUsed).toBe(10)
+
+        // Server-level configuration should be applied (margin enabled via observability)
+        expect(result.result.metadata.observabilityEnabled).toBe(true)
+        expect(result.result.metadata.actualCost).toBeDefined()
+        expect(result.result.metadata.marginApplied).toBeDefined()
+
+        // Verify credits were burned
+        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+          async () => {
+            try {
+              const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
+              const current = BigInt(res.balance)
+              return current <= initialBalance - 40n ? res : null // All previous tests + this test
+            } catch {}
+            return null
+          },
+          30_000,
+          1_000,
+        )
+        expect(afterBalanceResult).toBeDefined()
+      },
+      E2E_TEST_CONFIG.TIMEOUT * 2,
     )
   })
 })

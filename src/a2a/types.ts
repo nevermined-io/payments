@@ -34,6 +34,7 @@ import type {
 
 import type { ExecutionEventBus, AgentExecutor } from '@a2a-js/sdk/server'
 import type { StartAgentRequest } from '../common/types.ts'
+import type { Payments } from '../payments.ts'
 
 /**
  * Union type for A2A streaming events
@@ -193,6 +194,8 @@ export interface AgentRequestContext {
   authResult: A2AAuthResult
   /** The HTTP context with request details */
   httpContext: HttpRequestContext
+  /** The payments service instance for observability and other operations */
+  paymentsService: Payments
 }
 
 /**
