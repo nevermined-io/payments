@@ -17,6 +17,7 @@ const mockPaymentsService = {
     redeemCreditsFromBatchRequest: jest.fn(),
     redeemWithMarginFromBatchRequest: jest.fn(),
     startProcessingRequest: jest.fn(),
+    startProcessingBatchRequest: jest.fn(),
   },
 }
 
@@ -326,60 +327,6 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
     })
   })
 
-  describe('getRedemptionMethodName', () => {
-    beforeEach(() => {
-      handler = new PaymentsRequestHandler(
-        mockAgentCard,
-        mockTaskStore,
-        mockAgentExecutor,
-        mockPaymentsService,
-        mockEventBusManager,
-      )
-    })
-
-    it('should return correct name for single fixed credits', () => {
-      const config: PaymentRedemptionConfig = {
-        useBatch: false,
-        useMargin: false,
-      }
-
-      const methodName = handler['getRedemptionMethodName'](config)
-      expect(methodName).toBe('single-fixed')
-    })
-
-    it('should return correct name for single margin redemption', () => {
-      const config: PaymentRedemptionConfig = {
-        useBatch: false,
-        useMargin: true,
-        marginPercent: 15,
-      }
-
-      const methodName = handler['getRedemptionMethodName'](config)
-      expect(methodName).toBe('single-margin-15%')
-    })
-
-    it('should return correct name for batch fixed credits', () => {
-      const config: PaymentRedemptionConfig = {
-        useBatch: true,
-        useMargin: false,
-      }
-
-      const methodName = handler['getRedemptionMethodName'](config)
-      expect(methodName).toBe('batch-fixed')
-    })
-
-    it('should return correct name for batch margin redemption', () => {
-      const config: PaymentRedemptionConfig = {
-        useBatch: true,
-        useMargin: true,
-        marginPercent: 25,
-      }
-
-      const methodName = handler['getRedemptionMethodName'](config)
-      expect(methodName).toBe('batch-margin-25%')
-    })
-  })
-
   describe('validateRequest with batch parameter', () => {
     beforeEach(() => {
       handler = new PaymentsRequestHandler(
@@ -404,25 +351,25 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
         'bearer-token',
         'http://test.com',
         'POST',
-        false,
       )
+      expect(mockPaymentsService.requests.startProcessingBatchRequest).not.toHaveBeenCalled()
     })
 
-    it('should call startProcessingRequest with batch=true when specified', async () => {
-      mockPaymentsService.requests.startProcessingRequest.mockResolvedValue({
+    it('should call startProcessingBatchRequest when batch=true', async () => {
+      mockPaymentsService.requests.startProcessingBatchRequest.mockResolvedValue({
         success: true,
         balance: { isSubscriber: true },
       })
 
       await handler.validateRequest('agent-id', 'bearer-token', 'http://test.com', 'POST', true)
 
-      expect(mockPaymentsService.requests.startProcessingRequest).toHaveBeenCalledWith(
+      expect(mockPaymentsService.requests.startProcessingBatchRequest).toHaveBeenCalledWith(
         'agent-id',
         'bearer-token',
         'http://test.com',
         'POST',
-        true,
       )
+      expect(mockPaymentsService.requests.startProcessingRequest).not.toHaveBeenCalled()
     })
   })
 })
