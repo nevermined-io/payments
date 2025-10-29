@@ -175,10 +175,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * Gets redemption configuration for a task based on AgentCard and handler defaults.
    * The configuration is determined by the server, not by client metadata.
    *
-   * @param taskId - The task ID (used for logging/debugging)
    * @returns The redemption configuration
    */
-  private async getRedemptionConfig(taskId: string): Promise<PaymentRedemptionConfig> {
+  private async getRedemptionConfig(): Promise<PaymentRedemptionConfig> {
     const agentCard = await this.getAgentCard()
     const paymentExtension = agentCard.capabilities?.extensions?.find(
       (ext: any) => ext.uri === 'urn:nevermined:payment',
@@ -251,7 +250,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    */
   private async createPaymentsRequestContext(
     params: MessageSendParams,
-    isStreaming: boolean = false,
+    isStreaming = false,
   ): Promise<{
     paymentsRequestContext: PaymentsRequestContext
     taskId: string
@@ -386,7 +385,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         ) {
           try {
             // Get redemption configuration from server (not from client metadata)
-            const redemptionConfig = await this.getRedemptionConfig(event.taskId)
+            const redemptionConfig = await this.getRedemptionConfig()
 
             // Skip automatic redemption for batch requests - let executor handle it manually
             if (redemptionConfig.useBatch) {
@@ -627,7 +626,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     ) {
       try {
         // Get redemption configuration from server (not from client metadata)
-        const redemptionConfig = await this.getRedemptionConfig(event.taskId)
+        const redemptionConfig = await this.getRedemptionConfig()
 
         // Skip automatic redemption for batch requests - let executor handle it manually
         if (redemptionConfig.useBatch) {
@@ -681,7 +680,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           { contextId: event.contextId },
         )
       }
-    } catch (err) {}
+    } catch (err) {
+      // Do nothing
+    }
   }
 
   /**
@@ -714,10 +715,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           `Agent execution failed for stream message ${finalMessageForAgent.messageId}:`,
           err,
         )
+        const contextId = finalMessageForAgent.contextId || uuidv4()
         const errorTaskStatus: TaskStatusUpdateEvent = {
           kind: 'status-update',
           taskId: requestContext.task?.id || uuidv4(),
-          contextId: finalMessageForAgent.contextId!,
+          contextId,
           status: {
             state: 'failed',
             message: {
@@ -726,7 +728,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
               messageId: uuidv4(),
               parts: [{ kind: 'text', text: `Agent execution error: ${err.message}` }],
               taskId: requestContext.task?.id,
-              contextId: finalMessageForAgent.contextId!,
+              contextId,
             },
             timestamp: new Date().toISOString(),
           },

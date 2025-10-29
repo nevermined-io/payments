@@ -14,7 +14,7 @@ import express from 'express'
 import http from 'http'
 import { InMemoryTaskStore, JsonRpcTransportHandler, AgentExecutor } from '@a2a-js/sdk/server'
 import type { AgentCard, HttpRequestContext } from './types.js'
-import { PaymentsRequestHandler, PaymentsRequestHandlerOptions } from './paymentsRequestHandler.js'
+import { PaymentsRequestHandler } from './paymentsRequestHandler.js'
 
 /**
  * Checks if a value is an AsyncIterable (used to detect streaming responses)

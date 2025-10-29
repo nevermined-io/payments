@@ -121,7 +121,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
     })
 
     it('should return default config when no agent card config is provided', async () => {
-      const config = await handler['getRedemptionConfig']('test-task-id')
+      const config = await handler['getRedemptionConfig']()
 
       expect(config).toEqual({
         useBatch: false,
@@ -146,7 +146,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
         mockEventBusManager,
       )
 
-      const config = await handler['getRedemptionConfig']('test-task-id')
+      const config = await handler['getRedemptionConfig']()
 
       expect(config).toEqual({
         useBatch: true,
@@ -171,7 +171,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
         { defaultMarginPercent: 25 },
       )
 
-      const config = await handler['getRedemptionConfig']('test-task-id')
+      const config = await handler['getRedemptionConfig']()
 
       expect(config).toEqual({
         useBatch: true,
@@ -200,7 +200,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
         },
       )
 
-      const config = await handler['getRedemptionConfig']('test-task-id')
+      const config = await handler['getRedemptionConfig']()
 
       expect(config).toEqual({
         useBatch: false, // From agent card
