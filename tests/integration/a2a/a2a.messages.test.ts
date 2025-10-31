@@ -4,10 +4,11 @@
 
 import http from 'http'
 import { v4 as uuidv4 } from 'uuid'
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 import { Payments } from '../../../src/payments.js'
 import type { AgentCard } from '../../../src/a2a/types.js'
 import type { AgentExecutor } from '../../../src/a2a/types.js'
-import type { EnvironmentName } from '../../../src/environments.js'
+import { EnvironmentName } from '../../../src/environments.js'
 import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
@@ -125,17 +126,18 @@ class A2AMessagesTestContext {
   public planId!: string
   public agentId!: string
   public accessToken!: string
-  // logging removed
+  public port!: number
 
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
-      environment: MSG_TEST_CONFIG.ENVIRONMENT,
+      nvmApiKey: testApiKeys.builder,
+      environment: 'staging_sandbox' as EnvironmentName,
     })
 
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
-      environment: MSG_TEST_CONFIG.ENVIRONMENT,
+      nvmApiKey: testApiKeys.subscriber,
+      environment: 'staging_sandbox' as EnvironmentName,
     })
 
     await this.registerPlan()
@@ -148,7 +150,6 @@ class A2AMessagesTestContext {
     if (this.server) {
       await new Promise<void>((resolve) => this.server.close(() => resolve()))
     }
-    // logging removed
   }
 
   private async registerPlan(): Promise<void> {
@@ -175,13 +176,13 @@ class A2AMessagesTestContext {
       defaultInputModes: ['text'],
       defaultOutputModes: ['text'],
       skills: [],
-      url: `http://localhost:${MSG_TEST_CONFIG.PORT}`,
+      url: `http://localhost:${this.port}`,
       version: '1.0.0',
       protocolVersion: '0.3.0' as const,
     }
 
     const agentApi = {
-      endpoints: [{ POST: `http://localhost:${MSG_TEST_CONFIG.PORT}${MSG_TEST_CONFIG.BASE_PATH}` }],
+      endpoints: [{ POST: `http://localhost:${this.port}${MSG_TEST_CONFIG.BASE_PATH}` }],
     }
     const agentResp = await retryOperation(() =>
       this.builder.agents.registerAgent(
@@ -211,7 +212,7 @@ class A2AMessagesTestContext {
     const result = this.builder.a2a.start({
       agentCard: this.agentCard,
       executor: createMessagingExecutor(),
-      port: MSG_TEST_CONFIG.PORT,
+      port: this.port,
       basePath: MSG_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
@@ -222,12 +223,10 @@ class A2AMessagesTestContext {
       const timeout = setTimeout(() => reject(new Error('Server startup timeout')), 10_000)
       this.server.on('listening', () => {
         clearTimeout(timeout)
-        // logging removed
         resolve()
       })
       this.server.on('error', (err) => {
         clearTimeout(timeout)
-        // logging removed
         reject(err)
       })
     })
@@ -278,21 +277,18 @@ class A2AMessagesTestContext {
       role: 'user' as const,
       parts: [{ kind: 'text' as const, text: messageText }],
     }
-    const resp = await fetch(
-      `http://localhost:${MSG_TEST_CONFIG.PORT}${MSG_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.accessToken}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'message/send',
-          params: { ...(configuration && { configuration }), message },
-        }),
+    const resp = await fetch(`http://localhost:${this.port}${MSG_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.accessToken}`,
       },
-    )
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'message/send',
+        params: { ...(configuration && { configuration }), message },
+      }),
+    })
     expect(resp.ok).toBe(true)
     // logging removed
     const result = await resp.json()
@@ -306,17 +302,14 @@ class A2AMessagesTestContext {
   async pollForTaskCompletion(taskId: string): Promise<any> {
     return pollForCondition(
       async () => {
-        const resp = await fetch(
-          `http://localhost:${MSG_TEST_CONFIG.PORT}${MSG_TEST_CONFIG.BASE_PATH}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.accessToken}`,
-            },
-            body: JSON.stringify({ jsonrpc: '2.0', method: 'tasks/get', params: { id: taskId } }),
+        const resp = await fetch(`http://localhost:${this.port}${MSG_TEST_CONFIG.BASE_PATH}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.accessToken}`,
           },
-        )
+          body: JSON.stringify({ jsonrpc: '2.0', method: 'tasks/get', params: { id: taskId } }),
+        })
         if (!resp.ok) return null
         const json = await resp.json()
         return json.result?.status?.state === 'completed' ? json.result : null
@@ -327,7 +320,22 @@ class A2AMessagesTestContext {
   }
 }
 
-describe('A2A Messages (blocking & non-blocking)', () => {
+const testApiKeys = getApiKeysForFile(__filename)
+
+describe('A2A Messages', () => {
+  it('should init clients with per-suite API keys', () => {
+    const builder = Payments.getInstance({
+      nvmApiKey: testApiKeys.builder,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    const subscriber = Payments.getInstance({
+      nvmApiKey: testApiKeys.subscriber,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    expect(builder).toBeDefined()
+    expect(subscriber).toBeDefined()
+  })
+
   let ctx: A2AMessagesTestContext
 
   beforeAll(async () => {

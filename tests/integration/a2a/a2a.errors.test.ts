@@ -2,7 +2,9 @@
  * @file A2A auth/protocol errors integration tests
  */
 
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 import http from 'http'
+import { v4 as uuidv4 } from 'uuid'
 import { Payments } from '../../../src/payments.js'
 import type { AgentCard } from '../../../src/a2a/types.js'
 import type { AgentExecutor } from '../../../src/a2a/types.js'
@@ -11,11 +13,13 @@ import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
 
+const testApiKeys = getApiKeysForFile(__filename)
+
 const ERR_TEST_CONFIG = {
-  TIMEOUT: 60_000,
-  PORT: parseInt(process.env.PORT || '41257'),
+  ENVIRONMENT: 'staging_sandbox' as EnvironmentName,
+  TIMEOUT: 60000,
+  PORT: parseInt(process.env.PORT || '41253'),
   BASE_PATH: '/a2a/',
-  ENVIRONMENT: (process.env.TESTING_ENVIRONMENT || 'staging_sandbox') as EnvironmentName,
   ERC20_ADDRESS: (process.env.ERC20_ADDRESS ||
     '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`,
 }
@@ -23,6 +27,24 @@ const ERR_TEST_CONFIG = {
 function createNoopExecutor(): AgentExecutor {
   return {
     execute: async (_requestContext, eventBus) => {
+      eventBus.publish({
+        kind: 'status-update',
+        taskId: 'noop',
+        contextId: 'noop',
+        status: {
+          state: 'completed',
+          message: {
+            kind: 'message',
+            role: 'agent',
+            messageId: uuidv4(),
+            parts: [{ kind: 'text', text: 'Done' }],
+            taskId: 'noop',
+            contextId: 'noop',
+          },
+          timestamp: new Date().toISOString(),
+        },
+        final: true,
+      })
       eventBus.finished()
     },
     cancelTask: async () => {},
@@ -37,14 +59,16 @@ class A2AErrorsTestContext {
   public planId!: string
   public agentId!: string
   public accessToken!: string
+  public port!: number
 
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
+      nvmApiKey: testApiKeys.builder,
       environment: ERR_TEST_CONFIG.ENVIRONMENT,
     })
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
+      nvmApiKey: testApiKeys.subscriber,
       environment: ERR_TEST_CONFIG.ENVIRONMENT,
     })
 
@@ -84,12 +108,12 @@ class A2AErrorsTestContext {
       defaultInputModes: ['text'],
       defaultOutputModes: ['text'],
       skills: [],
-      url: `http://localhost:${ERR_TEST_CONFIG.PORT}`,
+      url: `http://localhost:${this.port}`,
       version: '1.0.0',
       protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
-      endpoints: [{ POST: `http://localhost:${ERR_TEST_CONFIG.PORT}${ERR_TEST_CONFIG.BASE_PATH}` }],
+      endpoints: [{ POST: `http://localhost:${this.port}${ERR_TEST_CONFIG.BASE_PATH}` }],
     }
     const resp = await retryOperation(() =>
       this.builder.agents.registerAgent(
@@ -118,7 +142,7 @@ class A2AErrorsTestContext {
     const result = this.builder.a2a.start({
       agentCard: this.agentCard,
       executor: createNoopExecutor(),
-      port: ERR_TEST_CONFIG.PORT,
+      port: this.port,
       basePath: ERR_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
@@ -149,7 +173,20 @@ class A2AErrorsTestContext {
   }
 }
 
-describe('A2A Auth/Protocol Errors', () => {
+describe('A2A Errors', () => {
+  it('should init clients with per-suite API keys', () => {
+    const builder = Payments.getInstance({
+      nvmApiKey: testApiKeys.builder,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    const subscriber = Payments.getInstance({
+      nvmApiKey: testApiKeys.subscriber,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    expect(builder).toBeDefined()
+    expect(subscriber).toBeDefined()
+  })
+
   let ctx: A2AErrorsTestContext
 
   beforeAll(async () => {
@@ -162,98 +199,83 @@ describe('A2A Auth/Protocol Errors', () => {
   }, ERR_TEST_CONFIG.TIMEOUT)
 
   it('should reject requests without valid token (402)', async () => {
-    const response = await fetch(
-      `http://localhost:${ERR_TEST_CONFIG.PORT}${ERR_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer invalid-token`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'message/send',
-          params: {
-            message: {
-              kind: 'message',
-              messageId: 'm1',
-              role: 'user',
-              parts: [{ kind: 'text', text: 'Hello' }],
-            },
-          },
-        }),
+    const response = await fetch(`http://localhost:${ctx.port}${ERR_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer invalid-token`,
       },
-    )
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'message/send',
+        params: {
+          message: {
+            kind: 'message',
+            messageId: 'm1',
+            role: 'user',
+            parts: [{ kind: 'text', text: 'Hello' }],
+          },
+        },
+      }),
+    })
     expect(response.status).toBe(402)
   })
 
   it('should handle invalid JSON body (400)', async () => {
-    const response = await fetch(
-      `http://localhost:${ERR_TEST_CONFIG.PORT}${ERR_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: 'invalid json',
+    const response = await fetch(`http://localhost:${ctx.port}${ERR_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: 'invalid json',
+    })
     expect(response.status).toBe(400)
   })
 
   it('should return JSON-RPC error for missing params (-32602)', async () => {
-    const response = await fetch(
-      `http://localhost:${ERR_TEST_CONFIG.PORT}${ERR_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', method: 'message/send', params: {} }),
+    const response = await fetch(`http://localhost:${ctx.port}${ERR_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'message/send', params: {} }),
+    })
     expect(response.status).toBe(200)
     const json = await response.json()
     expect(json.error?.code).toBe(-32602)
   })
 
   it('should reject when Authorization header is missing (401)', async () => {
-    const response = await fetch(
-      `http://localhost:${ERR_TEST_CONFIG.PORT}${ERR_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'message/send',
-          params: {
-            message: {
-              kind: 'message',
-              messageId: 'm2',
-              role: 'user',
-              parts: [{ kind: 'text', text: 'Hi' }],
-            },
+    const response = await fetch(`http://localhost:${ctx.port}${ERR_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'message/send',
+        params: {
+          message: {
+            kind: 'message',
+            messageId: 'm2',
+            role: 'user',
+            parts: [{ kind: 'text', text: 'Hi' }],
           },
-        }),
-      },
-    )
+        },
+      }),
+    })
     expect(response.status).toBe(401)
   })
 
   it('should return JSON-RPC error for unknown method', async () => {
-    const response = await fetch(
-      `http://localhost:${ERR_TEST_CONFIG.PORT}${ERR_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', method: 'unknown/method', params: {} }),
+    const response = await fetch(`http://localhost:${ctx.port}${ERR_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'unknown/method', params: {} }),
+    })
     expect(response.status).toBe(200)
     const json = await response.json()
     expect(json.error).toBeDefined()
@@ -261,10 +283,9 @@ describe('A2A Auth/Protocol Errors', () => {
   })
 
   it('should return 404 on GET to JSON-RPC base path', async () => {
-    const response = await fetch(
-      `http://localhost:${ERR_TEST_CONFIG.PORT}${ERR_TEST_CONFIG.BASE_PATH}`,
-      { method: 'GET' },
-    )
+    const response = await fetch(`http://localhost:${ctx.port}${ERR_TEST_CONFIG.BASE_PATH}`, {
+      method: 'GET',
+    })
     expect(response.status === 404 || response.status === 405).toBe(true)
   })
 })

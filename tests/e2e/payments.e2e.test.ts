@@ -1,3 +1,4 @@
+import { getApiKeysForFile } from '../utils/apiKeysPool.js'
 import {
   Address,
   AgentAccessCredentials,
@@ -24,16 +25,15 @@ import http from 'http'
 import { getRandomBigInt } from '../../src/utils.js'
 import { E2ETestUtils } from './helpers/e2e-test-helpers.js'
 
+// Deterministic per-file API keys to avoid manual indexing and race conditions
+const testApiKeys = getApiKeysForFile(__filename)
+
 describe('Payments API (e2e)', () => {
   const TEST_TIMEOUT = 30_000
-  // To configure the test gets the API Keys for the subscriber and the builder from the https://staging.nevermined.app website
-  const subscriberNvmApiKeyHash =
-    process.env.TEST_SUBSCRIBER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweGMxNTA4ZDEzMTczMkNBNDVlN2JDQTE4OGMyNjA4YUU4ODhmMDI2OGQiLCJqdGkiOiIweDk1NmMyMzZjMjAyNDQyNDM0MjUzZjY4MmQyOTI3NDMwOGMwNDY2NDExOGU5MjJiMjI2YjA1YThhNDYxYzA3NmYiLCJleHAiOjE3ODU1MDMxMzR9.QjsshT4fbWGG9lASW0ENToI2Mg6E-Z7U_8HANlQk-VIRjlMVvBouSE2xMWnEFjtjkkzt1qbnpXGVtJLyUu4Oghw'
+  // Per-suite API keys (do not share across suites to avoid blockchain race conditions)
+  const subscriberNvmApiKeyHash = testApiKeys.subscriber
 
-  const builderNvmApiKeyHash =
-    process.env.TEST_BUILDER_API_KEY ||
-    'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEU1YThEYUIzMzUxYzU2MTZlYWE3Nzc1M0MwZDdGMmQ4OTRDN0NiRDkiLCJqdGkiOiIweGYwYjFjOWRhYTU0ZjNkNTgwM2U0Zjg4MzgyMjYwNmI2YWNiNThjOTBkNjE5YzQyNjQ2Zjg5ZTQzMTUwZjg2YWMiLCJleHAiOjE3ODY2MzI0NzB9.iis0jzVf1ztZirhxmTf4HTdZzMFEZp2utP0-ckuCtbV3v84yyjVO6eaAnN_hS0P-6RsWRPMhr998BZVk6Skouhs'
+  const builderNvmApiKeyHash = testApiKeys.builder
 
   const testingEnvironment = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
   const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d

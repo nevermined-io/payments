@@ -11,12 +11,14 @@ import type { EnvironmentName } from '../../../src/environments.js'
 import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 
-const STR_TEST_CONFIG = {
-  TIMEOUT: 60_000,
-  PORT: parseInt(process.env.PORT || '41254'),
+const testApiKeys = getApiKeysForFile(__filename)
+
+const STREAMING_TEST_CONFIG = {
+  ENVIRONMENT: 'staging_sandbox' as EnvironmentName,
+  TIMEOUT: 60000,
   BASE_PATH: '/a2a/',
-  ENVIRONMENT: (process.env.TESTING_ENVIRONMENT || 'staging_sandbox') as EnvironmentName,
   ERC20_ADDRESS: (process.env.ERC20_ADDRESS ||
     '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`,
 }
@@ -100,29 +102,24 @@ class A2AStreamingTestContext {
   public planId!: string
   public agentId!: string
   public accessToken!: string
+  public port!: number
 
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
+
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
-      environment: STR_TEST_CONFIG.ENVIRONMENT,
+      nvmApiKey: testApiKeys.builder,
+      environment: STREAMING_TEST_CONFIG.ENVIRONMENT,
     })
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
-      environment: STR_TEST_CONFIG.ENVIRONMENT,
+      nvmApiKey: testApiKeys.subscriber,
+      environment: STREAMING_TEST_CONFIG.ENVIRONMENT,
     })
 
     await this.registerPlan()
-    console.timeEnd('[STREAMING] registerPlan')
-    console.time('[STREAMING] registerAgent')
     await this.registerAgent()
-    console.timeEnd('[STREAMING] registerAgent')
-    console.time('[STREAMING] startServer')
     await this.startServer()
-    console.timeEnd('[STREAMING] startServer')
-    console.time('[STREAMING] orderAndToken')
     await this.orderAndToken()
-    console.timeEnd('[STREAMING] orderAndToken')
-    console.debug('[STREAMING] setup end')
   }
 
   async teardown(): Promise<void> {
@@ -134,7 +131,7 @@ class A2AStreamingTestContext {
   private async registerPlan(): Promise<void> {
     const nonce = Date.now()
     const account = this.builder.getAccountAddress() as Address
-    const price = getERC20PriceConfig(1n, STR_TEST_CONFIG.ERC20_ADDRESS, account)
+    const price = getERC20PriceConfig(1n, STREAMING_TEST_CONFIG.ERC20_ADDRESS, account)
     const credits = getFixedCreditsConfig(200n, 10n)
     const resp = await retryOperation(() =>
       this.builder.plans.registerCreditsPlan(
@@ -155,12 +152,16 @@ class A2AStreamingTestContext {
       defaultInputModes: ['text'],
       defaultOutputModes: ['text'],
       skills: [],
-      url: `http://localhost:${STR_TEST_CONFIG.PORT}`,
+      url: `http://localhost:${this.port}`,
       version: '1.0.0',
       protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
-      endpoints: [{ POST: `http://localhost:${STR_TEST_CONFIG.PORT}${STR_TEST_CONFIG.BASE_PATH}` }],
+      endpoints: [
+        {
+          POST: `http://localhost:${this.port}${STREAMING_TEST_CONFIG.BASE_PATH}`,
+        },
+      ],
     }
     const agentResp = await retryOperation(() =>
       this.builder.agents.registerAgent(
@@ -190,8 +191,8 @@ class A2AStreamingTestContext {
     const result = this.builder.a2a.start({
       agentCard: this.agentCard,
       executor: createStreamingExecutor(),
-      port: STR_TEST_CONFIG.PORT,
-      basePath: STR_TEST_CONFIG.BASE_PATH,
+      port: this.port,
+      basePath: STREAMING_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
     })
@@ -222,7 +223,7 @@ class A2AStreamingTestContext {
 
   async sendStreamingMessage(text: string): Promise<any> {
     const response = await fetch(
-      `http://localhost:${STR_TEST_CONFIG.PORT}${STR_TEST_CONFIG.BASE_PATH}`,
+      `http://localhost:${this.port}${STREAMING_TEST_CONFIG.BASE_PATH}`,
       {
         method: 'POST',
         headers: {
@@ -288,11 +289,11 @@ describe('A2A Streaming (SSE)', () => {
   beforeAll(async () => {
     ctx = new A2AStreamingTestContext()
     await ctx.setup()
-  }, STR_TEST_CONFIG.TIMEOUT)
+  }, STREAMING_TEST_CONFIG.TIMEOUT)
 
   afterAll(async () => {
     await ctx.teardown()
-  }, STR_TEST_CONFIG.TIMEOUT)
+  }, STREAMING_TEST_CONFIG.TIMEOUT)
 
   it('should handle streaming requests with SSE events and complete', async () => {
     const initial = await ctx.subscriber.plans

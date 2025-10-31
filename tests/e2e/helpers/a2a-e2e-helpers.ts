@@ -6,20 +6,21 @@
 import { Payments } from '../../../src/payments.js'
 import { AgentExecutor, PaymentsRequestContext, ExecutionEventBus } from '../../../src/a2a/types.js'
 import { v4 as uuidv4 } from 'uuid'
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 
 // Test Configuration
 export const E2E_TEST_CONFIG = {
   TIMEOUT: 30_000,
   TESTING_ENVIRONMENT: 'staging_sandbox' as const,
 
-  // API Keys (with fallbacks for testing)
-  BUILDER_API_KEY:
-    process.env.TEST_BUILDER_API_KEY ||
-    'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDgwN2U2MjhBNzc5QzBGMTFhNzUxMzNmODFBNjZDNjQ2OTU4QjJmNEQiLCJqdGkiOiIweDFlZDA3MTBkNTBkMjEyNTZlZGY3NGQ0YTNjMGZhYmE3YTlhZDc2YmU2NmRkMTBmOTBjNDAyZGZkYWRhYWNkYjMiLCJleHAiOjE3OTA3ODgyNDIsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.P5Ceh11SOiFp_I5wQHPg0WuiDjSY_MzC7RQJe0JAKy4IPfLkGpwGV7Dv37_iR_VQFdk3-lNF-EvxUE5Hlogp4Bw',
+  // API Keys (per-file to avoid race conditions on blockchain)
+  get BUILDER_API_KEY() {
+    return getApiKeysForFile(__filename).builder
+  },
 
-  SUBSCRIBER_API_KEY:
-    process.env.TEST_SUBSCRIBER_API_KEY ||
-    'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEU3OGRiMkJGMEIyMjcwM2RjZDNGNDUzMDRkODUxZTdCNjY1MDU3N2UiLCJqdGkiOiIweGYyYTIzZmIzM2EzNzhiNWM3YTRmYzNmNWUyODVlODQwN2IyYjk5OTg2ZDEwNDM4ZmQ5ZDliNGVmNmMyZjMzZmQiLCJleHAiOjE3OTA3ODg1NjQsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.0Eg3M5qyNDHoyKBHDq_Kqg-ko3-6ArKE6dtEb0UvoL9p4eOqipEnjAQxxzV92XyUUH57ylcRwJ_UIXpuvgjbjRs',
+  get SUBSCRIBER_API_KEY() {
+    return getApiKeysForFile(__filename).subscriber
+  },
 }
 
 // Test Data

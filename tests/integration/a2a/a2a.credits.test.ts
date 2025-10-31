@@ -7,10 +7,11 @@ import { v4 as uuidv4 } from 'uuid'
 import { Payments } from '../../../src/payments.js'
 import type { AgentCard } from '../../../src/a2a/types.js'
 import type { AgentExecutor } from '../../../src/a2a/types.js'
-import type { EnvironmentName } from '../../../src/environments.js'
+import { EnvironmentName } from '../../../src/environments.js'
 import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 
 const CR_TEST_CONFIG = {
   TIMEOUT: 60_000,
@@ -110,14 +111,16 @@ class A2ACreditsTestContext {
   public planId!: string
   public agentId!: string
   public accessToken!: string
+  public port!: number
 
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
+      nvmApiKey: testApiKeys.builder,
       environment: CR_TEST_CONFIG.ENVIRONMENT,
     })
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
+      nvmApiKey: testApiKeys.subscriber,
       environment: CR_TEST_CONFIG.ENVIRONMENT,
     })
 
@@ -157,12 +160,12 @@ class A2ACreditsTestContext {
       defaultInputModes: ['text'],
       defaultOutputModes: ['text'],
       skills: [],
-      url: `http://localhost:${CR_TEST_CONFIG.PORT}`,
+      url: `http://localhost:${this.port}`,
       version: '1.0.0',
       protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
-      endpoints: [{ POST: `http://localhost:${CR_TEST_CONFIG.PORT}${CR_TEST_CONFIG.BASE_PATH}` }],
+      endpoints: [{ POST: `http://localhost:${this.port}${CR_TEST_CONFIG.BASE_PATH}` }],
     }
     const resp = await retryOperation(() =>
       this.builder.agents.registerAgent(
@@ -191,7 +194,7 @@ class A2ACreditsTestContext {
     const result = this.builder.a2a.start({
       agentCard: this.agentCard,
       executor: createCreditsExecutor(),
-      port: CR_TEST_CONFIG.PORT,
+      port: this.port,
       basePath: CR_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
@@ -233,7 +236,7 @@ class A2ACreditsTestContext {
       role: 'user' as const,
       parts: [{ kind: 'text' as const, text: messageText }],
     }
-    const resp = await fetch(`http://localhost:${CR_TEST_CONFIG.PORT}${CR_TEST_CONFIG.BASE_PATH}`, {
+    const resp = await fetch(`http://localhost:${this.port}${CR_TEST_CONFIG.BASE_PATH}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -252,6 +255,8 @@ class A2ACreditsTestContext {
   }
 }
 
+const testApiKeys = getApiKeysForFile(__filename)
+
 describe('A2A Credits', () => {
   let ctx: A2ACreditsTestContext
 
@@ -263,6 +268,32 @@ describe('A2A Credits', () => {
   afterAll(async () => {
     await ctx.teardown()
   }, CR_TEST_CONFIG.TIMEOUT)
+
+  it('should init clients with per-suite API keys', () => {
+    const builder = Payments.getInstance({
+      nvmApiKey: testApiKeys.builder,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    const subscriber = Payments.getInstance({
+      nvmApiKey: testApiKeys.subscriber,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    expect(builder).toBeDefined()
+    expect(subscriber).toBeDefined()
+  })
+
+  it('should init additional clients with per-suite keys', () => {
+    const builder2 = Payments.getInstance({
+      nvmApiKey: testApiKeys.builder,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    const subscriber2 = Payments.getInstance({
+      nvmApiKey: testApiKeys.subscriber,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    expect(builder2).toBeDefined()
+    expect(subscriber2).toBeDefined()
+  })
 
   it('should burn correct amount of credits for multiple requests', async () => {
     const initial = await ctx.getPlanBalance()
@@ -284,24 +315,24 @@ describe('A2A Credits', () => {
   })
 
   it('should handle insufficient credits gracefully', async () => {
-    // Con plan actual no forzamos insuficiencia; verificamos ejecución normal
+    // With current plan we don't force insufficiency; we verify normal execution
     const res = await ctx.sendMessage('Graceful insufficient credits (structure)')
     expect(res?.result?.status?.state).toBe('completed')
   })
 
   it('should reject requests when credits are exhausted (402)', async () => {
-    // Contexto aislado con pocos créditos para provocar insuficiencia
-    const lowPort = CR_TEST_CONFIG.PORT + 2
+    // Isolated context with few credits to cause insufficiency
+    const lowPort = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     const builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
+      nvmApiKey: testApiKeys.builder,
       environment: CR_TEST_CONFIG.ENVIRONMENT,
     })
     const subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
+      nvmApiKey: testApiKeys.subscriber,
       environment: CR_TEST_CONFIG.ENVIRONMENT,
     })
 
-    // Registrar plan con 10 créditos y coste 10 por request
+    // Register plan with 10 credits and cost 10 per request
     const account = builder.getAccountAddress() as Address
     const price = getERC20PriceConfig(1n, CR_TEST_CONFIG.ERC20_ADDRESS, account)
     const credits = getFixedCreditsConfig(10n, 10n)
@@ -314,7 +345,7 @@ describe('A2A Credits', () => {
     )
     const lowPlanId = planResp.planId
 
-    // Registrar agente apuntando al puerto lowPort
+    // Register agent pointing to lowPort
     const baseCard: AgentCard = {
       name: `A2A Credits Low Agent ${Date.now()}`,
       description: 'Low credits agent',
@@ -411,7 +442,7 @@ describe('A2A Credits', () => {
     })
 
     try {
-      // Ordenar plan y obtener token
+      // Order plan and get token
       const order = await retryOperation(() => subscriber.plans.orderPlan(lowPlanId))
       expect(order.success).toBe(true)
       const tokenResp = await retryOperation(() =>
@@ -419,7 +450,7 @@ describe('A2A Credits', () => {
       )
       const accessToken = tokenResp.accessToken
 
-      // 1ª petición (consume 10 créditos)
+      // 1st request (consumes 10 credits)
       const message1 = {
         kind: 'message' as const,
         messageId: uuidv4(),
@@ -438,7 +469,7 @@ describe('A2A Credits', () => {
       expect(resp1.ok).toBe(true)
       await resp1.json()
 
-      // Asegurar quema de créditos antes del segundo intento
+      // Ensure credits are burned before second attempt
       await pollForCondition(
         async () => {
           const bal = await subscriber.plans.getPlanBalance(lowPlanId)
@@ -448,7 +479,7 @@ describe('A2A Credits', () => {
         500,
       )
 
-      // 2ª petición debe ser rechazada (402)
+      // 2nd request should be rejected (402)
       const message2 = {
         kind: 'message' as const,
         messageId: uuidv4(),

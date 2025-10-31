@@ -17,9 +17,14 @@ import {
   A2AE2EServerManager,
 } from './helpers/a2a-e2e-helpers.js'
 import { E2ETestUtils } from './helpers/e2e-test-helpers.js'
-import { PaymentRedemptionConfig } from '../../src/a2a/types.js'
 import { v4 as uuidv4 } from 'uuid'
 import OpenAI from 'openai'
+import { getApiKeysForFile } from '../utils/apiKeysPool.js'
+
+/**
+ * E2E test with API keys isolation per suite
+ */
+const testApiKeys = getApiKeysForFile(__filename)
 
 /**
  * Creates a realistic executor that simulates AI processing with observability support
@@ -257,8 +262,8 @@ describe('A2A E2E', () => {
     MAIN_PORT = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     MAIN_URL = `http://localhost:${MAIN_PORT}/a2a/`
 
-    paymentsBuilder = A2AE2EUtils.createPaymentsInstance(E2E_TEST_CONFIG.BUILDER_API_KEY)
-    paymentsSubscriber = A2AE2EUtils.createPaymentsInstance(E2E_TEST_CONFIG.SUBSCRIBER_API_KEY)
+    paymentsBuilder = A2AE2EUtils.createPaymentsInstance(testApiKeys.builder)
+    paymentsSubscriber = A2AE2EUtils.createPaymentsInstance(testApiKeys.subscriber)
 
     serverManager = new A2AE2EServerManager()
 

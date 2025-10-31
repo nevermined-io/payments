@@ -1,3 +1,4 @@
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 import { Payments } from '../../../src/payments.js'
 import { buildPaymentAgentCard } from '../../../src/a2a/agent-card.js'
 import { PaymentsA2AServer } from '../../../src/a2a/server.js'
@@ -18,6 +19,8 @@ const REDEMPTION_TEST_CONFIG = {
   TIMEOUT: 60000,
 }
 
+const testApiKeys = getApiKeysForFile(__filename)
+
 class RedemptionTestContext {
   public builder!: Payments
   public subscriber!: Payments
@@ -29,13 +32,16 @@ class RedemptionTestContext {
   public agentCard!: any
   private executor: any
 
+  /**
+   * Initializes builder and subscriber with exclusive API Keys from the pool (per suite).
+   */
   async setup(redemptionConfig: PaymentRedemptionConfig): Promise<void> {
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
+      nvmApiKey: testApiKeys.builder,
       environment: REDEMPTION_TEST_CONFIG.ENVIRONMENT,
     })
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
+      nvmApiKey: testApiKeys.subscriber,
       environment: REDEMPTION_TEST_CONFIG.ENVIRONMENT,
     })
 

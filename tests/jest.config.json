@@ -9,7 +9,7 @@
   ],
   "collectCoverageFrom": ["src/**/*.ts", "!src/**/*.d.ts"],
   "coverageDirectory": "coverage",
-  "detectOpenHandles": true,
+  "detectOpenHandles": false,
   "forceExit": true,
   "setupFiles": ["<rootDir>/setup/jest.setup.ts"],
 

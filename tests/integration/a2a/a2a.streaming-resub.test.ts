@@ -11,12 +11,15 @@ import type { EnvironmentName } from '../../../src/environments.js'
 import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 
-const SRES_TEST_CONFIG = {
-  TIMEOUT: 60_000,
+const testApiKeys = getApiKeysForFile(__filename)
+
+const STREAMING_RESUB_TEST_CONFIG = {
+  ENVIRONMENT: 'staging_sandbox' as EnvironmentName,
+  TIMEOUT: 60000,
   PORT: parseInt(process.env.PORT || '41259'),
   BASE_PATH: '/a2a/',
-  ENVIRONMENT: (process.env.TESTING_ENVIRONMENT || 'staging_sandbox') as EnvironmentName,
   ERC20_ADDRESS: (process.env.ERC20_ADDRESS ||
     '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`,
 }
@@ -97,15 +100,17 @@ class A2AStreamingResubTestContext {
   public planId!: string
   public agentId!: string
   public accessToken!: string
+  public port!: number
 
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
-      environment: SRES_TEST_CONFIG.ENVIRONMENT,
+      nvmApiKey: testApiKeys.builder,
+      environment: STREAMING_RESUB_TEST_CONFIG.ENVIRONMENT,
     })
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
-      environment: SRES_TEST_CONFIG.ENVIRONMENT,
+      nvmApiKey: testApiKeys.subscriber,
+      environment: STREAMING_RESUB_TEST_CONFIG.ENVIRONMENT,
     })
 
     await this.registerPlan()
@@ -123,7 +128,7 @@ class A2AStreamingResubTestContext {
   private async registerPlan(): Promise<void> {
     const nonce = Date.now()
     const account = this.builder.getAccountAddress() as Address
-    const price = getERC20PriceConfig(1n, SRES_TEST_CONFIG.ERC20_ADDRESS, account)
+    const price = getERC20PriceConfig(1n, STREAMING_RESUB_TEST_CONFIG.ERC20_ADDRESS, account)
     const credits = getFixedCreditsConfig(200n, 10n)
     const resp = await retryOperation(() =>
       this.builder.plans.registerCreditsPlan(
@@ -144,13 +149,15 @@ class A2AStreamingResubTestContext {
       defaultInputModes: ['text'],
       defaultOutputModes: ['text'],
       skills: [],
-      url: `http://localhost:${SRES_TEST_CONFIG.PORT}/a2a/`,
+      url: `http://localhost:${this.port}/a2a/`,
       version: '1.0.0',
       protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
       endpoints: [
-        { POST: `http://localhost:${SRES_TEST_CONFIG.PORT}${SRES_TEST_CONFIG.BASE_PATH}` },
+        {
+          POST: `http://localhost:${this.port}${STREAMING_RESUB_TEST_CONFIG.BASE_PATH}`,
+        },
       ],
     }
     const resp = await retryOperation(() =>
@@ -180,8 +187,8 @@ class A2AStreamingResubTestContext {
     const result = this.builder.a2a.start({
       agentCard: this.agentCard,
       executor: createStreamingExecutor(),
-      port: SRES_TEST_CONFIG.PORT,
-      basePath: SRES_TEST_CONFIG.BASE_PATH,
+      port: this.port,
+      basePath: STREAMING_RESUB_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
     })
@@ -217,24 +224,24 @@ describe('A2A Streaming Resubscribe', () => {
   beforeAll(async () => {
     ctx = new A2AStreamingResubTestContext()
     await ctx.setup()
-  }, SRES_TEST_CONFIG.TIMEOUT)
+  }, STREAMING_RESUB_TEST_CONFIG.TIMEOUT)
 
   afterAll(async () => {
     await ctx.teardown()
-  }, SRES_TEST_CONFIG.TIMEOUT)
+  }, STREAMING_RESUB_TEST_CONFIG.TIMEOUT)
 
   it('should resubscribe to streaming task and complete successfully', async () => {
     // Ensure server is accessible before creating the client to avoid 404 race conditions
     await retryOperation(async () => {
       const health = await fetch(
-        `http://localhost:${SRES_TEST_CONFIG.PORT}${SRES_TEST_CONFIG.BASE_PATH}.well-known/agent-card.json`,
+        `http://localhost:${ctx.port}${STREAMING_RESUB_TEST_CONFIG.BASE_PATH}.well-known/agent-card.json`,
       )
       if (!health.ok) throw new Error('Server not ready')
       return true
     })
 
     const client = await ctx.subscriber.a2a.getClient({
-      agentBaseUrl: `http://localhost:${SRES_TEST_CONFIG.PORT}${SRES_TEST_CONFIG.BASE_PATH}`,
+      agentBaseUrl: `http://localhost:${ctx.port}${STREAMING_RESUB_TEST_CONFIG.BASE_PATH}`,
       agentId: ctx.agentId,
       planId: ctx.planId,
     })

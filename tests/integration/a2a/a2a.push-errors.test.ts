@@ -4,10 +4,11 @@
 
 import http from 'http'
 import { v4 as uuidv4 } from 'uuid'
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 import { Payments } from '../../../src/payments.js'
 import type { AgentCard } from '../../../src/a2a/types.js'
 import type { AgentExecutor } from '../../../src/a2a/types.js'
-import type { EnvironmentName } from '../../../src/environments.js'
+import { EnvironmentName } from '../../../src/environments.js'
 import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
@@ -77,17 +78,19 @@ class A2APushErrorsTestContext {
   public planId!: string
   public agentId!: string
   public accessToken!: string
+  public port!: number
 
   /**
    * Initialize clients, register plan/agent, start server and get access token.
    */
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
+      nvmApiKey: testApiKeys.builder,
       environment: PUSH_ERR_TEST_CONFIG.ENVIRONMENT,
     })
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
+      nvmApiKey: testApiKeys.subscriber,
       environment: PUSH_ERR_TEST_CONFIG.ENVIRONMENT,
     })
 
@@ -136,14 +139,12 @@ class A2APushErrorsTestContext {
       defaultInputModes: ['text'],
       defaultOutputModes: ['text'],
       skills: [],
-      url: `http://localhost:${PUSH_ERR_TEST_CONFIG.PORT}`,
+      url: `http://localhost:${this.port}`,
       version: '1.0.0',
       protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
-      endpoints: [
-        { POST: `http://localhost:${PUSH_ERR_TEST_CONFIG.PORT}${PUSH_ERR_TEST_CONFIG.BASE_PATH}` },
-      ],
+      endpoints: [{ POST: `http://localhost:${this.port}${PUSH_ERR_TEST_CONFIG.BASE_PATH}` }],
     }
     const resp = await retryOperation(() =>
       this.builder.agents.registerAgent(
@@ -176,7 +177,7 @@ class A2APushErrorsTestContext {
     const result = this.builder.a2a.start({
       agentCard: this.agentCard,
       executor: createMinimalExecutor(),
-      port: PUSH_ERR_TEST_CONFIG.PORT,
+      port: this.port,
       basePath: PUSH_ERR_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
@@ -210,7 +211,22 @@ class A2APushErrorsTestContext {
   }
 }
 
-describe('A2A Push Notifications - Error cases', () => {
+const testApiKeys = getApiKeysForFile(__filename)
+
+describe('A2A Push Errors', () => {
+  it('should init clients with per-suite API keys', () => {
+    const builder = Payments.getInstance({
+      nvmApiKey: testApiKeys.builder,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    const subscriber = Payments.getInstance({
+      nvmApiKey: testApiKeys.subscriber,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    expect(builder).toBeDefined()
+    expect(subscriber).toBeDefined()
+  })
+
   let ctx: A2APushErrorsTestContext
 
   beforeAll(async () => {
@@ -224,28 +240,26 @@ describe('A2A Push Notifications - Error cases', () => {
 
   it('should return error when setting push config for non-existent task', async () => {
     const nonExistentTaskId = uuidv4()
-    const response = await fetch(
-      `http://localhost:${PUSH_ERR_TEST_CONFIG.PORT}${PUSH_ERR_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'tasks/pushNotificationConfig/set',
-          params: {
-            taskId: nonExistentTaskId,
-            pushNotificationConfig: {
-              url: `http://localhost:4009/webhook`,
-              token: 'push-errors-token',
-              authentication: { credentials: 'push-errors-token', schemes: ['bearer'] },
-            },
-          },
-        }),
+    const webhookPort = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
+    const response = await fetch(`http://localhost:${ctx.port}${PUSH_ERR_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tasks/pushNotificationConfig/set',
+        params: {
+          taskId: nonExistentTaskId,
+          pushNotificationConfig: {
+            url: `http://localhost:${webhookPort}/webhook`,
+            token: 'push-errors-token',
+            authentication: { credentials: 'push-errors-token', schemes: ['bearer'] },
+          },
+        },
+      }),
+    })
     expect(response.ok).toBe(true)
     const json = await response.json()
     expect(json.jsonrpc).toBe('2.0')
@@ -255,21 +269,18 @@ describe('A2A Push Notifications - Error cases', () => {
 
   it('should return error when getting push config for non-existent task', async () => {
     const nonExistentTaskId = uuidv4()
-    const response = await fetch(
-      `http://localhost:${PUSH_ERR_TEST_CONFIG.PORT}${PUSH_ERR_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'tasks/pushNotificationConfig/get',
-          params: { id: nonExistentTaskId },
-        }),
+    const response = await fetch(`http://localhost:${ctx.port}${PUSH_ERR_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tasks/pushNotificationConfig/get',
+        params: { id: nonExistentTaskId },
+      }),
+    })
     expect(response.ok).toBe(true)
     const json = await response.json()
     expect(json.jsonrpc).toBe('2.0')

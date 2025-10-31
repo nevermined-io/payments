@@ -5,10 +5,11 @@
 import http from 'http'
 import express from 'express'
 import { v4 as uuidv4 } from 'uuid'
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 import { Payments } from '../../../src/payments.js'
 import type { AgentCard } from '../../../src/a2a/types.js'
 import type { AgentExecutor } from '../../../src/a2a/types.js'
-import type { EnvironmentName } from '../../../src/environments.js'
+import { EnvironmentName } from '../../../src/environments.js'
 import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
@@ -22,6 +23,8 @@ const PUSH_TEST_CONFIG = {
   ERC20_ADDRESS: (process.env.ERC20_ADDRESS ||
     '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`,
 }
+
+const testApiKeys = getApiKeysForFile(__filename)
 
 function createPushExecutor(): AgentExecutor {
   return {
@@ -111,18 +114,20 @@ class A2APushTestContext {
   public agentId!: string
   public accessToken!: string
   public webhook!: WebhookServer
+  public port!: number
   // logging removed
 
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     this.webhook = new WebhookServer(PUSH_TEST_CONFIG.WEBHOOK_PORT)
     await this.webhook.start()
 
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
+      nvmApiKey: testApiKeys.builder,
       environment: PUSH_TEST_CONFIG.ENVIRONMENT,
     })
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
+      nvmApiKey: testApiKeys.subscriber,
       environment: PUSH_TEST_CONFIG.ENVIRONMENT,
     })
 
@@ -164,14 +169,12 @@ class A2APushTestContext {
       defaultInputModes: ['text'],
       defaultOutputModes: ['text'],
       skills: [],
-      url: `http://localhost:${PUSH_TEST_CONFIG.PORT}`,
+      url: `http://localhost:${this.port}`,
       version: '1.0.0',
       protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
-      endpoints: [
-        { POST: `http://localhost:${PUSH_TEST_CONFIG.PORT}${PUSH_TEST_CONFIG.BASE_PATH}` },
-      ],
+      endpoints: [{ POST: `http://localhost:${this.port}${PUSH_TEST_CONFIG.BASE_PATH}` }],
     }
     const agentResp = await retryOperation(() =>
       this.builder.agents.registerAgent(
@@ -201,7 +204,7 @@ class A2APushTestContext {
     const result = this.builder.a2a.start({
       agentCard: this.agentCard,
       executor: createPushExecutor(),
-      port: PUSH_TEST_CONFIG.PORT,
+      port: this.port,
       basePath: PUSH_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
@@ -246,74 +249,65 @@ describe('A2A Push Notifications', () => {
 
   it('should set and get push notification configuration and receive notification', async () => {
     // 1) Create a task (non-blocking)
-    const createResp = await fetch(
-      `http://localhost:${PUSH_TEST_CONFIG.PORT}${PUSH_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'message/send',
-          params: {
-            configuration: { blocking: false },
-            message: {
-              kind: 'message',
-              messageId: uuidv4(),
-              role: 'user',
-              parts: [{ kind: 'text', text: 'Push test' }],
-            },
-          },
-        }),
+    const createResp = await fetch(`http://localhost:${ctx.port}${PUSH_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'message/send',
+        params: {
+          configuration: { blocking: false },
+          message: {
+            kind: 'message',
+            messageId: uuidv4(),
+            role: 'user',
+            parts: [{ kind: 'text', text: 'Push test' }],
+          },
+        },
+      }),
+    })
     expect(createResp.ok).toBe(true)
     const createJson = await createResp.json()
     const taskId = createJson.result.id
 
     // 2) Set push config
-    const setResp = await fetch(
-      `http://localhost:${PUSH_TEST_CONFIG.PORT}${PUSH_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'tasks/pushNotificationConfig/set',
-          params: {
-            taskId,
-            pushNotificationConfig: {
-              url: ctx.webhook.url(),
-              token: 'test-token-abc',
-              authentication: { credentials: 'test-token-abc', schemes: ['bearer'] },
-            },
-          },
-        }),
+    const setResp = await fetch(`http://localhost:${ctx.port}${PUSH_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tasks/pushNotificationConfig/set',
+        params: {
+          taskId,
+          pushNotificationConfig: {
+            url: ctx.webhook.url(),
+            token: 'test-token-abc',
+            authentication: { credentials: 'test-token-abc', schemes: ['bearer'] },
+          },
+        },
+      }),
+    })
     expect(setResp.ok).toBe(true)
 
     // 3) Get push config
-    const getResp = await fetch(
-      `http://localhost:${PUSH_TEST_CONFIG.PORT}${PUSH_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'tasks/pushNotificationConfig/get',
-          params: { id: taskId },
-        }),
+    const getResp = await fetch(`http://localhost:${ctx.port}${PUSH_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tasks/pushNotificationConfig/get',
+        params: { id: taskId },
+      }),
+    })
     expect(getResp.ok).toBe(true)
     const getJson = await getResp.json()
     expect(getJson.result?.pushNotificationConfig?.url).toBe(ctx.webhook.url())

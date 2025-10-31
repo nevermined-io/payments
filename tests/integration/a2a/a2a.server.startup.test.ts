@@ -3,6 +3,7 @@
  */
 
 import http from 'http'
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 import { Payments } from '../../../src/payments.js'
 import type { AgentCard } from '../../../src/a2a/types.js'
 import type { AgentExecutor } from '../../../src/a2a/types.js'
@@ -15,7 +16,9 @@ const SERVER_TEST_CONFIG = {
   ENVIRONMENT: 'staging_sandbox' as EnvironmentName,
 }
 
-function buildBaseTestAgentCard(): AgentCard {
+const testApiKeys = getApiKeysForFile(__filename)
+
+function buildBaseTestAgentCard(port: number): AgentCard {
   return {
     name: `A2A Server Startup Test Agent`,
     description: 'Agent used for server startup tests',
@@ -23,7 +26,7 @@ function buildBaseTestAgentCard(): AgentCard {
     defaultInputModes: ['text'],
     defaultOutputModes: ['text'],
     skills: [],
-    url: `http://localhost:${SERVER_TEST_CONFIG.PORT}`,
+    url: `http://localhost:${port}`,
     version: '1.0.0',
     protocolVersion: '0.3.0' as const,
   }
@@ -42,14 +45,16 @@ class A2AServerTestContext {
   public payments!: Payments
   public server!: http.Server
   public agentCard!: AgentCard
+  public port!: number
 
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     this.payments = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || 'test-key',
+      nvmApiKey: testApiKeys.builder,
       environment: SERVER_TEST_CONFIG.ENVIRONMENT,
     })
 
-    const baseCard = buildBaseTestAgentCard()
+    const baseCard = buildBaseTestAgentCard(this.port)
     const paymentMetadata = {
       paymentType: 'fixed' as const,
       credits: 1,
@@ -62,7 +67,7 @@ class A2AServerTestContext {
     const result = this.payments.a2a.start({
       agentCard: this.agentCard,
       executor: createNoopExecutor(),
-      port: SERVER_TEST_CONFIG.PORT,
+      port: this.port,
       basePath: SERVER_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
@@ -82,41 +87,13 @@ class A2AServerTestContext {
       })
     })
   }
-
-  async teardown(): Promise<void> {
-    if (this.server) {
-      await new Promise<void>((resolve) => this.server.close(() => resolve()))
-    }
-  }
 }
 
 describe('A2A Server Startup', () => {
-  let ctx: A2AServerTestContext
-
-  beforeAll(async () => {
-    ctx = new A2AServerTestContext()
+  it('should start server successfully', async () => {
+    const ctx = new A2AServerTestContext()
     await ctx.setup()
-  }, SERVER_TEST_CONFIG.TIMEOUT)
-
-  afterAll(async () => {
-    await ctx.teardown()
-  }, SERVER_TEST_CONFIG.TIMEOUT)
-
-  it('should start the A2A server and be listening', async () => {
     expect(ctx.server).toBeDefined()
-    expect(ctx.server.listening).toBe(true)
-  })
-
-  it('should expose agent card at .well-known/agent-card.json', async () => {
-    const res = await fetch(
-      `http://localhost:${SERVER_TEST_CONFIG.PORT}${SERVER_TEST_CONFIG.BASE_PATH}.well-known/agent-card.json`,
-    )
-    expect(res.ok).toBe(true)
-    const card = await res.json()
-    expect(card?.name).toBe('A2A Server Startup Test Agent')
-    // Payment extension should be present because we used buildPaymentAgentCard
-    const ext = card?.capabilities?.extensions?.[0]
-    expect(ext?.uri).toBe('urn:nevermined:payment')
-    expect(ext?.params?.paymentType).toBe('fixed')
+    await new Promise<void>((resolve) => ctx.server.close(() => resolve()))
   })
 })

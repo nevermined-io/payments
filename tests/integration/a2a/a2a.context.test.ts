@@ -2,6 +2,7 @@
  * @file A2A context propagation integration tests
  */
 
+import { getApiKeysForFile } from '../../utils/apiKeysPool.js'
 import http from 'http'
 import { v4 as uuidv4 } from 'uuid'
 import { Payments } from '../../../src/payments.js'
@@ -12,40 +13,38 @@ import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
 import { retryOperation } from '../../utils/retry-operation.js'
 
+const testApiKeys = getApiKeysForFile(__filename)
+
 const CTX_TEST_CONFIG = {
-  TIMEOUT: 60_000,
-  PORT: parseInt(process.env.PORT || '41256'),
+  ENVIRONMENT: 'staging_sandbox' as EnvironmentName,
+  TIMEOUT: 60000,
+  PORT: parseInt(process.env.PORT || '41252'),
   BASE_PATH: '/a2a/',
-  ENVIRONMENT: (process.env.TESTING_ENVIRONMENT || 'staging_sandbox') as EnvironmentName,
   ERC20_ADDRESS: (process.env.ERC20_ADDRESS ||
     '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`,
 }
 
 function createContextAssertExecutor(): AgentExecutor {
   return {
-    execute: async (requestContext: any, eventBus: any) => {
-      // Assertions of context presence
-      if (!requestContext?.payments?.httpContext) {
-        throw new Error('Missing payments.httpContext')
-      }
-      if (!requestContext?.payments?.authResult) {
-        throw new Error('Missing payments.authResult')
+    execute: async (requestContext, eventBus) => {
+      const taskId = requestContext.taskId
+      const contextId = requestContext.userMessage.contextId || uuidv4()
+
+      // Assert payments context exists
+      if (!requestContext.payments || !requestContext.payments.httpContext) {
+        throw new Error('payments context missing in requestContext')
       }
 
-      const taskId = requestContext.task?.id || requestContext.taskId
-      const contextId = requestContext.userMessage?.contextId || uuidv4()
-
-      // Publish minimal task
       eventBus.publish({
         kind: 'task',
         id: taskId,
         contextId,
         status: { state: 'submitted', timestamp: new Date().toISOString() },
+        artifacts: [],
         history: [requestContext.userMessage],
-        metadata: requestContext.userMessage?.metadata,
+        metadata: requestContext.userMessage.metadata,
       })
 
-      // Final status with agent message
       eventBus.publish({
         kind: 'status-update',
         taskId,
@@ -56,15 +55,16 @@ function createContextAssertExecutor(): AgentExecutor {
             kind: 'message',
             role: 'agent',
             messageId: uuidv4(),
-            parts: [{ kind: 'text', text: 'Context OK' }],
+            parts: [{ kind: 'text', text: 'Context ok' }],
             taskId,
             contextId,
           },
           timestamp: new Date().toISOString(),
         },
         final: true,
-        metadata: { creditsUsed: 10 },
+        metadata: { creditsUsed: 10, operationType: 'context' },
       })
+
       eventBus.finished()
     },
     cancelTask: async () => {},
@@ -79,16 +79,18 @@ class A2AContextTestContext {
   public planId!: string
   public agentId!: string
   public accessToken!: string
+  public port!: number
   // logging removed
 
   async setup(): Promise<void> {
+    this.port = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
     // logging removed
     this.builder = Payments.getInstance({
-      nvmApiKey: process.env.TEST_BUILDER_API_KEY || '',
+      nvmApiKey: testApiKeys.builder,
       environment: CTX_TEST_CONFIG.ENVIRONMENT,
     })
     this.subscriber = Payments.getInstance({
-      nvmApiKey: process.env.TEST_SUBSCRIBER_API_KEY || '',
+      nvmApiKey: testApiKeys.subscriber,
       environment: CTX_TEST_CONFIG.ENVIRONMENT,
     })
 
@@ -129,12 +131,12 @@ class A2AContextTestContext {
       defaultInputModes: ['text'],
       defaultOutputModes: ['text'],
       skills: [],
-      url: `http://localhost:${CTX_TEST_CONFIG.PORT}`,
+      url: `http://localhost:${this.port}`,
       version: '1.0.0',
       protocolVersion: '0.3.0' as const,
     }
     const agentApi = {
-      endpoints: [{ POST: `http://localhost:${CTX_TEST_CONFIG.PORT}${CTX_TEST_CONFIG.BASE_PATH}` }],
+      endpoints: [{ POST: `http://localhost:${this.port}${CTX_TEST_CONFIG.BASE_PATH}` }],
     }
     const agentResp = await retryOperation(() =>
       this.builder.agents.registerAgent(
@@ -164,7 +166,7 @@ class A2AContextTestContext {
     const result = this.builder.a2a.start({
       agentCard: this.agentCard,
       executor: createContextAssertExecutor(),
-      port: CTX_TEST_CONFIG.PORT,
+      port: this.port,
       basePath: CTX_TEST_CONFIG.BASE_PATH,
       exposeAgentCard: true,
       exposeDefaultRoutes: true,
@@ -197,7 +199,20 @@ class A2AContextTestContext {
   }
 }
 
-describe('A2A Context Propagation', () => {
+describe('A2A Context', () => {
+  it('should init clients with per-suite API keys', () => {
+    const builder = Payments.getInstance({
+      nvmApiKey: testApiKeys.builder,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    const subscriber = Payments.getInstance({
+      nvmApiKey: testApiKeys.subscriber,
+      environment: 'staging_sandbox' as EnvironmentName,
+    })
+    expect(builder).toBeDefined()
+    expect(subscriber).toBeDefined()
+  })
+
   let ctx: A2AContextTestContext
 
   beforeAll(async () => {
@@ -216,24 +231,21 @@ describe('A2A Context Propagation', () => {
       role: 'user' as const,
       parts: [{ kind: 'text' as const, text: 'Check context passing' }],
     }
-    const resp = await fetch(
-      `http://localhost:${CTX_TEST_CONFIG.PORT}${CTX_TEST_CONFIG.BASE_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'message/send',
-          params: { message, configuration: { blocking: true } },
-        }),
+    const resp = await fetch(`http://localhost:${ctx.port}${CTX_TEST_CONFIG.BASE_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ctx.accessToken}`,
       },
-    )
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'message/send',
+        params: { message, configuration: { blocking: true } },
+      }),
+    })
     expect(resp.ok).toBe(true)
     const json = await resp.json()
     expect(json.result?.status?.state).toBe('completed')
-    expect(json.result?.status?.message?.parts?.[0]?.text).toBe('Context OK')
+    expect(json.result?.status?.message?.parts?.[0]?.text).toBe('Context ok')
   })
 })

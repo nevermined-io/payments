@@ -19,7 +19,6 @@ export async function retryOperation<T>(operation: () => Promise<T>): Promise<T>
       const result = await operation()
       return result
     } catch (err) {
-      console.log('retryOperation error on attempt ', attempt, err)
       lastErr = err
       if (attempt === maxAttempts) break
       const jitter = delay * jitterRatio * (Math.random() * 2 - 1) // +/- jitter
