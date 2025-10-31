@@ -408,7 +408,7 @@ describe('A2A Server-Side Redemption Configuration with Streaming', () => {
     const serverResult = PaymentsA2AServer.start({
       agentCard,
       executor,
-      paymentsService: ctx.subscriber,
+      paymentsService: ctx.builder,
       port: 0,
       basePath: '/a2a/',
       exposeAgentCard: true,

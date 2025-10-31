@@ -21,7 +21,7 @@ const E2E_REDEMPTION_CONFIG = {
   TIMEOUT: 90000,
 }
 
-function createRealisticExecutor(creditsUsed: number = 10): any {
+function createExecutor(creditsUsed: number = 10): any {
   return {
     execute: async (requestContext: any, eventBus: any) => {
       const taskId = requestContext.taskId
@@ -263,8 +263,8 @@ class E2ERedemptionTestContext {
 
     const serverResult = PaymentsA2AServer.start({
       agentCard,
-      executor: createRealisticExecutor(10),
-      paymentsService: this.subscriber,
+      executor: createExecutor(10),
+      paymentsService: this.builder,
       port: port,
       basePath: '/a2a/',
       exposeAgentCard: true,
@@ -330,61 +330,6 @@ class E2ERedemptionTestContext {
 
     return response.json()
   }
-
-  async sendStreamingRequest(messageText: string): Promise<any[]> {
-    const response = await fetch(`http://localhost:${this.server.address().port}/a2a/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.accessToken}`,
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'message/stream',
-        params: {
-          message: {
-            kind: 'message',
-            messageId: uuidv4(),
-            role: 'user',
-            parts: [{ kind: 'text', text: messageText }],
-          },
-        },
-      }),
-    })
-
-    if (!response.ok || !response.body) {
-      throw new Error('Streaming request failed')
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    const events: any[] = []
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-              events.push(data)
-            } catch {
-              // Skip malformed JSON
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock()
-    }
-
-    return events
-  }
 }
 
 describe('A2A Server-Side Redemption Configuration E2E', () => {
@@ -418,116 +363,5 @@ describe('A2A Server-Side Redemption Configuration E2E', () => {
     await ctx.waitForCreditsToBurn(10n)
     const finalBalance = await ctx.getPlanBalance()
     expect(finalBalance).toBeLessThan(ctx.initialBalance)
-  })
-
-  it('should handle streaming requests with server-side configuration', async () => {
-    ctx = new E2ERedemptionTestContext()
-    await ctx.setup({}) // Default configuration
-
-    const events = await ctx.sendStreamingRequest('Can you help me with a streaming request?')
-
-    // Verify we received streaming events
-    expect(events.length).toBeGreaterThan(0)
-
-    // Find the final event with payment metadata
-    const finalEvent = events.find(
-      (event) =>
-        event.result?.kind === 'status-update' &&
-        event.result?.final &&
-        event.result?.metadata?.txHash,
-    )
-
-    expect(finalEvent).toBeDefined()
-    // Note: redemptionMethod is server-only information, not sent to client
-    expect(finalEvent?.result?.metadata?.txHash).toBeDefined()
-    expect(finalEvent?.result?.metadata?.creditsCharged).toBeDefined()
-
-    // Verify credits were actually burned
-    await ctx.waitForCreditsToBurn(10n)
-    const finalBalance = await ctx.getPlanBalance()
-    expect(finalBalance).toBeLessThan(ctx.initialBalance)
-  })
-
-  it('should respect server-level handler options in E2E flow', async () => {
-    // Test that server configuration works in full E2E flow
-    ctx = new E2ERedemptionTestContext()
-    await ctx.setup({}) // Agent card with default config
-
-    // Start a new server with different handler options
-    const baseCard = {
-      name: 'E2E Test Agent',
-      description: 'E2E test agent for server config',
-      version: '1.0.0',
-      protocolVersion: '0.3.0' as const,
-      capabilities: {
-        tools: ['text-generation'],
-        extensions: [],
-      },
-      defaultInputModes: ['text'],
-      defaultOutputModes: ['text'],
-      skills: [],
-      url: 'https://example.com',
-    }
-
-    const paymentMetadata = {
-      paymentType: 'fixed' as const,
-      credits: 10,
-      planId: ctx.planId,
-      agentId: 'temp-agent-id',
-      costDescription: '10 credits per request',
-    }
-
-    const agentCard = buildPaymentAgentCard(baseCard, paymentMetadata)
-
-    const serverResult = PaymentsA2AServer.start({
-      agentCard,
-      executor: createRealisticExecutor(10),
-      paymentsService: ctx.subscriber,
-      port: 0,
-      basePath: '/a2a/',
-      exposeAgentCard: true,
-      exposeDefaultRoutes: true,
-      handlerOptions: {
-        defaultBatch: true,
-        defaultMarginPercent: 10,
-      },
-    })
-
-    const server = serverResult.server
-
-    try {
-      const serverAddress = server.address()
-      if (!serverAddress) throw new Error('Server address is null')
-      const port =
-        typeof serverAddress === 'string' ? serverAddress.split(':').pop() : serverAddress.port
-      const resp = await fetch(`http://localhost:${port}/a2a/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ctx.accessToken}`,
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'message/send',
-          params: {
-            message: {
-              kind: 'message',
-              messageId: uuidv4(),
-              role: 'user',
-              parts: [{ kind: 'text', text: 'Test server config in E2E flow' }],
-            },
-          },
-        }),
-      })
-
-      expect(resp.ok).toBe(true)
-      const result = await resp.json()
-      expect(result?.result?.status?.state).toBe('completed')
-
-      // The server-level configuration should override the agent card config
-      // Note: redemptionMethod is server-only information, not sent to client
-    } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()))
-    }
   })
 })
