@@ -17,7 +17,7 @@ const testApiKeys = getApiKeysForFile(__filename)
 
 const E2E_REDEMPTION_CONFIG = {
   ENVIRONMENT: 'staging_sandbox' as EnvironmentName,
-  ERC20_ADDRESS: '0x6B175474E89094C44Da98b954EedeAC495271d0F' as Address,
+  ERC20_ADDRESS: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
   TIMEOUT: 90000,
 }
 

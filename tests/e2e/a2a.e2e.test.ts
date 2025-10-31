@@ -16,7 +16,7 @@ import {
   A2AE2EAssertions,
   A2AE2EServerManager,
 } from './helpers/a2a-e2e-helpers.js'
-import { E2ETestUtils } from './helpers/e2e-test-helpers.js'
+import { retryOperation, waitForCondition } from '../utils/retry-operation.js'
 import { v4 as uuidv4 } from 'uuid'
 import OpenAI from 'openai'
 import { getApiKeysForFile } from '../utils/apiKeysPool.js'
@@ -274,7 +274,7 @@ describe('A2A E2E', () => {
       paymentsBuilder.getAccountAddress(),
     )
     const creditsConfig = getFixedCreditsConfig(1000n, 10n)
-    const planResult = await E2ETestUtils.retryWithBackoff(async () => {
+    const planResult = await retryOperation(async () => {
       const result = await paymentsBuilder.plans.registerCreditsPlan(
         planMetadata,
         priceConfig,
@@ -282,7 +282,7 @@ describe('A2A E2E', () => {
       )
       if (!result.planId) throw new Error('Plan registration failed: no planId returned')
       return result
-    }, 'Plan Registration')
+    })
     planId = planResult.planId
 
     const agentMetadata = {
@@ -294,14 +294,14 @@ describe('A2A E2E', () => {
     const agentApi = {
       endpoints: [{ POST: MAIN_URL }],
     }
-    const agentResult = await E2ETestUtils.retryWithBackoff(async () => {
+    const agentResult = await retryOperation(async () => {
       const result = await paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, [planId])
       if (!result.agentId) throw new Error('Agent registration failed: no agentId returned')
       return result
-    }, 'Agent Registration')
+    })
     agentId = agentResult.agentId
 
-    await E2ETestUtils.retryWithBackoff(async () => {
+    await retryOperation(async () => {
       const result = await paymentsSubscriber.plans.orderPlan(planId)
 
       if (!result.success) {
@@ -309,7 +309,7 @@ describe('A2A E2E', () => {
       }
 
       return result
-    }, 'Plan Order')
+    })
 
     const baseAgentCard = {
       name: 'E2E A2A Test Agent',
@@ -386,14 +386,8 @@ describe('A2A E2E', () => {
       expect(client1).toBeDefined()
       expect(client2).toBeDefined()
       const msg = { message: A2AE2EFactory.createTestMessage('ping') }
-      const send1 = await E2ETestUtils.retryWithBackoff(
-        async () => client1.sendA2AMessage(msg),
-        'A2A send client1',
-      )
-      const send2 = await E2ETestUtils.retryWithBackoff(
-        async () => client2.sendA2AMessage(msg),
-        'A2A send client2',
-      )
+      const send1 = await retryOperation(async () => client1.sendA2AMessage(msg))
+      const send2 = await retryOperation(async () => client2.sendA2AMessage(msg))
       expect(send1).toBeDefined()
       expect(send2).toBeDefined()
     })
@@ -515,7 +509,7 @@ describe('A2A E2E', () => {
         const contextAgentApi = {
           endpoints: [{ POST: contextUrl }],
         }
-        const contextAgentResult = await E2ETestUtils.retryWithBackoff(async () => {
+        const contextAgentResult = await retryOperation(async () => {
           const result = await paymentsBuilder.agents.registerAgent(
             contextAgentMetadata,
             contextAgentApi,
@@ -524,7 +518,7 @@ describe('A2A E2E', () => {
           if (!result.agentId)
             throw new Error('Context agent registration failed: no agentId returned')
           return result
-        }, 'Context Agent Registration')
+        })
         const contextAgentId = contextAgentResult.agentId
 
         // Build agent card with context verification executor
@@ -633,7 +627,7 @@ describe('A2A E2E', () => {
         A2AE2EAssertions.assertValidStreamingResponse(events, finalResult)
 
         const expectedBurn = 10n
-        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+        const afterBalanceResult = await waitForCondition(
           async () => {
             try {
               const res = await paymentsSubscriber.plans.getPlanBalance(planId)
@@ -687,7 +681,7 @@ describe('A2A E2E', () => {
         expect(finalResult.result.metadata.creditsUsed).toBe(10)
 
         const expectedBurn = 10n
-        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+        const afterBalanceResult = await waitForCondition(
           async () => {
             try {
               const res = await paymentsSubscriber.plans.getPlanBalance(planId)
@@ -796,7 +790,7 @@ describe('A2A E2E', () => {
         )
 
         const expectedBurn = 10n
-        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+        const afterBalanceResult = await waitForCondition(
           async () => {
             try {
               const res = await paymentsSubscriber.plans.getPlanBalance(planId)
@@ -837,7 +831,7 @@ describe('A2A E2E', () => {
       )
       const redemptionCreditsConfig = getDynamicCreditsConfig(1000n, 1n, 50n) // min 1, max 50 credits per request
 
-      const redemptionPlanResult = await E2ETestUtils.retryWithBackoff(async () => {
+      const redemptionPlanResult = await retryOperation(async () => {
         const result = await paymentsBuilder.plans.registerCreditsPlan(
           redemptionPlanMetadata,
           redemptionPriceConfig,
@@ -846,7 +840,7 @@ describe('A2A E2E', () => {
         if (!result.planId)
           throw new Error('Redemption plan registration failed: no planId returned')
         return result
-      }, 'Redemption Plan Registration')
+      })
       redemptionPlanId = redemptionPlanResult.planId
 
       // Register agent for redemption tests
@@ -859,7 +853,7 @@ describe('A2A E2E', () => {
       const redemptionAgentApi = {
         endpoints: [{ POST: redemptionUrl }],
       }
-      const redemptionAgentResult = await E2ETestUtils.retryWithBackoff(async () => {
+      const redemptionAgentResult = await retryOperation(async () => {
         const result = await paymentsBuilder.agents.registerAgent(
           redemptionAgentMetadata,
           redemptionAgentApi,
@@ -868,17 +862,17 @@ describe('A2A E2E', () => {
         if (!result.agentId)
           throw new Error('Redemption agent registration failed: no agentId returned')
         return result
-      }, 'Redemption Agent Registration')
+      })
       redemptionAgentId = redemptionAgentResult.agentId
 
       // Order the plan
-      await E2ETestUtils.retryWithBackoff(async () => {
+      await retryOperation(async () => {
         const result = await paymentsSubscriber.plans.orderPlan(redemptionPlanId)
         if (!result.success) {
           throw new Error('Redemption plan order failed: success is false')
         }
         return result
-      }, 'Redemption Plan Order')
+      })
 
       // Get initial balance
       const balanceResult = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
@@ -959,7 +953,7 @@ describe('A2A E2E', () => {
         expect(result.result.metadata.creditsUsed).toBe(10)
 
         // Verify credits were actually burned
-        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+        const afterBalanceResult = await waitForCondition(
           async () => {
             try {
               const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
@@ -1059,7 +1053,7 @@ describe('A2A E2E', () => {
           expect(result.result.metadata.redemptionPhases[2].phase).toBe('response_generation')
 
           // Verify credits were burned through multiple partial redemptions
-          const afterBalanceResult = await E2ETestUtils.waitForCondition(
+          const afterBalanceResult = await waitForCondition(
             async () => {
               try {
                 const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
@@ -1162,7 +1156,7 @@ describe('A2A E2E', () => {
         expect(result.result.metadata.marginApplied).toBeDefined()
 
         // Verify credits were burned
-        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+        const afterBalanceResult = await waitForCondition(
           async () => {
             try {
               const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
@@ -1255,7 +1249,7 @@ describe('A2A E2E', () => {
         expect(result.result.metadata.marginApplied).toBeDefined()
 
         // Verify credits were burned
-        const afterBalanceResult = await E2ETestUtils.waitForCondition(
+        const afterBalanceResult = await waitForCondition(
           async () => {
             try {
               const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)

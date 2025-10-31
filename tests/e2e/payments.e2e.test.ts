@@ -23,6 +23,7 @@ import {
 } from '../../src/plans.js'
 import http from 'http'
 import { getRandomBigInt } from '../../src/utils.js'
+import { retryOperation, waitForCondition } from '../utils/retry-operation.js'
 import { E2ETestUtils } from './helpers/e2e-test-helpers.js'
 
 // Deterministic per-file API keys to avoid manual indexing and race conditions
@@ -102,7 +103,7 @@ describe('Payments API (e2e)', () => {
         const creditsConfig = getFixedCreditsConfig(100n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
 
-        const response = await E2ETestUtils.retryWithBackoff(async () => {
+        const response = await retryOperation(async () => {
           const result = await paymentsBuilder.plans.registerCreditsPlan(
             planMetadata,
             priceConfig,
@@ -115,7 +116,7 @@ describe('Payments API (e2e)', () => {
           }
 
           return result
-        }, 'Credits Plan Registration')
+        })
 
         expect(response).toBeDefined()
         creditsPlanId = response.planId
@@ -134,7 +135,7 @@ describe('Payments API (e2e)', () => {
         const creditsConfig = getDynamicCreditsConfig(1000n, 5n, 15n)
         console.log(' **** PRICE CONFIG ***', priceConfig)
 
-        const response = await E2ETestUtils.retryWithBackoff(async () => {
+        const response = await retryOperation(async () => {
           const result = await paymentsBuilder.plans.registerCreditsPlan(
             { ...planMetadata, name: 'Dynamic Credits Plan' },
             priceConfig,
@@ -147,7 +148,7 @@ describe('Payments API (e2e)', () => {
           }
 
           return result
-        }, 'Dynamic Credits Plan Registration')
+        })
 
         expect(response).toBeDefined()
         dynamicCreditsPlanId = response.planId
@@ -165,7 +166,7 @@ describe('Payments API (e2e)', () => {
         const priceConfig = getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
         const expirablePlanConfig = getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
 
-        const response = await E2ETestUtils.retryWithBackoff(async () => {
+        const response = await retryOperation(async () => {
           const result = await paymentsBuilder.plans.registerTimePlan(
             planMetadata,
             priceConfig,
@@ -178,7 +179,7 @@ describe('Payments API (e2e)', () => {
           }
 
           return result
-        }, 'Expirable Plan Registration')
+        })
 
         expect(response).toBeDefined()
         expirablePlanId = response.planId
@@ -200,7 +201,7 @@ describe('Payments API (e2e)', () => {
         const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
         console.log(' **** PRICE CONFIG ***', priceConfig)
 
-        const response = await E2ETestUtils.retryWithBackoff(async () => {
+        const response = await retryOperation(async () => {
           const result = await paymentsBuilder.plans.registerTimeTrialPlan(
             trialPlanMetadata,
             priceConfig,
@@ -213,7 +214,7 @@ describe('Payments API (e2e)', () => {
           }
 
           return result
-        }, 'Trial Plan Registration')
+        })
 
         expect(response).toBeDefined()
         trialPlanId = response.planId
@@ -238,7 +239,7 @@ describe('Payments API (e2e)', () => {
         }
         const paymentPlans = [creditsPlanId, expirablePlanId, dynamicCreditsPlanId]
 
-        const result = await E2ETestUtils.retryWithBackoff(async () => {
+        const result = await retryOperation(async () => {
           const response = await paymentsBuilder.agents.registerAgent(
             agentMetadata,
             agentApi,
@@ -253,7 +254,7 @@ describe('Payments API (e2e)', () => {
           console.log('Agent registration response', response)
 
           return response
-        }, 'Agent Registration')
+        })
 
         agentId = result.agentId
         expect(agentId).toBeDefined()
@@ -276,7 +277,7 @@ describe('Payments API (e2e)', () => {
         const nonExpirableConfig = getNonExpirableDurationConfig()
         nonExpirableConfig.durationSecs = getRandomBigInt() // we force the randomness of the plan
 
-        const result = await E2ETestUtils.retryWithBackoff(async () => {
+        const result = await retryOperation(async () => {
           const response = await paymentsBuilder.agents.registerAgentAndPlan(
             agentMetadata,
             agentApi,
@@ -291,7 +292,7 @@ describe('Payments API (e2e)', () => {
           }
 
           return response
-        }, 'Agent and Plan Registration')
+        })
 
         expect(result.planId).toBeDefined()
         expect(result.agentId).toBeDefined()
@@ -352,7 +353,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to order a Plan',
       async () => {
-        const orderResult = await E2ETestUtils.retryWithBackoff(async () => {
+        const orderResult = await retryOperation(async () => {
           const result = await paymentsSubscriber.plans.orderPlan(creditsPlanId)
 
           // Validate the response
@@ -361,13 +362,13 @@ describe('Payments API (e2e)', () => {
           }
 
           return result
-        }, 'Plan Order')
+        })
 
         expect(orderResult).toBeDefined()
         expect(orderResult.success).toBeTruthy()
         // Wait for eventual consistency on backend before checking balance
         // Replaces fixed sleep with a condition wait similar to Python helpers
-        await E2ETestUtils.waitForCondition(
+        await waitForCondition(
           async () => {
             try {
               const bal = await paymentsSubscriber.plans.getPlanBalance(creditsPlanId)
@@ -395,7 +396,7 @@ describe('Payments API (e2e)', () => {
     )
 
     it('I should be able to check the credits I own', async () => {
-      const balanceResult = await E2ETestUtils.waitForCondition(
+      const balanceResult = await waitForCondition(
         async () => {
           try {
             const result = await paymentsSubscriber.plans.getPlanBalance(creditsPlanId)
@@ -413,7 +414,7 @@ describe('Payments API (e2e)', () => {
     it(
       'I should be able to get a Trial Plan',
       async () => {
-        const orderResult = await E2ETestUtils.retryWithBackoff(async () => {
+        const orderResult = await retryOperation(async () => {
           const result = await paymentsSubscriber.plans.orderPlan(trialPlanId)
 
           // Validate the response
@@ -422,7 +423,7 @@ describe('Payments API (e2e)', () => {
           }
 
           return result
-        }, 'Trial Plan Order')
+        })
 
         expect(orderResult).toBeDefined()
         expect(orderResult.success).toBeTruthy()
@@ -494,7 +495,7 @@ describe('Payments API (e2e)', () => {
     })
 
     it('I should be able to generate the agent access token', async () => {
-      agentAccessParams = await E2ETestUtils.retryWithBackoff(async () => {
+      agentAccessParams = await retryOperation(async () => {
         const result = await paymentsSubscriber.agents.getAgentAccessToken(creditsPlanId, agentId)
 
         // Validate the response
@@ -503,7 +504,7 @@ describe('Payments API (e2e)', () => {
         }
 
         return result
-      }, 'Access Token Generation')
+      })
 
       expect(agentAccessParams).toBeDefined()
       expect(agentAccessParams.accessToken.length).toBeGreaterThan(0)
@@ -545,7 +546,7 @@ describe('Payments API (e2e)', () => {
           endpoints: [{ POST: `${agentURL}` }],
         }
 
-        const result = await E2ETestUtils.retryWithBackoff(async () => {
+        const result = await retryOperation(async () => {
           const response = await paymentsBuilder.agents.updateAgentMetadata(
             agentId,
             agentMetadata,
@@ -558,7 +559,7 @@ describe('Payments API (e2e)', () => {
           }
 
           return response
-        }, 'Agent Metadata Update')
+        })
 
         expect(result).toBeDefined()
         expect(result.success).toBeTruthy()
@@ -599,9 +600,7 @@ describe('Payments API (e2e)', () => {
             Authorization: `Bearer INVALID_TOKEN`,
           },
         }
-        // await expect(
-        //   fetch(new URL(agentURL), agentHTTPOptions)
-        // ).rejects.toThrow()
+
         const response = await E2ETestUtils.fetchWithTimeout(
           agentURL,
           agentHTTPOptions as any,
