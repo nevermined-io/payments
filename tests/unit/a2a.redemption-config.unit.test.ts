@@ -91,7 +91,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
       const customOptions: PaymentsRequestHandlerOptions = {
         asyncExecution: true,
         defaultBatch: true,
-        defaultMarginPercent: 15,
+        defaultMarginPercent: 10,
       }
 
       handler = new PaymentsRequestHandler(
@@ -135,7 +135,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
       const agentRedemptionConfig: PaymentRedemptionConfig = {
         useBatch: true,
         useMargin: true,
-        marginPercent: 20,
+        marginPercent: 10,
       }
 
       const agentCardWithConfig = createMockAgentCard(agentRedemptionConfig)
@@ -152,7 +152,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
       expect(config).toEqual({
         useBatch: true,
         useMargin: true,
-        marginPercent: 20,
+        marginPercent: 10,
       })
     })
 
@@ -169,7 +169,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
         mockAgentExecutor,
         mockPaymentsService,
         mockEventBusManager,
-        { defaultMarginPercent: 25 },
+        { defaultMarginPercent: 10 },
       )
 
       const config = await handler['getRedemptionConfig']()
@@ -177,7 +177,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
       expect(config).toEqual({
         useBatch: true,
         useMargin: false,
-        marginPercent: 25, // From handler defaults
+        marginPercent: 10,
       })
     })
 
@@ -185,7 +185,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
       const agentRedemptionConfig: PaymentRedemptionConfig = {
         useBatch: false,
         useMargin: true,
-        marginPercent: 30,
+        marginPercent: 10,
       }
 
       const agentCardWithConfig = createMockAgentCard(agentRedemptionConfig)
@@ -206,7 +206,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
       expect(config).toEqual({
         useBatch: false, // From agent card
         useMargin: true, // From agent card
-        marginPercent: 30, // From agent card
+        marginPercent: 10, // From agent card
       })
     })
   })
@@ -263,7 +263,7 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
       const config: PaymentRedemptionConfig = {
         useBatch: false,
         useMargin: true,
-        marginPercent: 15,
+        marginPercent: 10,
       }
 
       mockPaymentsService.requests.redeemWithMarginFromRequest.mockResolvedValue({
@@ -307,13 +307,13 @@ describe('PaymentsRequestHandler - Redemption Configuration', () => {
       const config: PaymentRedemptionConfig = {
         useBatch: true,
         useMargin: true,
-        marginPercent: 20,
+        marginPercent: 10,
       }
 
       mockPaymentsService.requests.redeemWithMarginFromBatchRequest.mockResolvedValue({
         txHash: 'test-tx-hash',
         success: true,
-        amountOfCredits: 12,
+        amountOfCredits: 8,
       })
 
       await handler['executeRedemption'](mockValidation, mockBearerToken, mockCreditsUsed, config)

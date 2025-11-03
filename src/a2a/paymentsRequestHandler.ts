@@ -387,12 +387,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             // Get redemption configuration from server (not from client metadata)
             const redemptionConfig = await this.getRedemptionConfig()
 
-            // Skip automatic redemption for batch requests - let executor handle it manually
-            if (redemptionConfig.useBatch) {
-              console.log(
-                `Skipping automatic redemption for batch streaming request ${event.taskId}`,
-              )
-            } else {
+            if (!redemptionConfig.useBatch) {
               // Execute redemption with server configuration for non-batch requests
               const response = await this.executeRedemption(
                 validation,
@@ -628,10 +623,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         // Get redemption configuration from server (not from client metadata)
         const redemptionConfig = await this.getRedemptionConfig()
 
-        // Skip automatic redemption for batch requests - let executor handle it manually
-        if (redemptionConfig.useBatch) {
-          console.log(`Skipping automatic redemption for batch request ${event.taskId}`)
-        } else {
+        if (!redemptionConfig.useBatch) {
           // Execute redemption with server configuration for non-batch requests
           const response = await this.executeRedemption(
             validation,

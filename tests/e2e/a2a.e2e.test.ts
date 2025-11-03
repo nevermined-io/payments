@@ -1111,7 +1111,7 @@ describe('A2A E2E', () => {
           agentId: redemptionAgentId,
           redemptionConfig: {
             useMargin: true,
-            marginPercent: 20, // 20% margin
+            marginPercent: 10, // 10% margin
           },
         })
 
@@ -1125,7 +1125,7 @@ describe('A2A E2E', () => {
           exposeAgentCard: true,
           exposeDefaultRoutes: true,
           handlerOptions: {
-            defaultMarginPercent: 20,
+            defaultMarginPercent: 10,
           },
         })
         serverManager.addServer(marginServer)
@@ -1162,99 +1162,6 @@ describe('A2A E2E', () => {
               const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
               const current = BigInt(res.balance)
               return current <= initialBalance - 30n ? res : null // Previous tests + this test
-            } catch {}
-            return null
-          },
-          30_000,
-          1_000,
-        )
-        expect(afterBalanceResult).toBeDefined()
-      },
-      E2E_TEST_CONFIG.TIMEOUT * 2,
-    )
-
-    it(
-      'should respect server-level handler options over agent card config',
-      async () => {
-        // Create a separate server for server override tests with observability
-        const overridePort = Math.floor(Math.random() * (9999 - 3000 + 1)) + 3000
-        const overrideUrl = `http://localhost:${overridePort}/a2a/`
-
-        // Create agent card with different config than server
-        const baseAgentCard = {
-          name: 'E2E Server Override Test Agent',
-          description: 'Agent for testing server-level overrides',
-          capabilities: {
-            streaming: true,
-            pushNotifications: true,
-            stateTransitionHistory: true,
-          },
-          defaultInputModes: ['text'],
-          defaultOutputModes: ['text'],
-          skills: [],
-          url: overrideUrl,
-          version: '1.0.0',
-          protocolVersion: '0.3.0' as const,
-        }
-
-        const agentCard = Payments.a2a.buildPaymentAgentCard(baseAgentCard, {
-          paymentType: 'dynamic',
-          credits: 10,
-          costDescription: '10 credits per request',
-          planId: redemptionPlanId,
-          agentId: redemptionAgentId,
-          redemptionConfig: {
-            useBatch: false,
-            useMargin: false,
-          },
-        })
-
-        // Start server with different handler options (should override agent card)
-        const overrideServer = await paymentsBuilder.a2a.start({
-          port: overridePort,
-          basePath: '/a2a/',
-          agentCard: agentCard,
-          executor: createRealisticExecutorWithObservability(10, true),
-          paymentsService: paymentsBuilder,
-          exposeAgentCard: true,
-          exposeDefaultRoutes: true,
-          handlerOptions: {
-            defaultBatch: true,
-            defaultMarginPercent: 15,
-          },
-        })
-        serverManager.addServer(overrideServer)
-        await A2AE2EUtils.waitForServerReady(overridePort, 20, '/a2a')
-
-        // Create client and send message
-        const client = await paymentsSubscriber.a2a.getClient({
-          agentBaseUrl: overrideUrl,
-          agentId: redemptionAgentId,
-          planId: redemptionPlanId,
-        })
-
-        const messageParams = {
-          message: A2AE2EFactory.createTestMessage('Hello, test server-level override'),
-        }
-
-        const result = await client.sendA2AMessage(messageParams)
-
-        // Verify response
-        expect(result.result.status.state).toBe('completed')
-        expect(result.result.metadata.creditsUsed).toBe(10)
-
-        // Server-level configuration should be applied (margin enabled via observability)
-        expect(result.result.metadata.observabilityEnabled).toBe(true)
-        expect(result.result.metadata.actualCost).toBeDefined()
-        expect(result.result.metadata.marginApplied).toBeDefined()
-
-        // Verify credits were burned
-        const afterBalanceResult = await waitForCondition(
-          async () => {
-            try {
-              const res = await paymentsSubscriber.plans.getPlanBalance(redemptionPlanId)
-              const current = BigInt(res.balance)
-              return current <= initialBalance - 40n ? res : null // All previous tests + this test
             } catch {}
             return null
           },

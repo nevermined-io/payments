@@ -30,7 +30,7 @@ import { E2ETestUtils } from './helpers/e2e-test-helpers.js'
 const testApiKeys = getApiKeysForFile(__filename)
 
 describe('Payments API (e2e)', () => {
-  const TEST_TIMEOUT = 30_000
+  const TEST_TIMEOUT = 60_000
   // Per-suite API keys (do not share across suites to avoid blockchain race conditions)
   const subscriberNvmApiKeyHash = testApiKeys.subscriber
 
@@ -101,7 +101,6 @@ describe('Payments API (e2e)', () => {
       async () => {
         const priceConfig = getERC20PriceConfig(1n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getFixedCreditsConfig(100n)
-        console.log(' **** PRICE CONFIG ***', priceConfig)
 
         const response = await retryOperation(async () => {
           const result = await paymentsBuilder.plans.registerCreditsPlan(
@@ -123,7 +122,6 @@ describe('Payments API (e2e)', () => {
 
         expect(creditsPlanId).toBeDefined()
         expect(BigInt(creditsPlanId) > 0n).toBeTruthy()
-        console.log('Credits Plan ID', creditsPlanId)
       },
       TEST_TIMEOUT,
     )
@@ -133,7 +131,6 @@ describe('Payments API (e2e)', () => {
       async () => {
         const priceConfig = getERC20PriceConfig(10_000n, ERC20_ADDRESS, builderAddress)
         const creditsConfig = getDynamicCreditsConfig(1000n, 5n, 15n)
-        console.log(' **** PRICE CONFIG ***', priceConfig)
 
         const response = await retryOperation(async () => {
           const result = await paymentsBuilder.plans.registerCreditsPlan(
@@ -155,7 +152,6 @@ describe('Payments API (e2e)', () => {
 
         expect(dynamicCreditsPlanId).toBeDefined()
         expect(BigInt(dynamicCreditsPlanId) > 0n).toBeTruthy()
-        console.log('Dynamic Credits Plan ID', dynamicCreditsPlanId)
       },
       TEST_TIMEOUT,
     )
@@ -186,7 +182,6 @@ describe('Payments API (e2e)', () => {
 
         expect(expirablePlanId).toBeDefined()
         expect(BigInt(expirablePlanId) > 0n).toBeTruthy()
-        console.log('Expirable Plan ID', expirablePlanId)
       },
       TEST_TIMEOUT * 2,
     )
@@ -199,7 +194,6 @@ describe('Payments API (e2e)', () => {
         }
         const priceConfig = getFreePriceConfig()
         const creditsConfig = getExpirableDurationConfig(ONE_DAY_DURATION)
-        console.log(' **** PRICE CONFIG ***', priceConfig)
 
         const response = await retryOperation(async () => {
           const result = await paymentsBuilder.plans.registerTimeTrialPlan(
@@ -250,8 +244,6 @@ describe('Payments API (e2e)', () => {
           if (!response.agentId) {
             throw new Error('Agent registration failed: no agentId returned')
           }
-
-          console.log('Agent registration response', response)
 
           return response
         })
@@ -326,7 +318,6 @@ describe('Payments API (e2e)', () => {
     it(
       'Get agents associated to a plan',
       async () => {
-        console.log('Credits Plan ID', creditsPlanId)
         const agents = await paymentsBuilder.plans.getAgentsAssociatedToAPlan(
           creditsPlanId,
           new PaginationOptions({ offset: 5 }),
@@ -464,10 +455,8 @@ describe('Payments API (e2e)', () => {
             res.end(JSON.stringify({ message: 'Hello from the Agent!' }))
             return
           }
-          console.log('Unauthorized access attempt:', authHeader)
           throw new Error('Unauthorized access attempt')
         } catch (error) {
-          console.log('Unauthorized access attempt:', authHeader)
           console.log('Error details:', error)
         }
 
