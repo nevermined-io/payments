@@ -89,6 +89,5 @@ export function getApiKeysForFile(filePath: string): TestApiKeys {
     throw new Error('No API keys configured in apiKeysPool')
   }
   const index = hashString(filePath) % apiKeysPool.length
-  console.log(`Using API keys for file: ${filePath} (index: ${index})`)
   return getTestApiKeys(index)
 }
