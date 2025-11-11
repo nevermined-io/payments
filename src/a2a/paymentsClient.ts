@@ -30,7 +30,7 @@ export class PaymentsClient extends A2AClient {
    * @param payments - The Payments object.
    * @param agentId - The ID of the agent.
    * @param planId - The ID of the plan.
-   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent-card.json').
+   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent.json').
    */
   private constructor(agentCard: AgentCard, payments: Payments, agentId: string, planId: string) {
     super(agentCard)
@@ -49,7 +49,7 @@ export class PaymentsClient extends A2AClient {
     payments: Payments,
     agentId: string,
     planId: string,
-    agentCardPath = '.well-known/agent-card.json',
+    agentCardPath = '.well-known/agent.json',
   ): Promise<PaymentsClient> {
     const agentCardUrl = new URL(agentCardPath, agentBaseUrl).toString()
     const a2a = await A2AClient.fromCardUrl(agentCardUrl)
@@ -335,9 +335,10 @@ export class PaymentsClient extends A2AClient {
         "Invalid response Content-Type for SSE stream on resubscribe. Expected 'text/event-stream'.",
       )
     }
-    // The events structure for resubscribe is assumed to be the same as message/stream.
-    // Each event's 'data' field is a JSON-RPC response.
-    yield* this._parseA2AStream<any>(response, clientRequestId)
+    // Parse and yield SSE events
+    for await (const event of this._parseA2AStream(response, clientRequestId)) {
+      yield event
+    }
   }
 
   /**

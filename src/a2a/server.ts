@@ -4,7 +4,7 @@
  *
  * The server provides a complete A2A protocol implementation with:
  * - JSON-RPC endpoint for A2A messages
- * - Agent Card endpoint (.well-known/agent-card.json)
+ * - Agent Card endpoint (.well-known/agent.json)
  * - Bearer token extraction and validation
  * - Credit validation and burning
  * - Task execution and streaming
@@ -54,12 +54,13 @@ export interface PaymentsA2AServerOptions {
   /** Payments service instance for credit validation and burning */
   paymentsService: any
   /** Port number to bind the server to */
+  /** Port number to listen on. Use 0 for automatic port assignment. */
   port: number
   /** Custom task store implementation (defaults to InMemoryTaskStore) */
   taskStore?: any
   /** Base path for all A2A routes (defaults to '/') */
   basePath?: string
-  /** Whether to expose the agent card at .well-known/agent-card.json */
+  /** Whether to expose the agent card at .well-known/agent.json */
   exposeAgentCard?: boolean
   /** Whether to expose default A2A JSON-RPC routes */
   exposeDefaultRoutes?: boolean
@@ -67,6 +68,12 @@ export interface PaymentsA2AServerOptions {
   expressApp?: express.Express
   /** Custom request handler to override JSON-RPC method handling */
   customRequestHandler?: any
+  /** Options for configuring the PaymentsRequestHandler behavior */
+  handlerOptions?: {
+    asyncExecution?: boolean
+    defaultBatch?: boolean
+    defaultMarginPercent?: number
+  }
   /** Hooks for intercepting requests before/after processing */
   hooks?: {
     /** Called before processing any JSON-RPC request */
@@ -89,6 +96,13 @@ export interface PaymentsA2AServerResult {
   server: http.Server
   /** The request handler instance for direct access if needed */
   handler: PaymentsRequestHandler
+  /** The actual port the server is listening on */
+  port: number
+  /**
+   * Closes the server and all active connections.
+   * @returns Promise that resolves when the server is fully closed
+   */
+  close: () => Promise<void>
 }
 
 /**
@@ -147,9 +161,21 @@ async function bearerTokenMiddleware(
 
   const agentId = paymentExtension.params.agentId as string
 
+  // Get batch setting from handler options (server-side configuration)
+  // This ensures the agent builder controls batch mode, not the client
+  const handlerOptions = handler.getHandlerOptions()
+  const isBatch = handlerOptions.defaultBatch ?? false
+
   let validation: any
   try {
-    validation = await handler.validateRequest(agentId, bearerToken, absoluteUrl, req.method)
+    // Validate request with batch flag from server configuration
+    validation = await handler.validateRequest(
+      agentId,
+      bearerToken,
+      absoluteUrl,
+      req.method,
+      isBatch,
+    )
     if (!validation?.balance?.isSubscriber) {
       res.status(402).json({
         error: {
@@ -258,6 +284,7 @@ export class PaymentsA2AServer {
       exposeDefaultRoutes = true,
       expressApp,
       customRequestHandler,
+      handlerOptions,
       hooks,
     } = options
 
@@ -265,55 +292,72 @@ export class PaymentsA2AServer {
     const store = taskStore || new InMemoryTaskStore()
     const handler =
       customRequestHandler ||
-      new PaymentsRequestHandler(agentCard, store, executor, paymentsService)
+      new PaymentsRequestHandler(
+        agentCard,
+        store,
+        executor,
+        paymentsService,
+        undefined,
+        handlerOptions,
+      )
     const transport = new JsonRpcTransportHandler(handler)
 
     const app = expressApp || express()
 
-    // Apply hooks middleware if provided
-    if (hooks) {
-      app.use((req, res, next) => {
-        if (req.method === 'POST' && req.body?.method) {
-          const { method, params } = req.body
-
-          // Apply beforeRequest hook
-          if (hooks.beforeRequest) {
-            hooks.beforeRequest(method, params, req).catch((err) => {
-              console.error('[HOOKS] beforeRequest error:', err)
-            })
-          }
-
-          // Apply afterRequest hook by intercepting res.json
-          const originalJson = res.json
-          res.json = function (data) {
-            if (hooks.afterRequest) {
-              hooks.afterRequest(method, data, req).catch((err) => {
-                console.error('[HOOKS] afterRequest error:', err)
-              })
-            }
-            return originalJson.call(this, data)
-          }
-
-          // Apply onError hook by catching errors
-          const originalSend = res.send
-          res.send = function (data) {
-            if (data?.error && hooks.onError) {
-              hooks
-                .onError(method, new Error(data.error.message || 'Unknown error'), req)
-                .catch((err) => {
-                  console.error('[HOOKS] onError error:', err)
-                })
-            }
-            return originalSend.call(this, data)
-          }
-        }
-        next()
+    if (exposeAgentCard) {
+      const agentCardPath =
+        basePath === '/'
+          ? '/.well-known/agent.json'
+          : `${basePath.replace(/\/$/, '')}/.well-known/agent.json`
+      app.get(agentCardPath, (req, res) => {
+        res.json(agentCard)
       })
     }
 
     if (exposeDefaultRoutes) {
       // Apply bearer token middleware for all requests under basePath
       app.use(basePath, express.json(), bearerTokenMiddleware.bind(null, handler))
+
+      // Apply hooks middleware after body parsing and validation
+      if (hooks) {
+        app.use(basePath, (req, res, next) => {
+          if (req.method === 'POST' && req.body?.method) {
+            const { method, params } = req.body
+
+            // Apply beforeRequest hook
+            if (hooks.beforeRequest) {
+              hooks.beforeRequest(method, params, req).catch((err) => {
+                console.error('[HOOKS] beforeRequest error:', err)
+              })
+            }
+
+            // Apply afterRequest hook by intercepting res.json
+            const originalJson = res.json
+            res.json = function (data) {
+              if (hooks.afterRequest) {
+                hooks.afterRequest(method, data, req).catch((err) => {
+                  console.error('[HOOKS] afterRequest error:', err)
+                })
+              }
+              return originalJson.call(this, data)
+            }
+
+            // Apply onError hook by catching errors
+            const originalSend = res.send
+            res.send = function (data) {
+              if (data?.error && hooks.onError) {
+                hooks
+                  .onError(method, new Error(data.error.message || 'Unknown error'), req)
+                  .catch((err) => {
+                    console.error('[HOOKS] onError error:', err)
+                  })
+              }
+              return originalSend.call(this, data)
+            }
+          }
+          next()
+        })
+      }
 
       app.post(basePath, async (req, res) => {
         try {
@@ -327,12 +371,6 @@ export class PaymentsA2AServer {
       })
     }
 
-    if (exposeAgentCard) {
-      app.get(`${basePath}.well-known/agent-card.json`, (req, res) => {
-        res.json(agentCard)
-      })
-    }
-
     const server = http.createServer(app)
 
     // Add error handling for server startup
@@ -343,10 +381,58 @@ export class PaymentsA2AServer {
       }
     })
 
-    server.listen(port, () => {
-      // Do nothing
-    })
+    // If port is 0, the OS will assign a free port automatically
+    let actualPort = port
+    let isListening = false
 
-    return { app, server, handler }
+    // Only start listening if port is not 0 (0 is used with supertest which doesn't need listening)
+    if (port !== 0) {
+      server.listen(port, () => {
+        const address = server.address()
+        if (address && typeof address === 'object') {
+          actualPort = address.port
+        }
+        isListening = true
+      })
+    }
+
+    /**
+     * Closes the server and all active connections.
+     */
+    const close = async (): Promise<void> => {
+      if (!isListening && port === 0) {
+        return
+      }
+
+      return new Promise<void>((resolve) => {
+        // Close all active connections first
+        if (server.listening) {
+          server.closeAllConnections()
+        }
+
+        const timeout = setTimeout(() => {
+          // Force close on timeout
+          if (server.listening) {
+            server.closeAllConnections()
+          }
+          server.close(() => {
+            resolve()
+          })
+        }, 5000)
+
+        if (server.listening) {
+          server.close(() => {
+            clearTimeout(timeout)
+            // Give a moment for all connections to close
+            setTimeout(resolve, 100)
+          })
+        } else {
+          clearTimeout(timeout)
+          resolve()
+        }
+      })
+    }
+
+    return { app, server, handler, port: actualPort, close }
   }
 }

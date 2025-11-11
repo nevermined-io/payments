@@ -82,7 +82,7 @@ export class AgentsAPI extends BasePaymentsAPI {
       throw PaymentsError.fromBackend('Unable to register agent', await response.json())
     }
     const agentData = await response.json()
-    return { agentId: agentData.agentId }
+    return { agentId: agentData.data.agentId }
   }
 
   /**
@@ -125,16 +125,27 @@ export class AgentsAPI extends BasePaymentsAPI {
     planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
+    accessLimit?: 'credits' | 'time',
   ): Promise<{
     agentId: string
     planId: string
     txHash: string
   }> {
+    if (accessLimit && !['credits', 'time'].includes(accessLimit)) {
+      throw new PaymentsError(
+        'Invalid access limit',
+        'accessLimit must be either "credits" or "time"',
+      )
+    }
+    if (!accessLimit) {
+      accessLimit = creditsConfig.durationSecs > 0n ? 'time' : 'credits'
+    }
     const body = {
       plan: {
         metadataAttributes: planMetadata,
         priceConfig: priceConfig,
         creditsConfig: creditsConfig,
+        accessLimit,
       },
       agent: {
         metadataAttributes: agentMetadata,

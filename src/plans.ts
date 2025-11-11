@@ -1,11 +1,4 @@
-import {
-  Address,
-  PlanCreditsConfig,
-  PlanCreditsType,
-  PlanPriceConfig,
-  PlanPriceType,
-  PlanRedemptionType,
-} from './common/types.js'
+import { Address, PlanCreditsConfig, PlanPriceConfig, PlanRedemptionType } from './common/types.js'
 import { ZeroAddress } from './environments.js'
 import { isEthereumAddress } from './utils.js'
 
@@ -18,12 +11,14 @@ export const getFiatPriceConfig = (amount: bigint, receiver: Address): PlanPrice
   if (!isEthereumAddress(receiver))
     throw new Error(`Receiver address ${receiver} is not a valid Ethereum address`)
   return {
-    priceType: PlanPriceType.FIXED_FIAT_PRICE,
     tokenAddress: ZeroAddress,
     amounts: [amount],
     receivers: [receiver],
     contractAddress: ZeroAddress,
     feeController: ZeroAddress,
+    externalPriceAddress: ZeroAddress,
+    templateAddress: ZeroAddress,
+    isCrypto: false,
   }
 }
 
@@ -35,12 +30,14 @@ export const getCryptoPriceConfig = (
   if (!isEthereumAddress(receiver))
     throw new Error(`Receiver address ${receiver} is not a valid Ethereum address`)
   return {
-    priceType: PlanPriceType.FIXED_PRICE,
     tokenAddress,
     amounts: [amount],
     receivers: [receiver],
     contractAddress: ZeroAddress,
     feeController: ZeroAddress,
+    externalPriceAddress: ZeroAddress,
+    templateAddress: ZeroAddress,
+    isCrypto: true,
   }
 }
 
@@ -54,12 +51,14 @@ export const getERC20PriceConfig = (
 
 export const getFreePriceConfig = (): PlanPriceConfig => {
   return {
-    priceType: PlanPriceType.FIXED_PRICE,
     tokenAddress: ZeroAddress,
     amounts: [],
     receivers: [],
     contractAddress: ZeroAddress,
     feeController: ZeroAddress,
+    externalPriceAddress: ZeroAddress,
+    templateAddress: ZeroAddress,
+    isCrypto: true,
   }
 }
 
@@ -69,7 +68,7 @@ export const getNativeTokenPriceConfig = (amount: bigint, receiver: Address): Pl
 
 export const getExpirableDurationConfig = (durationOfPlan: bigint): PlanCreditsConfig => {
   return {
-    creditsType: PlanCreditsType.EXPIRABLE,
+    isRedemptionAmountFixed: false,
     redemptionType: PlanRedemptionType.ONLY_OWNER,
     proofRequired: false,
     durationSecs: durationOfPlan,
@@ -88,7 +87,7 @@ export const getFixedCreditsConfig = (
   creditsPerRequest = 1n,
 ): PlanCreditsConfig => {
   return {
-    creditsType: PlanCreditsType.FIXED,
+    isRedemptionAmountFixed: true,
     redemptionType: PlanRedemptionType.ONLY_OWNER,
     proofRequired: false,
     durationSecs: 0n,
@@ -104,7 +103,7 @@ export const getDynamicCreditsConfig = (
   maxCreditsPerRequest = 1n,
 ): PlanCreditsConfig => {
   return {
-    creditsType: PlanCreditsType.DYNAMIC,
+    isRedemptionAmountFixed: false,
     redemptionType: PlanRedemptionType.ONLY_OWNER,
     proofRequired: false,
     durationSecs: 0n,

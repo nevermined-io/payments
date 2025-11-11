@@ -51,35 +51,38 @@ export type Address = `0x${string}`
  */
 export interface PlanPriceConfig {
   /**
-   * The type or configuration of the price
-   * @remarks 0 - crypto fixed price. 1 - fixed fiat price. 2 - smart contract price
-   */
-  priceType: PlanPriceType
-  /**
    * The address of the token (ERC20 or Native if zero address) for paying the plan
-   * @remarks only if priceType == FIXED_PRICE or SMART_CONTRACT_PRICE
    */
   tokenAddress?: Address
   /**
    * The amounts to be paid for the plan
-   * @remarks only if priceType == FIXED_PRICE or FIXED_FIAT_PRICE
    */
   amounts: bigint[]
   /**
    * The receivers of the payments of the plan
-   * @remarks only if priceType == FIXED_PRICE
    */
   receivers: string[]
   /**
    * The address of the smart contract that calculates the price
-   * @remarks only if priceType == SMART_CONTRACT_PRICE
    */
-  contractAddress?: Address // only if priceType == 2
+  contractAddress?: Address
   /**
    * The address of the fee controller contract, if any
    * @remarks if not given, the fee controller is the default one
    */
-  feeController?: Address // only if priceType == 2
+  feeController?: Address
+  /**
+   * The address of the external price contract, if any
+   */
+  externalPriceAddress?: Address
+  /**
+   * The address of the template contract, if any
+   */
+  templateAddress?: Address
+  /**
+   * Whether this is a crypto payment (true) or fiat payment (false)
+   */
+  isCrypto: boolean
 }
 
 /**
@@ -87,9 +90,9 @@ export interface PlanPriceConfig {
  */
 export interface PlanCreditsConfig {
   /**
-   * The type of configuration of the credits type
+   * Whether the redemption amount is fixed (true) or dynamic (false)
    */
-  creditsType: PlanCreditsType
+  isRedemptionAmountFixed: boolean
   /**
    * How the credits can be redeemed
    */
@@ -100,21 +103,19 @@ export interface PlanCreditsConfig {
   proofRequired: boolean
   /**
    * The duration of the credits in seconds
-   * @remarks only if creditsType == EXPIRABLE
+   * @remarks 0 means non-expirable
    */
   durationSecs: bigint
   /**
-   * The amount of credits that are granted when purchasing the plan
+   * The amount of credits that are granted when purchasing the plan (as string for API)
    */
   amount: bigint
   /**
    * The minimum number of credits redeemed when using the plan
-   * @remarks only if creditsType == FIXED or DYNAMIC
    */
   minAmount: bigint
   /**
    * The maximum number of credits redeemed when using the plan
-   * @remarks only if creditsType == DYNAMIC
    */
   maxAmount: bigint
   /**
@@ -278,6 +279,12 @@ export interface PlanMetadata extends AgentMetadata {
    * @remarks A Trial plan only can be purchased once by a user.
    */
   isTrialPlan?: boolean
+  /**
+   * Indicates if a payment plan is limited by credits.
+   * If 'time', the plan will be limited by time.
+   * If 'credits', the plan will be limited by credits.
+   */
+  accessLimit?: 'credits' | 'time'
 }
 
 /**
