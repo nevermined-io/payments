@@ -201,7 +201,6 @@ export class A2ATestServer {
    */
   async stop(): Promise<void> {
     if (this.server) {
-      console.log(`[A2A Server] Stopping A2A server on port ${this.port}...`)
       const serverToClose = this.server
       this.server = null // Clear reference immediately to prevent reuse
 

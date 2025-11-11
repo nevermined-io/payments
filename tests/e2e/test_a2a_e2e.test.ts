@@ -439,7 +439,6 @@ describe('A2A E2E Flow', () => {
       console.log('✅ E2E blocking flow test passed with verified credit burning')
     } finally {
       // Always cleanup the server
-      console.log(`Stopping A2A server on port ${PORT}...`)
       await a2aServer.stop()
     }
   }, 60000) // 60 second timeout for E2E test
