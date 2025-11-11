@@ -213,13 +213,24 @@ export class PlansAPI extends BasePaymentsAPI {
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
     nonce = getRandomBigInt(),
+    accessLimit?: 'credits' | 'time',
   ): Promise<{ planId: string }> {
+    if (accessLimit && !['credits', 'time'].includes(accessLimit)) {
+      throw new PaymentsError(
+        'Invalid access limit',
+        'accessLimit must be either "credits" or "time"',
+      )
+    }
+    if (!accessLimit) {
+      accessLimit = creditsConfig.durationSecs > 0n ? 'time' : 'credits'
+    }
     const body = {
       metadataAttributes: planMetadata,
       priceConfig,
       creditsConfig,
       nonce,
       isTrialPlan: planMetadata.isTrialPlan || false,
+      accessLimit,
     }
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REGISTER_PLAN, this.environment.backend)
@@ -278,7 +289,7 @@ export class PlansAPI extends BasePaymentsAPI {
         'The creditsConfig.minAmount can not be more than creditsConfig.maxAmount',
       )
 
-    return this.registerPlan(planMetadata, priceConfig, creditsConfig)
+    return this.registerPlan(planMetadata, priceConfig, creditsConfig, undefined, 'credits')
   }
 
   /**
@@ -327,7 +338,7 @@ export class PlansAPI extends BasePaymentsAPI {
         'The creditsConfig.isRedemptionAmountFixed must be false for time plans',
       )
 
-    return this.registerPlan(planMetadata, priceConfig, creditsConfig)
+    return this.registerPlan(planMetadata, priceConfig, creditsConfig, undefined, 'time')
   }
 
   /**

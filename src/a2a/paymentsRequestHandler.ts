@@ -4,8 +4,10 @@ import type {
   TaskState,
   PushNotificationConfig,
   TaskStatusUpdateEvent,
+  TaskArtifactUpdateEvent,
   Task,
   Message,
+  TaskIdParams,
 } from '@a2a-js/sdk'
 import {
   AgentExecutor,
@@ -14,7 +16,7 @@ import {
   ExecutionEventQueue,
 } from '@a2a-js/sdk/server'
 import type { ExecutionEventBusManager, TaskStore } from '@a2a-js/sdk/server'
-import { A2AError } from '@a2a-js/sdk/server'
+import { A2AError, ExecutionEventBus } from '@a2a-js/sdk/server'
 import type {
   HttpRequestContext,
   PaymentsRequestContext,
@@ -259,7 +261,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     validation: StartAgentRequest
     requestContext: any
     finalMessageForAgent: Message
-    eventBus: any
+    eventBus: ExecutionEventBus
     eventQueue: ExecutionEventQueue
     resultManager: ResultManager
   }> {
@@ -371,8 +373,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     try {
       for await (const event of eventQueue.events()) {
         await resultManager.processEvent(event)
+        yield event
 
-        // Handle credits burning with server configuration
         if (
           event.kind === 'status-update' &&
           event.final &&
@@ -434,12 +436,10 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             // Do nothing
           }
         }
-
-        yield event
       }
     } finally {
       // Cleanup when the stream is fully consumed or breaks
-      this.getEventBusManager().cleanupByTaskId(taskId)
+      //this.getEventBusManager().cleanupByTaskId(taskId)
     }
   }
 
@@ -657,7 +657,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           this.deleteHttpRequestContextForTask(event.taskId)
         }
       } catch (err) {
-        console.error('DEBUG: Error handling task finalization:', err)
+        // Do nothing
       }
     }
     try {
@@ -837,5 +837,76 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    */
   protected callProcessEvents(...args: any[]): any {
     return (this as any)._processEvents.apply(this, args)
+  }
+
+  /**
+   * Resubscribes to a task's event stream, ensuring the task has updated metadata before yielding.
+   * This method overrides the parent implementation to ensure metadata is updated before yielding.
+   * @param params - Parameters containing the taskId
+   * @returns Async generator of events
+   */
+  async *resubscribe(
+    params: TaskIdParams,
+  ): AsyncGenerator<Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent, void, undefined> {
+    const task = await this.getTaskStore().load(params.id)
+    if (!task) {
+      throw A2AError.taskNotFound(params.id)
+    }
+
+    // Yield task immediately (with current metadata)
+    yield task
+
+    const finalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
+    if (finalStates.includes(task.status.state)) {
+      return
+    }
+
+    const eventBus = this.getEventBusManager().getByTaskId(params.id)
+    if (!eventBus) {
+      console.warn(`Resubscribe: No active event bus for task ${params.id}.`)
+      return
+    }
+
+    const eventQueue = new ExecutionEventQueue(eventBus)
+    try {
+      for await (const event of eventQueue.events()) {
+        // Process event with ResultManager to ensure task is saved
+        const resultManager = new ResultManager(this.getTaskStore())
+        // Set context from task history if available
+        if (task.history && task.history.length > 0) {
+          resultManager.setContext(task.history[0])
+        }
+        await resultManager.processEvent(event)
+
+        // Handle redemption and push notification for final status-update events
+        if (
+          event.kind === 'status-update' &&
+          event.final &&
+          event.taskId === params.id &&
+          terminalStates.includes(event.status?.state)
+        ) {
+          // Get HTTP context for this task
+          const httpContext = this.getHttpRequestContextForTask(event.taskId)
+          if (httpContext) {
+            const { bearerToken, validation } = httpContext
+            if (bearerToken && validation) {
+              // Handle task finalization (redemption and push notification)
+              await this.handleTaskFinalization(resultManager, event, bearerToken, validation)
+            }
+          }
+        }
+
+        // Yield event after processing (so metadata is updated)
+        if (event.kind === 'status-update' && event.taskId === params.id) {
+          yield event
+        } else if (event.kind === 'artifact-update' && event.taskId === params.id) {
+          yield event
+        } else if (event.kind === 'task' && event.id === params.id) {
+          yield event
+        }
+      }
+    } finally {
+      eventQueue.stop()
+    }
   }
 }

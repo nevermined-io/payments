@@ -231,6 +231,7 @@ export interface PaymentsRequestContext extends RequestContext {
  */
 export interface PaymentsAgentExecutor {
   execute(requestContext: PaymentsRequestContext, eventBus: ExecutionEventBus): Promise<void>
+  cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void>
 }
 
 // Re-export A2A SDK types for convenience

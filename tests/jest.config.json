@@ -2,18 +2,13 @@
   "preset": "ts-jest",
   "testEnvironment": "node",
   "roots": ["<rootDir>"],
-  "testMatch": [
-    "**/tests/unit/**/*.test.ts",
-    "**/tests/integration/**/*.test.ts",
-    "**/tests/e2e/**/*.test.ts"
-  ],
+  "testMatch": ["**/unit/**/*.test.ts", "**/integration/**/*.test.ts", "**/e2e/**/*.test.ts"],
   "collectCoverageFrom": ["src/**/*.ts", "!src/**/*.d.ts"],
   "coverageDirectory": "coverage",
-  "detectOpenHandles": false,
-  "forceExit": true,
-  "setupFiles": ["<rootDir>/setup/jest.setup.ts"],
-
-  "testTimeout": 90000,
+  "detectOpenHandles": true,
+  "forceExit": false,
+  "maxWorkers": 1,
+  "testTimeout": 30000,
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },

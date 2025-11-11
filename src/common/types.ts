@@ -279,6 +279,12 @@ export interface PlanMetadata extends AgentMetadata {
    * @remarks A Trial plan only can be purchased once by a user.
    */
   isTrialPlan?: boolean
+  /**
+   * Indicates if a payment plan is limited by credits.
+   * If 'time', the plan will be limited by time.
+   * If 'credits', the plan will be limited by credits.
+   */
+  accessLimit?: 'credits' | 'time'
 }
 
 /**
