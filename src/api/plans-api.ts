@@ -6,7 +6,6 @@ import {
   PaymentOptions,
   PlanBalance,
   PlanCreditsConfig,
-  PlanCreditsType,
   PlanRedemptionType,
   PlanMetadata,
   PlanPriceConfig,
@@ -214,13 +213,24 @@ export class PlansAPI extends BasePaymentsAPI {
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
     nonce = getRandomBigInt(),
+    accessLimit?: 'credits' | 'time',
   ): Promise<{ planId: string }> {
+    if (accessLimit && !['credits', 'time'].includes(accessLimit)) {
+      throw new PaymentsError(
+        'Invalid access limit',
+        'accessLimit must be either "credits" or "time"',
+      )
+    }
+    if (!accessLimit) {
+      accessLimit = creditsConfig.durationSecs > 0n ? 'time' : 'credits'
+    }
     const body = {
       metadataAttributes: planMetadata,
       priceConfig,
       creditsConfig,
       nonce,
       isTrialPlan: planMetadata.isTrialPlan || false,
+      accessLimit,
     }
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REGISTER_PLAN, this.environment.backend)
@@ -268,18 +278,18 @@ export class PlansAPI extends BasePaymentsAPI {
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ planId: string }> {
-    if (
-      creditsConfig.creditsType != PlanCreditsType.FIXED &&
-      creditsConfig.creditsType != PlanCreditsType.DYNAMIC
-    )
-      throw new PaymentsError('The creditsConfig.creditsType must be FIXED or DYNAMIC')
+    // Credits plans must have durationSecs = 0 (non-expirable) and either fixed or dynamic redemption
+    if (creditsConfig.durationSecs !== 0n)
+      throw new PaymentsError(
+        'The creditsConfig.durationSecs must be 0 for credits plans (non-expirable)',
+      )
 
     if (creditsConfig.minAmount > creditsConfig.maxAmount)
       throw new PaymentsError(
         'The creditsConfig.minAmount can not be more than creditsConfig.maxAmount',
       )
 
-    return this.registerPlan(planMetadata, priceConfig, creditsConfig)
+    return this.registerPlan(planMetadata, priceConfig, creditsConfig, undefined, 'credits')
   }
 
   /**
@@ -317,10 +327,18 @@ export class PlansAPI extends BasePaymentsAPI {
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ planId: string }> {
-    if (creditsConfig.creditsType != PlanCreditsType.EXPIRABLE)
-      throw new PaymentsError('The creditsConfig.creditsType must be EXPIRABLE')
+    // Time plans must have durationSecs > 0 (expirable) and isRedemptionAmountFixed = false
+    if (creditsConfig.durationSecs === 0n)
+      throw new PaymentsError(
+        'The creditsConfig.durationSecs must be greater than 0 for time plans (expirable)',
+      )
 
-    return this.registerPlan(planMetadata, priceConfig, creditsConfig)
+    if (creditsConfig.isRedemptionAmountFixed)
+      throw new PaymentsError(
+        'The creditsConfig.isRedemptionAmountFixed must be false for time plans',
+      )
+
+    return this.registerPlan(planMetadata, priceConfig, creditsConfig, undefined, 'time')
   }
 
   /**
@@ -656,7 +674,7 @@ export class PlansAPI extends BasePaymentsAPI {
     creditsReceiver: Address,
     creditsDuration = 0n,
   ): Promise<NvmAPIResult> {
-    const body = { planId, amount: creditsAmount, creditsReceiver, duration: creditsDuration }
+    const body = { planId, creditsAmount, creditsReceiver, creditsDuration }
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
@@ -703,7 +721,7 @@ export class PlansAPI extends BasePaymentsAPI {
       agentRequestId,
       planId,
       redeemFrom,
-      creditsAmoamountuntToBurn: creditsAmountToRedeem,
+      amount: creditsAmountToRedeem,
     }
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
