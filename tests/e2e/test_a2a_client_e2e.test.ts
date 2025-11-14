@@ -9,20 +9,18 @@ import { buildPaymentAgentCard } from '../../src/a2a/agent-card.js'
 import type { AgentCard, PaymentsAgentExecutor, ExecutionEventBus } from '../../src/a2a/types.js'
 import type { Task, TaskStatus, TaskStatusUpdateEvent, Message } from '@a2a-js/sdk'
 import { A2ATestServer } from './helpers/e2e-server-helpers.js'
+import { createA2ATestAgentAndPlan } from './helpers/a2a-setup-helpers.js'
 import type { EnvironmentName } from '../../src/environments.js'
 
 // Test configuration
 const TEST_ENVIRONMENT = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
 const SUBSCRIBER_API_KEY =
   process.env.TEST_SUBSCRIBER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEQxMzA3RmRlRDU2RDc2RDVFOWE1MjY5OGUzNDVDYzUwMjhkQmZjMTQiLCJqdGkiOiIweGViM2Q5MmRiNGY2Y2YzYjY3MTNjZjIyMTI5YzE0NWZjYjcwYTZhYWM1YjdiZGExOGVmMTljNTNlYWQwOTY4MDYiLCJleHAiOjE3OTQ0MTA4MDksIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.hhl0nLfHRSwYjR6zkOY-3plPEUQTypwKYPFhYK35j91e_kHeuskt7S5hI8PXrHT_H768KBD8q74O-gk6EtkxoBw'
+  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEVCNDk3OTU2OTRBMDc1QTY0ZTY2MzdmMUU5MGYwMjE0Mzg5YjI0YTMiLCJqdGkiOiIweGMzYjYyMWJkYTM5ZDllYWQyMTUyMDliZWY0MDBhMDEzYjM1YjQ2Zjc1NzM4YWFjY2I5ZjdkYWI0ZjQ5MmM5YjgiLCJleHAiOjE3OTQ2NTUwNjAsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.YMkGQUjGh7_m07nj8SKXZReNKSryg9mTU3qwJr_TKYATUixbYQTte3CKucjqvgAGzJAd1Kq2ubz3b37n5Zsllxs'
 const BUILDER_API_KEY =
   process.env.TEST_BUILDER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDdkMjZGRWE4YzVkRDg2MDQ5N0RlNTcwQTc0MTE1MDBhZThFNjUyMkUiLCJqdGkiOiIweDgzY2NmZmFmMDI5Nzc5ODhkMmM2OWVkY2RhYTA0YjU0ZTNhYmQwYzgzMmM0MWI3ODAyYWFlYTBhMmQ1MmQzNDMiLCJleHAiOjE3OTQ0MDk5NjYsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.LrAuW4Kl60o2tD-jGVSO_GOtmKVpcAOGsy1KTppAIo0LmUoBK2h4mhjCDy8kO6EPp_7LOZEdp1fUQc61E_qnbRw'
+  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEFDYjY5YTYzZjljMEI0ZTczNDE0NDM2YjdBODM1NDBGNkM5MmIyMmUiLCJqdGkiOiIweDExZWUwYWYyOGQ5NGVlNmNjZGJhNDJmMDcyNDQyNTQ0ODE5OWRmNTk5ZGRkMDcyMWVlMmI5ZTg5Nzg3MzQ3N2IiLCJleHAiOjE3OTQ2NTU0NTIsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.fnnb-AFxE_ngIAgIRZOY6SpLM3KgpB1z210l_z3T0Fl2G2tHQp9svXrflCsIYoYHW_8kbHllLce827gyfmFvMhw'
 
-// Agent and plan IDs
-const AGENT_ID = '81442414411209483844529850569317869529733218382832987133171017068727851746458'
-const PLAN_ID = '24890539045772260786752588595075759241031033752970056153405148590251675518968'
 const PORT = 6782
 
 /**
@@ -89,6 +87,8 @@ describe('A2A Client E2E Tests', () => {
   let paymentsSubscriber: Payments
   let paymentsPublisher: Payments
   let a2aServer: A2ATestServer | null = null
+  let AGENT_ID: string
+  let PLAN_ID: string
 
   beforeAll(async () => {
     // Initialize Payments instances
@@ -101,6 +101,15 @@ describe('A2A Client E2E Tests', () => {
       nvmApiKey: BUILDER_API_KEY,
       environment: TEST_ENVIRONMENT as EnvironmentName,
     })
+
+    // Create agent and plan for tests
+    const setupResult = await createA2ATestAgentAndPlan(paymentsPublisher, {
+      port: PORT,
+      basePath: '/a2a/',
+    })
+
+    AGENT_ID = setupResult.agentId
+    PLAN_ID = setupResult.planId
 
     // Order plan for subscriber to get credits
     try {

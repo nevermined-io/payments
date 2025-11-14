@@ -159,7 +159,34 @@ const expirablePlanConfig = payments.plans.getExpirableDurationConfig(payments.p
 const response = await payments.plans.registerTimePlan(planMetadata, priceConfig, expirablePlanConfig)
 ```
 
+You can also create trial plans (free plans that can only be purchased once):
+
+```typescript
+import { ONE_DAY_DURATION } from '@nevermined-io/payments'
+
+// Credits-based trial plan
+const trialPlanMetadata = { name: 'Free Trial Plan' }
+const freePriceConfig = payments.plans.getFreePriceConfig()
+const trialCreditsConfig = payments.plans.getFixedCreditsConfig(10n)
+
+const trialPlan = await payments.plans.registerCreditsTrialPlan(
+  trialPlanMetadata,
+  freePriceConfig,
+  trialCreditsConfig
+)
+
+// Time-based trial plan
+const timeTrialConfig = payments.plans.getExpirableDurationConfig(ONE_DAY_DURATION)
+const timeTrialPlan = await payments.plans.registerTimeTrialPlan(
+  trialPlanMetadata,
+  freePriceConfig,
+  timeTrialConfig
+)
+```
+
 ### Create an AI Agent/Service
+
+You can register an agent with existing payment plans:
 
 ```typescript
 // Some metadata about the agent
@@ -178,8 +205,42 @@ const agentApi = {
 // This is the list of payment plans that the agent will accept
 const paymentPlans = [ creditsPlanId, expirablePlanId ]
 const result = await payments.agents.registerAgent(agentMetadata, agentApi, paymentPlans)
-
 ```
+
+Or register an agent and plan together in one step:
+
+```typescript
+import { ONE_DAY_DURATION } from '@nevermined-io/payments'
+
+const agentMetadata = {
+  name: 'My AI Payments Agent',
+  tags: ['ai', 'assistant'],
+}
+
+const agentApi = {
+  endpoints: [
+    { 'POST': 'https://example.com/api/v1/agents/:agentId/tasks' }
+  ]
+}
+
+const planMetadata = { name: 'Basic Plan' }
+const priceConfig = payments.plans.getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
+const creditsConfig = payments.plans.getExpirableDurationConfig(ONE_DAY_DURATION)
+
+// Register agent and plan together
+const { agentId, planId, txHash } = await payments.agents.registerAgentAndPlan(
+  agentMetadata,
+  agentApi,
+  planMetadata,
+  priceConfig,
+  creditsConfig,
+  'time' // Oexplicitly set access limit to 'time' or 'credits'
+)
+```
+
+The `accessLimit` parameter is optional. If not specified, it's automatically inferred:
+- `'credits'` if `creditsConfig.durationSecs === 0n` (non-expirable)
+- `'time'` if `creditsConfig.durationSecs > 0n` (expirable)
 
 ### Purchase a Payment Plan
 
