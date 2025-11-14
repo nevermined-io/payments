@@ -1,6 +1,6 @@
 {
   "name": "@nevermined-io/payments",
-  "version": "1.0.0-rc22",
+  "version": "1.0.0-rc23",
   "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
