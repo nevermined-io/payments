@@ -25,10 +25,10 @@ const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
 // Test API keys
 const SUBSCRIBER_API_KEY =
   process.env.TEST_SUBSCRIBER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEQxMzA3RmRlRDU2RDc2RDVFOWE1MjY5OGUzNDVDYzUwMjhkQmZjMTQiLCJqdGkiOiIweGViM2Q5MmRiNGY2Y2YzYjY3MTNjZjIyMTI5YzE0NWZjYjcwYTZhYWM1YjdiZGExOGVmMTljNTNlYWQwOTY4MDYiLCJleHAiOjE3OTQ0MTA4MDksIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.hhl0nLfHRSwYjR6zkOY-3plPEUQTypwKYPFhYK35j91e_kHeuskt7S5hI8PXrHT_H768KBD8q74O-gk6EtkxoBw'
+  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEVCNDk3OTU2OTRBMDc1QTY0ZTY2MzdmMUU5MGYwMjE0Mzg5YjI0YTMiLCJqdGkiOiIweGMzYjYyMWJkYTM5ZDllYWQyMTUyMDliZWY0MDBhMDEzYjM1YjQ2Zjc1NzM4YWFjY2I5ZjdkYWI0ZjQ5MmM5YjgiLCJleHAiOjE3OTQ2NTUwNjAsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.YMkGQUjGh7_m07nj8SKXZReNKSryg9mTU3qwJr_TKYATUixbYQTte3CKucjqvgAGzJAd1Kq2ubz3b37n5Zsllxs'
 const BUILDER_API_KEY =
   process.env.TEST_BUILDER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDdkMjZGRWE4YzVkRDg2MDQ5N0RlNTcwQTc0MTE1MDBhZThFNjUyMkUiLCJqdGkiOiIweDgzY2NmZmFmMDI5Nzc5ODhkMmM2OWVkY2RhYTA0YjU0ZTNhYmQwYzgzMmM0MWI3ODAyYWFlYTBhMmQ1MmQzNDMiLCJleHAiOjE3OTQ0MDk5NjYsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.LrAuW4Kl60o2tD-jGVSO_GOtmKVpcAOGsy1KTppAIo0LmUoBK2h4mhjCDy8kO6EPp_7LOZEdp1fUQc61E_qnbRw'
+  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEFDYjY5YTYzZjljMEI0ZTczNDE0NDM2YjdBODM1NDBGNkM5MmIyMmUiLCJqdGkiOiIweDExZWUwYWYyOGQ5NGVlNmNjZGJhNDJmMDcyNDQyNTQ0ODE5OWRmNTk5ZGRkMDcyMWVlMmI5ZTg5Nzg3MzQ3N2IiLCJleHAiOjE3OTQ2NTU0NTIsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.fnnb-AFxE_ngIAgIRZOY6SpLM3KgpB1z210l_z3T0Fl2G2tHQp9svXrflCsIYoYHW_8kbHllLce827gyfmFvMhw'
 
 // Test endpoints
 const AGENT_ENDPOINTS: Array<{ POST?: string; GET?: string }> = [
@@ -307,7 +307,10 @@ describe('Payments E2E Tests', () => {
         dateCreated: new Date(),
         description: `E2E Payments Agent ${Date.now()}`,
       }
-      const agentApi = { endpoints: AGENT_ENDPOINTS }
+      const agentApi = {
+        endpoints: AGENT_ENDPOINTS,
+        agentDefinitionUrl: 'http://localhost:8889/test/openapi.json',
+      }
       const paymentPlans = [creditsPlanId!, expirablePlanId!].filter((p) => p)
 
       const result = await paymentsBuilder.agents.registerAgent(
@@ -337,7 +340,10 @@ describe('Payments E2E Tests', () => {
         description: 'This is a test agent for the E2E Payments tests',
         tags: ['fiat', 'test2'],
       }
-      const agentApi = { endpoints: [{ POST: 'http://localhost:8889/test/:agentId/tasks' }] }
+      const agentApi = {
+        endpoints: [{ POST: 'http://localhost:8889/test/:agentId/tasks' }],
+        agentDefinitionUrl: 'http://localhost:8889/test/openapi.json',
+      }
       const cryptoPriceConfig = paymentsBuilder.plans.getCryptoPriceConfig(
         10_000_000n,
         builderAddress,
@@ -568,7 +574,10 @@ describe('Payments E2E Tests', () => {
           description: 'This is a test agent for the E2E Payments tests',
           tags: ['test'],
         }
-        const agentApi = { endpoints: [{ POST: 'http://localhost:8889/test/12345/tasks' }] }
+        const agentApi = {
+          endpoints: [{ POST: 'http://localhost:8889/test/12345/tasks' }],
+          agentDefinitionUrl: 'http://localhost:8889/test/openapi.json',
+        }
 
         const result = await paymentsBuilder.agents.updateAgentMetadata(
           agentId!,

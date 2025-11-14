@@ -301,9 +301,9 @@ export interface AgentAPIAttributes {
    */
   openEndpoints?: string[]
   /**
-   * The URL to the OpenAPI description of the Upstream API. The access to the OpenAPI definition don't require subscription to the Payment Plan.
+   * The URL to the agent definition. Can be an OpenAPI spec, MCP Manifest, or A2A agent card. This field is mandatory and defines how the agent/service can be discovered and queried.
    */
-  openApiUrl?: string
+  agentDefinitionUrl: string
 
   /////// AUTHORIZATION ///////
 
