@@ -6,6 +6,7 @@ import { extractAuthHeader, stripBearer } from '../utils/request.js'
 import { buildLogicalUrl, buildLogicalMetaUrl } from '../utils/logical-url.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
 import { AuthResult, PaywallOptions } from '../types/paywall.types.js'
+import { getCurrentRequestContext } from '../http/mcp-handler.js'
 
 /**
  * Handles authentication and authorization for MCP requests
@@ -25,8 +26,17 @@ export class PaywallAuthenticator {
     kind: 'tool' | 'resource' | 'prompt',
     argsOrVars: any,
   ): Promise<AuthResult> {
-    // Extract and validate auth header
-    const authHeader = extractAuthHeader(extra)
+    // Try to extract auth header from SDK's extra context first
+    let authHeader = extractAuthHeader(extra)
+
+    // If SDK didn't provide headers, try AsyncLocalStorage context (HTTP flow)
+    if (!authHeader) {
+      const requestContext = getCurrentRequestContext()
+      if (requestContext?.headers) {
+        // Build an extra-like object for extractAuthHeader
+        authHeader = extractAuthHeader({ requestInfo: { headers: requestContext.headers } })
+      }
+    }
     if (!authHeader) {
       throw createRpcError(ERROR_CODES.PaymentRequired, 'Authorization required', {
         reason: 'missing',
@@ -88,7 +98,17 @@ export class PaywallAuthenticator {
     serverName: string,
     method: string,
   ): Promise<AuthResult> {
-    const authHeader = extractAuthHeader(extra)
+    // Try to extract auth header from SDK's extra context first
+    let authHeader = extractAuthHeader(extra)
+
+    // If SDK didn't provide headers, try AsyncLocalStorage context (HTTP flow)
+    if (!authHeader) {
+      const requestContext = getCurrentRequestContext()
+      if (requestContext?.headers) {
+        authHeader = extractAuthHeader({ requestInfo: { headers: requestContext.headers } })
+      }
+    }
+
     if (!authHeader) {
       throw createRpcError(ERROR_CODES.PaymentRequired, 'Authorization required', {
         reason: 'missing',
