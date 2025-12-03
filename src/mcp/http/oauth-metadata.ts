@@ -94,7 +94,8 @@ export function getOAuthUrls(
  */
 export function buildProtectedResourceMetadata(config: OAuthConfig): ProtectedResourceMetadata {
   const scopes = config.scopes || [...DEFAULT_SCOPES]
-  const oauthUrls = getOAuthUrls(config.environment, config.oauthUrls)
+  // oauthUrls calculated but not used in this metadata (kept for future use)
+  void getOAuthUrls(config.environment, config.oauthUrls)
 
   return {
     resource: config.baseUrl,
@@ -126,7 +127,8 @@ export function buildMcpProtectedResourceMetadata(
   config: OAuthConfig,
 ): McpProtectedResourceMetadata {
   const scopes = config.scopes || [...DEFAULT_SCOPES]
-  const oauthUrls = getOAuthUrls(config.environment, config.oauthUrls)
+  // oauthUrls calculated but not used in this metadata (kept for future use)
+  void getOAuthUrls(config.environment, config.oauthUrls)
 
   return {
     resource: `${config.baseUrl}/mcp`,

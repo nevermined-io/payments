@@ -83,12 +83,7 @@ import type {
   PaywallContext,
   McpConfig,
 } from './types/paywall.types.js'
-import type {
-  HttpRouterConfig,
-  HttpServerConfig,
-  HttpServerResult,
-  OAuthConfig,
-} from './types/http.types.js'
+import type { HttpServerResult } from './types/http.types.js'
 
 // Re-export types
 export type {
@@ -200,7 +195,7 @@ export interface StartServerOptions {
   port: number
   /** Host to bind to */
   host?: string
-  /** Base URL (defaults to http://localhost:{port}) */
+  /** Base URL (defaults to http://localhost:\{port\}) */
   baseUrl?: string
   /** Agent ID (uses configured agentId if not provided) */
   agentId?: string

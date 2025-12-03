@@ -217,8 +217,10 @@ export class McpServerManager {
       this.expressApp = expressModule()
 
       // Apply global middleware
-      this.expressApp!.use(createCorsMiddleware(config.corsOrigins || '*'))
-      this.expressApp!.use(createJsonMiddleware())
+      if (this.expressApp) {
+        this.expressApp.use(createCorsMiddleware(config.corsOrigins || '*'))
+        this.expressApp.use(createJsonMiddleware())
+      }
 
       // Mount OAuth router
       const environment =
@@ -239,7 +241,9 @@ export class McpServerManager {
         description: config.description,
       })
 
-      this.expressApp!.use(oauthRouter)
+      if (this.expressApp) {
+        this.expressApp.use(oauthRouter)
+      }
 
       // Create session manager
       this.sessionManager = createSessionManager({
@@ -248,28 +252,35 @@ export class McpServerManager {
       this.sessionManager.setMcpServer(this.mcpServer)
 
       // Mount MCP handlers
-      mountMcpHandlers(this.expressApp! as any, {
-        sessionManager: this.sessionManager,
-        requireAuth: true,
-        log: this.log,
-      })
-
-      // Add 404 fallback
-      this.expressApp!.use((req: any, res: any) => {
-        this.log?.(`404 - ${req.method} ${req.path}`)
-        res.status(404).json({
-          error: 'not_found',
-          error_description: `Endpoint not found: ${req.method} ${req.path}`,
+      if (this.expressApp && this.sessionManager) {
+        mountMcpHandlers(this.expressApp as any, {
+          sessionManager: this.sessionManager,
+          requireAuth: true,
+          log: this.log,
         })
-      })
+
+        // Add 404 fallback
+        this.expressApp.use((req: any, res: any) => {
+          this.log?.(`404 - ${req.method} ${req.path}`)
+          res.status(404).json({
+            error: 'not_found',
+            error_description: `Endpoint not found: ${req.method} ${req.path}`,
+          })
+        })
+      }
 
       // Start HTTP server
+      if (!this.expressApp) {
+        throw new Error('Express app not initialized')
+      }
+      const expressApp = this.expressApp
       await new Promise<void>((resolve, reject) => {
         const host = config.host || '0.0.0.0'
-        this.httpServer = this.expressApp!.listen(config.port, host, () => {
+        const server = expressApp.listen(config.port, host, () => {
           resolve()
         })
-        this.httpServer.on('error', reject)
+        this.httpServer = server
+        server.on('error', reject)
       })
 
       this.state = ServerState.Running
@@ -312,9 +323,10 @@ export class McpServerManager {
     this.sessionManager?.destroyAllSessions()
 
     // Close HTTP server
-    if (this.httpServer) {
+    const server = this.httpServer
+    if (server) {
       await new Promise<void>((resolve) => {
-        this.httpServer!.close(() => resolve())
+        server.close(() => resolve())
       })
     }
 
@@ -333,7 +345,10 @@ export class McpServerManager {
    */
   private async registerToolsWithPaywall(): Promise<void> {
     // Configure MCP integration
-    const config = this.config!
+    if (!this.config) {
+      throw new Error('Server config not set')
+    }
+    const config = this.config
     ;(this.payments.mcp as any).configure({
       agentId: config.agentId,
       serverName: config.serverName,

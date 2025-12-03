@@ -128,7 +128,7 @@ export interface McpServerConfig {
   agentId: string
   /** Human-readable server name */
   serverName: string
-  /** Base URL of the server (default: http://localhost:{port}) */
+  /** Base URL of the server (default: http://localhost:\{port\}) */
   baseUrl?: string
   /** Host to bind to (default: 0.0.0.0) */
   host?: string

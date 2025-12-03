@@ -110,7 +110,10 @@ export class SessionManager {
    */
   async getOrCreateSession(sessionId: string): Promise<any> {
     if (this.sessions.has(sessionId)) {
-      return this.sessions.get(sessionId)!
+      const existingSession = this.sessions.get(sessionId)
+      if (existingSession) {
+        return existingSession
+      }
     }
 
     if (!this.mcpServer) {

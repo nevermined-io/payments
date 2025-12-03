@@ -3,7 +3,7 @@
  * Provides POST, GET, and DELETE handlers for the /mcp endpoint.
  */
 import { AsyncLocalStorage } from 'async_hooks'
-import type { Request, Response, NextFunction, Router } from 'express'
+import type { Request, Response, Router } from 'express'
 import type { SessionManager, RequestContext } from './session-manager.js'
 import { createRequireAuthMiddleware } from './oauth-router.js'
 
@@ -155,7 +155,11 @@ export function createGetMcpHandler(config: McpHandlerConfig) {
     }
 
     log?.(`Establishing SSE stream for session ${sessionId}`)
-    const transport = sessionManager.getSession(sessionId)!
+    const transport = sessionManager.getSession(sessionId)
+    if (!transport) {
+      res.status(400).json({ error: 'Session transport not found' })
+      return
+    }
     await transport.handleRequest(req, res)
   }
 }

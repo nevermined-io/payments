@@ -84,7 +84,11 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
   } = options
 
   // Optional logging helper (no-op if onLog not provided)
-  const log = onLog || (() => {})
+  const log =
+    onLog ||
+    (() => {
+      // Intentionally empty - no logging when onLog not provided
+    })
 
   // Build config object for metadata generators
   const config = {
