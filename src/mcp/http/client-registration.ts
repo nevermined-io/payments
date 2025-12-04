@@ -2,6 +2,7 @@
  * OAuth Dynamic Client Registration handler (RFC 7591).
  * Handles client registration requests for MCP OAuth flows.
  */
+import { randomBytes } from 'crypto'
 import type {
   OAuthConfig,
   ClientRegistrationRequest,
@@ -129,9 +130,8 @@ export function validateClientRegistrationRequest(request: ClientRegistrationReq
  *
  * @returns A base64url-encoded random string
  */
-async function generateClientSecret(): Promise<string> {
-  const crypto = await import('crypto')
-  return crypto.randomBytes(32).toString('base64url')
+function generateClientSecret(): string {
+  return randomBytes(32).toString('base64url')
 }
 
 /**
@@ -178,7 +178,7 @@ export async function processClientRegistration(
 
   // Generate client_secret if needed
   if (needsSecret) {
-    response.client_secret = await generateClientSecret()
+    response.client_secret = generateClientSecret()
     response.client_secret_expires_at = 0 // 0 means never expires
   }
 

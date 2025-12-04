@@ -3,7 +3,7 @@
  * Orchestrates McpServer, Express, Transport, and session management.
  */
 import type { Server } from 'http'
-import type { Application } from 'express'
+import express, { type Application } from 'express'
 import type { Payments } from '../../payments.js'
 import type {
   McpToolConfig,
@@ -28,19 +28,7 @@ import {
   createJsonMiddleware,
 } from '../http/oauth-router.js'
 
-// Lazy imports for optional dependencies
-let express: any = null
 let McpServerClass: any = null
-
-/**
- * Lazily load Express.
- */
-async function getExpress(): Promise<any> {
-  if (!express) {
-    express = (await import('express')).default
-  }
-  return express
-}
 
 /**
  * Lazily load McpServer from the SDK.
@@ -200,8 +188,6 @@ export class McpServerManager {
 
       const baseUrl = config.baseUrl || `http://localhost:${config.port}`
 
-      // Load dependencies
-      const expressModule = await getExpress()
       const McpServer = await getMcpServerClass()
 
       // Create MCP server
@@ -210,11 +196,10 @@ export class McpServerManager {
         version: config.version || '1.0.0',
       })
 
-      // Register tools with paywall protection
-      await this.registerToolsWithPaywall()
+      // Register tools, resources, and prompts with paywall protection
+      await this.registerHandlersWithPaywall()
 
-      // Create Express app
-      this.expressApp = expressModule()
+      this.expressApp = express()
 
       // Apply global middleware
       if (this.expressApp) {
@@ -341,9 +326,9 @@ export class McpServerManager {
   }
 
   /**
-   * Register all tools with paywall protection.
+   * Register all tools, resources, and prompts with paywall protection.
    */
-  private async registerToolsWithPaywall(): Promise<void> {
+  private async registerHandlersWithPaywall(): Promise<void> {
     // Configure MCP integration
     if (!this.config) {
       throw new Error('Server config not set')
@@ -357,6 +342,7 @@ export class McpServerManager {
     // Get the withPaywall function
     const withPaywall = (this.payments.mcp as any).withPaywall
 
+    // Register tools
     for (const [name, registration] of this.tools) {
       const { config: toolConfig, handler, options } = registration
 
@@ -387,7 +373,73 @@ export class McpServerManager {
       )
     }
 
-    // TODO: Register resources and prompts similarly
+    // Register resources
+    for (const [uri, registration] of this.resources) {
+      const { config: resourceConfig, handler, options } = registration
+
+      // Wrap handler with paywall
+      const protectedHandler = withPaywall(
+        async (uri: URL, variables: Record<string, string | string[]>, extra?: any) => {
+          // Call the user's handler
+          const result = await handler(uri, variables, { extra })
+          return result
+        },
+        {
+          name: uri,
+          kind: 'resource',
+          credits: BigInt(options.credits || 1),
+          onRedeemError: options.onRedeemError,
+        },
+      )
+
+      // Register with MCP server
+      // Note: MCP SDK uses resource() method with URI template, config, and handler
+      if (this.mcpServer.resource) {
+        this.mcpServer.resource(
+          uri,
+          {
+            name: resourceConfig.name,
+            description: resourceConfig.description,
+            mimeType: resourceConfig.mimeType,
+          },
+          protectedHandler,
+        )
+      }
+    }
+
+    // Register prompts
+    for (const [name, registration] of this.prompts) {
+      const { config: promptConfig, handler, options } = registration
+
+      // Wrap handler with paywall
+      const protectedHandler = withPaywall(
+        async (args: Record<string, string>, extra?: any) => {
+          // Call the user's handler
+          const result = await handler(args, { extra })
+          return result
+        },
+        {
+          name,
+          kind: 'prompt',
+          credits: BigInt(options.credits || 1),
+          onRedeemError: options.onRedeemError,
+        },
+      )
+
+      // Register with MCP server
+      // Note: MCP SDK uses prompt() method with name, config, and handler
+      if (this.mcpServer.prompt) {
+        this.mcpServer.prompt(
+          name,
+          {
+            name: promptConfig.name,
+            description: promptConfig.description,
+            arguments: promptConfig.arguments,
+          },
+          protectedHandler,
+        )
+      }
+    }
   }
 
   /**
