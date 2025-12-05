@@ -13,7 +13,24 @@ export type {
   CreditsOption,
   PaywallOptions,
   McpConfig,
+  PaywallContext,
+  AuthResult,
 } from './mcp/types/paywall.types.js'
+
+// MCP HTTP types
+export type {
+  OAuthUrls,
+  OAuthConfig,
+  HttpRouterConfig,
+  HttpServerConfig,
+  HttpServerResult,
+} from './mcp/types/http.types.js'
+
+// MCP extended config type
+export type { ExtendedMcpConfig } from './mcp/index.js'
+
+// MCP HTTP utilities
+export { createRequireAuthMiddleware } from './mcp/http/oauth-router.js'
 
 export type {
   AgentCard,

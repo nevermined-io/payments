@@ -74,7 +74,7 @@ export interface AuthResult {
  */
 export interface PaywallContext {
   authResult: AuthResult
-  credits: bigint
+  credits?: bigint
   agentRequest: StartAgentRequest
 }
 
