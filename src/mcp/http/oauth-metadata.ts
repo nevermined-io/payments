@@ -238,6 +238,8 @@ export function buildServerInfoResponse(
   endpoints: Record<string, string>
   oauth: Record<string, any>
   tools: string[]
+  resources: string[]
+  prompts: string[]
 } {
   const oauthUrls = getOAuthUrls(config.environment, config.oauthUrls)
   const scopes = config.scopes || [...DEFAULT_SCOPES]
@@ -264,5 +266,7 @@ export function buildServerInfoResponse(
       scopes: scopes,
     },
     tools: config.tools || [],
+    resources: config.resources || [],
+    prompts: config.prompts || [],
   }
 }

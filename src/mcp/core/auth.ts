@@ -37,11 +37,38 @@ export class PaywallAuthenticator {
   }
 
   /**
+   * Build HTTP endpoint URL from request context.
+   *
+   * @returns HTTP endpoint URL or undefined if context is not available
+   */
+  private buildHttpUrlFromContext(): string | undefined {
+    const requestContext = getCurrentRequestContext()
+    if (!requestContext) {
+      return undefined
+    }
+
+    try {
+      const host = requestContext.headers?.['host'] || requestContext.headers?.['x-forwarded-host']
+      if (!host || typeof host !== 'string') {
+        return undefined
+      }
+
+      const protocol = requestContext.headers?.['x-forwarded-proto'] || 'http'
+      const baseUrl = `${protocol}://${host}`
+
+      // Use requestContext.url if available (e.g., '/mcp'), otherwise default to '/mcp'
+      const path = requestContext.url || '/mcp'
+      return `${baseUrl}${path}`
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
    * Authenticate an MCP request
    */
   async authenticate(
     extra: any,
-    options: PaywallOptions,
     agentId: string,
     serverName: string,
     name: string,
@@ -58,7 +85,7 @@ export class PaywallAuthenticator {
     const accessToken = stripBearer(authHeader)
     const logicalUrl = buildLogicalUrl({ kind, serverName, name, argsOrVars })
 
-    // Validate access with Nevermined
+    // Validate access with Nevermined - try logical URL first
     try {
       const start = await this.payments.requests.startProcessingRequest(
         agentId,
@@ -79,6 +106,33 @@ export class PaywallAuthenticator {
         agentRequest: start,
       }
     } catch (e) {
+      // If logical URL validation fails, try with HTTP endpoint
+      const httpUrl = this.buildHttpUrlFromContext()
+      if (httpUrl) {
+        try {
+          const start = await this.payments.requests.startProcessingRequest(
+            agentId,
+            accessToken,
+            httpUrl,
+            'POST',
+          )
+
+          if (!start?.balance?.isSubscriber) {
+            throw new Error('Not a subscriber')
+          }
+
+          return {
+            requestId: start.agentRequestId,
+            token: accessToken,
+            agentId,
+            logicalUrl: httpUrl,
+            agentRequest: start,
+          }
+        } catch (httpError) {
+          void httpError
+        }
+      }
+
       // Enrich denial with suggested plans (best-effort)
       let plansMsg = ''
       try {
@@ -90,11 +144,9 @@ export class PaywallAuthenticator {
             .join(', ')
           plansMsg = summary ? ` Available plans: ${summary}...` : ''
         }
-      } catch {
-        // Ignore plan fetching errors
-      }
+      } catch {}
 
-      throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
+      throw createRpcError(ERROR_CODES.PaymentRequired, `Paymentaa required.${plansMsg}`, {
         reason: 'invalid',
       })
     }
@@ -139,6 +191,32 @@ export class PaywallAuthenticator {
         agentRequest: start,
       }
     } catch (e) {
+      const httpUrl = this.buildHttpUrlFromContext()
+      if (httpUrl) {
+        try {
+          const start = await this.payments.requests.startProcessingRequest(
+            agentId,
+            accessToken,
+            httpUrl,
+            'POST',
+          )
+
+          if (!start?.balance?.isSubscriber) {
+            throw new Error('Not a subscriber')
+          }
+
+          return {
+            requestId: start.agentRequestId,
+            token: accessToken,
+            agentId,
+            logicalUrl: httpUrl,
+            agentRequest: start,
+          }
+        } catch (httpError) {
+          void httpError
+        }
+      }
+
       let plansMsg = ''
       try {
         const plans = await this.payments.agents.getAgentPlans(agentId)
@@ -153,7 +231,7 @@ export class PaywallAuthenticator {
         void _err
       }
 
-      throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
+      throw createRpcError(ERROR_CODES.PaymentRequired, `Paymentbb required.${plansMsg}`, {
         reason: 'invalid',
       })
     }

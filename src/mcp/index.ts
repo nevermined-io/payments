@@ -142,6 +142,7 @@ export {
   createCorsMiddleware,
   createJsonMiddleware,
   createRequireAuthMiddleware,
+  createHttpLoggingMiddleware,
   startManagedServer,
   createMcpApp,
   ClientRegistrationError,

@@ -71,6 +71,8 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
     environment,
     serverName = 'mcp-server',
     tools = [],
+    resources = [],
+    prompts = [],
     scopes,
     oauthUrls,
     protocolVersion,
@@ -97,6 +99,8 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
     environment,
     serverName,
     tools,
+    resources,
+    prompts,
     scopes,
     oauthUrls,
     protocolVersion,
@@ -342,6 +346,69 @@ export function createRequireAuthMiddleware() {
 
     // Token present and well-formed, continue
     // Full validation happens in withPaywall() when tools are called
+    next()
+  }
+}
+
+/**
+ * Create a middleware that logs all HTTP requests to endpoints.
+ * Logs method, URL, IP address, and relevant headers.
+ *
+ * @param onLog - Optional logging callback. If not provided, does nothing.
+ * @returns Express middleware for HTTP request logging
+ *
+ * @example
+ * ```typescript
+ * const logMiddleware = createHttpLoggingMiddleware((msg) => console.log(msg))
+ * app.use(logMiddleware)
+ * ```
+ */
+export function createHttpLoggingMiddleware(onLog?: (message: string) => void) {
+  const log =
+    onLog ||
+    ((message: string) => {
+      // Intentionally empty - no logging when onLog not provided
+    })
+
+  return function httpLoggingMiddleware(req: Request, res: Response, next: NextFunction) {
+    const method = req.method
+    const url = req.originalUrl || req.url
+    const ip = req.ip || req.socket.remoteAddress || 'unknown'
+    const timestamp = new Date().toISOString()
+
+    // Extract relevant headers
+    const authHeader = req.headers.authorization
+    const sessionId = req.headers['mcp-session-id']
+    const protocolVersion = req.headers['mcp-protocol-version']
+    const userAgent = req.headers['user-agent']
+
+    // Build log message
+    const logParts: string[] = [`[${timestamp}]`, `${method}`, url, `IP: ${ip}`]
+
+    if (authHeader) {
+      const tokenPreview = authHeader.startsWith('Bearer ')
+        ? `Bearer ${authHeader.slice(7, 20)}...`
+        : 'Bearer [present]'
+      logParts.push(`Auth: ${tokenPreview}`)
+    }
+
+    if (sessionId) {
+      const sessionValue = Array.isArray(sessionId) ? sessionId[0] : sessionId
+      logParts.push(`Session: ${sessionValue}`)
+    }
+
+    if (protocolVersion) {
+      const versionValue = Array.isArray(protocolVersion) ? protocolVersion[0] : protocolVersion
+      logParts.push(`MCP-Version: ${versionValue}`)
+    }
+
+    if (userAgent) {
+      const uaValue = Array.isArray(userAgent) ? userAgent[0] : userAgent
+      logParts.push(`User-Agent: ${uaValue}`)
+    }
+
+    log(`HTTP Request: ${logParts.join(' | ')}`)
+
     next()
   }
 }

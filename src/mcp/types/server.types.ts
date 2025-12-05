@@ -4,7 +4,8 @@
  */
 
 import type { EnvironmentName } from '../../environments.js'
-
+import type { CreditsOption } from './paywall.types.js'
+import type { ZodType } from 'zod'
 /**
  * Configuration for a tool.
  */
@@ -13,8 +14,8 @@ export interface McpToolConfig {
   title?: string
   /** Description of what the tool does */
   description: string
-  /** JSON Schema for input arguments */
-  inputSchema?: Record<string, any>
+  /** Zod schema for input arguments (will be converted to JSON Schema internally) */
+  inputSchema?: ZodType
   /** JSON Schema for output (optional) */
   outputSchema?: Record<string, any>
 }
@@ -39,20 +40,16 @@ export interface McpPromptConfig {
   name: string
   /** Description of the prompt */
   description?: string
-  /** Arguments the prompt accepts */
-  arguments?: Array<{
-    name: string
-    description?: string
-    required?: boolean
-  }>
+  /** Arguments the prompt accepts (ZodType) */
+  inputSchema?: ZodType
 }
 
 /**
  * Options for tool/resource/prompt registration.
  */
 export interface McpRegistrationOptions {
-  /** Credits to charge per call (default: 1) */
-  credits?: bigint | number
+  /** Credits to charge per call (default: 1). Can be a fixed value or a function that receives context with args and result. */
+  credits?: CreditsOption | number
   /** What to do if credit redemption fails */
   onRedeemError?: 'ignore' | 'propagate'
 }

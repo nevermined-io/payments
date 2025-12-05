@@ -329,7 +329,7 @@ Notes:
 ### Notes
 
 - The wrapper reads `Authorization`, calls Nevermined `startProcessingRequest`, executes the handler, and calls `redeemCreditsFromRequest`.
-- `credits` can be a `bigint` or `(ctx) => bigint` with `{ args, result, request }`.
+- `credits` can be a `bigint` or `(ctx) => bigint` with `{ args, result }`. Use `args` for input-based pricing and `result` for output-based pricing.
 - `name` builds the logical URL `mcp://{serverName}/{kind}/{name}`.
 
 ## License

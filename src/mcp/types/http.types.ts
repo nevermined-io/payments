@@ -53,6 +53,10 @@ export interface OAuthConfig {
   serverName?: string
   /** List of tool names exposed by this server */
   tools?: string[]
+  /** List of resource names exposed by this server */
+  resources?: string[]
+  /** List of prompt names exposed by this server */
+  prompts?: string[]
   /** MCP protocol version */
   protocolVersion?: string
 }
@@ -205,4 +209,6 @@ export interface ServerInfoResponse {
     scopes: string[]
   }
   tools?: string[]
+  resources?: string[]
+  prompts?: string[]
 }

@@ -10,7 +10,6 @@ import {
   ToolOptions,
   ResourceOptions,
   PromptOptions,
-  PaywallContext,
 } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
 import { NvmAPIResult } from '../../common/types.js'
@@ -88,7 +87,6 @@ export class PaywallDecorator {
       // 1. Authenticate request
       const authResult = await this.authenticator.authenticate(
         extra,
-        options,
         this.config.agentId,
         this.config.serverName,
         name,
@@ -96,23 +94,8 @@ export class PaywallDecorator {
         argsOrVars,
       )
 
-      // 2. Resolve initial credits (for context)
-      const initialCredits = this.creditsContext.resolve(
-        options?.credits,
-        argsOrVars,
-        null,
-        authResult,
-      )
-
-      // 3. Create paywall context
-      const paywallContext: PaywallContext = {
-        authResult,
-        credits: initialCredits,
-        agentRequest: authResult.agentRequest,
-      }
-
       // 4. Execute original handler with context
-      const result = await (handler as any)(...allArgs, paywallContext)
+      const result = await (handler as any)(...allArgs, authResult)
 
       // 5. Resolve final credits to burn (may be different if credits are dynamic)
       const credits = this.creditsContext.resolve(options?.credits, argsOrVars, result, authResult)
@@ -137,7 +120,7 @@ export class PaywallDecorator {
           ...result.metadata,
           txHash: creditsResult.txHash,
           requestId: authResult.requestId,
-          creditsRedeemed: credits.toString(),
+          creditsRedeemed: creditsResult.data?.amountOfCredits?.toString() ?? credits.toString(),
           success: true,
         }
       }

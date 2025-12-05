@@ -64,6 +64,7 @@ export {
   createCorsMiddleware,
   createJsonMiddleware,
   createRequireAuthMiddleware,
+  createHttpLoggingMiddleware,
   type OAuthRouterOptions,
 } from './oauth-router.js'
 

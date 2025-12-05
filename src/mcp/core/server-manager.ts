@@ -26,7 +26,10 @@ import {
   createOAuthRouter,
   createCorsMiddleware,
   createJsonMiddleware,
+  createHttpLoggingMiddleware,
 } from '../http/oauth-router.js'
+import { zodToJsonSchema } from 'zod-to-json-schema'
+import type { ZodType } from 'zod'
 
 let McpServerClass: any = null
 
@@ -103,7 +106,7 @@ export class McpServerManager {
       config,
       handler,
       options: {
-        credits: options.credits ?? 1,
+        credits: options.credits,
         onRedeemError: options.onRedeemError ?? 'ignore',
       },
     })
@@ -130,7 +133,7 @@ export class McpServerManager {
       config,
       handler,
       options: {
-        credits: options.credits ?? 1,
+        credits: options.credits,
         onRedeemError: options.onRedeemError ?? 'ignore',
       },
     })
@@ -157,7 +160,7 @@ export class McpServerManager {
       config,
       handler,
       options: {
-        credits: options.credits ?? 1,
+        credits: options.credits,
         onRedeemError: options.onRedeemError ?? 'ignore',
       },
     })
@@ -203,6 +206,8 @@ export class McpServerManager {
 
       // Apply global middleware
       if (this.expressApp) {
+        // HTTP request logging (must be first to log all requests)
+        this.expressApp.use(createHttpLoggingMiddleware(this.log))
         this.expressApp.use(createCorsMiddleware(config.corsOrigins || '*'))
         this.expressApp.use(createJsonMiddleware())
       }
@@ -218,6 +223,8 @@ export class McpServerManager {
         environment,
         serverName: config.serverName,
         tools: Array.from(this.tools.keys()),
+        resources: Array.from(this.resources.keys()),
+        prompts: Array.from(this.prompts.keys()),
         enableOAuthDiscovery: config.enableOAuthDiscovery ?? true,
         enableClientRegistration: config.enableClientRegistration ?? true,
         enableHealthCheck: config.enableHealthCheck ?? true,
@@ -347,30 +354,40 @@ export class McpServerManager {
       const { config: toolConfig, handler, options } = registration
 
       // Wrap handler with paywall
+      // Convert number to bigint if needed, but preserve functions and undefined
+      const creditsOption: any =
+        typeof options.credits === 'function'
+          ? options.credits
+          : typeof options.credits === 'number'
+            ? BigInt(options.credits)
+            : options.credits
+
       const protectedHandler = withPaywall(
-        async (args: any, extra?: any) => {
-          // Call the user's handler
-          const result = await handler(args, { extra })
+        async (args: any, extra?: any, paywallContext?: any) => {
+          // Convert PaywallContext to ToolContext format
+          // Put authResult and credits inside extra (consistent format)
+          const toolContext = paywallContext
+            ? {
+                extra: {
+                  ...extra,
+                  agentRequest: paywallContext.agentRequest,
+                },
+              }
+            : { extra }
+          // Call the user's handler with the converted context
+          const result = await handler(args, toolContext)
           return result
         },
         {
           name,
           kind: 'tool',
-          credits: BigInt(options.credits || 1),
+          credits: creditsOption,
           onRedeemError: options.onRedeemError,
         },
       )
 
       // Register with MCP server
-      this.mcpServer.tool(
-        name,
-        {
-          title: toolConfig.title,
-          description: toolConfig.description,
-          inputSchema: toolConfig.inputSchema || {},
-        },
-        protectedHandler,
-      )
+      this.mcpServer.registerTool(name, toolConfig, protectedHandler)
     }
 
     // Register resources
@@ -378,33 +395,47 @@ export class McpServerManager {
       const { config: resourceConfig, handler, options } = registration
 
       // Wrap handler with paywall
+      // Convert number to bigint if needed, but preserve functions and undefined
+      const creditsOption: any =
+        typeof options.credits === 'function'
+          ? options.credits
+          : typeof options.credits === 'number'
+            ? BigInt(options.credits)
+            : options.credits
+
       const protectedHandler = withPaywall(
-        async (uri: URL, variables: Record<string, string | string[]>, extra?: any) => {
-          // Call the user's handler
-          const result = await handler(uri, variables, { extra })
+        async (
+          uri: URL,
+          variables: Record<string, string | string[]>,
+          extra?: any,
+          paywallContext?: any,
+        ) => {
+          // Convert PaywallContext to ResourceContext format
+          // Put authResult and credits inside extra (consistent format)
+          const resourceContext = paywallContext
+            ? {
+                extra: {
+                  ...extra,
+                  authResult: paywallContext.authResult,
+                  credits: paywallContext.credits,
+                  agentRequest: paywallContext.agentRequest,
+                },
+              }
+            : { extra }
+          // Call the user's handler with the converted context
+          const result = await handler(uri, variables, resourceContext)
           return result
         },
         {
           name: uri,
           kind: 'resource',
-          credits: BigInt(options.credits || 1),
+          credits: creditsOption,
           onRedeemError: options.onRedeemError,
         },
       )
 
       // Register with MCP server
-      // Note: MCP SDK uses resource() method with URI template, config, and handler
-      if (this.mcpServer.resource) {
-        this.mcpServer.resource(
-          uri,
-          {
-            name: resourceConfig.name,
-            description: resourceConfig.description,
-            mimeType: resourceConfig.mimeType,
-          },
-          protectedHandler,
-        )
-      }
+      this.mcpServer.registerResource(uri, resourceConfig, protectedHandler)
     }
 
     // Register prompts
@@ -412,33 +443,42 @@ export class McpServerManager {
       const { config: promptConfig, handler, options } = registration
 
       // Wrap handler with paywall
+      // Convert number to bigint if needed, but preserve functions and undefined
+      const creditsOption: any =
+        typeof options.credits === 'function'
+          ? options.credits
+          : typeof options.credits === 'number'
+            ? BigInt(options.credits)
+            : options.credits
+
       const protectedHandler = withPaywall(
-        async (args: Record<string, string>, extra?: any) => {
-          // Call the user's handler
-          const result = await handler(args, { extra })
+        async (args: Record<string, string>, extra?: any, paywallContext?: any) => {
+          // Convert PaywallContext to PromptContext format
+          // Put authResult and credits inside extra (consistent format)
+          const promptContext = paywallContext
+            ? {
+                extra: {
+                  ...extra,
+                  authResult: paywallContext.authResult,
+                  credits: paywallContext.credits,
+                  agentRequest: paywallContext.agentRequest,
+                },
+              }
+            : { extra }
+          // Call the user's handler with the converted context
+          const result = await handler(args, promptContext)
           return result
         },
         {
           name,
           kind: 'prompt',
-          credits: BigInt(options.credits || 1),
+          credits: creditsOption,
           onRedeemError: options.onRedeemError,
         },
       )
 
       // Register with MCP server
-      // Note: MCP SDK uses prompt() method with name, config, and handler
-      if (this.mcpServer.prompt) {
-        this.mcpServer.prompt(
-          name,
-          {
-            name: promptConfig.name,
-            description: promptConfig.description,
-            arguments: promptConfig.arguments,
-          },
-          protectedHandler,
-        )
-      }
+      this.mcpServer.registerPrompt(name, promptConfig, protectedHandler)
     }
   }
 
@@ -449,6 +489,8 @@ export class McpServerManager {
     if (!this.log) return
 
     const toolsList = info.tools.length > 0 ? info.tools.join(', ') : 'none'
+    const resourcesList = info.resources.length > 0 ? info.resources.join(', ') : 'none'
+    const promptsList = info.prompts.length > 0 ? info.prompts.join(', ') : 'none'
 
     this.log(`MCP Server Started!
   MCP Endpoint: ${info.baseUrl}/mcp
@@ -456,6 +498,8 @@ export class McpServerManager {
   Server Info:  ${info.baseUrl}/
   OAuth Discovery: ${info.baseUrl}/.well-known/oauth-authorization-server
   Tools: ${toolsList}
+  Resources: ${resourcesList}
+  Prompts: ${promptsList}
   Agent ID: ${config.agentId}`)
   }
 }
