@@ -47,7 +47,7 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
    * A custom environment URLs.
    */
   custom: {
-    frontend: process.env.NVM_FRONTEND_URL || 'http://localhost:3000',
+    frontend: process.env.NVM_FRONTEND_URL || 'http://localhost:4200',
     backend: process.env.NVM_BACKEND_URL || 'http://localhost:3001',
     proxy: process.env.NVM_PROXY_URL || 'https://localhost:443',
     heliconeUrl: process.env.HELICONE_URL || 'http://localhost:8585',
