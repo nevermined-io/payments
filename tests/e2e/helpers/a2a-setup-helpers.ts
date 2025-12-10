@@ -7,6 +7,7 @@ import type { Payments } from '../../../src/payments.js'
 import type { AgentMetadata, PlanMetadata } from '../../../src/common/types.js'
 import type { Address } from '../../../src/common/types.js'
 import { getERC20PriceConfig, getFixedCreditsConfig } from '../../../src/plans.js'
+import { retryWithBackoff } from '../../utils.js'
 
 const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address
 
@@ -88,16 +89,22 @@ export async function createA2ATestAgentAndPlan(
   const creditsConfig = getFixedCreditsConfig(creditsGranted, creditsPerRequest)
 
   // First, register the plan
-  const planResult = await paymentsBuilder.plans.registerCreditsPlan(
-    planMetadata,
-    priceConfig,
-    creditsConfig,
+  const planResult = await retryWithBackoff(
+    () => paymentsBuilder.plans.registerCreditsPlan(planMetadata, priceConfig, creditsConfig),
+    {
+      label: 'registerCreditsPlan',
+    },
   )
 
   const planId = planResult.planId
 
   // Then, register the agent with the created plan
-  const agentResult = await paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, [planId])
+  const agentResult = await retryWithBackoff(
+    () => paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, [planId]),
+    {
+      label: 'registerAgent',
+    },
+  )
 
   const agentId = agentResult.agentId
 
