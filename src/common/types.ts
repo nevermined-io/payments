@@ -161,6 +161,7 @@ export enum PlanRedemptionType {
   ONLY_GLOBAL_ROLE, // NVM Proxy can burn
   ONLY_OWNER, // Agent can burn
   ONLY_PLAN_ROLE,
+  ONLY_SUBSCRIBER, // Subscriber who ordered the plan can redeem
 }
 
 export interface PlanBalance {

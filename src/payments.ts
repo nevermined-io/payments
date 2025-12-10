@@ -3,6 +3,7 @@ import { PaymentsError } from './common/payments.error.js'
 import { PaymentOptions } from './common/types.js'
 import { BasePaymentsAPI } from './api/base-payments.js'
 import { PlansAPI } from './api/plans-api.js'
+import { ContractsAPI } from './api/contracts-api.js'
 import { AgentsAPI } from './api/agents-api.js'
 import { AgentRequestsAPI } from './api/requests-api.js'
 import { ObservabilityAPI } from './api/observability-api/observability-api.js'
@@ -33,6 +34,7 @@ export class Payments extends BasePaymentsAPI {
   public requests!: AgentRequestsAPI
   public observability!: ObservabilityAPI
   public organizations!: OrganizationsAPI
+  public contracts!: ContractsAPI
   private _a2aRegistry?: ClientRegistry
 
   /**
@@ -170,6 +172,7 @@ export class Payments extends BasePaymentsAPI {
     this.observability = ObservabilityAPI.getInstance(options)
     this.organizations = OrganizationsAPI.getInstance(options)
     this.query = AIQueryApi.getInstance()
+    this.contracts = new ContractsAPI(options)
   }
 
   /**

@@ -132,3 +132,52 @@ export const setProofRequired = (
     proofRequired,
   }
 }
+
+/**
+ * Build a pay-as-you-go price configuration.
+ *
+ * For pay-as-you-go plans, the template address must come from the API deployment info.
+ */
+export const getPayAsYouGoPriceConfig = (
+  amount: bigint,
+  receiver: Address,
+  tokenAddress: Address = ZeroAddress,
+  templateAddress?: Address,
+): PlanPriceConfig => {
+  if (!isEthereumAddress(receiver))
+    throw new Error(`Receiver address ${receiver} is not a valid Ethereum address`)
+
+  if (!templateAddress) {
+    throw new Error(
+      'templateAddress is required. Use ContractsAPI.getPayAsYouGoTemplateAddress() or Payments.plans.getPayAsYouGoPriceConfig()',
+    )
+  }
+
+  return {
+    tokenAddress,
+    amounts: [amount],
+    receivers: [receiver],
+    contractAddress: ZeroAddress,
+    feeController: ZeroAddress,
+    externalPriceAddress: ZeroAddress,
+    templateAddress,
+    isCrypto: true,
+  }
+}
+
+/**
+ * Build a pay-as-you-go credits configuration.
+ *
+ * Credits are not minted upfront; these values are required for validation only.
+ */
+export const getPayAsYouGoCreditsConfig = (): PlanCreditsConfig => {
+  return {
+    isRedemptionAmountFixed: false,
+    redemptionType: PlanRedemptionType.ONLY_SUBSCRIBER,
+    proofRequired: false,
+    durationSecs: 0n,
+    amount: 1n,
+    minAmount: 1n,
+    maxAmount: 1n,
+  }
+}
