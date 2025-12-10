@@ -10,16 +10,8 @@ import type { AgentCard, PaymentsAgentExecutor, ExecutionEventBus } from '../../
 import type { Task, TaskStatus, TaskState, Message, TaskStatusUpdateEvent } from '@a2a-js/sdk'
 import { A2ATestServer } from './helpers/e2e-server-helpers.js'
 import { createA2ATestAgentAndPlan } from './helpers/a2a-setup-helpers.js'
-import type { EnvironmentName } from '../../src/environments.js'
-
-// Test configuration
-const TEST_ENVIRONMENT = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
-const SUBSCRIBER_API_KEY =
-  process.env.TEST_SUBSCRIBER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEVCNDk3OTU2OTRBMDc1QTY0ZTY2MzdmMUU5MGYwMjE0Mzg5YjI0YTMiLCJqdGkiOiIweGMzYjYyMWJkYTM5ZDllYWQyMTUyMDliZWY0MDBhMDEzYjM1YjQ2Zjc1NzM4YWFjY2I5ZjdkYWI0ZjQ5MmM5YjgiLCJleHAiOjE3OTQ2NTUwNjAsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.YMkGQUjGh7_m07nj8SKXZReNKSryg9mTU3qwJr_TKYATUixbYQTte3CKucjqvgAGzJAd1Kq2ubz3b37n5Zsllxs'
-const BUILDER_API_KEY =
-  process.env.TEST_BUILDER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEFDYjY5YTYzZjljMEI0ZTczNDE0NDM2YjdBODM1NDBGNkM5MmIyMmUiLCJqdGkiOiIweDExZWUwYWYyOGQ5NGVlNmNjZGJhNDJmMDcyNDQyNTQ0ODE5OWRmNTk5ZGRkMDcyMWVlMmI5ZTg5Nzg3MzQ3N2IiLCJleHAiOjE3OTQ2NTU0NTIsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.fnnb-AFxE_ngIAgIRZOY6SpLM3KgpB1z210l_z3T0Fl2G2tHQp9svXrflCsIYoYHW_8kbHllLce827gyfmFvMhw'
+import { createPaymentsBuilder, createPaymentsSubscriber } from './fixtures.js'
+import { retryWithBackoff } from '../utils.js'
 
 const PORT = 6782
 
@@ -29,9 +21,9 @@ const PORT = 6782
 class BasicE2EExecutor implements PaymentsAgentExecutor {
   private executionTime: number
   private creditsToUse: number
-  private executionCount: number = 0
+  private executionCount = 0
 
-  constructor(executionTime: number = 1.0, creditsToUse: number = 5) {
+  constructor(executionTime = 1.0, creditsToUse = 5) {
     this.executionTime = executionTime
     this.creditsToUse = creditsToUse
   }
@@ -126,9 +118,9 @@ class BasicE2EExecutor implements PaymentsAgentExecutor {
 class E2ETestExecutor implements PaymentsAgentExecutor {
   private executionTime: number
   private creditsToUse: number
-  private executionCount: number = 0
+  private executionCount = 0
 
-  constructor(executionTime: number = 1.0, creditsToUse: number = 5) {
+  constructor(executionTime = 1.0, creditsToUse = 5) {
     this.executionTime = executionTime
     this.creditsToUse = creditsToUse
   }
@@ -229,14 +221,8 @@ describe('A2A E2E Flow', () => {
 
   beforeAll(async () => {
     // Create Payments instances
-    paymentsPublisher = Payments.getInstance({
-      nvmApiKey: BUILDER_API_KEY,
-      environment: TEST_ENVIRONMENT as EnvironmentName,
-    })
-    paymentsSubscriber = Payments.getInstance({
-      nvmApiKey: SUBSCRIBER_API_KEY,
-      environment: TEST_ENVIRONMENT as EnvironmentName,
-    })
+    paymentsPublisher = createPaymentsBuilder()
+    paymentsSubscriber = createPaymentsSubscriber()
 
     console.log(`Publisher address: ${paymentsPublisher.getAccountAddress()}}`)
     console.log(`Subscriber address: ${paymentsSubscriber.getAccountAddress()}}`)
@@ -278,7 +264,12 @@ describe('A2A E2E Flow', () => {
         // Ensure we have at least 10 credits
         console.log('Balance is low, ordering plan...')
         try {
-          const orderResult = await paymentsSubscriber.plans.orderPlan(PLAN_ID)
+          const orderResult = await retryWithBackoff(
+            () => paymentsSubscriber.plans.orderPlan(PLAN_ID),
+            {
+              label: 'orderPlan',
+            },
+          )
           console.log(`Order result: ${orderResult}`)
           if (orderResult && orderResult.success) {
             console.log('✅ Plan ordered successfully')
