@@ -7,7 +7,6 @@ import http from 'http'
 import { Payments } from '../../src/payments.js'
 import type {
   PlanMetadata,
-  PaymentOptions,
   Address,
   AgentAccessCredentials,
   AgentMetadata,
@@ -15,20 +14,11 @@ import type {
 import { ZeroAddress } from '../../src/environments.js'
 import { ONE_DAY_DURATION } from '../../src/plans.js'
 import { getRandomBigInt } from '../../src/utils.js'
-import type { EnvironmentName } from '../../src/environments.js'
+import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
+import { retryWithBackoff } from '../utils.js'
 
 // Test configuration
 const TEST_TIMEOUT = 30000
-const TEST_ENVIRONMENT = process.env.TEST_ENVIRONMENT || 'staging_sandbox'
-const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
-
-// Test API keys
-const SUBSCRIBER_API_KEY =
-  process.env.TEST_SUBSCRIBER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEVCNDk3OTU2OTRBMDc1QTY0ZTY2MzdmMUU5MGYwMjE0Mzg5YjI0YTMiLCJqdGkiOiIweGMzYjYyMWJkYTM5ZDllYWQyMTUyMDliZWY0MDBhMDEzYjM1YjQ2Zjc1NzM4YWFjY2I5ZjdkYWI0ZjQ5MmM5YjgiLCJleHAiOjE3OTQ2NTUwNjAsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.YMkGQUjGh7_m07nj8SKXZReNKSryg9mTU3qwJr_TKYATUixbYQTte3CKucjqvgAGzJAd1Kq2ubz3b37n5Zsllxs'
-const BUILDER_API_KEY =
-  process.env.TEST_BUILDER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweEFDYjY5YTYzZjljMEI0ZTczNDE0NDM2YjdBODM1NDBGNkM5MmIyMmUiLCJqdGkiOiIweDExZWUwYWYyOGQ5NGVlNmNjZGJhNDJmMDcyNDQyNTQ0ODE5OWRmNTk5ZGRkMDcyMWVlMmI5ZTg5Nzg3MzQ3N2IiLCJleHAiOjE3OTQ2NTU0NTIsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.fnnb-AFxE_ngIAgIRZOY6SpLM3KgpB1z210l_z3T0Fl2G2tHQp9svXrflCsIYoYHW_8kbHllLce827gyfmFvMhw'
 
 // Test endpoints
 const AGENT_ENDPOINTS: Array<{ POST?: string; GET?: string }> = [
@@ -49,7 +39,7 @@ let agentAccessParams: AgentAccessCredentials | null = null
  */
 class MockAgentServer {
   private server: http.Server | null = null
-  private port: number = 8889
+  private port = 8889
   private paymentsBuilder: Payments | null = null
   private agentId: string | null = null
   private startupTimeout: NodeJS.Timeout | null = null
@@ -165,16 +155,8 @@ describe('Payments E2E Tests', () => {
 
   beforeAll(() => {
     // Initialize Payments instances
-    paymentsSubscriber = Payments.getInstance({
-      nvmApiKey: SUBSCRIBER_API_KEY,
-      environment: TEST_ENVIRONMENT as EnvironmentName,
-    })
-
-    paymentsBuilder = Payments.getInstance({
-      nvmApiKey: BUILDER_API_KEY,
-      environment: TEST_ENVIRONMENT as EnvironmentName,
-    })
-
+    paymentsSubscriber = createPaymentsSubscriber()
+    paymentsBuilder = createPaymentsBuilder()
     mockServer = new MockAgentServer()
   }, TEST_TIMEOUT)
 
@@ -230,10 +212,16 @@ describe('Payments E2E Tests', () => {
       )
       const creditsConfig = paymentsBuilder.plans.getFixedCreditsConfig(100n)
 
-      const response = await paymentsBuilder.plans.registerCreditsPlan(
-        { name: `E2E test Payments Plan ${Date.now()}` },
-        priceConfig,
-        creditsConfig,
+      const response = await retryWithBackoff(
+        () =>
+          paymentsBuilder.plans.registerCreditsPlan(
+            { name: `E2E test Payments Plan ${Date.now()}` },
+            priceConfig,
+            creditsConfig,
+          ),
+        {
+          label: 'registerCreditsPlan',
+        },
       )
 
       expect(response).toBeDefined()
@@ -258,10 +246,16 @@ describe('Payments E2E Tests', () => {
       )
       const creditsConfig = paymentsBuilder.plans.getExpirableDurationConfig(ONE_DAY_DURATION) // 1 day
 
-      const response = await paymentsBuilder.plans.registerTimePlan(
-        { name: `E2E test Time Plan ${Date.now()}` },
-        priceConfig,
-        creditsConfig,
+      const response = await retryWithBackoff(
+        () =>
+          paymentsBuilder.plans.registerTimePlan(
+            { name: `E2E test Time Plan ${Date.now()}` },
+            priceConfig,
+            creditsConfig,
+          ),
+        {
+          label: 'registerTimePlan',
+        },
       )
 
       expect(response).toBeDefined()
@@ -280,10 +274,16 @@ describe('Payments E2E Tests', () => {
       const priceConfig = paymentsBuilder.plans.getFreePriceConfig()
       const creditsConfig = paymentsBuilder.plans.getExpirableDurationConfig(ONE_DAY_DURATION)
 
-      const response = await paymentsBuilder.plans.registerTimeTrialPlan(
-        trialPlanMetadata,
-        priceConfig,
-        creditsConfig,
+      const response = await retryWithBackoff(
+        () =>
+          paymentsBuilder.plans.registerTimeTrialPlan(
+            trialPlanMetadata,
+            priceConfig,
+            creditsConfig,
+          ),
+        {
+          label: 'registerTimeTrialPlan',
+        },
       )
 
       expect(response).toBeDefined()
@@ -313,10 +313,11 @@ describe('Payments E2E Tests', () => {
       }
       const paymentPlans = [creditsPlanId!, expirablePlanId!].filter((p) => p)
 
-      const result = await paymentsBuilder.agents.registerAgent(
-        agentMetadata,
-        agentApi,
-        paymentPlans,
+      const result = await retryWithBackoff<{ agentId: string }>(
+        () => paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, paymentPlans),
+        {
+          label: 'registerAgent',
+        },
       )
       agentId = result.agentId
       expect(agentId).toBeDefined()
@@ -353,12 +354,18 @@ describe('Payments E2E Tests', () => {
       // Force randomness of the plan by setting a random duration
       nonExpirableConfig.durationSecs = getRandomBigInt()
 
-      const result = await paymentsBuilder.agents.registerAgentAndPlan(
-        agentMetadata,
-        agentApi,
-        planMetadata,
-        cryptoPriceConfig,
-        nonExpirableConfig,
+      const result = await retryWithBackoff<{ agentId: string; planId: string }>(
+        () =>
+          paymentsBuilder.agents.registerAgentAndPlan(
+            agentMetadata,
+            agentApi,
+            planMetadata,
+            cryptoPriceConfig,
+            nonExpirableConfig,
+          ),
+        {
+          label: 'registerAgentAndPlan',
+        },
       )
       const agentAndPlanAgentId = result.agentId
       const agentAndPlanPlanId = result.planId
@@ -399,7 +406,12 @@ describe('Payments E2E Tests', () => {
       console.log(creditsPlanId)
       console.log(' SUBSCRIBER ADDRESS = ', paymentsSubscriber.getAccountAddress())
 
-      const orderResult = await paymentsSubscriber.plans.orderPlan(creditsPlanId!)
+      const orderResult = await retryWithBackoff<{ success: boolean }>(
+        () => paymentsSubscriber.plans.orderPlan(creditsPlanId!),
+        {
+          label: 'orderPlan',
+        },
+      )
       expect(orderResult).toBeDefined()
       console.log('Order Result', orderResult)
       expect(orderResult.success).toBe(true)
@@ -449,7 +461,12 @@ describe('Payments E2E Tests', () => {
     async () => {
       expect(trialPlanId).not.toBeNull()
 
-      const orderResult = await paymentsSubscriber.plans.orderPlan(trialPlanId!)
+      const orderResult = await retryWithBackoff<{ success: boolean }>(
+        () => paymentsSubscriber.plans.orderPlan(trialPlanId!),
+        {
+          label: 'orderPlan',
+        },
+      )
       expect(orderResult).toBeDefined()
       expect(orderResult.success).toBe(true)
       console.log('Order Result', orderResult)

@@ -8,7 +8,6 @@
 
 import { Payments } from '../../src/payments.js'
 import type {
-  PaymentOptions,
   PlanMetadata,
   AgentMetadata,
   AgentAPIAttributes,
@@ -18,20 +17,9 @@ import { getPayAsYouGoCreditsConfig } from '../../src/plans.js'
 import { getRandomBigInt } from '../../src/utils.js'
 import { makeWaitForPlan, makeWaitForAgent } from '../utils.js'
 import { ZeroAddress } from '../../src/environments.js'
-import type { EnvironmentName } from '../../src/environments.js'
+import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
 
 const TEST_TIMEOUT = 60_000
-const TEST_ENVIRONMENT = (process.env.TEST_ENVIRONMENT || 'staging_sandbox') as EnvironmentName
-const ERC20_ADDRESS = (process.env.TEST_ERC20_TOKEN ||
-  '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as Address
-
-// Test API keys
-const SUBSCRIBER_API_KEY =
-  process.env.TEST_SUBSCRIBER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDcxZTZGN2Y4QzY4ZTdlMkU5NkIzYzkwNjU1YzJEMmNBMzc2QmMzZmQiLCJqdGkiOiIweDMwN2Y0NWRkMTBiOTc1YjhlNDU5NzNkMmNiNTljY2MzZDQ2NjFmY2RiOTJiMTVmMjI2ZDNhY2Q0NjdkODYyMDUiLCJleHAiOjE3OTY5MzM3MjcsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.0khtYy6bG_m6mDE2Oa1sozQLBHve2yVwyUeeM9DAHzFxhwK86JSfGL973Sg8FzhTfD2xhzYWiFP3KV2GjWNnDRs'
-const BUILDER_API_KEY =
-  process.env.TEST_BUILDER_API_KEY ||
-  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDlkREQwMkQ0RTExMWFiNWNFNDc1MTE5ODdCMjUwMGZjQjU2MjUyYzYiLCJqdGkiOiIweDQ2YzY3OTk5MTY5NDBhZmI4ZGNmNmQ2NmRmZmY4MGE0YmVhYWMyY2NiYWZlOTlkOGEwOTAwYTBjMzhmZjdkNjEiLCJleHAiOjE3OTU1NDI4NzAsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.n51gkto9Jw-MXxnXW92XDAB_CnHUFxkritWp9Lj1qFASmtf_TuQwU57bauIEGrQygumX8S3pXqRqeGRWT2AJiRs'
 
 describe('Pay-As-You-Go E2E', () => {
   let paymentsSubscriber: Payments
@@ -43,17 +31,8 @@ describe('Pay-As-You-Go E2E', () => {
   let waitForAgent: (agentId: string, timeoutMs?: number, intervalMs?: number) => Promise<any>
 
   beforeAll(async () => {
-    const subscriberOpts: PaymentOptions = {
-      nvmApiKey: SUBSCRIBER_API_KEY,
-      environment: TEST_ENVIRONMENT,
-    }
-    const builderOpts: PaymentOptions = {
-      nvmApiKey: BUILDER_API_KEY,
-      environment: TEST_ENVIRONMENT,
-    }
-
-    paymentsSubscriber = Payments.getInstance(subscriberOpts)
-    paymentsBuilder = Payments.getInstance(builderOpts)
+    paymentsSubscriber = createPaymentsSubscriber()
+    paymentsBuilder = createPaymentsBuilder()
     builderAddress = paymentsBuilder.getAccountAddress() as Address
     waitForPlan = makeWaitForPlan((id) => paymentsBuilder.plans.getPlan(id))
     waitForAgent = makeWaitForAgent((id) => paymentsBuilder.agents.getAgent(id))
