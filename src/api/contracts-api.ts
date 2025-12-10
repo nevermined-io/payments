@@ -1,4 +1,4 @@
-import type { PaymentOptions } from '../common/types.js'
+import type { Address, PaymentOptions } from '../common/types.js'
 import { BasePaymentsAPI } from './base-payments.js'
 import { PaymentsError } from '../common/payments.error.js'
 
@@ -50,20 +50,19 @@ export class ContractsAPI extends BasePaymentsAPI {
   /**
    * Get a contract address by name (e.g., "PayAsYouGoTemplate").
    */
-  async getContractAddress(contractName: string): Promise<string> {
+  async getContractAddress(contractName: string): Promise<Address> {
     const deployment = await this.getDeploymentInfo()
     const address = deployment.contracts?.[contractName]
     if (!address) {
       throw new PaymentsError(`Contract address not found for ${contractName}`)
     }
-    return address
+    return address as Address
   }
 
   /**
    * Get the PayAsYouGoTemplate contract address (convenience accessor).
    */
-  async getPayAsYouGoTemplateAddress(): Promise<string> {
+  async getPayAsYouGoTemplateAddress(): Promise<Address> {
     return this.getContractAddress('PayAsYouGoTemplate')
   }
 }
-
