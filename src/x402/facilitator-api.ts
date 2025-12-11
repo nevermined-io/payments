@@ -91,11 +91,11 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    * This method simulates the credit usage without actually burning credits,
    * checking if the subscriber has sufficient balance and permissions.
    *
-   * @param params - Verification parameters
-   * @param params.planId - The unique identifier of the payment plan
-   * @param params.maxAmount - The maximum number of credits to verify (as string)
-   * @param params.x402AccessToken - The X402 access token for permission verification
-   * @param params.subscriberAddress - The Ethereum address of the subscriber
+   * @param params - Verification parameters (see {@link VerifyPermissionsParams}).
+   *   - planId: plan identifier (BigInt-safe string)
+   *   - maxAmount: maximum credits to verify (bigint)
+   *   - x402AccessToken: X402 access token
+   *   - subscriberAddress: subscriber Ethereum address
    * @returns A promise that resolves to a verification result with 'success' boolean
    *
    * @throws PaymentsError if verification fails
@@ -152,11 +152,11 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    * number of credits from the subscriber's balance. If the subscriber doesn't
    * have enough credits, it will attempt to order more before settling.
    *
-   * @param params - Settlement parameters
-   * @param params.planId - The unique identifier of the payment plan
-   * @param params.maxAmount - The number of credits to burn (as string)
-   * @param params.x402AccessToken - The X402 access token for permission settlement
-   * @param params.subscriberAddress - The Ethereum address of the subscriber
+   * @param params - Settlement parameters (see {@link SettlePermissionsParams}).
+   *   - planId: plan identifier (BigInt-safe string)
+   *   - maxAmount: number of credits to burn (bigint)
+   *   - x402AccessToken: X402 access token for settlement
+   *   - subscriberAddress: subscriber Ethereum address
    * @returns A promise that resolves to a settlement result with transaction details
    *
    * @throws PaymentsError if settlement fails
