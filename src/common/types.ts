@@ -156,11 +156,13 @@ export enum PlanCreditsType {
  * If ONLY_GLOBAL_ROLE it means the credits can be redeemed only by an account with the `CREDITS_BURNER_ROLE`
  * If ONLY_OWNER it means the credits can be redeemed only by the owner of the Plan
  * If ONLY_PLAN_ROLE it means the credits can be redeemed by an account with specifics grants for the plan
+ * If ONLY_SUBSCRIBER means only the subscriber (the one who holds the credits NFT) can redeem
  */
 export enum PlanRedemptionType {
-  ONLY_GLOBAL_ROLE, // NVM Proxy can burn
-  ONLY_OWNER, // Agent can burn
-  ONLY_PLAN_ROLE,
+  ONLY_GLOBAL_ROLE = 0, // NVM Proxy can burn
+  ONLY_OWNER = 1, // Agent can burn
+  ONLY_PLAN_ROLE = 2,
+  ONLY_SUBSCRIBER = 4, // Subscriber who ordered the plan can redeem
 }
 
 export interface PlanBalance {

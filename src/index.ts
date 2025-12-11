@@ -7,6 +7,7 @@ export * from './common/helper.js'
 export * from './api/query-api.js'
 export * from './api/observability-api/observability-api.js'
 export type { BackendApiOptions } from './api/nvm-api.js'
+export { ContractsAPI } from './api/contracts-api.js'
 // MCP public types
 export type {
   CreditsContext,

@@ -11,9 +11,11 @@ import {
   PlanPriceConfig,
   StripeCheckoutResult,
 } from '../common/types.js'
+import { ZeroAddress } from '../environments.js'
 import { getRandomBigInt, isEthereumAddress } from '../utils.js'
 import { BasePaymentsAPI } from './base-payments.js'
 import * as Plans from '../plans.js'
+import { ContractsAPI } from './contracts-api.js'
 import {
   API_URL_REDEEM_PLAN,
   API_URL_GET_PLAN,
@@ -31,6 +33,12 @@ import {
  * The PlansAPI class provides methods to register and interact with payment plans on Nevermined.
  */
 export class PlansAPI extends BasePaymentsAPI {
+  private contractsApi: ContractsAPI
+
+  constructor(options: PaymentOptions) {
+    super(options)
+    this.contractsApi = new ContractsAPI(options)
+  }
   /** Price helpers */
   /**
    * Builds a Fiat price configuration for a plan.
@@ -41,6 +49,25 @@ export class PlansAPI extends BasePaymentsAPI {
    */
   public getFiatPriceConfig(amount: bigint, receiver: Address): PlanPriceConfig {
     return Plans.getFiatPriceConfig(amount, receiver)
+  }
+
+  /**
+   * Builds a Pay-As-You-Go price configuration using the template address from the API.
+   */
+  public async getPayAsYouGoPriceConfig(
+    amount: bigint,
+    receiver: Address,
+    tokenAddress: Address = ZeroAddress,
+  ): Promise<PlanPriceConfig> {
+    const templateAddress = await this.contractsApi.getPayAsYouGoTemplateAddress()
+    return Plans.getPayAsYouGoPriceConfig(amount, receiver, tokenAddress, templateAddress)
+  }
+
+  /**
+   * Builds a Pay-As-You-Go credits configuration.
+   */
+  public getPayAsYouGoCreditsConfig(): PlanCreditsConfig {
+    return Plans.getPayAsYouGoCreditsConfig()
   }
 
   /**
