@@ -46,13 +46,19 @@ export class CreditsContextProvider {
 
   /**
    * Extract tool name from a logical MCP URL.
-   * @param logicalUrl - Logical URL string.
-   * @returns Tool name derived from the URL path.
+   * Falls back to 'tool' for HTTP endpoints or invalid URLs.
+   * @param logicalUrl - Logical URL string (mcp:// or http://).
+   * @returns Tool name derived from the URL path, or 'tool' as fallback.
    */
   private extractToolNameFromUrl(logicalUrl: string): string {
     try {
       const url = new URL(logicalUrl)
-      const pathParts = url.pathname.split('/')
+      // HTTP(S) endpoints don't contain tool names in the URL path
+      if (url.protocol === 'http:' || url.protocol === 'https:') {
+        return 'tool'
+      }
+      // For mcp:// URLs, extract from pathname
+      const pathParts = url.pathname.split('/').filter((part) => part.length > 0)
       return pathParts[pathParts.length - 1] || 'tool'
     } catch {
       return 'tool'
