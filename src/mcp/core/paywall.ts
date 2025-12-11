@@ -10,7 +10,6 @@ import {
   ToolOptions,
   ResourceOptions,
   PromptOptions,
-  PaywallContext,
 } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
 import { NvmAPIResult } from '../../common/types.js'
@@ -88,7 +87,6 @@ export class PaywallDecorator {
       // 1. Authenticate request
       const authResult = await this.authenticator.authenticate(
         extra,
-        options,
         this.config.agentId,
         this.config.serverName,
         name,
@@ -96,26 +94,35 @@ export class PaywallDecorator {
         argsOrVars,
       )
 
-      // 2. Resolve initial credits (for context)
-      const initialCredits = this.creditsContext.resolve(
-        options?.credits,
-        argsOrVars,
-        null,
-        authResult,
-      )
+      // 2. Pre-calculate credits if they are fixed (not a function)
+      // This allows handlers to access credits during execution
+      const creditsOption = options?.credits
+      const isFixedCredits = typeof creditsOption === 'bigint' || creditsOption === undefined
+      const preCalculatedCredits = isFixedCredits
+        ? this.creditsContext.resolve(creditsOption, argsOrVars, null, authResult)
+        : undefined
 
-      // 3. Create paywall context
-      const paywallContext: PaywallContext = {
+      // 3. Build PaywallContext for handler (with extra wrapper for backward compatibility)
+      const paywallContext = {
         authResult,
-        credits: initialCredits,
+        credits: preCalculatedCredits,
         agentRequest: authResult.agentRequest,
+        // Backward compatibility: expose nested properties at top level
+        extra: {
+          agentRequest: authResult.agentRequest,
+        },
       }
 
       // 4. Execute original handler with context
       const result = await (handler as any)(...allArgs, paywallContext)
 
       // 5. Resolve final credits to burn (may be different if credits are dynamic)
-      const credits = this.creditsContext.resolve(options?.credits, argsOrVars, result, authResult)
+      const credits = isFixedCredits
+        ? (preCalculatedCredits ?? 1n)
+        : this.creditsContext.resolve(creditsOption, argsOrVars, result, authResult)
+
+      // Update context with final resolved credits
+      paywallContext.credits = credits
 
       // 6. If the result is an AsyncIterable (stream), redeem on completion
       if (isAsyncIterable(result)) {
@@ -137,7 +144,7 @@ export class PaywallDecorator {
           ...result.metadata,
           txHash: creditsResult.txHash,
           requestId: authResult.requestId,
-          creditsRedeemed: credits.toString(),
+          creditsRedeemed: creditsResult.data?.amountOfCredits?.toString() ?? credits.toString(),
           success: true,
         }
       }
