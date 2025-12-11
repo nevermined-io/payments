@@ -28,8 +28,6 @@ import {
   createJsonMiddleware,
   createHttpLoggingMiddleware,
 } from '../http/oauth-router.js'
-import { zodToJsonSchema } from 'zod-to-json-schema'
-import type { ZodType } from 'zod'
 
 let McpServerClass: any = null
 

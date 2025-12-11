@@ -5,7 +5,7 @@ import type { Payments } from '../../payments.js'
 import { extractAuthHeader, stripBearer } from '../utils/request.js'
 import { buildLogicalUrl, buildLogicalMetaUrl } from '../utils/logical-url.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
-import { AuthResult, PaywallOptions } from '../types/paywall.types.js'
+import { AuthResult } from '../types/paywall.types.js'
 import { getCurrentRequestContext } from '../http/mcp-handler.js'
 
 /**
@@ -144,9 +144,11 @@ export class PaywallAuthenticator {
             .join(', ')
           plansMsg = summary ? ` Available plans: ${summary}...` : ''
         }
-      } catch {}
+      } catch {
+        // Ignore errors fetching plans - best effort only
+      }
 
-      throw createRpcError(ERROR_CODES.PaymentRequired, `Paymentaa required.${plansMsg}`, {
+      throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
         reason: 'invalid',
       })
     }
@@ -231,7 +233,7 @@ export class PaywallAuthenticator {
         void _err
       }
 
-      throw createRpcError(ERROR_CODES.PaymentRequired, `Paymentbb required.${plansMsg}`, {
+      throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
         reason: 'invalid',
       })
     }

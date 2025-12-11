@@ -66,7 +66,8 @@ class PaymentsMock {
 describe('MCP Integration', () => {
   describe('withPaywall', () => {
     test('should burn fixed credits after successful call', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
@@ -80,17 +81,20 @@ describe('MCP Integration', () => {
 
       expect(out).toBeDefined()
       expect(
-        pm.calls.some((c) => c[0] === 'start' && c[1] === 'did:nv:agent' && c[2] === 'token'),
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'start' && c[1] === 'did:nv:agent' && c[2] === 'token',
+        ),
       ).toBe(true)
       expect(
-        pm.calls.some(
-          (c) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'token' && c[3] === 2,
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'token' && c[3] === 2,
         ),
       ).toBe(true)
     })
 
     test('should add metadata to result after successful redemption', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
@@ -117,7 +121,8 @@ describe('MCP Integration', () => {
 
     test('should add metadata with txHash when redeem returns it', async () => {
       const redeemResult = { success: true, txHash: '0x1234567890abcdef' }
-      const pm = new PaymentsMock(redeemResult) as any as Payments
+      const mockInstance = new PaymentsMock(redeemResult)
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
@@ -143,7 +148,8 @@ describe('MCP Integration', () => {
 
     test('should not add metadata when redemption fails', async () => {
       const redeemResult = { success: false, error: 'Insufficient credits' }
-      const pm = new PaymentsMock(redeemResult) as any as Payments
+      const mockInstance = new PaymentsMock(redeemResult)
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
@@ -160,7 +166,8 @@ describe('MCP Integration', () => {
     })
 
     test('should reject when authorization header missing', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent' })
 
@@ -175,7 +182,8 @@ describe('MCP Integration', () => {
     })
 
     test('should burn dynamic credits from function', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'srv' })
 
@@ -190,12 +198,15 @@ describe('MCP Integration', () => {
       })
       await wrapped({}, { requestInfo: { headers: { authorization: 'Bearer TT' } } })
       expect(
-        pm.calls.some((c) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'TT' && c[3] === 7),
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'TT' && c[3] === 7,
+        ),
       ).toBe(true)
     })
 
     test('should default to one credit when undefined', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:x', serverName: 'srv' })
 
@@ -206,12 +217,15 @@ describe('MCP Integration', () => {
       const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test' })
       await wrapped({}, { requestInfo: { headers: { Authorization: 'Bearer tok' } } })
       expect(
-        pm.calls.some((c) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 1),
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 1,
+        ),
       ).toBe(true)
     })
 
     test('should not redeem when zero credits', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:x', serverName: 'srv' })
 
@@ -225,13 +239,14 @@ describe('MCP Integration', () => {
         credits: (_ctx: any) => 0n,
       })
       await wrapped({}, { requestInfo: { headers: { Authorization: 'Bearer tok' } } })
-      expect(pm.calls.some((c) => c[0] === 'redeem')).toBe(false)
+      expect(mockInstance.calls.some((c: any) => c[0] === 'redeem')).toBe(false)
     })
   })
 
   describe('attach', () => {
     test('should wrap and burn credits for registerResource', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'srv' })
 
@@ -264,8 +279,8 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       await wrapped(new URL('mcp://srv/res'), { a: '1' }, extra)
       expect(
-        pm.calls.some(
-          (c) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'token' && c[3] === 3,
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'token' && c[3] === 3,
         ),
       ).toBe(true)
     })
@@ -286,7 +301,8 @@ describe('MCP Integration', () => {
         },
       ]
 
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
 
@@ -296,11 +312,11 @@ describe('MCP Integration', () => {
 
       const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'hdr', credits: 1n })
       for (let i = 0; i < variants.length; i++) {
-        pm.calls = []
+        mockInstance.calls = []
         await wrapped({}, variants[i])
         expect(
-          pm.calls.some(
-            (c) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === tokens[i] && c[3] === 1,
+          mockInstance.calls.some(
+            (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === tokens[i] && c[3] === 1,
           ),
         ).toBe(true)
       }
@@ -309,7 +325,8 @@ describe('MCP Integration', () => {
 
   describe('async iterables', () => {
     test('should redeem after async iterable completes', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
 
@@ -328,7 +345,7 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
       const iterable = await wrapped({}, extra)
       // Not redeemed yet
-      expect(pm.calls.some((c) => c[0] === 'redeem')).toBe(false)
+      expect(mockInstance.calls.some((c: any) => c[0] === 'redeem')).toBe(false)
 
       const collected: any[] = []
       for await (const chunk of iterable) {
@@ -342,12 +359,15 @@ describe('MCP Integration', () => {
       const lastChunk = collected[collected.length - 1]
       expect(lastChunk.metadata).toBeDefined()
       expect(
-        pm.calls.some((c) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 5),
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 5,
+        ),
       ).toBe(true)
     })
 
     test('should redeem when consumer stops stream early', async () => {
-      const pm = new PaymentsMock() as any as Payments
+      const mockInstance = new PaymentsMock()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
 
@@ -389,7 +409,9 @@ describe('MCP Integration', () => {
       expect(count).toBe(1)
       // Redemption should happen when stream is closed
       expect(
-        pm.calls.some((c) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 2),
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 2,
+        ),
       ).toBe(true)
     })
   })
@@ -454,7 +476,8 @@ describe('MCP Integration', () => {
     }
 
     test('should work with handlers without context parameter', async () => {
-      const pm = new PaymentsMockWithAgentRequest() as any as Payments
+      const mockInstance = new PaymentsMockWithAgentRequest()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
@@ -470,17 +493,20 @@ describe('MCP Integration', () => {
 
       expect(out.content[0].text).toBe('Hello Alice')
       expect(
-        pm.calls.some((c) => c[0] === 'start' && c[1] === 'did:nv:agent' && c[2] === 'token'),
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'start' && c[1] === 'did:nv:agent' && c[2] === 'token',
+        ),
       ).toBe(true)
       expect(
-        pm.calls.some(
-          (c) => c[0] === 'redeem' && c[1] === 'req-123' && c[2] === 'token' && c[3] === 2,
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'redeem' && c[1] === 'req-123' && c[2] === 'token' && c[3] === 2,
         ),
       ).toBe(true)
     })
 
     test('should provide PaywallContext to handlers with context parameter', async () => {
-      const pm = new PaymentsMockWithAgentRequest() as any as Payments
+      const mockInstance = new PaymentsMockWithAgentRequest()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
@@ -503,7 +529,8 @@ describe('MCP Integration', () => {
     })
 
     test('should provide PaywallContext with all expected fields', async () => {
-      const pm = new PaymentsMockWithAgentRequest() as any as Payments
+      const mockInstance = new PaymentsMockWithAgentRequest()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
@@ -548,7 +575,8 @@ describe('MCP Integration', () => {
     })
 
     test('should allow handlers to use agent request data from context', async () => {
-      const pm = new PaymentsMockWithAgentRequest() as any as Payments
+      const mockInstance = new PaymentsMockWithAgentRequest()
+      const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
 

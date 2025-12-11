@@ -366,7 +366,7 @@ export function createRequireAuthMiddleware() {
 export function createHttpLoggingMiddleware(onLog?: (message: string) => void) {
   const log =
     onLog ||
-    ((message: string) => {
+    ((_message: string) => {
       // Intentionally empty - no logging when onLog not provided
     })
 
