@@ -1,0 +1,155 @@
+name: Finalize Release (TS)
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  # Job 1: Verify the PR source branch
+  check-pr:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if PR is merged from release branch
+        run: |
+          echo "✅ PR #${{ github.event.pull_request.number }} merged from release branch"
+          echo "Branch: ${{ github.event.pull_request.head.ref }}"
+
+  # Job 2: Handle tagging and GitHub Release creation
+  release:
+    name: Create Tag and GitHub Release
+    needs: check-pr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.API_TOKEN_GITHUB }}
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get version from package.json
+        id: get_version
+        run: |
+          # Use node to safely read the version field
+          VERSION=$(node -p "require('./package.json').version")
+          
+          if [ -z "$VERSION" ]; then
+            echo "❌ Could not determine version from package.json"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Detected version: $VERSION"
+
+      - name: Create and push tag
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          echo "🏷️ Creating tag: $TAG"
+
+          # Check if tag already exists locally
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "⚠️ Tag $TAG already exists locally"
+          else
+            git tag "$TAG"
+            echo "✅ Created tag: $TAG"
+          fi
+
+          # Check if tag already exists on remote and push if missing
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+            echo "⚠️ Tag $TAG already exists on remote"
+          else
+            git push origin "$TAG"
+            echo "✅ Pushed tag: $TAG"
+          fi
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          if [ ! -f "CHANGELOG.md" ]; then
+            echo "⚠️ CHANGELOG.md not found"
+            echo "use_auto_notes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract the specific version section using awk
+          CHANGELOG_CONTENT=$(awk "/^## \[?v?${VERSION}\]?/,/^## \[?v?[0-9]/" CHANGELOG.md | sed '1d;$d' || echo "")
+
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            echo "⚠️ Could not extract changelog for version $VERSION"
+            echo "use_auto_notes=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Extracted changelog for version $VERSION"
+            echo "use_auto_notes=false" >> $GITHUB_OUTPUT
+            # Save temporary file for the release body
+            echo "$CHANGELOG_CONTENT" > /tmp/release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG="v${VERSION}"
+          USE_AUTO_NOTES="${{ steps.changelog.outputs.use_auto_notes }}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "⚠️ Release $TAG already exists"
+            exit 0
+          fi
+
+          # Generate the .tgz package to attach it to the release
+          npm pack
+
+          # Determine if the version is a pre-release
+          PRERELEASE_FLAG=""
+          [[ "$VERSION" =~ (alpha|beta|rc|pre) ]] && PRERELEASE_FLAG="--prerelease"
+
+          if [ "$USE_AUTO_NOTES" = "true" ] || [ ! -f "/tmp/release_notes.md" ]; then
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              $PRERELEASE_FLAG \
+              *.tgz
+          else
+            gh release create "$TAG" \
+              --title "Release $TAG" \
+              --notes-file /tmp/release_notes.md \
+              $PRERELEASE_FLAG \
+              *.tgz
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## 🎉 Release Complete!
+
+          ### Details
+          - **Version:** $TAG
+          - **Release URL:** https://github.com/${{ github.repository }}/releases/tag/$TAG
+
+          ### What happened
+          - ✅ Tag \`$TAG\` created and pushed
+          - ✅ GitHub release published with .tgz asset
+
+          ---
+          🤖 This release was automatically created by the \`finalize-release\` workflow.
+          EOF
