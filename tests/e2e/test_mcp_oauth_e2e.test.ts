@@ -4,7 +4,12 @@
  */
 
 import { Payments } from '../../src/payments.js'
-import type { PlanMetadata, Address, AgentMetadata } from '../../src/common/types.js'
+import type {
+  PlanMetadata,
+  Address,
+  AgentMetadata,
+  AgentAPIAttributes,
+} from '../../src/common/types.js'
 import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
 import { retryWithBackoff } from '../utils.js'
 import { z } from 'zod'
@@ -97,13 +102,21 @@ describe('MCP OAuth E2E Tests', () => {
       }
 
       // Register agent with MCP logical URIs
-      const agentApi = {
+      const agentApi: AgentAPIAttributes = {
         endpoints: [
           // Logical URIs for MCP tools
           { POST: `mcp://${serverName}/tools/weather` },
           { POST: `mcp://${serverName}/tools/calculator` },
           // Wildcard for any tool
           { POST: `mcp://${serverName}/tools/*` },
+          // Resources
+          { GET: `mcp://${serverName}/resources/weather://today/{city}` },
+          // Wildcard for any resource
+          { GET: `mcp://${serverName}/resources/*` },
+          // Prompts
+          { GET: `mcp://${serverName}/prompts/weather.ask` },
+          // Wildcard for any prompt
+          { GET: `mcp://${serverName}/prompts/*` },
           // HTTP fallback
           { POST: `http://localhost:${MCP_SERVER_PORT}/mcp` },
         ],
@@ -183,6 +196,68 @@ describe('MCP OAuth E2E Tests', () => {
         { credits: 3n },
       )
 
+      // Register a resource with URI template
+      paymentsBuilder.mcp.registerResource(
+        'weather://today/{city}',
+        {
+          name: 'Weather Data',
+          description: 'Raw weather data for a city',
+          mimeType: 'application/json',
+        },
+        async (uri: URL, variables: Record<string, string | string[]>) => {
+          console.log('[E2E] Resource handler called!')
+          console.log('[E2E] URI:', uri.href)
+          console.log('[E2E] Variables:', JSON.stringify(variables))
+
+          const city =
+            (Array.isArray(variables.city) ? variables.city[0] : variables.city) || 'Unknown'
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: 'application/json',
+                text: JSON.stringify({
+                  city,
+                  temperature: 22,
+                  conditions: 'sunny',
+                  humidity: 65,
+                }),
+              },
+            ],
+          }
+        },
+        { credits: 2n },
+      )
+
+      // Register a prompt with input schema
+      paymentsBuilder.mcp.registerPrompt(
+        'weather.ask',
+        {
+          name: 'Ask for Weather',
+          description: 'Prompt to ask for weather information',
+          inputSchema: z.object({
+            city: z.string().describe('City name'),
+          }),
+        },
+        async function promptHandler(args: Record<string, string>, context?: any) {
+          const city = args?.city || 'a city'
+          console.log('[E2E] Prompt handler called with city:', city)
+
+          return {
+            messages: [
+              {
+                role: 'user',
+                content: {
+                  type: 'text',
+                  text: `What is the weather like in ${city}?`,
+                },
+              },
+            ],
+          }
+        },
+        { credits: 1n },
+      )
+
       // Start the server using the real API
       const { info, stop } = await paymentsBuilder.mcp.start({
         port: MCP_SERVER_PORT,
@@ -199,9 +274,13 @@ describe('MCP OAuth E2E Tests', () => {
       expect(info.baseUrl).toBeDefined()
       expect(info.tools).toContain('weather')
       expect(info.tools).toContain('calculator')
+      expect(info.resources).toContain('weather://today/{city}')
+      expect(info.prompts).toContain('weather.ask')
 
       console.log('[E2E] MCP Server started:', info.baseUrl)
       console.log('[E2E] Tools:', info.tools.join(', '))
+      console.log('[E2E] Resources:', info.resources.join(', '))
+      console.log('[E2E] Prompts:', info.prompts.join(', '))
 
       // Wait for server to be fully ready
       await new Promise((resolve) => setTimeout(resolve, 500))
@@ -503,7 +582,7 @@ describe('MCP OAuth E2E Tests', () => {
     TEST_TIMEOUT,
   )
 
-  test.skip(
+  test(
     'should access MCP resource with valid token',
     async () => {
       expect(subscriberAccessToken).not.toBeNull()
@@ -520,17 +599,29 @@ describe('MCP OAuth E2E Tests', () => {
           id: 1,
           method: 'resources/read',
           params: {
-            uri: 'config://settings',
+            uri: 'weather://today/Madrid',
           },
         }),
       })
 
-      expect(response.ok).toBe(true)
       const data = await response.json()
+      console.log('[E2E] Resource response:', JSON.stringify(data, null, 2))
+
+      if (!response.ok || data.error) {
+        console.error('[E2E] Resource request failed:', data.error || data)
+        throw new Error(`Resource request failed: ${JSON.stringify(data.error || data)}`)
+      }
+
+      expect(data.result).toBeDefined()
       expect(data.result.contents).toBeDefined()
-      expect(data.result.contents[0].uri).toBe('config://settings')
-      expect(data.result.contents[0].text).toContain('setting')
-      console.log('[E2E] Resource access successful')
+      expect(data.result.contents.length).toBeGreaterThan(0)
+
+      const content = JSON.parse(data.result.contents[0].text)
+      expect(content.city).toBe('Madrid')
+      expect(content.temperature).toBe(22)
+      expect(content.conditions).toBe('sunny')
+
+      console.log('[E2E] Resource accessed successfully:', content)
     },
     TEST_TIMEOUT,
   )
@@ -568,8 +659,8 @@ describe('MCP OAuth E2E Tests', () => {
     TEST_TIMEOUT,
   )
 
-  test.skip(
-    'should list resources via JSON-RPC',
+  test(
+    'should list resource templates via JSON-RPC',
     async () => {
       expect(subscriberAccessToken).not.toBeNull()
       expect(mcpServerInfo).not.toBeNull()
@@ -583,19 +674,95 @@ describe('MCP OAuth E2E Tests', () => {
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 1,
-          method: 'resources/list',
+          method: 'resources/templates/list',
           params: {},
         }),
       })
 
       expect(response.ok).toBe(true)
       const data = await response.json()
-      expect(data.result.resources).toBeDefined()
-      expect(data.result.resources.length).toBeGreaterThan(0)
+      expect(data.result.resourceTemplates).toBeDefined()
+      expect(data.result.resourceTemplates.length).toBeGreaterThan(0)
 
-      const resourceUris = data.result.resources.map((r: any) => r.uri)
-      expect(resourceUris).toContain('config://settings')
-      console.log('[E2E] Resources list:', resourceUris.join(', '))
+      const templates = data.result.resourceTemplates.map((r: any) => r.uriTemplate)
+      expect(templates).toContain('weather://today/{city}')
+      console.log('[E2E] Resource templates:', templates.join(', '))
+    },
+    TEST_TIMEOUT,
+  )
+
+  test(
+    'should list prompts via JSON-RPC',
+    async () => {
+      expect(subscriberAccessToken).not.toBeNull()
+      expect(mcpServerInfo).not.toBeNull()
+
+      const response = await fetch(`${mcpServerInfo.baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${subscriberAccessToken}`,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'prompts/list',
+          params: {},
+        }),
+      })
+
+      expect(response.ok).toBe(true)
+      const data = await response.json()
+      expect(data.result.prompts).toBeDefined()
+      expect(data.result.prompts.length).toBeGreaterThan(0)
+
+      const promptNames = data.result.prompts.map((p: any) => p.name)
+      expect(promptNames).toContain('weather.ask')
+      console.log('[E2E] Prompts list:', promptNames.join(', '))
+    },
+    TEST_TIMEOUT,
+  )
+
+  test(
+    'should get prompt with valid token',
+    async () => {
+      expect(subscriberAccessToken).not.toBeNull()
+      expect(mcpServerInfo).not.toBeNull()
+
+      const response = await fetch(`${mcpServerInfo.baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${subscriberAccessToken}`,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'prompts/get',
+          params: {
+            name: 'weather.ask',
+            arguments: { city: 'Barcelona' },
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('[E2E] Prompt request failed:', errorData)
+        throw new Error(`Prompt request failed: ${JSON.stringify(errorData)}`)
+      }
+
+      const data = await response.json()
+      console.log('[E2E] Prompt response:', JSON.stringify(data, null, 2))
+
+      expect(data.result.messages).toBeDefined()
+      expect(data.result.messages.length).toBeGreaterThan(0)
+
+      const message = data.result.messages[0]
+      expect(message.role).toBe('user')
+      expect(message.content.text).toContain('Barcelona')
+
+      console.log('[E2E] Prompt accessed successfully:', message.content.text)
     },
     TEST_TIMEOUT,
   )

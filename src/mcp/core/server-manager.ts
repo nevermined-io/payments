@@ -28,17 +28,22 @@ import {
   createJsonMiddleware,
   createHttpLoggingMiddleware,
 } from '../http/oauth-router.js'
+import { PaywallDecorator } from './paywall.js'
+import { PaywallAuthenticator } from './auth.js'
+import { CreditsContextProvider } from './credits-context.js'
 
 let McpServerClass: any = null
+let ResourceTemplateClass: any = null
 
 /**
- * Lazily load McpServer from the SDK.
+ * Lazily load McpServer and ResourceTemplate from the SDK.
  */
 async function getMcpServerClass(): Promise<any> {
   if (!McpServerClass) {
     try {
       const module = await import('@modelcontextprotocol/sdk/server/mcp.js')
       McpServerClass = module.McpServer
+      ResourceTemplateClass = module.ResourceTemplate
     } catch (error) {
       throw new Error(
         'Failed to load @modelcontextprotocol/sdk. Make sure it is installed: npm install @modelcontextprotocol/sdk',
@@ -73,9 +78,14 @@ export class McpServerManager {
   private sessionManager: SessionManager | null = null
   private config: McpServerConfig | null = null
   private log: ((message: string) => void) | undefined = undefined
+  private paywallDecorator: PaywallDecorator
 
   constructor(payments: Payments) {
     this.payments = payments
+    // Initialize paywall decorator
+    const authenticator = new PaywallAuthenticator(payments)
+    const creditsContext = new CreditsContextProvider()
+    this.paywallDecorator = new PaywallDecorator(payments, authenticator, creditsContext)
   }
 
   /**
@@ -334,18 +344,14 @@ export class McpServerManager {
    * Register all tools, resources, and prompts with paywall protection.
    */
   private async registerHandlersWithPaywall(): Promise<void> {
-    // Configure MCP integration
+    // Configure paywall with agent and server info
     if (!this.config) {
       throw new Error('Server config not set')
     }
-    const config = this.config
-    ;(this.payments.mcp as any).configure({
-      agentId: config.agentId,
-      serverName: config.serverName,
+    this.paywallDecorator.configure({
+      agentId: this.config.agentId,
+      serverName: this.config.serverName,
     })
-
-    // Get the withPaywall function
-    const withPaywall = (this.payments.mcp as any).withPaywall
 
     // Register tools
     for (const [name, registration] of this.tools) {
@@ -360,7 +366,7 @@ export class McpServerManager {
             ? BigInt(options.credits)
             : options.credits
 
-      const protectedHandler = withPaywall(
+      const protectedHandler = this.paywallDecorator.protect(
         async (args: any, extra?: any, paywallContext?: any) => {
           // Convert PaywallContext to ToolContext format
           // Put authResult and credits inside extra (consistent format)
@@ -401,7 +407,7 @@ export class McpServerManager {
             ? BigInt(options.credits)
             : options.credits
 
-      const protectedHandler = withPaywall(
+      const protectedHandler = this.paywallDecorator.protect(
         async (
           uri: URL,
           variables: Record<string, string | string[]>,
@@ -433,7 +439,23 @@ export class McpServerManager {
       )
 
       // Register with MCP server
-      this.mcpServer.registerResource(uri, resourceConfig, protectedHandler)
+      const hasTemplateVariables = /\{[^}]+\}/.test(uri)
+
+      if (hasTemplateVariables) {
+        const resourceName = uri
+        const templateInstance = new ResourceTemplateClass(uri, {
+          list: async () => ({ resources: [] }),
+        })
+        this.mcpServer.registerResource(
+          resourceName,
+          templateInstance,
+          resourceConfig,
+          protectedHandler,
+        )
+      } else {
+        // For static resources: registerResource(name, uriString, config, handler)
+        this.mcpServer.registerResource(uri, uri, resourceConfig, protectedHandler)
+      }
     }
 
     // Register prompts
@@ -449,10 +471,9 @@ export class McpServerManager {
             ? BigInt(options.credits)
             : options.credits
 
-      const protectedHandler = withPaywall(
+      const protectedHandler = this.paywallDecorator.protect(
         async (args: Record<string, string>, extra?: any, paywallContext?: any) => {
           // Convert PaywallContext to PromptContext format
-          // Put authResult and credits inside extra (consistent format)
           const promptContext = paywallContext
             ? {
                 extra: {
@@ -463,6 +484,7 @@ export class McpServerManager {
                 },
               }
             : { extra }
+
           // Call the user's handler with the converted context
           const result = await handler(args, promptContext)
           return result
@@ -476,7 +498,21 @@ export class McpServerManager {
       )
 
       // Register with MCP server
-      this.mcpServer.registerPrompt(name, promptConfig, protectedHandler)
+      const sdkPromptConfig: any = {
+        name: promptConfig.name,
+        description: promptConfig.description,
+      }
+
+      if (promptConfig.inputSchema) {
+        const schema = promptConfig.inputSchema as any
+        if (schema && typeof schema === 'object' && 'shape' in schema) {
+          sdkPromptConfig.argsSchema = schema.shape
+        } else {
+          sdkPromptConfig.argsSchema = promptConfig.inputSchema
+        }
+      }
+
+      this.mcpServer.registerPrompt(name, sdkPromptConfig, protectedHandler)
     }
   }
 

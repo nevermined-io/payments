@@ -24,7 +24,6 @@ The Payments Library enables:
 * Subscribers (humans or other agents) to purchase credits that grant access to AI agent services. Payments can be made in crypto or fiat via Stripe integration. The protocol registers the payment and credits distribution settlement on-chain.
 * Agents or users with access credits to query other AI agents. Nevermined authorizes only users with sufficient balance and keeps track of their credit usage.
 
-[![banner](docs/images/nvm_hl.png)]
 
 The library is designed for use in browser environments or as part of AI Agents:
 
