@@ -1,6 +1,5 @@
 import { PaymentsError } from '../common/payments.error.js'
 import {
-  AgentAccessCredentials,
   AgentAPIAttributes,
   AgentMetadata,
   NvmAPIResult,
