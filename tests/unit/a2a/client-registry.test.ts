@@ -10,10 +10,14 @@ jest.mock('../../../src/a2a/paymentsClient.js')
 
 class DummyPayments {
   public agents: any
+  public x402: any
 
   constructor() {
     this.agents = {
       getAgentAccessToken: jest.fn().mockResolvedValue({ accessToken: 'TOKEN' }),
+    }
+    this.x402 = {
+      getX402AccessToken: jest.fn().mockResolvedValue({ accessToken: 'TOKEN' }),
     }
   }
 }

@@ -10,10 +10,14 @@ jest.mock('@a2a-js/sdk/client')
 
 class DummyPayments {
   public agents: any
+  public x402: any
 
   constructor() {
     this.agents = {
       getAgentAccessToken: jest.fn().mockResolvedValue({ accessToken: 'TOK' }),
+    }
+    this.x402 = {
+      getX402AccessToken: jest.fn().mockResolvedValue({ accessToken: 'TOK' }),
     }
   }
 }
@@ -78,6 +82,6 @@ describe('PaymentsClient resubscribeTask', () => {
     }
 
     expect(collected).toEqual([{ kind: 'task' }])
-    expect(dummyPayments.agents.getAgentAccessToken).toHaveBeenCalled()
+    expect(dummyPayments.x402.getX402AccessToken).toHaveBeenCalled()
   })
 })

@@ -10,15 +10,21 @@ jest.mock('@a2a-js/sdk/client')
 
 class DummyPayments {
   public _getTokenMock: jest.Mock
+  public _getX402TokenMock: jest.Mock
   public agents: any
   public requests: any
+  public x402: any
 
   constructor() {
     this._getTokenMock = jest.fn().mockResolvedValue({ accessToken: 'XYZ' })
+    this._getX402TokenMock = jest.fn().mockResolvedValue({ accessToken: 'XYZ' })
     this.agents = {
       getAgentAccessToken: this._getTokenMock,
     }
     this.requests = {}
+    this.x402 = {
+      getX402AccessToken: this._getX402TokenMock,
+    }
   }
 }
 
@@ -66,8 +72,8 @@ describe('PaymentsClient', () => {
     // not called again
     await paymentsClient.sendA2AMessage({ message: {} } as any)
 
-    // The mocked get_agent_access_token should have been awaited exactly once
-    expect(dummyPayments._getTokenMock).toHaveBeenCalledTimes(1)
+    // The mocked getX402AccessToken should have been awaited exactly once
+    expect(dummyPayments._getX402TokenMock).toHaveBeenCalledTimes(1)
   })
 
   test('should inject authorization header', async () => {
