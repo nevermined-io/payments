@@ -14,7 +14,6 @@ import { BasePaymentsAPI } from './base-payments.js'
 import {
   API_URL_ADD_PLAN_AGENT,
   API_URL_GET_AGENT,
-  API_URL_GET_AGENT_ACCESS_TOKEN,
   API_URL_GET_AGENT_PLANS,
   API_URL_REGISTER_AGENT,
   API_URL_REGISTER_AGENTS_AND_PLAN,
@@ -317,59 +316,6 @@ export class AgentsAPI extends BasePaymentsAPI {
     const response = await fetch(url, options)
     if (!response.ok) {
       throw PaymentsError.fromBackend('Unable to remove plan from agent', await response.json())
-    }
-
-    return response.json()
-  }
-
-  /**
-   * When the user calling this method is a valid subscriber, it generates an access token related to the Payment Plan and the AI Agent.
-   * The access token can be used to query the AI Agent's API endpoints. The access token is unique for the subscriber, payment plan and agent.
-   *
-   * @remarks
-   * Only a valid subscriber of the Payment Plan can generate a valid access token.
-   * @remarks
-   * The access token generated can be send by HTTP Authorization header to query the AI Agent's API endpoints.
-   *
-   * @param planId - The unique identifier of the Payment Plan.
-   * @param agentId - The unique identifier of the AI Agent.
-   * @returns  @see {@link AgentAccessCredentials} The access token and the proxy URL to query the agent.
-   * @throws PaymentsError if unable to remove the plan from the agent.
-   *
-   * @example
-   * ```
-   * const credentials = await payments.agents.getAgentAccessToken(planId, agentId)
-   * // {
-   * //   accessToken: 'eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweD ...',
-   * //   proxies: ['https://proxy.nevermined.network/']
-   * // }
-   *
-   * const agentHTTPOptions = {
-   *   method: 'POST',
-   *   headers: {
-   *   Accept: 'application/json',
-   *   'Content-Type': 'application/json',
-   *   Authorization: `Bearer ${credentials.accessToken}`,
-   *  }
-   * }
-   *
-   * const response = await fetch(new URL(agentEndpoint), agentHTTPOptions)
-   * ```
-   */
-  public async getAgentAccessToken(
-    planId: string,
-    agentId: string,
-  ): Promise<AgentAccessCredentials> {
-    const accessTokenUrl = API_URL_GET_AGENT_ACCESS_TOKEN.replace(':planId', planId).replace(
-      ':agentId',
-      agentId,
-    )
-    const options = this.getBackendHTTPOptions('GET')
-
-    const url = new URL(accessTokenUrl, this.environment.backend)
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to get agent access token', await response.json())
     }
 
     return response.json()
