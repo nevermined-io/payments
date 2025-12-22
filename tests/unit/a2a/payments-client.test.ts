@@ -2,9 +2,9 @@
  * Unit tests for PaymentsClient.
  */
 
+import { A2AClient } from '@a2a-js/sdk/client'
 import { PaymentsClient } from '../../../src/a2a/paymentsClient.js'
 import type { Payments } from '../../../src/payments.js'
-import { A2AClient } from '@a2a-js/sdk/client'
 
 jest.mock('@a2a-js/sdk/client')
 
@@ -18,9 +18,6 @@ class DummyPayments {
   constructor() {
     this._getTokenMock = jest.fn().mockResolvedValue({ accessToken: 'XYZ' })
     this._getX402TokenMock = jest.fn().mockResolvedValue({ accessToken: 'XYZ' })
-    this.agents = {
-      getAgentAccessToken: this._getTokenMock,
-    }
     this.requests = {}
     this.x402 = {
       getX402AccessToken: this._getX402TokenMock,
@@ -47,7 +44,7 @@ describe('PaymentsClient', () => {
         },
       }),
     }
-    ;(A2AClient.fromCardUrl as jest.Mock).mockResolvedValue(mockA2AClient)
+      ; (A2AClient.fromCardUrl as jest.Mock).mockResolvedValue(mockA2AClient)
 
     // Create PaymentsClient
     paymentsClient = await PaymentsClient.create(
@@ -57,14 +54,14 @@ describe('PaymentsClient', () => {
       '1',
     )
 
-    // Mock internal _getClient to avoid ClientFactory path
-    ;(paymentsClient as any)._client = mockA2AClient
+      // Mock internal _getClient to avoid ClientFactory path
+      ; (paymentsClient as any)._client = mockA2AClient
   })
 
   test('should cache access token after first call', async () => {
     // Mock the internal _postRpcRequestWithHeaders method
     const mockPostRpc = jest.fn().mockResolvedValue({ ok: true })
-    ;(paymentsClient as any)._postRpcRequestWithHeaders = mockPostRpc
+      ; (paymentsClient as any)._postRpcRequestWithHeaders = mockPostRpc
 
     // First call should fetch token and cache it
     await paymentsClient.sendA2AMessage({ message: {} } as any)
@@ -79,7 +76,7 @@ describe('PaymentsClient', () => {
   test('should inject authorization header', async () => {
     // Mock the internal _postRpcRequestWithHeaders method
     const mockPostRpc = jest.fn().mockResolvedValue({ ok: true })
-    ;(paymentsClient as any)._postRpcRequestWithHeaders = mockPostRpc
+      ; (paymentsClient as any)._postRpcRequestWithHeaders = mockPostRpc
 
     await paymentsClient.sendA2AMessage({ message: {} } as any)
     expect(mockPostRpc).toHaveBeenCalled()

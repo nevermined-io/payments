@@ -13,9 +13,6 @@ class DummyPayments {
   public x402: any
 
   constructor() {
-    this.agents = {
-      getAgentAccessToken: jest.fn().mockResolvedValue({ accessToken: 'TOK' }),
-    }
     this.x402 = {
       getX402AccessToken: jest.fn().mockResolvedValue({ accessToken: 'TOK' }),
     }

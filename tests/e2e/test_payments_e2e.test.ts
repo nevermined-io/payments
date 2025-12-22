@@ -502,7 +502,7 @@ describe('Payments E2E Tests', () => {
         expect(creditsPlanId).not.toBeNull()
         expect(agentId).not.toBeNull()
 
-        agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
+        agentAccessParams = await paymentsSubscriber.x402.getX402AccessToken(
           creditsPlanId!,
           agentId!,
         )

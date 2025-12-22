@@ -301,7 +301,7 @@ describe('A2A E2E Flow', () => {
 
   test('should get agent access token', async () => {
     try {
-      const agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
+      const agentAccessParams = await paymentsSubscriber.x402.getX402AccessToken(
         PLAN_ID,
         AGENT_ID,
       )
@@ -320,7 +320,7 @@ describe('A2A E2E Flow', () => {
   test('should complete blocking flow with credit burning', async () => {
     // Ensure we have access token
     if (!accessToken) {
-      const agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
+      const agentAccessParams = await paymentsSubscriber.x402.getX402AccessToken(
         PLAN_ID,
         AGENT_ID,
       )
