@@ -152,11 +152,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @returns Promise resolving to the validation result
    */
   public async validateRequest(
-    agentId: string,
     bearerToken: string,
-    urlRequested: string,
-    httpMethodRequested: string,
-    batch = false,
   ): Promise<any> {
     let planId
     const agentCard = await this.getAgentCard()
@@ -391,7 +387,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     resultManager: ResultManager,
     eventQueue: ExecutionEventQueue,
     bearerToken: string,
-    validation: StartAgentRequest,
   ): AsyncGenerator<A2AStreamEvent, void, undefined> {
     try {
       for await (const event of eventQueue.events()) {
@@ -629,7 +624,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     resultManager: ResultManager,
     event: TaskStatusUpdateEvent,
     bearerToken: string,
-    validation: StartAgentRequest,
   ) {
     const creditsToBurn = event.metadata?.creditsUsed
     if (
@@ -710,7 +704,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       paymentsRequestContext,
       taskId,
       bearerToken,
-      validation,
       requestContext,
       finalMessageForAgent,
       eventBus,
@@ -754,7 +747,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       resultManager,
       eventQueue,
       bearerToken,
-      validation,
     )
   }
 

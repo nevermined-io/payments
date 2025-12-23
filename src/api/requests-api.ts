@@ -12,7 +12,6 @@ import {
   API_URL_SIMULATE_REDEEM_AGENT_REQUEST,
 } from './nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { decodeAccessToken } from '../utils.js'
 
 /**
  * The AgentRequestsAPI class provides methods to manage the requests received by AI Agents integrated with Nevermined.
