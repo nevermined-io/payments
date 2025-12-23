@@ -141,7 +141,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   }
 
   /**
-   * Validates a request using the payments service.
+   * Validates a request using the x402 payments service.
    * This method is used by the middleware to validate credits before processing requests.
    *
    * @param agentId - The agent ID to validate
@@ -176,13 +176,26 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     if (!planId) {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
+    const subscriberAddress = decodedAccessToken.subscriberAddress
+    if (!subscriberAddress || !planId) {
+      throw PaymentsError.unauthorized('Cannot determine planId or subscriberAddress from token or agent card')
+    }
 
-    return this.paymentsService.facilitator.verifyPermissions({
+    const result = await this.paymentsService.facilitator.verifyPermissions({
       planId: planId as string,
       maxAmount: 1n,
       x402AccessToken: bearerToken,
       subscriberAddress: decodedAccessToken.subscriberAddress,
     })
+    if (!result.success) {
+      throw PaymentsError.unauthorized('Permission verification failed.')
+    }
+    return {
+      success: true,
+      planId: planId,
+      subscriberAddress: subscriberAddress,
+      balance: { isSubscriber: true },
+    }
 
   }
 
