@@ -2,15 +2,27 @@
  * Unit tests for PaymentsRequestHandler.
  */
 
-import { PaymentsRequestHandler } from '../../../src/a2a/paymentsRequestHandler.js'
-import type { Payments } from '../../../src/payments.js'
-import type { HttpRequestContext } from '../../../src/a2a/types.js'
 import type { AgentCard, TaskStatusUpdateEvent } from '@a2a-js/sdk'
+import { PaymentsRequestHandler } from '../../../src/a2a/paymentsRequestHandler.js'
+import type { HttpRequestContext } from '../../../src/a2a/types.js'
+import type { Payments } from '../../../src/payments.js'
 
 jest.mock('@a2a-js/sdk/server')
 
+jest.mock('../../../src/utils.js', () => ({
+  decodeAccessToken: jest.fn(() => ({
+    subscriber: '0xsub',
+    subscriberAddress: '0xsub',
+    planId: 'plan-1',
+  })),
+}))
+
 class DummyExecutor {
   async execute(...args: any[]): Promise<any> {
+    // Dummy implementation
+  }
+
+  async cancelTask(...args: any[]): Promise<void> {
     // Dummy implementation
   }
 }
@@ -24,8 +36,8 @@ describe('PaymentsRequestHandler', () => {
     jest.clearAllMocks()
 
     mockPayments = {
-      requests: {
-        redeemCreditsFromRequest: jest.fn().mockResolvedValue({ txHash: '0xabc' }),
+      facilitator: {
+        settlePermissions: jest.fn().mockResolvedValue({ txHash: '0xabc', amountOfCredits: 5n }),
       },
     }
 
@@ -41,6 +53,7 @@ describe('PaymentsRequestHandler', () => {
             uri: 'urn:nevermined:payment',
             params: {
               agentId: 'test-agent',
+              planId: 'plan-1',
             },
           },
         ],
@@ -50,8 +63,8 @@ describe('PaymentsRequestHandler', () => {
 
   describe('handleTaskFinalization', () => {
     test('should burn credits when event has creditsUsed', async () => {
-      const redeemMock = jest.fn().mockResolvedValue({ txHash: '0xabc' })
-      mockPayments.requests.redeemCreditsFromRequest = redeemMock
+      const settleMock = jest.fn().mockResolvedValue({ txHash: '0xabc', amountOfCredits: 5n })
+      mockPayments.facilitator.settlePermissions = settleMock
 
       const handler = new PaymentsRequestHandler(
         mockAgentCard,
@@ -60,15 +73,18 @@ describe('PaymentsRequestHandler', () => {
         mockPayments as any as Payments,
       )
 
-      // Mock getRedemptionConfig to return non-batch config
-      ;(handler as any).getRedemptionConfig = jest.fn().mockResolvedValue({
-        useBatch: false,
-        useMargin: false,
-      })
+        ; (handler as any).getAgentCard = jest.fn().mockResolvedValue(mockAgentCard)
+
+        // Mock getRedemptionConfig to return non-batch config
+        ; (handler as any).getRedemptionConfig = jest.fn().mockResolvedValue({
+          useBatch: false,
+          useMargin: false,
+        })
 
       // Mock resultManager
+      const taskRef = { id: 'tid', metadata: {} as any }
       const mockResultManager = {
-        getCurrentTask: jest.fn().mockReturnValue({ id: 'tid', metadata: {} }),
+        getCurrentTask: jest.fn().mockReturnValue(taskRef),
         processEvent: jest.fn().mockResolvedValue(undefined),
       }
 
@@ -81,19 +97,26 @@ describe('PaymentsRequestHandler', () => {
         metadata: { creditsUsed: 5 },
       } as TaskStatusUpdateEvent
 
-      const validation = { agentRequestId: 'test-agent-req' } as any
-
-      // Mock the internal method
       const handleTaskFinalization = (handler as any).handleTaskFinalization.bind(handler)
-      await handleTaskFinalization(mockResultManager, event, 'BEARER_TOKEN', validation)
+      await handleTaskFinalization(mockResultManager, event, 'BEARER_TOKEN')
 
-      expect(redeemMock).toHaveBeenCalledTimes(1)
-      expect(redeemMock).toHaveBeenCalledWith('test-agent-req', 'BEARER_TOKEN', 5n)
+      expect(settleMock).toHaveBeenCalledTimes(1)
+      expect(settleMock).toHaveBeenCalledWith({
+        planId: 'plan-1',
+        maxAmount: 5n,
+        x402AccessToken: 'BEARER_TOKEN',
+        subscriberAddress: '0xsub',
+      })
+      expect(event.metadata?.txHash).toBe('0xabc')
+      expect(event.metadata?.creditsCharged).toBe(5)
+      expect(taskRef.metadata?.txHash).toBe('0xabc')
+      expect(taskRef.metadata?.creditsCharged).toBe(5)
+      expect(mockResultManager.processEvent).toHaveBeenCalledWith(taskRef)
     })
 
     test('should not burn credits when event has no creditsUsed', async () => {
-      const redeemMock = jest.fn().mockResolvedValue({ txHash: '0xabc' })
-      mockPayments.requests.redeemCreditsFromRequest = redeemMock
+      const settleMock = jest.fn().mockResolvedValue({ txHash: '0xabc' })
+      mockPayments.facilitator.settlePermissions = settleMock
 
       const handler = new PaymentsRequestHandler(
         mockAgentCard,
@@ -116,18 +139,15 @@ describe('PaymentsRequestHandler', () => {
         metadata: {}, // No creditsUsed
       } as TaskStatusUpdateEvent
 
-      const validation = { agentRequestId: 'test-agent-req' } as any
-
-      // Mock the internal method
       const handleTaskFinalization = (handler as any).handleTaskFinalization.bind(handler)
-      await handleTaskFinalization(mockResultManager, event, 'BEARER_TOKEN', validation)
+      await handleTaskFinalization(mockResultManager, event, 'BEARER_TOKEN')
 
-      expect(redeemMock).not.toHaveBeenCalled()
+      expect(settleMock).not.toHaveBeenCalled()
     })
 
     test('should not burn credits when event has no metadata', async () => {
-      const redeemMock = jest.fn().mockResolvedValue({ txHash: '0xabc' })
-      mockPayments.requests.redeemCreditsFromRequest = redeemMock
+      const settleMock = jest.fn().mockResolvedValue({ txHash: '0xabc' })
+      mockPayments.facilitator.settlePermissions = settleMock
 
       const handler = new PaymentsRequestHandler(
         mockAgentCard,
@@ -150,18 +170,15 @@ describe('PaymentsRequestHandler', () => {
         metadata: {}, // No metadata
       } as TaskStatusUpdateEvent
 
-      const validation = { agentRequestId: 'test-agent-req' } as any
-
-      // Mock the internal method
       const handleTaskFinalization = (handler as any).handleTaskFinalization.bind(handler)
-      await handleTaskFinalization(mockResultManager, event, 'BEARER_TOKEN', validation)
+      await handleTaskFinalization(mockResultManager, event, 'BEARER_TOKEN')
 
-      expect(redeemMock).not.toHaveBeenCalled()
+      expect(settleMock).not.toHaveBeenCalled()
     })
 
     test('should swallow errors when redemption fails', async () => {
-      const redeemMock = jest.fn().mockRejectedValue(new Error('Redeem failed'))
-      mockPayments.requests.redeemCreditsFromRequest = redeemMock
+      const settleMock = jest.fn().mockRejectedValue(new Error('Redeem failed'))
+      mockPayments.facilitator.settlePermissions = settleMock
 
       const handler = new PaymentsRequestHandler(
         mockAgentCard,
@@ -170,11 +187,13 @@ describe('PaymentsRequestHandler', () => {
         mockPayments as any as Payments,
       )
 
-      // Mock getRedemptionConfig to return non-batch config
-      ;(handler as any).getRedemptionConfig = jest.fn().mockResolvedValue({
-        useBatch: false,
-        useMargin: false,
-      })
+        ; (handler as any).getAgentCard = jest.fn().mockResolvedValue(mockAgentCard)
+
+        // Mock getRedemptionConfig to return non-batch config
+        ; (handler as any).getRedemptionConfig = jest.fn().mockResolvedValue({
+          useBatch: false,
+          useMargin: false,
+        })
 
       const mockResultManager = {
         getCurrentTask: jest.fn().mockReturnValue({ id: 'tid', metadata: {} }),
@@ -190,17 +209,19 @@ describe('PaymentsRequestHandler', () => {
         metadata: { creditsUsed: 5 },
       } as TaskStatusUpdateEvent
 
-      const validation = { agentRequestId: 'test-agent-req' } as any
-
-      // Mock the internal method
       const handleTaskFinalization = (handler as any).handleTaskFinalization.bind(handler)
       // Should not throw
       await expect(
-        handleTaskFinalization(mockResultManager, event, 'BEARER_TOKEN', validation),
+        handleTaskFinalization(mockResultManager, event, 'BEARER_TOKEN'),
       ).resolves.not.toThrow()
 
-      expect(redeemMock).toHaveBeenCalledTimes(1)
-      expect(redeemMock).toHaveBeenCalledWith('test-agent-req', 'BEARER_TOKEN', 5n)
+      expect(settleMock).toHaveBeenCalledTimes(1)
+      expect(settleMock).toHaveBeenCalledWith({
+        planId: 'plan-1',
+        maxAmount: 5n,
+        x402AccessToken: 'BEARER_TOKEN',
+        subscriberAddress: '0xsub',
+      })
     })
   })
 
@@ -282,8 +303,8 @@ describe('PaymentsRequestHandler', () => {
         mockPayments as any as Payments,
       )
 
-      // Mock getAgentCard to return card without payment extension
-      ;(handler as any).getAgentCard = jest.fn().mockResolvedValue(agentCardWithoutPayment)
+        // Mock getAgentCard to return card without payment extension
+        ; (handler as any).getAgentCard = jest.fn().mockResolvedValue(agentCardWithoutPayment)
 
       // Try to get redemption config - should return default config
       const config = await (handler as any).getRedemptionConfig()
