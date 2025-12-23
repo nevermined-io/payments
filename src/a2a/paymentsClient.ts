@@ -61,11 +61,11 @@ export class PaymentsClient extends A2AClient {
    * Gets and caches the access token for this client instance.
    * @returns The access token string.
    */
-  private async _getAccessToken(): Promise<string> {
+  private async _getX402AccessToken(): Promise<string> {
     if (this.accessToken) {
       return this.accessToken
     }
-    const accessParams = await this.payments.agents.getAgentAccessToken(this.planId, this.agentId)
+    const accessParams = await this.payments.x402.getX402AccessToken(this.planId, this.agentId)
     this.accessToken = accessParams.accessToken
     return this.accessToken
   }
@@ -83,7 +83,7 @@ export class PaymentsClient extends A2AClient {
    * @returns The response from the agent.
    */
   public async sendA2AMessage(params: MessageSendParams): Promise<SendMessageResponse> {
-    const accessToken = await this._getAccessToken()
+    const accessToken = await this._getX402AccessToken()
     const headers = { Authorization: `Bearer ${accessToken}` }
     return this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
       'message/send',
@@ -118,7 +118,7 @@ export class PaymentsClient extends A2AClient {
       params: params as { [key: string]: any },
       id: clientRequestId,
     }
-    const accessToken = await this._getAccessToken()
+    const accessToken = await this._getX402AccessToken()
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -300,7 +300,7 @@ export class PaymentsClient extends A2AClient {
       params: params as { [key: string]: any },
       id: clientRequestId,
     }
-    const accessToken = await this._getAccessToken()
+    const accessToken = await this._getX402AccessToken()
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -347,7 +347,7 @@ export class PaymentsClient extends A2AClient {
    * @returns The task response.
    */
   public async getA2ATask(params: TaskQueryParams): Promise<GetTaskResponse> {
-    const accessToken = await this._getAccessToken()
+    const accessToken = await this._getX402AccessToken()
     const headers = { Authorization: `Bearer ${accessToken}` }
     return this._postRpcRequestWithHeaders<TaskQueryParams, GetTaskResponse>(
       'tasks/get',
@@ -364,7 +364,7 @@ export class PaymentsClient extends A2AClient {
   public async setA2ATaskPushNotificationConfig(
     params: TaskPushNotificationConfig,
   ): Promise<SetTaskPushNotificationConfigResponse> {
-    const accessToken = await this._getAccessToken()
+    const accessToken = await this._getX402AccessToken()
     const headers = { Authorization: `Bearer ${accessToken}` }
     return this._postRpcRequestWithHeaders<
       TaskPushNotificationConfig,
@@ -380,7 +380,7 @@ export class PaymentsClient extends A2AClient {
   public async getA2ATaskPushNotificationConfig(
     params: TaskIdParams,
   ): Promise<GetTaskPushNotificationConfigResponse> {
-    const accessToken = await this._getAccessToken()
+    const accessToken = await this._getX402AccessToken()
     const headers = { Authorization: `Bearer ${accessToken}` }
     return this._postRpcRequestWithHeaders<TaskIdParams, GetTaskPushNotificationConfigResponse>(
       'tasks/pushNotificationConfig/get',

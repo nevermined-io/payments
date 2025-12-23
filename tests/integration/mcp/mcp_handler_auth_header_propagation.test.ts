@@ -3,60 +3,49 @@
  * Tests that HTTP headers are correctly propagated from requests to the paywall.
  */
 
-import { requestContextStorage } from '../../../src/mcp/http/mcp-handler.js'
 import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
-import type { Payments } from '../../../src/payments.js'
+import { requestContextStorage } from '../../../src/mcp/http/mcp-handler.js'
 import type { RequestContext } from '../../../src/mcp/http/session-manager.js'
+import type { Payments } from '../../../src/payments.js'
+
+jest.mock('../../../src/utils.js', () => ({
+  decodeAccessToken: jest.fn(() => ({
+    planId: 'plan-1',
+    subscriberAddress: '0xabc',
+  })),
+}))
 
 /**
  * Mock Payments with call tracking for integration tests
  */
 class PaymentsMockWithTracking {
   public calls: Array<[string, ...any[]]> = []
-  public requests: any
-  public agents: any
+  public facilitator: {
+    verifyPermissions: jest.Mock
+  }
+  public agents: {
+    getAgentPlans: jest.Mock
+  }
 
   constructor() {
-    const self = this
-
-    class Req {
-      async startProcessingRequest(agentId: string, token: string, url: string, method: string) {
-        self.calls.push(['start', agentId, token, url, method])
-        return {
-          agentRequestId: `req-${Date.now()}`,
-          agentName: 'Integration Test Agent',
-          agentId: agentId,
-          balance: {
-            isSubscriber: true,
-            balance: 1000,
-            creditsContract: '0xintegration',
-            pricePerCredit: 0.01,
-          },
-          urlMatching: url,
-          verbMatching: method,
-        }
-      }
-
-      async redeemCreditsFromRequest(requestId: string, token: string, credits: bigint) {
-        self.calls.push(['redeem', requestId, token, Number(credits)])
-        return { success: true, txHash: '0xintegration123' }
-      }
+    this.facilitator = {
+      verifyPermissions: jest.fn(async (params: any) => {
+        this.calls.push(['verifyPermissions', params])
+        return { success: true }
+      }),
     }
 
-    class Agents {
-      async getAgentPlans(agentId: string) {
-        self.calls.push(['getAgentPlans', agentId])
+    this.agents = {
+      getAgentPlans: jest.fn(async (agentId: string) => {
+        this.calls.push(['getAgentPlans', agentId])
         return {
           plans: [
             { planId: 'int-plan-1', name: 'Integration Plan' },
             { planId: 'int-plan-2', name: 'Test Plan' },
           ],
         }
-      }
+      }),
     }
-
-    this.requests = new Req()
-    this.agents = new Agents()
   }
 }
 
@@ -95,11 +84,12 @@ describe('MCP Handler - Auth Header Propagation', () => {
     expect(result.token).toBe('integration-token-456')
     expect(result.agentId).toBe('did:nv:integration')
 
-    // Verify the token was used in startProcessingRequest
+    // Verify the token was used in verifyPermissions
     expect(
       mockInstance.calls.some(
         (c: any) =>
-          c[0] === 'start' && c[2] === 'integration-token-456' && c[1] === 'did:nv:integration',
+          c[0] === 'verifyPermissions' &&
+          c[1].x402AccessToken === 'integration-token-456',
       ),
     ).toBe(true)
   })
@@ -139,12 +129,16 @@ describe('MCP Handler - Auth Header Propagation', () => {
 
     // Should use the explicit token, not the context token
     expect(result.token).toBe('explicit-token')
-    expect(mockInstance.calls.some((c: any) => c[0] === 'start' && c[2] === 'explicit-token')).toBe(
-      true,
-    )
-    expect(mockInstance.calls.some((c: any) => c[0] === 'start' && c[2] === 'context-token')).toBe(
-      false,
-    )
+    expect(
+      mockInstance.calls.some(
+        (c: any) => c[0] === 'verifyPermissions' && c[1].x402AccessToken === 'explicit-token',
+      ),
+    ).toBe(true)
+    expect(
+      mockInstance.calls.some(
+        (c: any) => c[0] === 'verifyPermissions' && c[1].x402AccessToken === 'context-token',
+      ),
+    ).toBe(false)
   })
 
   test('should work with case-insensitive Authorization header', async () => {
@@ -200,8 +194,8 @@ describe('MCP Handler - Auth Header Propagation', () => {
       })
     })
 
-    // Should not have called startProcessingRequest
-    expect(mockInstance.calls.some((c: any) => c[0] === 'start')).toBe(false)
+    // Should not have called verifyPermissions
+    expect(mockInstance.calls.some((c: any) => c[0] === 'verifyPermissions')).toBe(false)
   })
 
   test('should propagate headers through multiple authentication calls', async () => {
@@ -251,9 +245,11 @@ describe('MCP Handler - Auth Header Propagation', () => {
     })
 
     // All three calls should have used the same token
-    const startCalls = mockInstance.calls.filter((c: any) => c[0] === 'start')
-    expect(startCalls.length).toBe(3)
-    expect(startCalls.every((c: any) => c[2] === 'session-token-789')).toBe(true)
+    const verifyCalls = mockInstance.calls.filter((c: any) => c[0] === 'verifyPermissions')
+    expect(verifyCalls.length).toBe(3)
+    expect(
+      verifyCalls.every((c: any) => c[1].x402AccessToken === 'session-token-789'),
+    ).toBe(true)
   })
 
   test('should work without request context when extra has headers', async () => {

@@ -16,7 +16,6 @@ export const API_URL_ADD_PLAN_AGENT = '/api/v1/protocol/agents/:agentId/plan/:pl
 export const API_URL_REMOVE_PLAN_AGENT = '/api/v1/protocol/agents/:agentId/plan/:planId'
 export const API_URL_REDEEM_PLAN = '/api/v1/protocol/plans/redeem'
 export const API_URL_PLAN_BALANCE = '/api/v1/protocol/plans/:planId/balance/:holderAddress'
-export const API_URL_GET_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/:planId/:agentId'
 export const API_URL_INITIALIZE_AGENT = '/api/v1/protocol/agents/initialize/:agentId'
 export const API_URL_SIMULATE_AGENT_REQUEST = '/api/v1/protocol/agents/simulate/start'
 export const API_URL_SIMULATE_REDEEM_AGENT_REQUEST = '/api/v1/protocol/agents/simulate/finish'

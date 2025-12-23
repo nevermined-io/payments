@@ -502,8 +502,8 @@ describe('MCP OAuth E2E Tests', () => {
 
       // Get access token for the agent
       const accessParams = await retryWithBackoff(
-        () => paymentsSubscriber.agents.getAgentAccessToken(creditsPlanId!, mcpAgentDID!),
-        { label: 'getAgentAccessToken for MCP' },
+        () => paymentsSubscriber.x402.getX402AccessToken(creditsPlanId!, mcpAgentDID!),
+        { label: 'getX402AccessToken for MCP' },
       )
 
       expect(accessParams).toBeDefined()

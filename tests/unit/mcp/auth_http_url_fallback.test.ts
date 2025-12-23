@@ -4,74 +4,49 @@
 
 import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import { requestContextStorage } from '../../../src/mcp/http/mcp-handler.js'
-import type { Payments } from '../../../src/payments.js'
 import type { RequestContext } from '../../../src/mcp/http/session-manager.js'
+import type { Payments } from '../../../src/payments.js'
+
+// Mock decodeAccessToken so we can control plan/subscriber without real tokens
+jest.mock('../../../src/utils.js', () => ({
+  decodeAccessToken: jest.fn(() => ({
+    planId: 'plan-1',
+    subscriberAddress: '0xabc',
+  })),
+}))
 
 /**
- * Mock Payments with configurable rejection behavior
+ * Simple Payments mock that tracks calls to facilitator.verifyPermissions and agents.getAgentPlans.
+ * verifyPermissions can be configured per-test to succeed or fail in sequence.
  */
-class PaymentsMockWithUrlTracking {
-  public calls: Array<[string, ...any[]]> = []
-  public requests: any
-  public agents: any
-  private logicalUrlShouldFail: boolean
-  private httpUrlShouldFail: boolean
+class PaymentsMock {
+  public facilitator: {
+    verifyPermissions: jest.Mock
+  }
+  public agents: {
+    getAgentPlans: jest.Mock
+  }
 
-  constructor(options?: { logicalUrlShouldFail?: boolean; httpUrlShouldFail?: boolean }) {
-    this.logicalUrlShouldFail = options?.logicalUrlShouldFail ?? false
-    this.httpUrlShouldFail = options?.httpUrlShouldFail ?? false
-
-    const self = this
-
-    class Req {
-      async startProcessingRequest(agentId: string, token: string, url: string, method: string) {
-        self.calls.push(['start', agentId, token, url, method])
-
-        // Simulate logical URL failure
-        if (url.startsWith('mcp://') && self.logicalUrlShouldFail) {
-          throw new Error('Logical URL not authorized')
-        }
-
-        // Simulate HTTP URL failure
-        if (url.startsWith('http') && self.httpUrlShouldFail) {
-          throw new Error('HTTP URL not authorized')
-        }
-
-        return {
-          agentRequestId: 'req-456',
-          agentName: 'Test Agent',
-          agentId: agentId,
-          balance: {
-            isSubscriber: true,
-            balance: 1000,
-            creditsContract: '0x123',
-            pricePerCredit: 0.01,
-          },
-          urlMatching: url,
-          verbMatching: method,
-        }
-      }
+  constructor(verifySequence: Array<{ success: boolean }> = [{ success: true }]) {
+    this.facilitator = {
+      verifyPermissions: jest.fn(),
     }
+    verifySequence.forEach((result) => {
+      this.facilitator.verifyPermissions.mockResolvedValueOnce(result)
+    })
 
-    class Agents {
-      async getAgentPlans(agentId: string) {
-        self.calls.push(['getAgentPlans', agentId])
-        return {
-          plans: [{ planId: 'plan-1', name: 'Basic Plan' }],
-        }
-      }
+    this.agents = {
+      getAgentPlans: jest.fn().mockResolvedValue({
+        plans: [{ planId: 'plan-1', name: 'Basic Plan' }],
+      }),
     }
-
-    this.requests = new Req()
-    this.agents = new Agents()
   }
 }
 
 describe('PaywallAuthenticator - HTTP URL Fallback', () => {
   test('should try logical URL first, then HTTP URL on failure', async () => {
-    const mockInstance = new PaymentsMockWithUrlTracking({ logicalUrlShouldFail: true })
-    const pm = mockInstance as any as Payments
-    const authenticator = new PaywallAuthenticator(pm)
+    const payments = new PaymentsMock([{ success: false }, { success: true }]) as any as Payments
+    const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
@@ -101,24 +76,16 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
     expect(result.token).toBe('token')
     expect(result.agentId).toBe('did:nv:agent')
 
-    // Should have tried logical URL first
-    expect(mockInstance.calls.some((c: any) => c[0] === 'start' && c[3].startsWith('mcp://'))).toBe(
-      true,
-    )
+    // Should have attempted two validations (logical then HTTP fallback)
+    expect((payments as any).facilitator.verifyPermissions).toHaveBeenCalledTimes(2)
 
-    // Then tried HTTP URL
-    expect(
-      mockInstance.calls.some((c: any) => c[0] === 'start' && c[3].startsWith('https://')),
-    ).toBe(true)
-
-    // Should have used the HTTP URL in the result
-    expect(result.logicalUrl).toBe('https://localhost:3000/mcp')
+    // Logical URL is always returned (fallback only changes verification origin)
+    expect(result.logicalUrl).toBe('mcp://test-server/tools/tool1?city=London')
   })
 
   test('should use logical URL if it succeeds (no fallback)', async () => {
-    const mockInstance = new PaymentsMockWithUrlTracking()
-    const pm = mockInstance as any as Payments
-    const authenticator = new PaywallAuthenticator(pm)
+    const payments = new PaymentsMock([{ success: true }]) as any as Payments
+    const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
@@ -143,25 +110,16 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     expect(result).toBeDefined()
 
-    // Should have tried logical URL
-    expect(mockInstance.calls.some((c: any) => c[0] === 'start' && c[3].startsWith('mcp://'))).toBe(
-      true,
-    )
-
-    // Should NOT have tried HTTP URL (logical succeeded)
-    expect(mockInstance.calls.filter((c: any) => c[0] === 'start').length).toBe(1)
+    // Should have tried only once (logical succeeded)
+    expect((payments as any).facilitator.verifyPermissions).toHaveBeenCalledTimes(1)
 
     // Result should use logical URL
     expect(result.logicalUrl).toContain('mcp://test-server')
   })
 
   test('should fail with plans message when both URLs fail', async () => {
-    const mockInstance = new PaymentsMockWithUrlTracking({
-      logicalUrlShouldFail: true,
-      httpUrlShouldFail: true,
-    })
-    const pm = mockInstance as any as Payments
-    const authenticator = new PaywallAuthenticator(pm)
+    const payments = new PaymentsMock([{ success: false }, { success: false }]) as any as Payments
+    const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
@@ -183,17 +141,14 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
       })
     })
 
-    // Should have tried both URLs
-    expect(mockInstance.calls.filter((c: any) => c[0] === 'start').length).toBe(2)
-
-    // Should have fetched plans for error message
-    expect(mockInstance.calls.some((c: any) => c[0] === 'getAgentPlans')).toBe(true)
+    // Should have tried both validations and fetched plans
+    expect((payments as any).facilitator.verifyPermissions).toHaveBeenCalledTimes(2)
+    expect((payments as any).agents.getAgentPlans).toHaveBeenCalledTimes(1)
   })
 
   test('should build HTTP URL from x-forwarded-host header', async () => {
-    const mockInstance = new PaymentsMockWithUrlTracking({ logicalUrlShouldFail: true })
-    const pm = mockInstance as any as Payments
-    const authenticator = new PaywallAuthenticator(pm)
+    const payments = new PaymentsMock([{ success: false }, { success: true }]) as any as Payments
+    const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
@@ -217,13 +172,13 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
       )
     })
 
-    expect(result.logicalUrl).toBe('https://example.com/mcp')
+    // Fallback still returns logical URL (verification retried with HTTP endpoint)
+    expect(result.logicalUrl).toBe('mcp://test-server/tools/tool1')
   })
 
   test('should default to http protocol when x-forwarded-proto is missing', async () => {
-    const mockInstance = new PaymentsMockWithUrlTracking({ logicalUrlShouldFail: true })
-    const pm = mockInstance as any as Payments
-    const authenticator = new PaywallAuthenticator(pm)
+    const payments = new PaymentsMock([{ success: false }, { success: true }]) as any as Payments
+    const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
@@ -246,13 +201,12 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
       )
     })
 
-    expect(result.logicalUrl).toBe('http://localhost:5000/mcp')
+    expect(result.logicalUrl).toBe('mcp://test-server/tools/tool1')
   })
 
   test('should fail with logical URL when no HTTP context is available', async () => {
-    const mockInstance = new PaymentsMockWithUrlTracking({ logicalUrlShouldFail: true })
-    const pm = mockInstance as any as Payments
-    const authenticator = new PaywallAuthenticator(pm)
+    const payments = new PaymentsMock([{ success: false }]) as any as Payments
+    const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
@@ -264,21 +218,16 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
       data: { reason: 'invalid' },
     })
 
-    // Should have tried logical URL but not HTTP (no context)
-    expect(
-      mockInstance.calls.filter((c: any) => c[0] === 'start' && c[3].startsWith('mcp://')).length,
-    ).toBe(1)
-    expect(
-      mockInstance.calls.filter((c: any) => c[0] === 'start' && c[3].startsWith('http')).length,
-    ).toBe(0)
+    // Should have tried logical URL once and fetched plans, no HTTP fallback without context
+    expect((payments as any).facilitator.verifyPermissions).toHaveBeenCalledTimes(1)
+    expect((payments as any).agents.getAgentPlans).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('PaywallAuthenticator - authenticateMeta with HTTP fallback', () => {
   test('should use HTTP fallback for meta operations when logical URL fails', async () => {
-    const mockInstance = new PaymentsMockWithUrlTracking({ logicalUrlShouldFail: true })
-    const pm = mockInstance as any as Payments
-    const authenticator = new PaywallAuthenticator(pm)
+    const payments = new PaymentsMock([{ success: false }, { success: true }]) as any as Payments
+    const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
@@ -303,7 +252,7 @@ describe('PaywallAuthenticator - authenticateMeta with HTTP fallback', () => {
     expect(result).toBeDefined()
     expect(result.logicalUrl).toBe('https://api.example.com/mcp')
 
-    // Should have tried both URLs
-    expect(mockInstance.calls.filter((c: any) => c[0] === 'start').length).toBe(2)
+    // Should have tried both logical and HTTP fallback validations
+    expect((payments as any).facilitator.verifyPermissions).toHaveBeenCalledTimes(2)
   })
 })

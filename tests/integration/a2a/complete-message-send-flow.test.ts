@@ -2,71 +2,63 @@
  * Integration tests for complete message/send flow with credit burning.
  */
 
+import type { Message, Task, TaskState, TaskStatus, TaskStatusUpdateEvent } from '@a2a-js/sdk'
 import request from 'supertest'
 import { PaymentsA2AServer } from '../../../src/a2a/server.js'
-import type { AgentCard, ExecutionEventBus } from '../../../src/a2a/types.js'
+import type { AgentCard, ExecutionEventBus, PaymentsAgentExecutor } from '../../../src/a2a/types.js'
 import type { Payments } from '../../../src/payments.js'
-import type { PaymentsAgentExecutor } from '../../../src/a2a/types.js'
-import type { Task, TaskStatus, TaskState, Message, TaskStatusUpdateEvent } from '@a2a-js/sdk'
-import { PaymentsError } from '../../../src/common/payments.error.js'
 
-class MockRequestsAPI {
+jest.mock('../../../src/utils.js', () => ({
+  decodeAccessToken: jest.fn(() => ({
+    subscriber: '0xsub',
+    subscriberAddress: '0xsub',
+    planId: 'test-plan',
+  })),
+}))
+
+class MockFacilitatorAPI {
   validationCallCount = 0
-  redeemCallCount = 0
-  lastRedeemCredits: bigint | null = null
+  settleCallCount = 0
+  lastSettleAmount: bigint | null = null
   shouldFailValidation = false
-  shouldFailRedeem = false
+  shouldFailSettle = false
 
-  async startProcessingRequest(
-    agentId: string,
-    accessToken: string,
-    urlRequested: string,
-    httpMethodRequested: string,
-  ): Promise<any> {
+  async verifyPermissions(_: {
+    planId: string
+    maxAmount: bigint
+    x402AccessToken: string
+    subscriberAddress: string
+  }): Promise<{ success: boolean; message?: string }> {
     this.validationCallCount++
     if (this.shouldFailValidation) {
-      throw PaymentsError.paymentRequired('Insufficient credits')
+      return { success: false, message: 'Insufficient credits' }
     }
-
-    return {
-      agentRequestId: `req-${agentId}-${this.validationCallCount}`,
-      agentId,
-      accessToken,
-      credits: 100,
-      planId: 'test-plan',
-      balance: {
-        isSubscriber: true,
-        balance: 100,
-        creditsContract: '0x1234567890abcdef',
-        pricePerCredit: 0.01,
-      },
-    }
+    return { success: true }
   }
 
-  async redeemCreditsFromRequest(
-    agentRequestId: string,
-    accessToken: string,
-    creditsUsed: bigint,
-  ): Promise<any> {
-    this.redeemCallCount++
-    this.lastRedeemCredits = creditsUsed
-    if (this.shouldFailRedeem) {
-      throw PaymentsError.paymentRequired('Failed to redeem credits')
+  async settlePermissions(_: {
+    planId: string
+    maxAmount: bigint
+    x402AccessToken: string
+    subscriberAddress: string
+  }): Promise<{ txHash: string; amountOfCredits: bigint }> {
+    this.settleCallCount++
+    this.lastSettleAmount = _.maxAmount
+    if (this.shouldFailSettle) {
+      throw new Error('Failed to settle credits')
     }
-
     return {
-      txHash: `0x${agentRequestId.slice(-8)}`,
-      creditsRedeemed: creditsUsed,
-      remainingCredits: 100 - Number(creditsUsed),
+      txHash: '0xdeadbeef',
+      amountOfCredits: _.maxAmount,
     }
   }
 }
 
 class MockPaymentsService {
-  requests: MockRequestsAPI
+  facilitator: MockFacilitatorAPI
 
   constructor() {
-    this.requests = new MockRequestsAPI()
+    this.facilitator = new MockFacilitatorAPI()
   }
 }
 
@@ -161,7 +153,7 @@ function createNoopExecutor(): PaymentsAgentExecutor {
     execute: async (_requestContext, eventBus) => {
       eventBus.finished()
     },
-    cancelTask: async () => {},
+    cancelTask: async () => { },
   }
 }
 
@@ -248,7 +240,7 @@ describe('Complete Message/Send Flow', () => {
     expect(responseData.result).toBeDefined()
 
     // Verify that validation was called exactly once
-    expect(mockPayments.requests.validationCallCount).toBe(1)
+    expect(mockPayments.facilitator.validationCallCount).toBe(1)
 
     // Verify response contains the completed task
     const taskResult = responseData.result
@@ -258,13 +250,13 @@ describe('Complete Message/Send Flow', () => {
     expect(taskResult.status.message.parts[0].text).toBe('Request completed successfully!')
 
     // Verify that credits were burned exactly once
-    expect(mockPayments.requests.redeemCallCount).toBe(1)
-    expect(Number(mockPayments.requests.lastRedeemCredits)).toBe(3)
+    expect(mockPayments.facilitator.settleCallCount).toBe(1)
+    expect(Number(mockPayments.facilitator.lastSettleAmount)).toBe(3)
   }, 15000)
 
   test('should handle message/send flow when validation fails', async () => {
     const mockPayments = new MockPaymentsService()
-    mockPayments.requests.shouldFailValidation = true
+    mockPayments.facilitator.shouldFailValidation = true
     const dummyExecutor = new DummyExecutor()
 
     const { client, close } = createServer(dummyExecutor, agentCard, mockPayments)
@@ -296,8 +288,8 @@ describe('Complete Message/Send Flow', () => {
     expect(responseData.error.message).toMatch(/Payment validation failed/i)
 
     // Verify validation was attempted exactly once but credits were not burned
-    expect(mockPayments.requests.validationCallCount).toBe(1)
-    expect(mockPayments.requests.redeemCallCount).toBe(0)
+    expect(mockPayments.facilitator.validationCallCount).toBe(1)
+    expect(mockPayments.facilitator.settleCallCount).toBe(0)
   }, 15000)
 
   test('should handle message/send without bearer token', async () => {
@@ -330,8 +322,8 @@ describe('Complete Message/Send Flow', () => {
     expect(responseData.error.message).toMatch(/Missing bearer token/i)
 
     // No validation or credit burning should occur
-    expect(mockPayments.requests.validationCallCount).toBe(0)
-    expect(mockPayments.requests.redeemCallCount).toBe(0)
+    expect(mockPayments.facilitator.validationCallCount).toBe(0)
+    expect(mockPayments.facilitator.settleCallCount).toBe(0)
   }, 15000)
 
   test('should handle non-blocking execution with polling', async () => {
@@ -376,7 +368,7 @@ describe('Complete Message/Send Flow', () => {
     const taskId = task.id
 
     // Verify initial validation occurred exactly once
-    const initialValidationCount = mockPayments.requests.validationCallCount
+    const initialValidationCount = mockPayments.facilitator.validationCallCount
     expect(initialValidationCount).toBe(1)
 
     // Poll for task completion
@@ -420,6 +412,6 @@ describe('Complete Message/Send Flow', () => {
     expect(finalTask.status.message.parts[0].text).toBe('Request completed successfully!')
 
     // Verify credit burning occurred after task completion
-    expect(mockPayments.requests.redeemCallCount).toBe(1)
+    expect(mockPayments.facilitator.settleCallCount).toBe(1)
   }, 30000)
 })

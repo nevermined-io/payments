@@ -1,9 +1,7 @@
-// tests/e2e/fixtures.ts
 import { Payments } from '../../src/payments.js'
 import type { EnvironmentName } from '../../src/environments.js'
 
-export const TEST_ENVIRONMENT = (process.env.TEST_ENVIRONMENT ||
-  'staging_sandbox') as EnvironmentName
+export const TEST_ENVIRONMENT: EnvironmentName = (process.env.TEST_ENVIRONMENT as EnvironmentName) || 'staging_sandbox'
 export const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
 
 export const SUBSCRIBER_API_KEY =

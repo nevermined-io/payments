@@ -5,60 +5,49 @@
 import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import type { Payments } from '../../../src/payments.js'
 
+jest.mock('../../../src/utils.js', () => ({
+  decodeAccessToken: jest.fn(() => ({
+    planId: 'plan-1',
+    subscriberAddress: '0xabc',
+  })),
+}))
+
 /**
  * Mock Payments instance for testing
  */
 class PaymentsMock {
+  public facilitator: {
+    verifyPermissions: jest.Mock
+  }
+  public agents: {
+    getAgentPlans: jest.Mock
+  }
   public calls: Array<[string, ...any[]]> = []
-  public requests: any
-  public agents: any
-  private shouldReject: boolean
-  private isSubscriber: boolean
 
-  constructor(options?: { shouldReject?: boolean; isSubscriber?: boolean }) {
-    this.shouldReject = options?.shouldReject ?? false
-    this.isSubscriber = options?.isSubscriber ?? true
+  constructor(options?: { shouldReject?: boolean }) {
+    const shouldReject = options?.shouldReject ?? false
 
-    const self = this
-
-    class Req {
-      async startProcessingRequest(agentId: string, token: string, url: string, method: string) {
-        self.calls.push(['start', agentId, token, url, method])
-
-        if (self.shouldReject) {
-          throw new Error('Access denied')
+    this.facilitator = {
+      verifyPermissions: jest.fn(async (params: any) => {
+        this.calls.push(['verifyPermissions', params])
+        if (shouldReject) {
+          return { success: false, message: 'Access denied' }
         }
-
-        return {
-          agentRequestId: 'req-123',
-          agentName: 'Test Agent',
-          agentId: agentId,
-          balance: {
-            isSubscriber: self.isSubscriber,
-            balance: 1000,
-            creditsContract: '0x123',
-            pricePerCredit: 0.01,
-          },
-          urlMatching: url,
-          verbMatching: method,
-        }
-      }
+        return { success: true }
+      }),
     }
 
-    class Agents {
-      async getAgentPlans(agentId: string) {
-        self.calls.push(['getAgentPlans', agentId])
+    this.agents = {
+      getAgentPlans: jest.fn(async (agentId: string) => {
+        this.calls.push(['getAgentPlans', agentId])
         return {
           plans: [
             { planId: 'plan-1', name: 'Basic Plan' },
             { planId: 'plan-2', name: 'Pro Plan' },
           ],
         }
-      }
+      }),
     }
-
-    this.requests = new Req()
-    this.agents = new Agents()
   }
 }
 
@@ -127,7 +116,8 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     expect(result).toBeDefined()
     expect(result.token).toBe('test-token-123')
     expect(result.agentId).toBe('did:nv:agent')
-    expect(result.requestId).toBe('req-123')
+    expect(result.planId).toBe('plan-1')
+    expect(result.subscriberAddress).toBe('0xabc')
   })
 
   test('should extract Bearer token with capital Authorization', async () => {
@@ -150,7 +140,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
   })
 
   test('should reject when user is not a subscriber', async () => {
-    const mockInstance = new PaymentsMock({ isSubscriber: false })
+    const mockInstance = new PaymentsMock({ shouldReject: true })
     const pm = mockInstance as any as Payments
     const authenticator = new PaywallAuthenticator(pm)
 
@@ -160,7 +150,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
       authenticator.authenticate(extra, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
     ).rejects.toMatchObject({
       code: -32003,
-      message: expect.stringContaining('Payment'),
+      message: expect.stringContaining('Payment required'),
       data: { reason: 'invalid' },
     })
   })
@@ -242,7 +232,7 @@ describe('PaywallAuthenticator - authenticateMeta', () => {
   })
 
   test('should reject meta operations when user is not subscriber', async () => {
-    const mockInstance = new PaymentsMock({ isSubscriber: false })
+    const mockInstance = new PaymentsMock({ shouldReject: true })
     const pm = mockInstance as any as Payments
     const authenticator = new PaywallAuthenticator(pm)
 
@@ -252,7 +242,7 @@ describe('PaywallAuthenticator - authenticateMeta', () => {
       authenticator.authenticateMeta(extra, 'did:nv:agent', 'test-server', 'initialize'),
     ).rejects.toMatchObject({
       code: -32003,
-      message: expect.stringContaining('Payment'),
+      message: expect.stringContaining('Payment required'),
       data: { reason: 'invalid' },
     })
   })

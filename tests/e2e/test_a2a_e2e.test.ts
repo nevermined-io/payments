@@ -301,7 +301,7 @@ describe('A2A E2E Flow', () => {
 
   test('should get agent access token', async () => {
     try {
-      const agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
+      const agentAccessParams = await paymentsSubscriber.x402.getX402AccessToken(
         PLAN_ID,
         AGENT_ID,
       )
@@ -320,7 +320,7 @@ describe('A2A E2E Flow', () => {
   test('should complete blocking flow with credit burning', async () => {
     // Ensure we have access token
     if (!accessToken) {
-      const agentAccessParams = await paymentsSubscriber.agents.getAgentAccessToken(
+      const agentAccessParams = await paymentsSubscriber.x402.getX402AccessToken(
         PLAN_ID,
         AGENT_ID,
       )
@@ -506,7 +506,7 @@ describe('A2A E2E Flow', () => {
 
       const responseData = await response.json()
       expect(responseData.error).toBeDefined()
-      expect(responseData.error.message).toContain('Unable to validate access token')
+      expect(responseData.error.message).toContain('Invalid access token')
 
       console.log('✅ E2E invalid token test passed')
     } finally {
