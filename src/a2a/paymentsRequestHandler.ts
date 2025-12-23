@@ -483,7 +483,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           event.final &&
           terminalStates.includes(event.status?.state)
         ) {
-          await this.handleTaskFinalization(resultManager, event, bearerToken, validation)
+          await this.handleTaskFinalization(resultManager, event, bearerToken)
         }
 
         await resultManager.processEvent(event)
@@ -902,7 +902,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             const { bearerToken, validation } = httpContext
             if (bearerToken && validation) {
               // Handle task finalization (redemption and push notification)
-              await this.handleTaskFinalization(resultManager, event, bearerToken, validation)
+              await this.handleTaskFinalization(resultManager, event, bearerToken)
             }
           }
         }
