@@ -12,7 +12,7 @@ import {
   PromptOptions,
 } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
-import { NvmAPIResult } from '../../common/types.js'
+import { Address, NvmAPIResult } from '../../common/types.js'
 
 /**
  * Main class for creating paywall-protected MCP handlers
@@ -102,15 +102,15 @@ export class PaywallDecorator {
         ? this.creditsContext.resolve(creditsOption, argsOrVars, null, authResult)
         : undefined
 
+      // Determine effective planId: explicit option overrides token-derived value
+      const effectivePlanId = options?.planId ?? authResult.planId
+
       // 3. Build PaywallContext for handler (with extra wrapper for backward compatibility)
       const paywallContext = {
         authResult,
         credits: preCalculatedCredits,
-        agentRequest: authResult.agentRequest,
-        // Backward compatibility: expose nested properties at top level
-        extra: {
-          agentRequest: authResult.agentRequest,
-        },
+        planId: authResult.planId,
+        subscriberAddress: authResult.subscriberAddress,
       }
 
       // 4. Execute original handler with context
@@ -127,15 +127,22 @@ export class PaywallDecorator {
       // 6. If the result is an AsyncIterable (stream), redeem on completion
       if (isAsyncIterable(result)) {
         const onFinally = async () => {
-          return await this.redeemCredits(authResult.requestId, authResult.token, credits, options)
+          return await this.redeemCredits(
+            effectivePlanId,
+            authResult.token,
+            authResult.subscriberAddress,
+            credits,
+            options,
+          )
         }
-        return wrapAsyncIterable(result, onFinally, authResult.requestId, credits)
+        return wrapAsyncIterable(result, onFinally, effectivePlanId, authResult.subscriberAddress, credits)
       }
 
       // 7. Non-streaming: redeem immediately
       const creditsResult = await this.redeemCredits(
-        authResult.requestId,
+        effectivePlanId,
         authResult.token,
+        authResult.subscriberAddress,
         credits,
         options,
       )
@@ -143,7 +150,8 @@ export class PaywallDecorator {
         result.metadata = {
           ...result.metadata,
           txHash: creditsResult.txHash,
-          requestId: authResult.requestId,
+          planId: authResult.planId,
+          subscriberAddress: authResult.subscriberAddress,
           creditsRedeemed: creditsResult.data?.amountOfCredits?.toString() ?? credits.toString(),
           success: true,
         }
@@ -156,8 +164,9 @@ export class PaywallDecorator {
    * Redeem credits after successful request
    */
   private async redeemCredits(
-    requestId: string,
+    planId: string,
     token: string,
+    subscriberAddress: Address,
     credits: bigint,
     options: PaywallOptions,
   ): Promise<NvmAPIResult> {
@@ -166,8 +175,13 @@ export class PaywallDecorator {
       txHash: '',
     }
     try {
-      if (credits && credits > 0n) {
-        ret = await this.payments.requests.redeemCreditsFromRequest(requestId, token, credits)
+      if (credits && credits > 0n && subscriberAddress && planId) {
+        ret = await this.payments.facilitator.settlePermissions({
+          planId,
+          maxAmount: credits,
+          x402AccessToken: token,
+          subscriberAddress,
+        })
       }
     } catch (e) {
       if (options.onRedeemError === 'propagate') {
@@ -192,7 +206,8 @@ function isAsyncIterable<T = unknown>(value: any): value is AsyncIterable<T> {
 function wrapAsyncIterable<T>(
   iterable: AsyncIterable<T>,
   onFinally: () => Promise<any>,
-  requestId: string,
+  planId: string,
+  subscriberAddress: Address,
   credits: bigint,
 ) {
   async function* generator() {
@@ -209,7 +224,8 @@ function wrapAsyncIterable<T>(
     const metadataChunk = {
       metadata: {
         txHash: creditsResult?.txHash,
-        requestId: requestId,
+        planId: planId,
+        subscriberAddress: subscriberAddress,
         creditsRedeemed: credits.toString(),
         success: creditsResult?.success || false,
       },

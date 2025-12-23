@@ -9,11 +9,12 @@
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "rootDir": ".",
+    "rootDir": "..",
     "noEmit": true
   },
   "include": [
-    "**/*.ts"
+    "**/*.ts",
+    "../src/**/*.ts"
   ],
   "exclude": [
     "coverage",

@@ -4,18 +4,18 @@
  */
 
 import http from 'http'
-import { Payments } from '../../src/payments.js'
 import type {
-  PlanMetadata,
   Address,
   AgentAccessCredentials,
   AgentMetadata,
+  PlanMetadata,
 } from '../../src/common/types.js'
 import { ZeroAddress } from '../../src/environments.js'
+import { Payments } from '../../src/payments.js'
 import { ONE_DAY_DURATION } from '../../src/plans.js'
 import { getRandomBigInt } from '../../src/utils.js'
-import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
 import { retryWithBackoff } from '../utils.js'
+import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
 
 // Test configuration
 const TEST_TIMEOUT = 30000
@@ -42,15 +42,18 @@ class MockAgentServer {
   private port = 8889
   private paymentsBuilder: Payments | null = null
   private agentId: string | null = null
+  private planId: string | null = null
   private startupTimeout: NodeJS.Timeout | null = null
 
-  async start(paymentsBuilder: Payments, agentId: string): Promise<void> {
+  async start(paymentsBuilder: Payments, agentId: string, planId: string, subscriberAddress: Address): Promise<void> {
     // Store references for use in request handler
     this.paymentsBuilder = paymentsBuilder
     this.agentId = agentId
+    this.planId = planId
 
     this.server = http.createServer(async (req, res) => {
       const authHeader = req.headers['authorization'] as string
+      console.log('Auth Header', authHeader)
       const requestedUrl = `http://localhost:${this.port}${req.url}`
       const httpVerb = req.method
 
@@ -59,16 +62,30 @@ class MockAgentServer {
       )
 
       try {
-        if (this.paymentsBuilder && this.agentId) {
+        if (this.paymentsBuilder && this.agentId && this.planId) {
           // Validate the request using the real Nevermined logic
-          const result = await this.paymentsBuilder.requests.startProcessingRequest(
-            this.agentId,
-            authHeader,
-            requestedUrl,
-            httpVerb || 'GET',
-          )
+          // const result = await this.paymentsBuilder.requests.startProcessingRequest(
+          //   this.agentId,
+          //   authHeader,
+          //   requestedUrl,
+          //   httpVerb || 'GET',
+          // )
+          const result = await this.paymentsBuilder.facilitator.verifyPermissions({
+            planId: this.planId,
+            maxAmount: 1n,
+            x402AccessToken: authHeader.substring(7),
+            subscriberAddress: subscriberAddress,
+          })
+          console.log('Verify Permissions Response', result)
+          await this.paymentsBuilder.facilitator.settlePermissions({
+            planId: this.planId,
+            maxAmount: 1n,
+            x402AccessToken: authHeader.substring(7),
+            subscriberAddress: subscriberAddress,
+          })
+          console.log('Settle Permissions Response', result)
           // If the request is valid and the user is a subscriber
-          if (result && result.balance.isSubscriber) {
+          if (result && result.success) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ message: 'Hello from the Agent!' }))
             return
@@ -489,7 +506,7 @@ describe('Payments E2E Tests', () => {
       // Setup mock HTTP server for agent testing
       // This must be done after agent_id is set by previous test
       expect(agentId).not.toBeNull()
-      await mockServer.start(paymentsBuilder, agentId!)
+      await mockServer.start(paymentsBuilder, agentId!, creditsPlanId!, paymentsSubscriber.getAccountAddress() as Address)
     }, TEST_TIMEOUT)
 
     afterAll(async () => {
@@ -512,6 +529,23 @@ describe('Payments E2E Tests', () => {
       },
       TEST_TIMEOUT,
     )
+    // test(
+    //   'should settle permissions',
+    //   async () => {
+    //     expect(agentAccessParams).not.toBeNull()
+
+    //     const response = await paymentsBuilder.facilitator.settlePermissions({
+    //       x402AccessToken: agentAccessParams!.accessToken,
+    //       subscriberAddress: paymentsSubscriber.getAccountAddress() as Address,
+    //       planId: creditsPlanId!,
+    //       maxAmount: 1n,
+    //     })
+    //     expect(response).toBeDefined()
+    //     expect(response.success).toBe(true)
+    //     console.log('Settle Permissions Response', response)
+    //   },
+    //   TEST_TIMEOUT,
+    // )
 
     test(
       'should send request to agent',

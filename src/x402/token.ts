@@ -10,6 +10,8 @@ import { PaymentOptions } from '../common/types.js'
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_GET_AGENT_X402_ACCESS_TOKEN } from '../api/nvm-api.js'
 
+
+
 /**
  * X402 Token API for generating access tokens.
  *

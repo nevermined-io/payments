@@ -1,7 +1,7 @@
 /**
  * Type definitions for MCP paywall functionality
  */
-import type { StartAgentRequest } from '../../common/types.js'
+import type { Address } from '../../common/types.js'
 
 /**
  * Context provided to dynamic credits functions
@@ -37,6 +37,11 @@ export interface BasePaywallOptions {
   name: string
   credits?: CreditsOption
   onRedeemError?: 'ignore' | 'propagate'
+  /**
+   * Optional override for the Nevermined plan to charge against.
+   * If omitted, the plan is inferred from the X402 access token.
+   */
+  planId?: string
 }
 
 export interface ToolOptions extends BasePaywallOptions {
@@ -62,11 +67,11 @@ export type PaywallOptions = ToolOptions | ResourceOptions | PromptOptions
  * Authentication result from paywall validation
  */
 export interface AuthResult {
-  requestId: string
   token: string
   agentId: string
   logicalUrl: string
-  agentRequest: StartAgentRequest
+  planId: string
+  subscriberAddress: Address
 }
 
 /**
@@ -75,7 +80,8 @@ export interface AuthResult {
 export interface PaywallContext {
   authResult: AuthResult
   credits?: bigint
-  agentRequest: StartAgentRequest
+  planId: string
+  subscriberAddress: Address
 }
 
 /**
