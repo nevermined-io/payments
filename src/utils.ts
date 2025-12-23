@@ -46,13 +46,23 @@ export const isStepIdValid = (stepId: string): boolean => {
 }
 
 /**
- * Decodes a JWT token and returns the full payload for debugging purposes.
- * @param accessToken - The JWT access token
+ * Decodes a JWT-like access token and returns the payload.
+ *
+ * Supports tokens that may be prefixed with environment or namespace information
+ * (e.g. "sandbox-staging:eyJhbGciOi...") by stripping the prefix before decoding.
+ *
+ * @param accessToken - The JWT access token (optionally prefixed).
  * @returns The decoded payload object or null if invalid
  */
 export const decodeAccessToken = (accessToken: string): any | null => {
   try {
-    const parts = accessToken.split('.')
+    // Strip optional non-JWT prefix (e.g. "sandbox-staging:") if present.
+    // We take the last segment after ':' which should be the actual JWT.
+    const rawToken = accessToken.includes(':')
+      ? accessToken.split(':').pop() || accessToken
+      : accessToken
+
+    const parts = rawToken.split('.')
     if (parts.length !== 3) {
       return null
     }
