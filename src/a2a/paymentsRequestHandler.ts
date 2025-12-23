@@ -172,9 +172,14 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     if (!planId) {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
-    const subscriberAddress = decodedAccessToken.subscriberAddress
-    if (!subscriberAddress || !planId) {
-      throw PaymentsError.unauthorized('Cannot determine planId or subscriberAddress from token or agent card')
+
+    const subscriberAddress =
+      decodedAccessToken.subscriberAddress ||
+      decodedAccessToken.subscriber_address ||
+      decodedAccessToken.sub
+
+    if (!subscriberAddress) {
+      throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token')
     }
 
     const result = await this.paymentsService.facilitator.verifyPermissions({
@@ -228,10 +233,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     bearerToken: string,
     creditsUsed: bigint | number,
   ): Promise<any> {
-    const decoded = decodeAccessToken(bearerToken)
-    if (!decoded) {
+    const decodedAccessToken = decodeAccessToken(bearerToken)
+    if (!decodedAccessToken) {
       throw PaymentsError.unauthorized('Invalid access token.')
     }
+
     let planId
     const agentCard = await this.getAgentCard()
     const paymentExtension = agentCard.capabilities?.extensions?.find(
@@ -241,21 +247,24 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       planId = paymentExtension.params?.planId
     }
 
-    const decodedAccessToken = decodeAccessToken(bearerToken)
-
-    if (!decodedAccessToken) {
-      throw PaymentsError.unauthorized('Invalid access token.')
-    }
-
     if (!planId) {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
+    }
+
+    const subscriberAddress =
+      decodedAccessToken.subscriberAddress ||
+      decodedAccessToken.subscriber_address ||
+      decodedAccessToken.sub
+
+    if (!subscriberAddress) {
+      throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token.')
     }
 
     return await this.paymentsService.facilitator.settlePermissions({
       planId: planId as string,
       maxAmount: BigInt(creditsUsed),
       x402AccessToken: bearerToken,
-      subscriberAddress: decoded.subscriber,
+      subscriberAddress,
     })
   }
 

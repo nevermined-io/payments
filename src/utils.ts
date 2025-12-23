@@ -1,7 +1,7 @@
-import { v4 as uuidv4, validate as uuidValidate } from 'uuid'
+import * as crypto from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
-import * as crypto from 'crypto'
+import { v4 as uuidv4, validate as uuidValidate } from 'uuid'
 import { Endpoint } from './common/types.js'
 
 /**
@@ -46,46 +46,35 @@ export const isStepIdValid = (stepId: string): boolean => {
 }
 
 /**
- * Decodes a JWT-like access token and returns the payload.
+ * Decode an x402 access token to extract subscriber address and plan ID.
+ * The x402 access token is a base64-encoded JSON document containing
+ * session key information and permissions.
  *
- * Supports tokens that may be prefixed with environment or namespace information
- * (e.g. "sandbox-staging:eyJhbGciOi...") by stripping the prefix before decoding.
- *
- * @param accessToken - The JWT access token (optionally prefixed).
- * @returns The decoded payload object or null if invalid
+ * @param accessToken - The x402 access token to decode (base64-encoded JSON)
+ * @returns The decoded token data or null if invalid
  */
-export const decodeAccessToken = (accessToken: string): any | null => {
+export const decodeAccessToken = (accessToken: string): Record<string, any> | null => {
+  // Try base64-encoded JSON (x402 format)
+
+  // Try URL-safe base64 first
   try {
-    // Strip optional non-JWT prefix (e.g. "sandbox-staging:") if present.
-    // We take the last segment after ':' which should be the actual JWT.
-    const rawToken = accessToken.includes(':')
-      ? accessToken.split(':').pop() || accessToken
-      : accessToken
-
-    const parts = rawToken.split('.')
-    if (parts.length !== 3) {
-      return null
-    }
-
-    const payload = parts[1]
-    const paddedPayload = payload + '='.repeat((4 - (payload.length % 4)) % 4)
-    const decodedPayload = atob(paddedPayload.replace(/-/g, '+').replace(/_/g, '/'))
-
-    const tokenData = JSON.parse(decodedPayload)
-
-    // Check if this is a nested token structure with authToken field
-    if (tokenData.authToken) {
-      // Return both the outer token data and the decoded inner authToken
-      return {
-        ...tokenData,
-        authToken: decodeAccessToken(tokenData.authToken),
-      }
-    }
-
-    return tokenData
-  } catch (error) {
-    return null
+    const padded = accessToken + '='.repeat((4 - (accessToken.length % 4)) % 4)
+    const urlSafeDecoded = atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(urlSafeDecoded)
+  } catch {
+    // Continue to next attempt
   }
+
+  // Try standard base64 (non-URL-safe)
+  try {
+    const padded = accessToken + '='.repeat((4 - (accessToken.length % 4)) % 4)
+    const decoded = atob(padded)
+    return JSON.parse(decoded)
+  } catch {
+    // Continue to return null
+  }
+
+  return null
 }
 
 /**
