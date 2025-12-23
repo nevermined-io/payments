@@ -93,8 +93,15 @@ export class PaywallAuthenticator {
         throw new Error('Invalid access token')
       }
 
-      const planId = decodedAccessToken.planId || decodedAccessToken.plan_id || decodedAccessToken.planId
-      const subscriberAddress = decodedAccessToken.subscriberAddress || decodedAccessToken.subscriber_address
+      const planId =
+        decodedAccessToken.planId ||
+        decodedAccessToken.plan_id ||
+        decodedAccessToken.plan ||
+        decodedAccessToken.planID
+      const subscriberAddress =
+        decodedAccessToken.subscriberAddress ||
+        decodedAccessToken.subscriber_address ||
+        decodedAccessToken.sub
 
       if (!planId || !subscriberAddress) {
         throw new Error('Cannot determine plan_id or subscriber_address from token')
@@ -125,8 +132,15 @@ export class PaywallAuthenticator {
           if (!decodedAccessToken) {
             throw new Error('Invalid access token')
           }
-          const planId = decodedAccessToken.planId || decodedAccessToken.plan_id || decodedAccessToken.planId
-          const subscriberAddress = decodedAccessToken.subscriberAddress || decodedAccessToken.subscriber_address
+          const planId =
+            decodedAccessToken.planId ||
+            decodedAccessToken.plan_id ||
+            decodedAccessToken.plan ||
+            decodedAccessToken.planID
+          const subscriberAddress =
+            decodedAccessToken.subscriberAddress ||
+            decodedAccessToken.subscriber_address ||
+            decodedAccessToken.sub
           if (!planId || !subscriberAddress) {
             throw new Error('Cannot determine plan_id or subscriber_address from token')
           }
@@ -196,8 +210,15 @@ export class PaywallAuthenticator {
       if (!decodedAccessToken) {
         throw new Error('Invalid access token')
       }
-      const planId = decodedAccessToken.planId || decodedAccessToken.plan_id || decodedAccessToken.planId
-      const subscriberAddress = decodedAccessToken.subscriberAddress || decodedAccessToken.subscriber_address
+      const planId =
+        decodedAccessToken.planId ||
+        decodedAccessToken.plan_id ||
+        decodedAccessToken.plan ||
+        decodedAccessToken.planID
+      const subscriberAddress =
+        decodedAccessToken.subscriberAddress ||
+        decodedAccessToken.subscriber_address ||
+        decodedAccessToken.sub
       if (!planId || !subscriberAddress) {
         throw new Error('Cannot determine plan_id or subscriber_address from token')
       }
@@ -225,8 +246,15 @@ export class PaywallAuthenticator {
           if (!decodedAccessToken) {
             throw new Error('Invalid access token')
           }
-          const planId = decodedAccessToken.planId || decodedAccessToken.plan_id || decodedAccessToken.planId
-          const subscriberAddress = decodedAccessToken.subscriberAddress || decodedAccessToken.subscriber_address
+          const planId =
+            decodedAccessToken.planId ||
+            decodedAccessToken.plan_id ||
+            decodedAccessToken.plan ||
+            decodedAccessToken.planID
+          const subscriberAddress =
+            decodedAccessToken.subscriberAddress ||
+            decodedAccessToken.subscriber_address ||
+            decodedAccessToken.sub
           if (!planId || !subscriberAddress) {
             throw new Error('Cannot determine plan_id or subscriber_address from token')
           }

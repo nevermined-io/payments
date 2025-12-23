@@ -220,10 +220,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Determines the appropriate redemption method based on server configuration.
    *
-   * @param validation - The validation result from the request
    * @param bearerToken - The bearer token for authentication
    * @param creditsUsed - The number of credits to burn
-   * @param config - The redemption configuration
    * @returns Promise resolving to the redemption result
    */
   private async executeRedemption(
@@ -252,7 +250,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     if (!planId) {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
-
 
     return await this.paymentsService.facilitator.settlePermissions({
       planId: planId as string,

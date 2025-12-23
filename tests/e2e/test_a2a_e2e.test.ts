@@ -506,7 +506,7 @@ describe('A2A E2E Flow', () => {
 
       const responseData = await response.json()
       expect(responseData.error).toBeDefined()
-      expect(responseData.error.message).toContain('Unable to validate access token')
+      expect(responseData.error.message).toContain('Invalid access token')
 
       console.log('✅ E2E invalid token test passed')
     } finally {
