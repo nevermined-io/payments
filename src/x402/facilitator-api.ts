@@ -37,10 +37,10 @@
  * ```
  */
 
+import { BasePaymentsAPI } from '../api/base-payments.js'
+import { API_URL_SETTLE_PERMISSIONS, API_URL_VERIFY_PERMISSIONS } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { Address, PaymentOptions } from '../common/types.js'
-import { BasePaymentsAPI } from '../api/base-payments.js'
-import { API_URL_VERIFY_PERMISSIONS, API_URL_SETTLE_PERMISSIONS } from '../api/nvm-api.js'
 
 export interface VerifyPermissionsParams {
   planId: string

@@ -75,6 +75,9 @@ class MockAgentServer {
             maxAmount: 1n,
             x402AccessToken: authHeader.substring(7),
             subscriberAddress: subscriberAddress,
+            agentId: this.agentId,
+            endpoint: requestedUrl,
+            httpVerb: httpVerb,
           })
           console.log('Verify Permissions Response', result)
           await this.paymentsBuilder.facilitator.settlePermissions({
@@ -82,6 +85,9 @@ class MockAgentServer {
             maxAmount: 1n,
             x402AccessToken: authHeader.substring(7),
             subscriberAddress: subscriberAddress,
+            agentId: this.agentId,
+            endpoint: requestedUrl,
+            httpVerb: httpVerb,
           })
           console.log('Settle Permissions Response', result)
           // If the request is valid and the user is a subscriber
