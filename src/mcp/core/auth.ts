@@ -93,7 +93,7 @@ export class PaywallAuthenticator {
         throw new Error('Invalid access token')
       }
 
-      const planId =
+      let planId =
         decodedAccessToken.planId ||
         decodedAccessToken.plan_id ||
         decodedAccessToken.plan ||
@@ -103,15 +103,33 @@ export class PaywallAuthenticator {
         decodedAccessToken.subscriber_address ||
         decodedAccessToken.sub
 
+      // If planId is not in the token, try to get it from the agent's plans
+      if (!planId) {
+        try {
+          const agentPlans = await this.payments.agents.getAgentPlans(agentId)
+          if (agentPlans && Array.isArray(agentPlans.plans) && agentPlans.plans.length > 0) {
+            // Use the first plan (or could filter by subscriber if needed)
+            planId = agentPlans.plans[0].planId || agentPlans.plans[0].id
+          }
+        } catch (planError) {
+          // Ignore errors fetching plans
+        }
+      }
+
       if (!planId || !subscriberAddress) {
         throw new Error('Cannot determine plan_id or subscriber_address from token')
       }
+
       const result = await this.payments.facilitator.verifyPermissions({
         planId,
         maxAmount: 1n,
         x402AccessToken: accessToken,
         subscriberAddress,
+        agentId,
+        endpoint: logicalUrl,
+        httpVerb: 'POST',
       })
+
       if (!result.success) {
         throw new Error('Permission verification failed')
       }
@@ -132,7 +150,7 @@ export class PaywallAuthenticator {
           if (!decodedAccessToken) {
             throw new Error('Invalid access token')
           }
-          const planId =
+          let planId =
             decodedAccessToken.planId ||
             decodedAccessToken.plan_id ||
             decodedAccessToken.plan ||
@@ -141,18 +159,37 @@ export class PaywallAuthenticator {
             decodedAccessToken.subscriberAddress ||
             decodedAccessToken.subscriber_address ||
             decodedAccessToken.sub
+
+          // If planId is not in the token, try to get it from the agent's plans
+          if (!planId) {
+            try {
+              const agentPlans = await this.payments.agents.getAgentPlans(agentId)
+              if (agentPlans && Array.isArray(agentPlans.plans) && agentPlans.plans.length > 0) {
+                planId = agentPlans.plans[0].planId || agentPlans.plans[0].id
+              }
+            } catch (planError) {
+              // Ignore errors fetching plans
+            }
+          }
+
           if (!planId || !subscriberAddress) {
             throw new Error('Cannot determine plan_id or subscriber_address from token')
           }
+
           const result = await this.payments.facilitator.verifyPermissions({
             planId,
             maxAmount: 1n,
             x402AccessToken: accessToken,
             subscriberAddress,
+            agentId,
+            endpoint: httpUrl,
+            httpVerb: 'POST',
           })
+
           if (!result.success) {
             throw new Error('Permission verification failed')
           }
+
           return {
             token: accessToken,
             agentId,
@@ -227,6 +264,9 @@ export class PaywallAuthenticator {
         maxAmount: 1n,
         x402AccessToken: accessToken,
         subscriberAddress,
+        agentId,
+        endpoint: logicalUrl,
+        httpVerb: 'POST',
       })
       if (!result.success) {
         throw new Error('Permission verification failed')
@@ -263,6 +303,9 @@ export class PaywallAuthenticator {
             maxAmount: 1n,
             x402AccessToken: accessToken,
             subscriberAddress,
+            agentId,
+            endpoint: httpUrl,
+            httpVerb: 'POST',
           })
           if (!result.success) {
             throw new Error('Permission verification failed')

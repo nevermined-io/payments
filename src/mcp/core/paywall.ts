@@ -1,18 +1,18 @@
 /**
  * Main paywall decorator for MCP handlers (tools, resources, prompts)
  */
+import { Address, NvmAPIResult } from '../../common/types.js'
 import type { Payments } from '../../payments.js'
-import { PaywallAuthenticator } from './auth.js'
-import { CreditsContextProvider } from './credits-context.js'
 import {
-  PaywallOptions,
   McpConfig,
-  ToolOptions,
-  ResourceOptions,
+  PaywallOptions,
   PromptOptions,
+  ResourceOptions,
+  ToolOptions,
 } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
-import { Address, NvmAPIResult } from '../../common/types.js'
+import { PaywallAuthenticator } from './auth.js'
+import { CreditsContextProvider } from './credits-context.js'
 
 /**
  * Main class for creating paywall-protected MCP handlers
@@ -28,7 +28,7 @@ export class PaywallDecorator {
     private payments: Payments,
     private authenticator: PaywallAuthenticator,
     private creditsContext: CreditsContextProvider,
-  ) {}
+  ) { }
 
   /**
    * Configure the paywall with agent and server information
@@ -133,6 +133,9 @@ export class PaywallDecorator {
             authResult.subscriberAddress,
             credits,
             options,
+            authResult.agentId,
+            authResult.logicalUrl,
+            'POST',
           )
         }
         return wrapAsyncIterable(result, onFinally, effectivePlanId, authResult.subscriberAddress, credits)
@@ -145,6 +148,9 @@ export class PaywallDecorator {
         authResult.subscriberAddress,
         credits,
         options,
+        authResult.agentId,
+        authResult.logicalUrl,
+        'POST',
       )
       if (creditsResult.success) {
         result.metadata = {
@@ -169,6 +175,9 @@ export class PaywallDecorator {
     subscriberAddress: Address,
     credits: bigint,
     options: PaywallOptions,
+    agentId?: string,
+    endpoint?: string,
+    httpVerb?: string,
   ): Promise<NvmAPIResult> {
     let ret: NvmAPIResult = {
       success: true,
@@ -181,6 +190,9 @@ export class PaywallDecorator {
           maxAmount: credits,
           x402AccessToken: token,
           subscriberAddress,
+          agentId,
+          endpoint,
+          httpVerb,
         })
       }
     } catch (e) {
