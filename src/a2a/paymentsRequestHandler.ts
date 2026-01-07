@@ -144,15 +144,15 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * Validates a request using the x402 payments service.
    * This method is used by the middleware to validate credits before processing requests.
    *
-   * @param agentId - The agent ID to validate
    * @param bearerToken - The bearer token for authentication
-   * @param urlRequested - The URL being requested
-   * @param httpMethodRequested - The HTTP method being used
-   * @param batch - Whether this is a batch request (default: false)
+   * @param endpoint - Optional endpoint URL being requested
+   * @param httpVerb - Optional HTTP method being used
    * @returns Promise resolving to the validation result
    */
   public async validateRequest(
     bearerToken: string,
+    endpoint?: string,
+    httpVerb?: string,
   ): Promise<any> {
     let planId
     const agentCard = await this.getAgentCard()
@@ -182,12 +182,27 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token')
     }
 
-    const result = await this.paymentsService.facilitator.verifyPermissions({
+    const verifyParams: any = {
       planId: planId as string,
       maxAmount: 1n,
       x402AccessToken: bearerToken,
       subscriberAddress: decodedAccessToken.subscriberAddress,
-    })
+    }
+
+    // Add endpoint and httpVerb if provided
+    if (endpoint !== undefined) {
+      verifyParams.endpoint = endpoint
+    }
+    if (httpVerb !== undefined) {
+      verifyParams.httpVerb = httpVerb
+    }
+
+    // Add agentId if available from payment extension
+    if (paymentExtension?.params?.agentId) {
+      verifyParams.agentId = paymentExtension.params.agentId
+    }
+
+    const result = await this.paymentsService.facilitator.verifyPermissions(verifyParams)
     if (!result.success) {
       throw PaymentsError.unauthorized('Permission verification failed.')
     }
@@ -227,11 +242,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    *
    * @param bearerToken - The bearer token for authentication
    * @param creditsUsed - The number of credits to burn
+   * @param httpContext - Optional HTTP context with endpoint and method information
    * @returns Promise resolving to the redemption result
    */
   private async executeRedemption(
     bearerToken: string,
     creditsUsed: bigint | number,
+    httpContext?: HttpRequestContext,
   ): Promise<any> {
     const decodedAccessToken = decodeAccessToken(bearerToken)
     if (!decodedAccessToken) {
@@ -260,12 +277,27 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token.')
     }
 
-    return await this.paymentsService.facilitator.settlePermissions({
+    const settleParams: any = {
       planId: planId as string,
       maxAmount: BigInt(creditsUsed),
       x402AccessToken: bearerToken,
       subscriberAddress,
-    })
+    }
+
+    // Add endpoint and httpVerb if available from HTTP context
+    if (httpContext?.urlRequested) {
+      settleParams.endpoint = httpContext.urlRequested
+    }
+    if (httpContext?.httpMethodRequested) {
+      settleParams.httpVerb = httpContext.httpMethodRequested
+    }
+
+    // Add agentId if available from validation
+    if (httpContext?.validation?.agentRequestId) {
+      settleParams.agentId = httpContext.validation.agentRequestId
+    }
+
+    return await this.paymentsService.facilitator.settlePermissions(settleParams)
   }
 
   /**
@@ -414,10 +446,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             const redemptionConfig = await this.getRedemptionConfig()
 
             if (!redemptionConfig.useBatch) {
+              // Get HTTP context if available
+              const httpContext = this.getHttpRequestContextForTask(event.taskId)
               // Execute redemption with server configuration for non-batch requests
               const response = await this.executeRedemption(
                 bearerToken,
                 BigInt(event.metadata.creditsUsed),
+                httpContext,
               )
 
               // Update event metadata with response data
@@ -489,7 +524,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           event.final &&
           terminalStates.includes(event.status?.state)
         ) {
-          await this.handleTaskFinalization(resultManager, event, bearerToken)
+          // Get HTTP context if available
+          const httpContext = this.getHttpRequestContextForTask(event.taskId)
+          await this.handleTaskFinalization(resultManager, event, bearerToken, httpContext)
         }
 
         await resultManager.processEvent(event)
@@ -630,6 +667,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     resultManager: ResultManager,
     event: TaskStatusUpdateEvent,
     bearerToken: string,
+    httpContext?: HttpRequestContext,
   ) {
     const creditsToBurn = event.metadata?.creditsUsed
     if (
@@ -649,6 +687,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           const response = await this.executeRedemption(
             bearerToken,
             BigInt(creditsToBurn),
+            httpContext,
           )
 
           // Update event metadata with redemption results
@@ -908,7 +947,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             const { bearerToken, validation } = httpContext
             if (bearerToken && validation) {
               // Handle task finalization (redemption and push notification)
-              await this.handleTaskFinalization(resultManager, event, bearerToken)
+              await this.handleTaskFinalization(resultManager, event, bearerToken, httpContext)
             }
           }
         }

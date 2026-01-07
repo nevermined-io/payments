@@ -47,6 +47,9 @@ export interface VerifyPermissionsParams {
   maxAmount: bigint
   x402AccessToken: string
   subscriberAddress: Address
+  agentId?: string
+  endpoint?: string
+  httpVerb?: string
 }
 
 export interface VerifyPermissionsResult {
@@ -59,6 +62,9 @@ export interface SettlePermissionsParams {
   maxAmount: bigint
   x402AccessToken: string
   subscriberAddress: Address
+  agentId?: string
+  endpoint?: string
+  httpVerb?: string
 }
 
 export interface SettlePermissionsResult {
@@ -101,15 +107,25 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    * @throws PaymentsError if verification fails
    */
   async verifyPermissions(params: VerifyPermissionsParams): Promise<VerifyPermissionsResult> {
-    const { planId, maxAmount, x402AccessToken, subscriberAddress } = params
+    const { planId, maxAmount, x402AccessToken, subscriberAddress, agentId, endpoint, httpVerb } = params
 
     const url = new URL(API_URL_VERIFY_PERMISSIONS, this.environment.backend)
 
-    const body = {
+    const body: any = {
       planId,
       maxAmount,
       x402AccessToken,
       subscriberAddress,
+    }
+
+    if (agentId !== undefined) {
+      body.agentId = agentId
+    }
+    if (endpoint !== undefined) {
+      body.endpoint = endpoint
+    }
+    if (httpVerb !== undefined) {
+      body.httpVerb = httpVerb
     }
 
     const options = this.getBackendHTTPOptions('POST', body)
@@ -162,15 +178,25 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    * @throws PaymentsError if settlement fails
    */
   async settlePermissions(params: SettlePermissionsParams): Promise<SettlePermissionsResult> {
-    const { planId, maxAmount, x402AccessToken, subscriberAddress } = params
+    const { planId, maxAmount, x402AccessToken, subscriberAddress, agentId, endpoint, httpVerb } = params
 
     const url = new URL(API_URL_SETTLE_PERMISSIONS, this.environment.backend)
 
-    const body = {
+    const body: any = {
       planId,
       maxAmount,
       x402AccessToken,
       subscriberAddress,
+    }
+
+    if (agentId !== undefined) {
+      body.agentId = agentId
+    }
+    if (endpoint !== undefined) {
+      body.endpoint = endpoint
+    }
+    if (httpVerb !== undefined) {
+      body.httpVerb = httpVerb
     }
 
     const options = this.getBackendHTTPOptions('POST', body)

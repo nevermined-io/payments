@@ -163,6 +163,8 @@ async function bearerTokenMiddleware(
   try {
     validation = await handler.validateRequest(
       bearerToken,
+      absoluteUrl,
+      req.method,
     )
     if (!validation?.balance?.isSubscriber) {
       res.status(402).json({

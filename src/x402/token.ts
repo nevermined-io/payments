@@ -5,10 +5,10 @@
  * Tokens are used to authorize payment verification and settlement.
  */
 
-import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions } from '../common/types.js'
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_GET_AGENT_X402_ACCESS_TOKEN } from '../api/nvm-api.js'
+import { PaymentsError } from '../common/payments.error.js'
+import { PaymentOptions } from '../common/types.js'
 
 
 
@@ -60,12 +60,12 @@ export class X402TokenAPI extends BasePaymentsAPI {
   async getX402AccessToken(
     planId: string,
     agentId: string,
-  ): Promise<{ accessToken: string; [key: string]: any }> {
-    const urlPath = API_URL_GET_AGENT_X402_ACCESS_TOKEN.replace(':planId', planId).replace(
-      ':agentId',
-      agentId,
-    )
+  ): Promise<{ accessToken: string;[key: string]: any }> {
+    const urlPath = API_URL_GET_AGENT_X402_ACCESS_TOKEN.replace(':planId', planId)
     const url = new URL(urlPath, this.environment.backend)
+
+    // Add agentId as query parameter
+    url.searchParams.set('agentId', agentId)
 
     const options = this.getBackendHTTPOptions('GET')
 
