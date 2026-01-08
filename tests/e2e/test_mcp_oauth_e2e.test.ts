@@ -198,10 +198,11 @@ describe('MCP OAuth E2E Tests', () => {
 
       // Register a resource with URI template
       paymentsBuilder.mcp.registerResource(
+        "Today's Weather Resource",
         'weather://today/{city}',
         {
-          name: 'Weather Data',
-          description: 'Raw weather data for a city',
+          title: "Today's Weather Resource",
+          description: "JSON for today's weather by city",
           mimeType: 'application/json',
         },
         async (uri: URL, variables: Record<string, string | string[]>) => {
@@ -233,9 +234,9 @@ describe('MCP OAuth E2E Tests', () => {
       paymentsBuilder.mcp.registerPrompt(
         'weather.ask',
         {
-          name: 'Ask for Weather',
+          title: 'Ask for Weather',
           description: 'Prompt to ask for weather information',
-          inputSchema: z.object({
+          argsSchema: z.object({
             city: z.string().describe('City name'),
           }),
         },
