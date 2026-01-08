@@ -22,7 +22,6 @@ export interface McpToolConfig {
 
 /**
  * Configuration for a resource.
- * Matches ResourceMetadata from MCP SDK: Omit<Resource, 'uri' | 'name'>
  */
 export interface McpResourceConfig {
   /** Human-readable title for the resource */
@@ -35,7 +34,6 @@ export interface McpResourceConfig {
 
 /**
  * Configuration for a prompt.
- * Matches the config object from MCP SDK registerPrompt
  */
 export interface McpPromptConfig {
   /** Human-readable title for the prompt */
