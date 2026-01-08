@@ -6,7 +6,7 @@
  */
 
 import { BasePaymentsAPI } from '../api/base-payments.js'
-import { API_URL_GET_AGENT_X402_ACCESS_TOKEN } from '../api/nvm-api.js'
+import { API_URL_CREATE_PERMISSION } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { PaymentOptions } from '../common/types.js'
 
@@ -30,14 +30,17 @@ export class X402TokenAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Get an X402 access token for the given plan and agent.
+   * Create a permission and get an X402 access token for the given plan.
    *
    * This token allows the agent to verify and settle permissions on behalf
    * of the subscriber. The token contains cryptographically signed session keys
    * that delegate specific permissions (order, burn) to the agent.
    *
    * @param planId - The unique identifier of the payment plan
-   * @param agentId - The unique identifier of the AI agent
+   * @param agentId - The unique identifier of the AI agent (optional). If provided, permissions are restricted to that specific agent.
+   * @param redemptionLimit - Maximum number of interactions/redemptions allowed (optional)
+   * @param orderLimit - Maximum spend limit in token units (wei) for ordering (optional)
+   * @param expiration - Expiration date in ISO 8601 format, e.g. "2025-02-01T10:00:00Z" (optional)
    * @returns A promise that resolves to an object containing:
    *   - accessToken: The X402 access token string
    *   - Additional metadata about the token
@@ -59,20 +62,37 @@ export class X402TokenAPI extends BasePaymentsAPI {
    */
   async getX402AccessToken(
     planId: string,
-    agentId: string,
+    agentId?: string,
+    redemptionLimit?: number,
+    orderLimit?: string,
+    expiration?: string,
   ): Promise<{ accessToken: string;[key: string]: any }> {
-    const urlPath = API_URL_GET_AGENT_X402_ACCESS_TOKEN.replace(':planId', planId)
+    const urlPath = API_URL_CREATE_PERMISSION
     const url = new URL(urlPath, this.environment.backend)
 
-    // Add agentId as query parameter
-    url.searchParams.set('agentId', agentId)
+    const body: Record<string, any> = {
+      planId: planId,
+    }
 
-    const options = this.getBackendHTTPOptions('GET')
+    if (agentId !== undefined) {
+      body.agentId = agentId
+    }
+    if (redemptionLimit !== undefined) {
+      body.redemptionLimit = redemptionLimit
+    }
+    if (orderLimit !== undefined) {
+      body.orderLimit = orderLimit
+    }
+    if (expiration !== undefined) {
+      body.expiration = expiration
+    }
+
+    const options = this.getBackendHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
       if (!response.ok) {
-        let errorMessage = 'Failed to get X402 access token'
+        let errorMessage = 'Failed to create X402 permission'
         try {
           const errorData = await response.json()
           errorMessage = errorData.message || errorMessage
@@ -87,7 +107,7 @@ export class X402TokenAPI extends BasePaymentsAPI {
         throw error
       }
       throw PaymentsError.internal(
-        `Network error while getting X402 access token: ${error instanceof Error ? error.message : String(error)}`,
+        `Network error while creating X402 permission: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }

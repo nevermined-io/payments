@@ -44,9 +44,9 @@ import { Address, PaymentOptions } from '../common/types.js'
 
 export interface VerifyPermissionsParams {
   planId: string
-  maxAmount: bigint
   x402AccessToken: string
   subscriberAddress: Address
+  maxAmount?: bigint
   agentId?: string
   endpoint?: string
   httpVerb?: string
@@ -59,9 +59,9 @@ export interface VerifyPermissionsResult {
 
 export interface SettlePermissionsParams {
   planId: string
-  maxAmount: bigint
   x402AccessToken: string
   subscriberAddress: Address
+  maxAmount?: bigint
   agentId?: string
   endpoint?: string
   httpVerb?: string
@@ -113,11 +113,13 @@ export class FacilitatorAPI extends BasePaymentsAPI {
 
     const body: any = {
       planId,
-      maxAmount,
       x402AccessToken,
       subscriberAddress,
     }
 
+    if (maxAmount !== undefined) {
+      body.maxAmount = maxAmount.toString()
+    }
     if (agentId !== undefined) {
       body.agentId = agentId
     }
@@ -128,7 +130,7 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       body.httpVerb = httpVerb
     }
 
-    const options = this.getBackendHTTPOptions('POST', body)
+    const options = this.getPublicHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
@@ -184,11 +186,13 @@ export class FacilitatorAPI extends BasePaymentsAPI {
 
     const body: any = {
       planId,
-      maxAmount,
       x402AccessToken,
       subscriberAddress,
     }
 
+    if (maxAmount !== undefined) {
+      body.maxAmount = maxAmount.toString()
+    }
     if (agentId !== undefined) {
       body.agentId = agentId
     }
@@ -199,7 +203,7 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       body.httpVerb = httpVerb
     }
 
-    const options = this.getBackendHTTPOptions('POST', body)
+    const options = this.getPublicHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
