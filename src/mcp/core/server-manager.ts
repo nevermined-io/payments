@@ -125,7 +125,6 @@ export class McpServerManager {
   /**
    * Register a resource.
    * Must be called before start().
-   * Matches the signature of MCP SDK registerResource.
    */
   registerResource(
     name: string,
@@ -413,7 +412,6 @@ export class McpServerManager {
       const protectedHandler = this.paywallDecorator.protect(
         async (uri: URL, extra?: any, paywallContext?: any) => {
           // Convert PaywallContext - pass extra directly to handler
-          // The handler signature matches MCP SDK: (uri: URL, extra?: any)
           const handlerExtra = paywallContext
             ? {
                 ...extra,
