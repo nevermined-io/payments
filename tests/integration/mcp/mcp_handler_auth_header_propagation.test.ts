@@ -72,6 +72,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
       const extra = {}
       return await authenticator.authenticate(
         extra,
+        { planId: 'plan-1' },
         'did:nv:integration',
         'test-server',
         'weather',
@@ -119,6 +120,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
       }
       return await authenticator.authenticate(
         extra,
+        { planId: 'plan-1' },
         'did:nv:integration',
         'test-server',
         'weather',
@@ -158,6 +160,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
     const result = await requestContextStorage.run(requestContext, async () => {
       return await authenticator.authenticate(
         {},
+        { planId: 'plan-1' },
         'did:nv:integration',
         'test-server',
         'tool1',
@@ -186,7 +189,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
 
     await requestContextStorage.run(requestContext, async () => {
       await expect(
-        authenticator.authenticate({}, 'did:nv:integration', 'test-server', 'tool1', 'tool', {}),
+        authenticator.authenticate({}, {}, 'did:nv:integration', 'test-server', 'tool1', 'tool', {}),
       ).rejects.toMatchObject({
         code: -32003,
         message: expect.stringContaining('Authorization required'),
@@ -217,6 +220,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
       // First call - initialize
       const result1 = await authenticator.authenticateMeta(
         {},
+        { planId: 'plan-1' },
         'did:nv:integration',
         'multi-server',
         'initialize',
@@ -226,6 +230,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
       // Second call - tools/list
       const result2 = await authenticator.authenticateMeta(
         {},
+        { planId: 'plan-1' },
         'did:nv:integration',
         'multi-server',
         'tools/list',
@@ -235,6 +240,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
       // Third call - actual tool execution
       const result3 = await authenticator.authenticate(
         {},
+        { planId: 'plan-1' },
         'did:nv:integration',
         'multi-server',
         'get_weather',
@@ -268,6 +274,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
 
     const result = await authenticator.authenticate(
       extra,
+      { planId: 'plan-1' },
       'did:nv:integration',
       'standalone-server',
       'tool1',
