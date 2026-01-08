@@ -3,16 +3,15 @@
  * @description E2E tests for MCP server OAuth flow with real Nevermined backend
  */
 
-import { Payments } from '../../src/payments.js'
-import type {
-  PlanMetadata,
-  Address,
-  AgentMetadata,
-  AgentAPIAttributes,
-} from '../../src/common/types.js'
-import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
-import { retryWithBackoff } from '../utils.js'
 import { z } from 'zod'
+import type {
+  Address,
+  AgentAPIAttributes,
+  AgentMetadata
+} from '../../src/common/types.js'
+import { Payments } from '../../src/payments.js'
+import { retryWithBackoff } from '../utils.js'
+import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
 
 // Test configuration
 const TEST_TIMEOUT = 30000
@@ -84,6 +83,10 @@ describe('MCP OAuth E2E Tests', () => {
       expect(creditsPlanId).toBeDefined()
       expect(BigInt(creditsPlanId) > 0n).toBeTruthy()
       console.log('[E2E] MCP Credits Plan ID:', creditsPlanId)
+
+      // Wait a bit for the contract to sync after plan registration
+      // This helps avoid "PlanNotFound" errors when registering the agent
+      await new Promise((resolve) => setTimeout(resolve, 2000))
     },
     TEST_TIMEOUT * 2,
   )
@@ -125,7 +128,11 @@ describe('MCP OAuth E2E Tests', () => {
 
       const result = await retryWithBackoff<{ agentId: string }>(
         () => paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, [creditsPlanId!]),
-        { label: 'registerAgent for MCP' },
+        {
+          label: 'registerAgent for MCP',
+          baseDelaySecs: 1.0, // Increase initial delay to allow contract sync
+          attempts: 8, // Increase attempts to handle contract sync delays
+        },
       )
 
       mcpAgentId = result.agentId
@@ -502,8 +509,8 @@ describe('MCP OAuth E2E Tests', () => {
 
       // Get access token for the agent
       const accessParams = await retryWithBackoff(
-        () => paymentsSubscriber.agents.getAgentAccessToken(creditsPlanId!, mcpAgentDID!),
-        { label: 'getAgentAccessToken for MCP' },
+        () => paymentsSubscriber.x402.getX402AccessToken(creditsPlanId!, mcpAgentDID!),
+        { label: 'getX402AccessToken for MCP' },
       )
 
       expect(accessParams).toBeDefined()
@@ -539,6 +546,7 @@ describe('MCP OAuth E2E Tests', () => {
 
       expect(response.ok).toBe(true)
       const data = await response.json()
+      console.log('[E2E] Tool response:', JSON.stringify(data, null, 2))
       expect(data.result).toBeDefined()
       expect(data.result.content[0].text).toContain('Madrid')
       expect(data.result.content[0].text).toContain('sunny')

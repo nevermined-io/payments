@@ -6,63 +6,55 @@
 import { buildMcpIntegration } from '../../../src/mcp/index.js'
 import type { Payments } from '../../../src/payments.js'
 
+jest.mock('../../../src/utils.js', () => ({
+  decodeAccessToken: jest.fn(() => ({
+    planId: 'plan-basic',
+    subscriberAddress: '0xabc',
+  })),
+}))
+
 /**
  * Mock Payments that simulates various authentication failure scenarios
  */
 class PaymentsMockWithFailures {
   public calls: Array<[string, ...any[]]> = []
-  public requests: any
-  public agents: any
+  public facilitator: {
+    verifyPermissions: jest.Mock
+    settlePermissions: jest.Mock
+  }
+  public agents: {
+    getAgentPlans: jest.Mock
+  }
   private failureMode: 'none' | 'invalid-token' | 'not-subscriber' | 'insufficient-balance'
 
   constructor(
     failureMode: 'none' | 'invalid-token' | 'not-subscriber' | 'insufficient-balance' = 'none',
   ) {
     this.failureMode = failureMode
-    const self = this
-
-    class Req {
-      async startProcessingRequest(agentId: string, token: string, url: string, method: string) {
-        self.calls.push(['start', agentId, token, url, method])
-
-        // Simulate invalid token
-        if (self.failureMode === 'invalid-token') {
-          throw new Error('Invalid or expired token')
+    this.facilitator = {
+      verifyPermissions: jest.fn(async (params: any) => {
+        this.calls.push(['verifyPermissions', params])
+        if (this.failureMode === 'invalid-token' || this.failureMode === 'not-subscriber') {
+          return { success: false, message: 'Payment required' }
         }
-
-        // Simulate not subscriber
-        const isSubscriber = self.failureMode !== 'not-subscriber'
-
-        return {
-          agentRequestId: `req-${Date.now()}`,
-          agentName: 'Test Agent',
-          agentId: agentId,
-          balance: {
-            isSubscriber: isSubscriber,
-            balance: self.failureMode === 'insufficient-balance' ? 1 : 1000,
-            creditsContract: '0xtest',
-            pricePerCredit: 0.01,
-          },
-          urlMatching: url,
-          verbMatching: method,
-        }
-      }
-
-      async redeemCreditsFromRequest(requestId: string, token: string, credits: bigint) {
-        self.calls.push(['redeem', requestId, token, Number(credits)])
-
-        // Simulate insufficient balance during redemption
-        if (self.failureMode === 'insufficient-balance') {
+        return { success: true }
+      }),
+      settlePermissions: jest.fn(async (params: any) => {
+        this.calls.push(['settle', params])
+        if (this.failureMode === 'insufficient-balance') {
           throw new Error('Insufficient balance for redemption')
         }
-
-        return { success: true, txHash: '0xtest123' }
-      }
+        return {
+          success: true,
+          txHash: '0xtest123',
+          data: { amountOfCredits: params.maxAmount },
+        }
+      }),
     }
 
-    class Agents {
-      async getAgentPlans(agentId: string) {
-        self.calls.push(['getAgentPlans', agentId])
+    this.agents = {
+      getAgentPlans: jest.fn(async (agentId: string) => {
+        this.calls.push(['getAgentPlans', agentId])
         return {
           plans: [
             { planId: 'plan-basic', name: 'Basic Plan', price: 10 },
@@ -70,11 +62,8 @@ class PaymentsMockWithFailures {
             { planId: 'plan-enterprise', name: 'Enterprise Plan', price: 200 },
           ],
         }
-      }
+      }),
     }
-
-    this.requests = new Req()
-    this.agents = new Agents()
   }
 }
 
@@ -89,7 +78,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       return { content: [{ type: 'text', text: `Weather in ${args.city}` }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'weather', credits: 5n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'weather', credits: 5n, planId: 'plan-basic' })
 
     // Attempt to call with invalid token
     await expect(
@@ -102,14 +91,14 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       message: expect.stringContaining('Payment'),
     })
 
-    // Should have attempted to start processing
-    expect(mockInstance.calls.some((c: any) => c[0] === 'start')).toBe(true)
+    // Should have attempted to verify permissions
+    expect(mockInstance.calls.some((c: any) => c[0] === 'verifyPermissions')).toBe(true)
 
     // Should have fetched available plans for error message
     expect(mockInstance.calls.some((c: any) => c[0] === 'getAgentPlans')).toBe(true)
 
-    // Should NOT have attempted to redeem credits
-    expect(mockInstance.calls.some((c: any) => c[0] === 'redeem')).toBe(false)
+    // Should NOT have attempted to settle credits
+    expect(mockInstance.calls.some((c: any) => c[0] === 'settle')).toBe(false)
   })
 
   test('should include plan information in error when token is invalid', async () => {
@@ -122,7 +111,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       return { content: [{ type: 'text', text: 'result' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
 
     try {
       await wrapped(
@@ -147,7 +136,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       return { content: [{ type: 'text', text: 'result' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
 
     await expect(
       wrapped(
@@ -160,11 +149,11 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       data: { reason: 'invalid' },
     })
 
-    // Should have called start (which returned isSubscriber: false)
-    expect(mockInstance.calls.some((c: any) => c[0] === 'start')).toBe(true)
+    // Should have called verifyPermissions (which returned success: false)
+    expect(mockInstance.calls.some((c: any) => c[0] === 'verifyPermissions')).toBe(true)
 
-    // Should NOT have attempted to redeem
-    expect(mockInstance.calls.some((c: any) => c[0] === 'redeem')).toBe(false)
+    // Should NOT have attempted to settle
+    expect(mockInstance.calls.some((c: any) => c[0] === 'settle')).toBe(false)
   })
 
   test('should successfully process with valid token and sufficient balance', async () => {
@@ -179,7 +168,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'process', credits: 10n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'process', credits: 10n, planId: 'plan-basic' })
 
     const result = await wrapped(
       { action: 'analyze' },
@@ -190,8 +179,8 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     expect(result.content[0].text).toBe('Processing analyze')
 
     // Should have completed full flow
-    expect(mockInstance.calls.some((c: any) => c[0] === 'start')).toBe(true)
-    expect(mockInstance.calls.some((c: any) => c[0] === 'redeem')).toBe(true)
+    expect(mockInstance.calls.some((c: any) => c[0] === 'verifyPermissions')).toBe(true)
+    expect(mockInstance.calls.some((c: any) => c[0] === 'settle')).toBe(true)
 
     // Should NOT have fetched plans (no error)
     expect(mockInstance.calls.some((c: any) => c[0] === 'getAgentPlans')).toBe(false)
@@ -211,16 +200,19 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       kind: 'tool',
       name: 'simple',
       credits: 1n,
+      planId: 'plan-basic',
     })
     const complexTool = mcp.withPaywall(complexHandler, {
       kind: 'tool',
       name: 'complex',
       credits: 5n,
+      planId: 'plan-basic',
     })
     const premiumTool = mcp.withPaywall(premiumHandler, {
       kind: 'tool',
       name: 'premium',
       credits: 20n,
+      planId: 'plan-basic',
     })
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
@@ -230,12 +222,12 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     await complexTool({}, extra)
     await premiumTool({}, extra)
 
-    // Verify different credit amounts were redeemed
-    const redeemCalls = mockInstance.calls.filter((c: any) => c[0] === 'redeem')
-    expect(redeemCalls.length).toBe(3)
-    expect(redeemCalls[0][3]).toBe(1) // simple tool
-    expect(redeemCalls[1][3]).toBe(5) // complex tool
-    expect(redeemCalls[2][3]).toBe(20) // premium tool
+    // Verify different credit amounts were settled
+    const settleCalls = mockInstance.calls.filter((c: any) => c[0] === 'settle')
+    expect(settleCalls.length).toBe(3)
+    expect(Number(settleCalls[0][1].maxAmount)).toBe(1) // simple tool
+    expect(Number(settleCalls[1][1].maxAmount)).toBe(5) // complex tool
+    expect(Number(settleCalls[2][1].maxAmount)).toBe(20) // premium tool
   })
 
   test('should propagate redemption errors when configured', async () => {
@@ -252,11 +244,11 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       kind: 'tool',
       name: 'test',
       credits: 100n,
+      planId: 'plan-basic',
       onRedeemError: 'propagate',
     })
 
-    // Note: startProcessingRequest succeeds (returns isSubscriber: true)
-    // but redeemCreditsFromRequest fails
+    // Note: verifyPermissions succeeds but settlePermissions fails
     await expect(
       wrapped({ input: 'test' }, { requestInfo: { headers: { authorization: 'Bearer token' } } }),
     ).rejects.toMatchObject({
@@ -280,6 +272,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       kind: 'tool',
       name: 'test',
       credits: 100n,
+      planId: 'plan-basic',
       // onRedeemError defaults to 'ignore'
     })
 
@@ -307,7 +300,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
 
     // Multiple failed attempts
     const attempts = 5
@@ -319,9 +312,9 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       })
     }
 
-    // Should have attempted to start processing for each attempt
-    const startCalls = mockInstance.calls.filter((c: any) => c[0] === 'start')
-    expect(startCalls.length).toBe(attempts)
+    // Should have attempted to verify permissions for each attempt
+    const verifyCalls = mockInstance.calls.filter((c: any) => c[0] === 'verifyPermissions')
+    expect(verifyCalls.length).toBe(attempts)
 
     // Should have fetched plans for each failure
     const planCalls = mockInstance.calls.filter((c: any) => c[0] === 'getAgentPlans')

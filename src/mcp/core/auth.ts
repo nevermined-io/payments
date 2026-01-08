@@ -1,18 +1,19 @@
 /**
- * Authentication handler for MCP paywall
+ * Authentication handler for MCP paywall using X402 tokens
  */
 import type { Payments } from '../../payments.js'
-import { extractAuthHeader, stripBearer } from '../utils/request.js'
-import { buildLogicalUrl, buildLogicalMetaUrl } from '../utils/logical-url.js'
-import { ERROR_CODES, createRpcError } from '../utils/errors.js'
-import { AuthResult } from '../types/paywall.types.js'
+import { decodeAccessToken } from '../../utils.js'
 import { getCurrentRequestContext } from '../http/mcp-handler.js'
+import { AuthResult } from '../types/paywall.types.js'
+import { ERROR_CODES, createRpcError } from '../utils/errors.js'
+import { buildLogicalMetaUrl, buildLogicalUrl } from '../utils/logical-url.js'
+import { extractAuthHeader, stripBearer } from '../utils/request.js'
 
 /**
  * Handles authentication and authorization for MCP requests
  */
 export class PaywallAuthenticator {
-  constructor(private payments: Payments) {}
+  constructor(private payments: Payments) { }
 
   /**
    * Extract authorization header from extra context or AsyncLocalStorage.
@@ -69,6 +70,7 @@ export class PaywallAuthenticator {
    */
   async authenticate(
     extra: any,
+    options: {planId?: string} = {},
     agentId: string,
     serverName: string,
     name: string,
@@ -87,46 +89,92 @@ export class PaywallAuthenticator {
 
     // Validate access with Nevermined - try logical URL first
     try {
-      const start = await this.payments.requests.startProcessingRequest(
-        agentId,
-        accessToken,
-        logicalUrl,
-        'POST',
-      )
+      const decodedAccessToken = decodeAccessToken(accessToken)
+      if (!decodedAccessToken) {
+        throw new Error('Invalid access token')
+      }
 
-      if (!start?.balance?.isSubscriber) {
-        throw new Error('Not a subscriber')
+      const planId = options.planId
+
+      const subscriberAddress = decodedAccessToken.subscriberAddress 
+
+      if (!planId || !subscriberAddress) {
+        throw new Error('Cannot determine plan_id or subscriber_address from token')
+      }
+
+      const result = await this.payments.facilitator.verifyPermissions({
+        planId,
+        maxAmount: 1n,
+        x402AccessToken: accessToken,
+        subscriberAddress,
+        agentId,
+        endpoint: logicalUrl,
+        httpVerb: 'POST',
+      })
+
+      if (!result.success) {
+        throw new Error('Permission verification failed')
       }
 
       return {
-        requestId: start.agentRequestId,
         token: accessToken,
         agentId,
         logicalUrl,
-        agentRequest: start,
+        planId,
+        subscriberAddress,
       }
     } catch (e) {
       // If logical URL validation fails, try with HTTP endpoint
       const httpUrl = this.buildHttpUrlFromContext()
       if (httpUrl) {
         try {
-          const start = await this.payments.requests.startProcessingRequest(
-            agentId,
-            accessToken,
-            httpUrl,
-            'POST',
-          )
+          const decodedAccessToken = decodeAccessToken(accessToken)
+          if (!decodedAccessToken) {
+            throw new Error('Invalid access token')
+          }
+          let planId =
+            decodedAccessToken.planId ||
+            decodedAccessToken.plan_id ||
+            decodedAccessToken.plan ||
+            decodedAccessToken.planID
+          const subscriberAddress = decodedAccessToken.subscriberAddress
 
-          if (!start?.balance?.isSubscriber) {
-            throw new Error('Not a subscriber')
+          // If planId is not in the token, try to get it from the agent's plans
+          if (!planId) {
+            try {
+              const agentPlans = await this.payments.agents.getAgentPlans(agentId)
+              if (agentPlans && Array.isArray(agentPlans.plans) && agentPlans.plans.length > 0) {
+                planId = agentPlans.plans[0].planId || agentPlans.plans[0].id
+              }
+            } catch (planError) {
+              // Ignore errors fetching plans
+            }
+          }
+
+          if (!planId || !subscriberAddress) {
+            throw new Error('Cannot determine plan_id or subscriber_address from token')
+          }
+
+          const result = await this.payments.facilitator.verifyPermissions({
+            planId,
+            maxAmount: 1n,
+            x402AccessToken: accessToken,
+            subscriberAddress,
+            agentId,
+            endpoint: httpUrl,
+            httpVerb: 'POST',
+          })
+
+          if (!result.success) {
+            throw new Error('Permission verification failed')
           }
 
           return {
-            requestId: start.agentRequestId,
             token: accessToken,
             agentId,
-            logicalUrl: httpUrl,
-            agentRequest: start,
+            logicalUrl,
+            planId,
+            subscriberAddress,
           }
         } catch (httpError) {
           void httpError
@@ -160,6 +208,7 @@ export class PaywallAuthenticator {
    */
   async authenticateMeta(
     extra: any,
+    options: {planId?: string} = {},
     agentId: string,
     serverName: string,
     method: string,
@@ -174,45 +223,72 @@ export class PaywallAuthenticator {
     const logicalUrl = buildLogicalMetaUrl(serverName, method)
 
     try {
-      const start = await this.payments.requests.startProcessingRequest(
-        agentId,
-        accessToken,
-        logicalUrl,
-        'POST',
-      )
-
-      if (!start?.balance?.isSubscriber) {
-        throw new Error('Not a subscriber')
+      const decodedAccessToken = decodeAccessToken(accessToken)
+      if (!decodedAccessToken) {
+        throw new Error('Invalid access token')
       }
-
+      const planId = options.planId
+      const subscriberAddress = decodedAccessToken.subscriberAddress
+      if (!planId || !subscriberAddress) {
+        throw new Error('Cannot determine plan_id or subscriber_address from token')
+      }
+      const result = await this.payments.facilitator.verifyPermissions({
+        planId,
+        maxAmount: 1n,
+        x402AccessToken: accessToken,
+        subscriberAddress,
+        agentId,
+        endpoint: logicalUrl,
+        httpVerb: 'POST',
+      })
+      if (!result.success) {
+        throw new Error('Permission verification failed')
+      }
       return {
-        requestId: start.agentRequestId,
         token: accessToken,
         agentId,
         logicalUrl,
-        agentRequest: start,
+        planId,
+        subscriberAddress,
       }
     } catch (e) {
       const httpUrl = this.buildHttpUrlFromContext()
       if (httpUrl) {
         try {
-          const start = await this.payments.requests.startProcessingRequest(
-            agentId,
-            accessToken,
-            httpUrl,
-            'POST',
-          )
-
-          if (!start?.balance?.isSubscriber) {
-            throw new Error('Not a subscriber')
+          const decodedAccessToken = decodeAccessToken(accessToken)
+          if (!decodedAccessToken) {
+            throw new Error('Invalid access token')
           }
-
+          const planId =
+            decodedAccessToken.planId ||
+            decodedAccessToken.plan_id ||
+            decodedAccessToken.plan ||
+            decodedAccessToken.planID
+          const subscriberAddress =
+            decodedAccessToken.subscriberAddress ||
+            decodedAccessToken.subscriber_address ||
+            decodedAccessToken.sub
+          if (!planId || !subscriberAddress) {
+            throw new Error('Cannot determine plan_id or subscriber_address from token')
+          }
+          const result = await this.payments.facilitator.verifyPermissions({
+            planId,
+            maxAmount: 1n,
+            x402AccessToken: accessToken,
+            subscriberAddress,
+            agentId,
+            endpoint: httpUrl,
+            httpVerb: 'POST',
+          })
+          if (!result.success) {
+            throw new Error('Permission verification failed')
+          }
           return {
-            requestId: start.agentRequestId,
             token: accessToken,
             agentId,
             logicalUrl: httpUrl,
-            agentRequest: start,
+            planId,
+            subscriberAddress,
           }
         } catch (httpError) {
           void httpError

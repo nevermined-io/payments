@@ -159,22 +159,12 @@ async function bearerTokenMiddleware(
     return
   }
 
-  const agentId = paymentExtension.params.agentId as string
-
-  // Get batch setting from handler options (server-side configuration)
-  // This ensures the agent builder controls batch mode, not the client
-  const handlerOptions = handler.getHandlerOptions()
-  const isBatch = handlerOptions.defaultBatch ?? false
-
   let validation: any
   try {
-    // Validate request with batch flag from server configuration
     validation = await handler.validateRequest(
-      agentId,
       bearerToken,
       absoluteUrl,
       req.method,
-      isBatch,
     )
     if (!validation?.balance?.isSubscriber) {
       res.status(402).json({

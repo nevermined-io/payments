@@ -37,16 +37,19 @@
  * ```
  */
 
+import { BasePaymentsAPI } from '../api/base-payments.js'
+import { API_URL_SETTLE_PERMISSIONS, API_URL_VERIFY_PERMISSIONS } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { Address, PaymentOptions } from '../common/types.js'
-import { BasePaymentsAPI } from '../api/base-payments.js'
-import { API_URL_VERIFY_PERMISSIONS, API_URL_SETTLE_PERMISSIONS } from '../api/nvm-api.js'
 
 export interface VerifyPermissionsParams {
   planId: string
-  maxAmount: bigint
   x402AccessToken: string
   subscriberAddress: Address
+  maxAmount?: bigint
+  agentId?: string
+  endpoint?: string
+  httpVerb?: string
 }
 
 export interface VerifyPermissionsResult {
@@ -56,9 +59,12 @@ export interface VerifyPermissionsResult {
 
 export interface SettlePermissionsParams {
   planId: string
-  maxAmount: bigint
   x402AccessToken: string
   subscriberAddress: Address
+  maxAmount?: bigint
+  agentId?: string
+  endpoint?: string
+  httpVerb?: string
 }
 
 export interface SettlePermissionsResult {
@@ -101,18 +107,30 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    * @throws PaymentsError if verification fails
    */
   async verifyPermissions(params: VerifyPermissionsParams): Promise<VerifyPermissionsResult> {
-    const { planId, maxAmount, x402AccessToken, subscriberAddress } = params
+    const { planId, maxAmount, x402AccessToken, subscriberAddress, agentId, endpoint, httpVerb } = params
 
     const url = new URL(API_URL_VERIFY_PERMISSIONS, this.environment.backend)
 
-    const body = {
+    const body: any = {
       planId,
-      maxAmount,
       x402AccessToken,
       subscriberAddress,
     }
 
-    const options = this.getBackendHTTPOptions('POST', body)
+    if (maxAmount !== undefined) {
+      body.maxAmount = maxAmount.toString()
+    }
+    if (agentId !== undefined) {
+      body.agentId = agentId
+    }
+    if (endpoint !== undefined) {
+      body.endpoint = endpoint
+    }
+    if (httpVerb !== undefined) {
+      body.httpVerb = httpVerb
+    }
+
+    const options = this.getPublicHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
@@ -162,18 +180,30 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    * @throws PaymentsError if settlement fails
    */
   async settlePermissions(params: SettlePermissionsParams): Promise<SettlePermissionsResult> {
-    const { planId, maxAmount, x402AccessToken, subscriberAddress } = params
+    const { planId, maxAmount, x402AccessToken, subscriberAddress, agentId, endpoint, httpVerb } = params
 
     const url = new URL(API_URL_SETTLE_PERMISSIONS, this.environment.backend)
 
-    const body = {
+    const body: any = {
       planId,
-      maxAmount,
       x402AccessToken,
       subscriberAddress,
     }
 
-    const options = this.getBackendHTTPOptions('POST', body)
+    if (maxAmount !== undefined) {
+      body.maxAmount = maxAmount.toString()
+    }
+    if (agentId !== undefined) {
+      body.agentId = agentId
+    }
+    if (endpoint !== undefined) {
+      body.endpoint = endpoint
+    }
+    if (httpVerb !== undefined) {
+      body.httpVerb = httpVerb
+    }
+
+    const options = this.getPublicHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
