@@ -551,17 +551,17 @@ export function buildMcpIntegration(paymentsService: Payments) {
    *     description: 'Returns a hello world message',
    *     inputSchema: { name: { type: 'string' } }
    *   },
-   *   async (args) => ({
+   *   async (args: { name: string }, context?: ToolContext) => ({
    *     content: [{ type: 'text', text: `Hello, ${args.name}!` }]
    *   }),
-   *   { credits: 1 }
+   *   { credits: 1, onRedeemError: 'ignore' }
    * )
    * ```
    */
-  function registerTool(
+  function registerTool<Args = any>(
     name: string,
     config: McpToolConfig,
-    handler: ToolHandler,
+    handler: ToolHandler<Args>,
     options?: McpRegistrationOptions,
   ): void {
     getServerManager().registerTool(name, config, handler, options)
@@ -571,33 +571,36 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * Register a resource with the simplified API.
    * Must be called before start().
    *
-   * @param uri - Resource URI pattern
-   * @param config - Resource configuration
+   * @param name - Resource name
+   * @param uriOrTemplate - Resource URI (string) or template
+   * @param config - Resource metadata configuration
    * @param handler - Resource handler function
    * @param options - Registration options (credits, etc.)
    */
   function registerResource(
-    uri: string,
+    name: string,
+    uriOrTemplate: string,
     config: McpResourceConfig,
     handler: ResourceHandler,
     options?: McpRegistrationOptions,
   ): void {
-    getServerManager().registerResource(uri, config, handler, options)
+    getServerManager().registerResource(name, uriOrTemplate, config, handler, options)
   }
 
   /**
    * Register a prompt with the simplified API.
    * Must be called before start().
+   * Matches the signature of MCP SDK registerPrompt.
    *
    * @param name - Prompt name
    * @param config - Prompt configuration
    * @param handler - Prompt handler function
    * @param options - Registration options (credits, etc.)
    */
-  function registerPrompt(
+  function registerPrompt<Args = any>(
     name: string,
     config: McpPromptConfig,
-    handler: PromptHandler,
+    handler: PromptHandler<Args>,
     options?: McpRegistrationOptions,
   ): void {
     getServerManager().registerPrompt(name, config, handler, options)

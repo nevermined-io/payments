@@ -125,9 +125,11 @@ export class McpServerManager {
   /**
    * Register a resource.
    * Must be called before start().
+   * Matches the signature of MCP SDK registerResource.
    */
   registerResource(
-    uri: string,
+    name: string,
+    uriOrTemplate: string,
     config: McpResourceConfig,
     handler: ResourceHandler,
     options: McpRegistrationOptions = {},
@@ -136,8 +138,9 @@ export class McpServerManager {
       throw new Error('Cannot register resources after server has started')
     }
 
-    this.resources.set(uri, {
-      uri,
+    this.resources.set(uriOrTemplate, {
+      name,
+      uriOrTemplate,
       config,
       handler,
       options: {
@@ -146,7 +149,7 @@ export class McpServerManager {
       },
     })
 
-    this.log?.(`Registered resource: ${uri}`)
+    this.log?.(`Registered resource: ${name} at ${uriOrTemplate}`)
   }
 
   /**
@@ -395,8 +398,8 @@ export class McpServerManager {
     }
 
     // Register resources
-    for (const [uri, registration] of this.resources) {
-      const { config: resourceConfig, handler, options } = registration
+    for (const [uriOrTemplate, registration] of this.resources) {
+      const { name, config: resourceConfig, handler, options } = registration
 
       // Wrap handler with paywall
       // Convert number to bigint if needed, but preserve functions and undefined
@@ -408,30 +411,23 @@ export class McpServerManager {
             : options.credits
 
       const protectedHandler = this.paywallDecorator.protect(
-        async (
-          uri: URL,
-          variables: Record<string, string | string[]>,
-          extra?: any,
-          paywallContext?: any,
-        ) => {
-          // Convert PaywallContext to ResourceContext format
-          // Put authResult and credits inside extra (consistent format)
-          const resourceContext = paywallContext
+        async (uri: URL, extra?: any, paywallContext?: any) => {
+          // Convert PaywallContext - pass extra directly to handler
+          // The handler signature matches MCP SDK: (uri: URL, extra?: any)
+          const handlerExtra = paywallContext
             ? {
-                extra: {
-                  ...extra,
-                  authResult: paywallContext.authResult,
-                  credits: paywallContext.credits,
-                  agentRequest: paywallContext.agentRequest,
-                },
+                ...extra,
+                authResult: paywallContext.authResult,
+                credits: paywallContext.credits,
+                agentRequest: paywallContext.agentRequest,
               }
-            : { extra }
+            : extra
           // Call the user's handler with the converted context
-          const result = await handler(uri, variables, resourceContext)
+          const result = await handler(uri, handlerExtra)
           return result
         },
         {
-          name: uri,
+          name,
           kind: 'resource',
           credits: creditsOption,
           onRedeemError: options.onRedeemError,
@@ -439,22 +435,16 @@ export class McpServerManager {
       )
 
       // Register with MCP server
-      const hasTemplateVariables = /\{[^}]+\}/.test(uri)
+      const hasTemplateVariables = /\{[^}]+\}/.test(uriOrTemplate)
 
       if (hasTemplateVariables) {
-        const resourceName = uri
-        const templateInstance = new ResourceTemplateClass(uri, {
+        const templateInstance = new ResourceTemplateClass(uriOrTemplate, {
           list: async () => ({ resources: [] }),
         })
-        this.mcpServer.registerResource(
-          resourceName,
-          templateInstance,
-          resourceConfig,
-          protectedHandler,
-        )
+        this.mcpServer.registerResource(name, templateInstance, resourceConfig, protectedHandler)
       } else {
         // For static resources: registerResource(name, uriString, config, handler)
-        this.mcpServer.registerResource(uri, uri, resourceConfig, protectedHandler)
+        this.mcpServer.registerResource(name, uriOrTemplate, resourceConfig, protectedHandler)
       }
     }
 
@@ -472,10 +462,13 @@ export class McpServerManager {
             : options.credits
 
       const protectedHandler = this.paywallDecorator.protect(
-        async (args: Record<string, string>, extra?: any, paywallContext?: any) => {
+        async (args: any, extra?: any, paywallContext?: any) => {
           // Convert PaywallContext to PromptContext format
+          // PromptContext has: { requestId?, credits?, extra? }
           const promptContext = paywallContext
             ? {
+                requestId: paywallContext.agentRequest?.agentRequestId,
+                credits: paywallContext.credits,
                 extra: {
                   ...extra,
                   authResult: paywallContext.authResult,
@@ -483,7 +476,13 @@ export class McpServerManager {
                   agentRequest: paywallContext.agentRequest,
                 },
               }
-            : { extra }
+            : extra
+              ? {
+                  requestId: extra?.agentRequest?.agentRequestId,
+                  credits: extra?.credits,
+                  extra,
+                }
+              : undefined
 
           // Call the user's handler with the converted context
           const result = await handler(args, promptContext)
@@ -499,16 +498,16 @@ export class McpServerManager {
 
       // Register with MCP server
       const sdkPromptConfig: any = {
-        name: promptConfig.name,
+        title: promptConfig.title,
         description: promptConfig.description,
       }
 
-      if (promptConfig.inputSchema) {
-        const schema = promptConfig.inputSchema as any
+      if (promptConfig.argsSchema) {
+        const schema = promptConfig.argsSchema as any
         if (schema && typeof schema === 'object' && 'shape' in schema) {
           sdkPromptConfig.argsSchema = schema.shape
         } else {
-          sdkPromptConfig.argsSchema = promptConfig.inputSchema
+          sdkPromptConfig.argsSchema = promptConfig.argsSchema
         }
       }
 
