@@ -16,7 +16,7 @@ describe('OAuth Metadata Builders', () => {
   const baseConfig: OAuthConfig = {
     baseUrl: 'http://localhost:3000',
     agentId: 'did:nv:agent123',
-    environment: 'staging',
+    environment: 'staging_sandbox',
     serverName: 'test-mcp-server',
     tools: ['weather.today', 'weather.forecast'],
     resources: ['weather://today/{city}'],
@@ -71,8 +71,8 @@ describe('OAuth Metadata Builders', () => {
       const metadata = buildMcpProtectedResourceMetadata(baseConfig)
 
       expect(metadata.mcp_capabilities).toBeDefined()
-      expect(metadata.mcp_capabilities.tools).toEqual(['weather.today', 'weather.forecast'])
-      expect(metadata.mcp_capabilities.protocol_version).toBe('2024-11-05')
+      expect(metadata.mcp_capabilities?.tools).toEqual(['weather.today', 'weather.forecast'])
+      expect(metadata.mcp_capabilities?.protocol_version).toBe('2024-11-05')
     })
 
     test('should include both scopes_supported and scopes_required', () => {
@@ -90,7 +90,7 @@ describe('OAuth Metadata Builders', () => {
       }
       const metadata = buildMcpProtectedResourceMetadata(config)
 
-      expect(metadata.mcp_capabilities.protocol_version).toBe('2024-12-01')
+      expect(metadata.mcp_capabilities?.protocol_version).toBe('2024-12-01')
     })
   })
 
@@ -279,7 +279,7 @@ describe('OAuth Metadata Builders', () => {
 
   describe('getOAuthUrls', () => {
     test('should return URLs for staging environment', () => {
-      const urls = getOAuthUrls('staging')
+      const urls = getOAuthUrls('staging_sandbox')
 
       expect(urls.issuer).toBeDefined()
       expect(urls.authorizationUri).toContain('/oauth/authorize')
@@ -289,7 +289,7 @@ describe('OAuth Metadata Builders', () => {
     })
 
     test('should return URLs for production environment', () => {
-      const urls = getOAuthUrls('production')
+      const urls = getOAuthUrls('live')
 
       expect(urls.issuer).toBeDefined()
       expect(urls.authorizationUri).toContain('/oauth/authorize')
@@ -297,7 +297,7 @@ describe('OAuth Metadata Builders', () => {
     })
 
     test('should allow partial URL overrides', () => {
-      const urls = getOAuthUrls('staging', {
+      const urls = getOAuthUrls('staging_sandbox', {
         issuer: 'https://custom-issuer.com',
       })
 
@@ -315,7 +315,7 @@ describe('OAuth Metadata Builders', () => {
         jwksUri: 'https://custom-api.com/jwks',
         userinfoUri: 'https://custom-api.com/userinfo',
       }
-      const urls = getOAuthUrls('staging', customUrls)
+      const urls = getOAuthUrls('staging_sandbox', customUrls)
 
       expect(urls).toEqual(customUrls)
     })

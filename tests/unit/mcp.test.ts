@@ -6,7 +6,7 @@ import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
 
 class PaymentsMock {
-  public calls: Array<[string, string, string, number?]> = []
+  public calls: Array<[string, string, string, string | number, string?]> = []
   public requests: any
   public agents: any
 
@@ -418,7 +418,7 @@ describe('MCP Integration', () => {
 
   describe('PaywallContext', () => {
     class PaymentsMockWithAgentRequest {
-      public calls: Array<[string, string, string, number?]> = []
+      public calls: Array<[string, string, string, string | number, string?]> = []
       public requests: any
       public agents: any
 
