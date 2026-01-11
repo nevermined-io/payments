@@ -133,7 +133,7 @@ import { Payments } from "@nevermined-io/payments";
 
 const payments = Payments.getInstance({
   nvmApiKey,
-  environment: 'testing' as EnvironmentName,
+  environment: 'sandbox' as EnvironmentName,
 })
 ```
 

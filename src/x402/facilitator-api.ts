@@ -9,7 +9,7 @@
  * // Initialize the Payments instance
  * const payments = Payments.getInstance({
  *   nvmApiKey: 'your-nvm-api-key',
- *   environment: 'testing'
+ *   environment: 'sandbox'
  * })
  *
  * // Get X402 access token from X402 API

@@ -288,8 +288,8 @@ describe('OAuth Metadata Builders', () => {
       expect(urls.userinfoUri).toContain('/oauth/userinfo')
     })
 
-    test('should return URLs for production environment', () => {
-      const urls = getOAuthUrls('production')
+    test('should return URLs for live environment', () => {
+      const urls = getOAuthUrls('live')
 
       expect(urls.issuer).toBeDefined()
       expect(urls.authorizationUri).toContain('/oauth/authorize')
