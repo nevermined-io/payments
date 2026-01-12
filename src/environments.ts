@@ -29,7 +29,7 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     heliconeUrl: 'https://helicone.nevermined.dev',
   },
   /**
-   * The Production environment URLs.
+   * The Sandbox environment URLs.
    */
   sandbox: {
     frontend: 'https://nevermined.app',
@@ -37,6 +37,9 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     proxy: 'https://proxy.sandbox.nevermined.app',
     heliconeUrl: 'https://helicone.nevermined.dev',
   },
+  /**
+   * The Live environment URLs.
+   */
   live: {
     frontend: 'https://nevermined.app',
     backend: 'https://api.live.nevermined.app/',
