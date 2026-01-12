@@ -4,13 +4,23 @@
 
 import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
+import * as utils from '../../src/utils.js'
+
+// Mock decodeAccessToken for tests (x402 tokens only contain subscriberAddress, not planId)
+const mockDecodeToken = (_token: string) => ({
+  subscriberAddress: '0xSubscriber123',
+  planId: 'plan-123',
+})
+
+jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
+
 
 class PaymentsMinimal {
-  public requests: any
+  public facilitator: any
   public agents: any
 
   constructor(subscriber = true) {
-    class Req {
+    class Facilitator {
       private outer: PaymentsMinimal
       private subscriber: boolean
 
@@ -19,15 +29,15 @@ class PaymentsMinimal {
         this.subscriber = subscriber
       }
 
-      async startProcessingRequest(agentId: string, token: string, url: string, method: string) {
-        return {
-          agentRequestId: 'req-xyz',
-          balance: { isSubscriber: this.subscriber },
+      async verifyPermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+        if (!this.subscriber) {
+          throw new Error('Subscriber not found')
         }
+        return { success: true }
       }
 
-      async redeemCreditsFromRequest(requestId: string, token: string, credits: bigint) {
-        return { success: true }
+      async settlePermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+        return { success: true, txHash: '0x1234567890abcdef', data: { creditsBurned: maxAmount } }
       }
     }
 
@@ -37,7 +47,7 @@ class PaymentsMinimal {
       }
     }
 
-    this.requests = new Req(this, subscriber)
+    this.facilitator = new Facilitator(this, subscriber)
     this.agents = new Agents()
   }
 }
@@ -52,7 +62,7 @@ describe('MCP Integration', () => {
       return { content: [{ type: 'text', text: 'hello' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-123' })
     const extra = { requestInfo: { headers: { Authorization: 'Bearer abc' } } }
     const out = await wrapped({ city: 'Madrid' }, extra)
 
@@ -68,7 +78,7 @@ describe('MCP Integration', () => {
       return { content: [{ type: 'text', text: 'hello' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-123' })
 
     await expect(
       wrapped({ city: 'Madrid' }, { requestInfo: { headers: { Authorization: 'Bearer tok' } } }),
@@ -78,53 +88,31 @@ describe('MCP Integration', () => {
   })
 
   test('should provide PaywallContext with realistic agent request data', async () => {
-    class PaymentsWithAgentRequest {
-      public requests: any
+    class PaymentsWithX402 {
+      public facilitator: any
       public agents: any
 
-      constructor(subscriber = true, balance = 1000) {
-        class Req {
-          private outer: PaymentsWithAgentRequest
+      constructor(subscriber = true) {
+        class Facilitator {
+          private outer: PaymentsWithX402
           private subscriber: boolean
-          private balance: number
 
-          constructor(outer: PaymentsWithAgentRequest, subscriber: boolean, balance: number) {
+          constructor(outer: PaymentsWithX402, subscriber: boolean) {
             this.outer = outer
             this.subscriber = subscriber
-            this.balance = balance
           }
-
-          async startProcessingRequest(
-            agentId: string,
-            token: string,
-            url: string,
-            method: string,
-          ) {
-            const hash = token.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-            return {
-              agentRequestId: `req-${agentId}-${hash % 10000}`,
-              agentName: `Agent ${agentId.split(':').pop()}`,
-              agentId: agentId,
-              balance: {
-                balance: this.balance,
-                creditsContract: '0x1234567890abcdef',
-                isSubscriber: this.subscriber,
-                pricePerCredit: 0.01,
-              },
-              urlMatching: url,
-              verbMatching: method,
-              batch: false,
+          async verifyPermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+            if (!this.subscriber) {
+              throw new Error('Subscriber not found')
             }
+            return { success: true }
           }
 
-          async redeemCreditsFromRequest(requestId: string, token: string, credits: bigint) {
-            const hash = `${requestId}-${token}-${credits}`
+          async settlePermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+            const hash = `${planId}-${maxAmount}`
               .split('')
               .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-            return {
-              success: true,
-              txHash: `0x${(hash % 1000000000).toString(16)}`,
-            }
+            return { success: true, txHash: `0x${(hash % 1000000000).toString(16)}`, data: { creditsBurned: maxAmount } }
           }
         }
 
@@ -139,12 +127,12 @@ describe('MCP Integration', () => {
           }
         }
 
-        this.requests = new Req(this, subscriber, balance)
+        this.facilitator = new Facilitator(this, subscriber)
         this.agents = new Agents()
       }
     }
 
-    const payments = new PaymentsWithAgentRequest(true, 5000) as any as Payments
+    const payments = new PaymentsWithX402(true) as any as Payments
     const mcp = buildMcpIntegration(payments)
     mcp.configure({ agentId: 'did:nv:agent:abc123', serverName: 'weather-service' })
 
@@ -164,14 +152,6 @@ describe('MCP Integration', () => {
       // Simulate business logic using context data
       const city = args.city || 'Unknown'
 
-      // Check if agent has sufficient balance
-      if (agentRequest.balance.balance < Number(credits)) {
-        return {
-          error: 'Insufficient balance',
-          required: Number(credits),
-          available: agentRequest.balance.balance,
-        }
-      }
 
       // Generate weather response with metadata
       const weatherData = {
@@ -189,12 +169,10 @@ describe('MCP Integration', () => {
           },
         ],
         metadata: {
-          agentName: agentRequest.agentName,
-          requestId: authResult.requestId,
+          agentId: authResult.agentId,
+          planId: context.planId,
+          subscriberAddress: context.subscriberAddress,
           creditsUsed: Number(credits),
-          balanceRemaining: agentRequest.balance.balance - Number(credits),
-          isSubscriber: agentRequest.balance.isSubscriber,
-          pricePerCredit: agentRequest.balance.pricePerCredit,
           weatherData: weatherData,
         },
       }
@@ -204,6 +182,7 @@ describe('MCP Integration', () => {
       kind: 'tool',
       name: 'get-weather',
       credits: 5n,
+      planId: 'plan-123',
     })
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer weather-token-123' } } }
@@ -217,30 +196,21 @@ describe('MCP Integration', () => {
     expect(capturedContexts.length).toBe(1)
     const context = capturedContexts[0]
 
-    // Verify PaywallContext structure
-    expect(context.authResult.requestId).toMatch(/^req-did:nv:agent:abc123-/)
+    // Verify x402 PaywallContext structure
     expect(context.authResult.token).toBe('weather-token-123')
     expect(context.authResult.agentId).toBe('did:nv:agent:abc123')
+    expect(context.authResult.planId).toBe('plan-123')
+    expect(context.authResult.subscriberAddress).toBe('0xSubscriber123')
     expect(context.authResult.logicalUrl).toContain('mcp://weather-service/tools/get-weather')
 
-    // Verify agent request data
-    expect(context.agentRequest.agentName).toBe('Agent abc123')
-    expect(context.agentRequest.agentId).toBe('did:nv:agent:abc123')
-    expect(context.agentRequest.balance.balance).toBe(5000)
-    expect(context.agentRequest.balance.isSubscriber).toBe(true)
-    expect(context.agentRequest.balance.pricePerCredit).toBe(0.01)
-    expect(context.agentRequest.urlMatching).toContain('mcp://weather-service/tools/get-weather')
-    expect(context.agentRequest.verbMatching).toBe('POST')
-    expect(context.agentRequest.batch).toBe(false)
 
     // Verify credits
     expect(context.credits).toBe(5n)
 
     // Verify metadata in result
-    expect(result.metadata.agentName).toBe('Agent abc123')
+    expect(result.metadata.agentId).toBe('did:nv:agent:abc123')
+    expect(result.metadata.planId).toBe('plan-123')
+    expect(result.metadata.subscriberAddress).toBe('0xSubscriber123')
     expect(result.metadata.creditsUsed).toBe(5)
-    expect(result.metadata.balanceRemaining).toBe(4995) // 5000 - 5
-    expect(result.metadata.isSubscriber).toBe(true)
-    expect(result.metadata.pricePerCredit).toBe(0.01)
   })
 })

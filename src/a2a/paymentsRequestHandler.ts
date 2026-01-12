@@ -1,34 +1,36 @@
 import type {
   AgentCard,
-  MessageSendParams,
-  TaskState,
-  PushNotificationConfig,
-  TaskStatusUpdateEvent,
-  TaskArtifactUpdateEvent,
-  Task,
   Message,
+  MessageSendParams,
+  PushNotificationConfig,
+  Task,
+  TaskArtifactUpdateEvent,
   TaskIdParams,
+  TaskState,
+  TaskStatusUpdateEvent,
 } from '@a2a-js/sdk'
+import type { ExecutionEventBusManager, TaskStore } from '@a2a-js/sdk/server'
 import {
+  A2AError,
   AgentExecutor,
   DefaultRequestHandler,
-  ResultManager,
+  ExecutionEventBus,
   ExecutionEventQueue,
+  ResultManager,
 } from '@a2a-js/sdk/server'
-import type { ExecutionEventBusManager, TaskStore } from '@a2a-js/sdk/server'
-import { A2AError, ExecutionEventBus } from '@a2a-js/sdk/server'
+import { v4 as uuidv4 } from 'uuid'
+import { PaymentsError } from '../common/payments.error.js'
+import { StartAgentRequest } from '../common/types.js'
+import { Payments } from '../payments.js'
+import { decodeAccessToken } from '../utils.js'
 import type {
-  HttpRequestContext,
-  PaymentsRequestContext,
-  AgentRequestContext,
   A2AAuthResult,
   A2AStreamEvent,
+  AgentRequestContext,
+  HttpRequestContext,
   PaymentRedemptionConfig,
+  PaymentsRequestContext,
 } from './types.js'
-import { StartAgentRequest } from '../common/types.js'
-import { PaymentsError } from '../common/payments.error.js'
-import { Payments } from '../payments.js'
-import { v4 as uuidv4 } from 'uuid'
 
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
 
@@ -139,38 +141,78 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   }
 
   /**
-   * Validates a request using the payments service.
+   * Validates a request using the x402 payments service.
    * This method is used by the middleware to validate credits before processing requests.
    *
-   * @param agentId - The agent ID to validate
    * @param bearerToken - The bearer token for authentication
-   * @param urlRequested - The URL being requested
-   * @param httpMethodRequested - The HTTP method being used
-   * @param batch - Whether this is a batch request (default: false)
+   * @param endpoint - Optional endpoint URL being requested
+   * @param httpVerb - Optional HTTP method being used
    * @returns Promise resolving to the validation result
    */
   public async validateRequest(
-    agentId: string,
     bearerToken: string,
-    urlRequested: string,
-    httpMethodRequested: string,
-    batch = false,
+    endpoint?: string,
+    httpVerb?: string,
   ): Promise<any> {
-    if (batch) {
-      return this.paymentsService.requests.startProcessingBatchRequest(
-        agentId,
-        bearerToken,
-        urlRequested,
-        httpMethodRequested,
-      )
-    } else {
-      return this.paymentsService.requests.startProcessingRequest(
-        agentId,
-        bearerToken,
-        urlRequested,
-        httpMethodRequested,
-      )
+    let planId
+    const agentCard = await this.getAgentCard()
+    const paymentExtension = agentCard.capabilities?.extensions?.find(
+      (ext: any) => ext.uri === 'urn:nevermined:payment',
+    )
+    if (paymentExtension) {
+      planId = paymentExtension.params?.planId
     }
+
+    const decodedAccessToken = decodeAccessToken(bearerToken)
+
+    if (!decodedAccessToken) {
+      throw PaymentsError.unauthorized('Invalid access token.')
+    }
+
+    if (!planId) {
+      throw PaymentsError.unauthorized('Plan ID not found in agent card.')
+    }
+
+    const subscriberAddress =
+      decodedAccessToken.subscriberAddress ||
+      decodedAccessToken.subscriber_address ||
+      decodedAccessToken.sub
+
+    if (!subscriberAddress) {
+      throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token')
+    }
+
+    const verifyParams: any = {
+      planId: planId as string,
+      maxAmount: 1n,
+      x402AccessToken: bearerToken,
+      subscriberAddress: decodedAccessToken.subscriberAddress,
+    }
+
+    // Add endpoint and httpVerb if provided
+    if (endpoint !== undefined) {
+      verifyParams.endpoint = endpoint
+    }
+    if (httpVerb !== undefined) {
+      verifyParams.httpVerb = httpVerb
+    }
+
+    // Add agentId if available from payment extension
+    if (paymentExtension?.params?.agentId) {
+      verifyParams.agentId = paymentExtension.params.agentId
+    }
+
+    const result = await this.paymentsService.facilitator.verifyPermissions(verifyParams)
+    if (!result.success) {
+      throw PaymentsError.unauthorized('Permission verification failed.')
+    }
+    return {
+      success: true,
+      planId: planId,
+      subscriberAddress: subscriberAddress,
+      balance: { isSubscriber: true },
+    }
+
   }
 
   /**
@@ -198,49 +240,64 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   /**
    * Determines the appropriate redemption method based on server configuration.
    *
-   * @param validation - The validation result from the request
    * @param bearerToken - The bearer token for authentication
    * @param creditsUsed - The number of credits to burn
-   * @param config - The redemption configuration
+   * @param httpContext - Optional HTTP context with endpoint and method information
    * @returns Promise resolving to the redemption result
    */
   private async executeRedemption(
-    validation: StartAgentRequest,
     bearerToken: string,
     creditsUsed: bigint | number,
-    config: PaymentRedemptionConfig,
+    httpContext?: HttpRequestContext,
   ): Promise<any> {
-    const { useBatch, useMargin, marginPercent } = config
-
-    if (useBatch && useMargin && marginPercent !== undefined) {
-      // Batch + Margin
-      return await this.paymentsService.requests.redeemWithMarginFromBatchRequest(
-        validation.agentRequestId,
-        bearerToken,
-        marginPercent,
-      )
-    } else if (useBatch) {
-      // Batch + Fixed Credits
-      return await this.paymentsService.requests.redeemCreditsFromBatchRequest(
-        validation.agentRequestId,
-        bearerToken,
-        BigInt(creditsUsed),
-      )
-    } else if (useMargin && marginPercent !== undefined) {
-      // Single + Margin
-      return await this.paymentsService.requests.redeemWithMarginFromRequest(
-        validation.agentRequestId,
-        bearerToken,
-        marginPercent,
-      )
-    } else {
-      // Single + Fixed Credits (default)
-      return await this.paymentsService.requests.redeemCreditsFromRequest(
-        validation.agentRequestId,
-        bearerToken,
-        BigInt(creditsUsed),
-      )
+    const decodedAccessToken = decodeAccessToken(bearerToken)
+    if (!decodedAccessToken) {
+      throw PaymentsError.unauthorized('Invalid access token.')
     }
+
+    let planId
+    const agentCard = await this.getAgentCard()
+    const paymentExtension = agentCard.capabilities?.extensions?.find(
+      (ext: any) => ext.uri === 'urn:nevermined:payment',
+    )
+    if (paymentExtension) {
+      planId = paymentExtension.params?.planId
+    }
+
+    if (!planId) {
+      throw PaymentsError.unauthorized('Plan ID not found in agent card.')
+    }
+
+    const subscriberAddress =
+      decodedAccessToken.subscriberAddress ||
+      decodedAccessToken.subscriber_address ||
+      decodedAccessToken.sub
+
+    if (!subscriberAddress) {
+      throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token.')
+    }
+
+    const settleParams: any = {
+      planId: planId as string,
+      maxAmount: BigInt(creditsUsed),
+      x402AccessToken: bearerToken,
+      subscriberAddress,
+    }
+
+    // Add endpoint and httpVerb if available from HTTP context
+    if (httpContext?.urlRequested) {
+      settleParams.endpoint = httpContext.urlRequested
+    }
+    if (httpContext?.httpMethodRequested) {
+      settleParams.httpVerb = httpContext.httpMethodRequested
+    }
+
+    // Add agentId if available from validation
+    if (httpContext?.validation?.agentRequestId) {
+      settleParams.agentId = httpContext.validation.agentRequestId
+    }
+
+    return await this.paymentsService.facilitator.settlePermissions(settleParams)
   }
 
   /**
@@ -368,7 +425,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     resultManager: ResultManager,
     eventQueue: ExecutionEventQueue,
     bearerToken: string,
-    validation: StartAgentRequest,
   ): AsyncGenerator<A2AStreamEvent, void, undefined> {
     try {
       for await (const event of eventQueue.events()) {
@@ -390,12 +446,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             const redemptionConfig = await this.getRedemptionConfig()
 
             if (!redemptionConfig.useBatch) {
+              // Get HTTP context if available
+              const httpContext = this.getHttpRequestContextForTask(event.taskId)
               // Execute redemption with server configuration for non-batch requests
               const response = await this.executeRedemption(
-                validation,
                 bearerToken,
                 BigInt(event.metadata.creditsUsed),
-                redemptionConfig,
+                httpContext,
               )
 
               // Update event metadata with response data
@@ -467,7 +524,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           event.final &&
           terminalStates.includes(event.status?.state)
         ) {
-          await this.handleTaskFinalization(resultManager, event, bearerToken, validation)
+          // Get HTTP context if available
+          const httpContext = this.getHttpRequestContextForTask(event.taskId)
+          await this.handleTaskFinalization(resultManager, event, bearerToken, httpContext)
         }
 
         await resultManager.processEvent(event)
@@ -514,45 +573,45 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       resultManager,
     } = await this.createPaymentsRequestContext(params, false)
 
-    // Execute agent with extended context
-    ;(this as any).agentExecutor
-      .execute(paymentsRequestContext as any, eventBus)
-      .catch((err: any) => {
-        const errorTask: Task = {
-          id: requestContext.task?.id || uuidv4(),
-          contextId: finalMessageForAgent.contextId || uuidv4(),
-          status: {
-            state: 'failed',
-            message: {
-              kind: 'message',
-              role: 'agent',
-              messageId: uuidv4(),
-              parts: [{ kind: 'text', text: `Agent execution error: ${err.message}` }],
-              taskId: requestContext.task?.id,
-              contextId: finalMessageForAgent.contextId,
+      // Execute agent with extended context
+      ; (this as any).agentExecutor
+        .execute(paymentsRequestContext as any, eventBus)
+        .catch((err: any) => {
+          const errorTask: Task = {
+            id: requestContext.task?.id || uuidv4(),
+            contextId: finalMessageForAgent.contextId || uuidv4(),
+            status: {
+              state: 'failed',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [{ kind: 'text', text: `Agent execution error: ${err.message}` }],
+                taskId: requestContext.task?.id,
+                contextId: finalMessageForAgent.contextId,
+              },
+              timestamp: new Date().toISOString(),
             },
-            timestamp: new Date().toISOString(),
-          },
-          history: requestContext.task?.history ? [...requestContext.task.history] : [],
-          kind: 'task',
-        }
-        if (finalMessageForAgent) {
-          if (
-            !errorTask.history?.find((m: any) => m.messageId === finalMessageForAgent.messageId)
-          ) {
-            errorTask.history?.push(finalMessageForAgent)
+            history: requestContext.task?.history ? [...requestContext.task.history] : [],
+            kind: 'task',
           }
-        }
-        eventBus.publish(errorTask)
-        eventBus.publish({
-          kind: 'status-update',
-          taskId: errorTask.id,
-          contextId: errorTask.contextId,
-          status: errorTask.status,
-          final: true,
+          if (finalMessageForAgent) {
+            if (
+              !errorTask.history?.find((m: any) => m.messageId === finalMessageForAgent.messageId)
+            ) {
+              errorTask.history?.push(finalMessageForAgent)
+            }
+          }
+          eventBus.publish(errorTask)
+          eventBus.publish({
+            kind: 'status-update',
+            taskId: errorTask.id,
+            contextId: errorTask.contextId,
+            status: errorTask.status,
+            final: true,
+          })
+          eventBus.finished()
         })
-        eventBus.finished()
-      })
 
     // Determine if execution should be blocking based on client request
     // The blocking parameter comes from params.configuration.blocking
@@ -608,7 +667,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     resultManager: ResultManager,
     event: TaskStatusUpdateEvent,
     bearerToken: string,
-    validation: StartAgentRequest,
+    httpContext?: HttpRequestContext,
   ) {
     const creditsToBurn = event.metadata?.creditsUsed
     if (
@@ -626,10 +685,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         if (!redemptionConfig.useBatch) {
           // Execute redemption with server configuration for non-batch requests
           const response = await this.executeRedemption(
-            validation,
             bearerToken,
             BigInt(creditsToBurn),
-            redemptionConfig,
+            httpContext,
           )
 
           // Update event metadata with redemption results
@@ -691,7 +749,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       paymentsRequestContext,
       taskId,
       bearerToken,
-      validation,
       requestContext,
       finalMessageForAgent,
       eventBus,
@@ -699,35 +756,35 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       resultManager,
     } = await this.createPaymentsRequestContext(params, true)
 
-    // Execute agent with extended context
-    ;(this as any).agentExecutor
-      .execute(paymentsRequestContext as any, eventBus)
-      .catch((err: any) => {
-        console.error(
-          `Agent execution failed for stream message ${finalMessageForAgent.messageId}:`,
-          err,
-        )
-        const contextId = finalMessageForAgent.contextId || uuidv4()
-        const errorTaskStatus: TaskStatusUpdateEvent = {
-          kind: 'status-update',
-          taskId: requestContext.task?.id || uuidv4(),
-          contextId,
-          status: {
-            state: 'failed',
-            message: {
-              kind: 'message',
-              role: 'agent',
-              messageId: uuidv4(),
-              parts: [{ kind: 'text', text: `Agent execution error: ${err.message}` }],
-              taskId: requestContext.task?.id,
-              contextId,
+      // Execute agent with extended context
+      ; (this as any).agentExecutor
+        .execute(paymentsRequestContext as any, eventBus)
+        .catch((err: any) => {
+          console.error(
+            `Agent execution failed for stream message ${finalMessageForAgent.messageId}:`,
+            err,
+          )
+          const contextId = finalMessageForAgent.contextId || uuidv4()
+          const errorTaskStatus: TaskStatusUpdateEvent = {
+            kind: 'status-update',
+            taskId: requestContext.task?.id || uuidv4(),
+            contextId,
+            status: {
+              state: 'failed',
+              message: {
+                kind: 'message',
+                role: 'agent',
+                messageId: uuidv4(),
+                parts: [{ kind: 'text', text: `Agent execution error: ${err.message}` }],
+                taskId: requestContext.task?.id,
+                contextId,
+              },
+              timestamp: new Date().toISOString(),
             },
-            timestamp: new Date().toISOString(),
-          },
-          final: true,
-        }
-        eventBus.publish(errorTaskStatus)
-      })
+            final: true,
+          }
+          eventBus.publish(errorTaskStatus)
+        })
 
     // Process streaming events with finalization
     yield* this.processStreamingEventsWithFinalization(
@@ -735,7 +792,6 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       resultManager,
       eventQueue,
       bearerToken,
-      validation,
     )
   }
 
@@ -891,7 +947,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             const { bearerToken, validation } = httpContext
             if (bearerToken && validation) {
               // Handle task finalization (redemption and push notification)
-              await this.handleTaskFinalization(resultManager, event, bearerToken, validation)
+              await this.handleTaskFinalization(resultManager, event, bearerToken, httpContext)
             }
           }
         }

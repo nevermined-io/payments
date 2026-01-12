@@ -4,51 +4,61 @@
 
 import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
+import * as utils from '../../src/utils.js'
+
+// Mock decodeAccessToken to provide planId + subscriberAddress (x402 tokens may miss planId)
+const mockDecodeToken = (_token: string) => ({
+  planId: 'plan123',
+  subscriberAddress: '0x123subscriber',
+})
+jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
 
 class PaymentsMock {
   public calls: Array<[string, string, string, string | number, string?]> = []
   public requests: any
   public agents: any
+  public facilitator: any
 
-  constructor(redeemResult?: any) {
-    const redeem_result = redeemResult || { success: true }
+  constructor(settleResult?: any) {
+    const settle_result = settleResult || { success: true }
 
-    class Req {
+    class Facilitator {
       private parent: PaymentsMock
-      private redeem_result: any
+      private settle_result: any
 
-      constructor(parent: PaymentsMock, redeem_result: any) {
+      constructor(parent: PaymentsMock, settle_result: any) {
         this.parent = parent
-        this.redeem_result = redeem_result
+        this.settle_result = settle_result
       }
 
-      async startProcessingRequest(
-        agentId: string,
-        token: string,
-        url: string,
-        method: string,
-        batch?: boolean,
-      ) {
-        this.parent.calls.push(['start', agentId, token, url, method])
-        return {
-          agentRequestId: 'req-1',
-          agentName: 'Test Agent',
-          agentId: agentId,
-          balance: {
-            isSubscriber: true,
-            balance: 1000,
-            creditsContract: '0x123',
-            pricePerCredit: 0.01,
-          },
-          urlMatching: url,
-          verbMatching: method,
-          batch: batch || false,
-        }
+      async verifyPermissions(input: any) {
+        const planId = typeof input === 'object' ? input.planId : input
+        const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
+        const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
+        const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
+        this.parent.calls.push([
+          'verify',
+          planId,
+          x402AccessToken,
+          Number(maxAmount),
+          subscriberAddress,
+        ])
+        return { success: true }
       }
 
-      async redeemCreditsFromRequest(requestId: string, token: string, credits: bigint) {
-        this.parent.calls.push(['redeem', requestId, token, Number(credits)])
-        return this.redeem_result
+      async settlePermissions(input: any) {
+        const planId = typeof input === 'object' ? input.planId : input
+        const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
+        const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
+        const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
+        this.parent.calls.push([
+          'settle',
+          planId,
+          x402AccessToken,
+          Number(maxAmount),
+          subscriberAddress,
+        ])
+        return this.settle_result
       }
     }
 
@@ -58,7 +68,7 @@ class PaymentsMock {
       }
     }
 
-    this.requests = new Req(this, redeem_result)
+    this.facilitator = new Facilitator(this, settle_result)
     this.agents = new Agents()
   }
 }
@@ -75,19 +85,24 @@ describe('MCP Integration', () => {
         return { content: [{ type: 'text', text: 'ok' }] }
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test', credits: 2n })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 2n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
       expect(out).toBeDefined()
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'start' && c[1] === 'did:nv:agent' && c[2] === 'token',
+          (c: any) => c[0] === 'verify' && c[1] === 'plan123' && c[2] === 'token',
         ),
       ).toBe(true)
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'token' && c[3] === 2,
+          (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'token' && c[3] === 2,
         ),
       ).toBe(true)
     })
@@ -102,7 +117,12 @@ describe('MCP Integration', () => {
         return { content: [{ type: 'text', text: 'ok' }] }
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test', credits: 3n })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 3n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
@@ -113,15 +133,14 @@ describe('MCP Integration', () => {
 
       // Verify metadata contains expected fields
       expect(out.metadata.success).toBe(true)
-      expect(out.metadata.requestId).toBe('req-1')
       expect(out.metadata.creditsRedeemed).toBe('3')
       // txHash should be undefined since our mock doesn't return it
       expect(out.metadata.txHash).toBeUndefined()
     })
 
     test('should add metadata with txHash when redeem returns it', async () => {
-      const redeemResult = { success: true, txHash: '0x1234567890abcdef' }
-      const mockInstance = new PaymentsMock(redeemResult)
+      const settleResult = { success: true, txHash: '0x1234567890abcdef' }
+      const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
@@ -130,7 +149,12 @@ describe('MCP Integration', () => {
         return { content: [{ type: 'text', text: 'ok' }] }
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test', credits: 5n })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 5n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
@@ -141,7 +165,6 @@ describe('MCP Integration', () => {
 
       // Verify metadata contains expected fields including txHash
       expect(out.metadata.success).toBe(true)
-      expect(out.metadata.requestId).toBe('req-1')
       expect(out.metadata.creditsRedeemed).toBe('5')
       expect(out.metadata.txHash).toBe('0x1234567890abcdef')
     })
@@ -157,7 +180,12 @@ describe('MCP Integration', () => {
         return { content: [{ type: 'text', text: 'ok' }] }
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test', credits: 2n })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 2n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
@@ -195,11 +223,12 @@ describe('MCP Integration', () => {
         kind: 'tool',
         name: 'test',
         credits: (_ctx: any) => 7n,
+        planId: 'plan123',
       })
       await wrapped({}, { requestInfo: { headers: { authorization: 'Bearer TT' } } })
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'TT' && c[3] === 7,
+          (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'TT' && c[3] === 7,
         ),
       ).toBe(true)
     })
@@ -214,11 +243,11 @@ describe('MCP Integration', () => {
         return { res: true }
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test' })
+      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test', planId: 'plan123' })
       await wrapped({}, { requestInfo: { headers: { Authorization: 'Bearer tok' } } })
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 1,
+          (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'tok' && c[3] === 1,
         ),
       ).toBe(true)
     })
@@ -237,9 +266,10 @@ describe('MCP Integration', () => {
         kind: 'tool',
         name: 'test',
         credits: (_ctx: any) => 0n,
+        planId: 'plan123',
       })
       await wrapped({}, { requestInfo: { headers: { Authorization: 'Bearer tok' } } })
-      expect(mockInstance.calls.some((c: any) => c[0] === 'redeem')).toBe(false)
+      expect(mockInstance.calls.some((c: any) => c[0] === 'settle')).toBe(false)
     })
   })
 
@@ -274,13 +304,16 @@ describe('MCP Integration', () => {
         }
       }
 
-      api.registerResource('res.test', { tpl: true }, { cfg: true }, handler, { credits: 3n })
+      api.registerResource('res.test', { tpl: true }, { cfg: true }, handler, {
+        credits: 3n,
+        planId: 'plan123',
+      })
       const wrapped = captured.wrapped
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       await wrapped(new URL('mcp://srv/res'), { a: '1' }, extra)
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'token' && c[3] === 3,
+          (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'token' && c[3] === 3,
         ),
       ).toBe(true)
     })
@@ -310,13 +343,18 @@ describe('MCP Integration', () => {
         return { ok: true }
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'hdr', credits: 1n })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'hdr',
+        credits: 1n,
+        planId: 'plan123',
+      })
       for (let i = 0; i < variants.length; i++) {
         mockInstance.calls = []
         await wrapped({}, variants[i])
         expect(
           mockInstance.calls.some(
-            (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === tokens[i] && c[3] === 1,
+            (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === tokens[i] && c[3] === 1,
           ),
         ).toBe(true)
       }
@@ -341,11 +379,16 @@ describe('MCP Integration', () => {
         return makeIterable(['one', 'two', 'three'])
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'stream', credits: 5n })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
       const iterable = await wrapped({}, extra)
       // Not redeemed yet
-      expect(mockInstance.calls.some((c: any) => c[0] === 'redeem')).toBe(false)
+      expect(mockInstance.calls.some((c: any) => c[0] === 'settle')).toBe(false)
 
       const collected: any[] = []
       for await (const chunk of iterable) {
@@ -360,7 +403,7 @@ describe('MCP Integration', () => {
       expect(lastChunk.metadata).toBeDefined()
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 5,
+          (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'tok' && c[3] === 5,
         ),
       ).toBe(true)
     })
@@ -382,7 +425,12 @@ describe('MCP Integration', () => {
         return makeIterable(['one', 'two', 'three'])
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'stream', credits: 2n })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 2n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
       const iterable = await wrapped({}, extra)
 
@@ -410,7 +458,7 @@ describe('MCP Integration', () => {
       // Redemption should happen when stream is closed
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'redeem' && c[1] === 'req-1' && c[2] === 'tok' && c[3] === 2,
+          (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'tok' && c[3] === 2,
         ),
       ).toBe(true)
     })
@@ -476,7 +524,7 @@ describe('MCP Integration', () => {
     }
 
     test('should work with handlers without context parameter', async () => {
-      const mockInstance = new PaymentsMockWithAgentRequest()
+      const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
@@ -487,25 +535,30 @@ describe('MCP Integration', () => {
         }
       }
 
-      const wrapped = mcp.withPaywall(oldHandler, { kind: 'tool', name: 'test', credits: 2n })
+      const wrapped = mcp.withPaywall(oldHandler, {
+        kind: 'tool',
+        name: 'test',
+        credits: 2n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({ name: 'Alice' }, extra)
 
       expect(out.content[0].text).toBe('Hello Alice')
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'start' && c[1] === 'did:nv:agent' && c[2] === 'token',
+          (c: any) => c[0] === 'verify' && c[1] === 'plan123' && c[2] === 'token',
         ),
       ).toBe(true)
       expect(
         mockInstance.calls.some(
-          (c: any) => c[0] === 'redeem' && c[1] === 'req-123' && c[2] === 'token' && c[3] === 2,
+          (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'token' && c[3] === 2,
         ),
       ).toBe(true)
     })
 
     test('should provide PaywallContext to handlers with context parameter', async () => {
-      const mockInstance = new PaymentsMockWithAgentRequest()
+      const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
@@ -519,7 +572,12 @@ describe('MCP Integration', () => {
         }
       }
 
-      const wrapped = mcp.withPaywall(newHandler, { kind: 'tool', name: 'test', credits: 3n })
+      const wrapped = mcp.withPaywall(newHandler, {
+        kind: 'tool',
+        name: 'test',
+        credits: 3n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({ name: 'Bob' }, extra)
 
@@ -529,7 +587,7 @@ describe('MCP Integration', () => {
     })
 
     test('should provide PaywallContext with all expected fields', async () => {
-      const mockInstance = new PaymentsMockWithAgentRequest()
+      const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
@@ -541,7 +599,12 @@ describe('MCP Integration', () => {
         return { content: [{ type: 'text', text: 'ok' }] }
       }
 
-      const wrapped = mcp.withPaywall(contextHandler, { kind: 'tool', name: 'test', credits: 5n })
+      const wrapped = mcp.withPaywall(contextHandler, {
+        kind: 'tool',
+        name: 'test',
+        credits: 5n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       await wrapped({}, extra)
 
@@ -549,33 +612,25 @@ describe('MCP Integration', () => {
       expect(capturedContext).not.toBeNull()
       expect(capturedContext.authResult).toBeDefined()
       expect(capturedContext.credits).toBeDefined()
-      expect(capturedContext.agentRequest).toBeDefined()
+      expect(capturedContext.planId).toBeDefined()
+      expect(capturedContext.subscriberAddress).toBeDefined()
 
       // Verify auth_result structure
       const authResult = capturedContext.authResult
-      expect(authResult.requestId).toBe('req-123')
       expect(authResult.token).toBe('token')
       expect(authResult.agentId).toBe('did:nv:agent')
       expect(authResult.logicalUrl).toMatch(/^mcp:\/\/test-mcp\/tools\/test/)
-      expect(authResult.agentRequest).toBeDefined()
-
-      // Verify agent_request structure
-      const agentRequest = capturedContext.agentRequest
-      expect(agentRequest.agentRequestId).toBe('req-123')
-      expect(agentRequest.agentName).toBe('Test Agent')
-      expect(agentRequest.agentId).toBe('did:nv:agent')
-      expect(agentRequest.balance.isSubscriber).toBe(true)
-      expect(agentRequest.balance.balance).toBe(1000)
-      expect(agentRequest.urlMatching).toMatch(/^mcp:\/\/test-mcp\/tools\/test/)
-      expect(agentRequest.verbMatching).toBe('POST')
-      expect(agentRequest.batch).toBe(false)
+      expect(authResult.planId).toBe('plan123')
+      expect(authResult.subscriberAddress).toBe('0x123subscriber')
 
       // Verify credits
       expect(capturedContext.credits).toBe(5n)
+      expect(capturedContext.planId).toBe('plan123')
+      expect(capturedContext.subscriberAddress).toBe('0x123subscriber')
     })
 
     test('should allow handlers to use agent request data from context', async () => {
-      const mockInstance = new PaymentsMockWithAgentRequest()
+      const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
@@ -585,26 +640,23 @@ describe('MCP Integration', () => {
           return { error: 'No context provided' }
         }
 
-        const agentRequest = context.agentRequest
         const authResult = context.authResult
         const credits = context.credits
+        const planId = context.planId
+        const subscriberAddress = context.subscriberAddress
 
         // Use agent request data for business logic
-        if (!agentRequest.balance.isSubscriber) {
-          return { error: 'Not a subscriber' }
-        }
-
-        if (agentRequest.balance.balance < Number(credits)) {
-          return { error: 'Insufficient balance' }
+        if (!planId || !subscriberAddress) {
+          return { error: 'Missing plan/subscriber' }
         }
 
         return {
           content: [{ type: 'text', text: 'Success' }],
           metadata: {
-            agentName: agentRequest.agentName,
-            requestId: authResult.requestId,
+            agentId: authResult.agentId,
+            planId,
+            subscriberAddress,
             creditsUsed: Number(credits),
-            balanceRemaining: agentRequest.balance.balance - Number(credits),
           },
         }
       }
@@ -613,6 +665,7 @@ describe('MCP Integration', () => {
         kind: 'tool',
         name: 'business',
         credits: 3n,
+        planId: 'plan123',
       })
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({ action: 'test' }, extra)
@@ -620,10 +673,10 @@ describe('MCP Integration', () => {
       // Verify handler used context data correctly
       expect(out.error).toBeUndefined()
       expect(out.content[0].text).toBe('Success')
-      expect(out.metadata.agentName).toBe('Test Agent')
-      expect(out.metadata.requestId).toBe('req-123')
+      expect(out.metadata.agentId).toBe('did:nv:agent')
+      expect(out.metadata.planId).toBe('plan123')
+      expect(out.metadata.subscriberAddress).toBe('0x123subscriber')
       expect(out.metadata.creditsUsed).toBe(3)
-      expect(out.metadata.balanceRemaining).toBe(997) // 1000 - 3
     })
   })
 })

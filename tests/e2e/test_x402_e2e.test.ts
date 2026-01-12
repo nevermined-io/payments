@@ -5,17 +5,17 @@
  * to verify and settle permissions on behalf of subscribers using delegated session keys.
  */
 
-import { Payments } from '../../src/payments.js'
 import type {
-  PlanMetadata,
-  AgentMetadata,
   Address,
   AgentAPIAttributes,
+  AgentMetadata,
+  PlanMetadata,
 } from '../../src/common/types.js'
 import { ZeroAddress } from '../../src/environments.js'
+import { Payments } from '../../src/payments.js'
 import { getCryptoPriceConfig, getDynamicCreditsConfig } from '../../src/plans.js'
-import { retryWithBackoff, waitForCondition, makeWaitForAgent } from '../utils.js'
-import { createPaymentsSubscriber, createPaymentsBuilder } from './fixtures.js'
+import { makeWaitForAgent, retryWithBackoff, waitForCondition } from '../utils.js'
+import { createPaymentsBuilder, createPaymentsSubscriber } from './fixtures.js'
 
 // Test configuration
 const TEST_TIMEOUT = 60_000
@@ -146,6 +146,9 @@ describe('X402 Access Token Flow', () => {
       maxAmount: 2n,
       x402AccessToken,
       subscriberAddress,
+      agentId,
+      endpoint: `https://myagent.ai/api/v1/secret/${agentId}/tasks`,
+      httpVerb: 'POST',
     })
 
     expect(response).toBeDefined()
@@ -169,6 +172,9 @@ describe('X402 Access Token Flow', () => {
           maxAmount: 2n,
           x402AccessToken,
           subscriberAddress,
+          agentId,
+          endpoint: `https://myagent.ai/api/v1/secret/${agentId}/tasks`,
+          httpVerb: 'POST',
         }),
       {
         label: 'X402 Settle Permissions',
@@ -219,6 +225,9 @@ describe('X402 Access Token Flow', () => {
           maxAmount: 2n,
           x402AccessToken,
           subscriberAddress,
+          agentId,
+          endpoint: `https://myagent.ai/api/v1/secret/${agentId}/tasks`,
+          httpVerb: 'POST',
         }),
       {
         label: 'X402 Settle Additional Credits',

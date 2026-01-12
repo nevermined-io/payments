@@ -1,8 +1,8 @@
-import { jsonReplacer } from '../common/helper.js'
-import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.js'
-import { PaymentOptions } from '../common/types.js'
-import { PaymentsError } from '../common/payments.error.js'
 import { decodeJwt } from 'jose'
+import { jsonReplacer } from '../common/helper.js'
+import { PaymentsError } from '../common/payments.error.js'
+import { PaymentOptions } from '../common/types.js'
+import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.js'
 
 /**
  * Base class extended by all Payments API classes.
@@ -74,5 +74,37 @@ export abstract class BasePaymentsAPI {
       },
       ...(body && { body: JSON.stringify(body, jsonReplacer) }),
     }
+  }
+
+  /**
+   * Get HTTP options for public backend requests (no authorization header).
+   * Converts body keys from snake_case to camelCase for consistency.
+   *
+   * @param method - HTTP method
+   * @param body - Optional request body (keys will be converted to camelCase)
+   * @returns HTTP options object
+   * @internal
+   */
+  protected getPublicHTTPOptions(method: string, body?: any) {
+    const options: {
+      method: string
+      headers: {
+        Accept: string
+        'Content-Type': string
+      }
+      body?: string
+    } = {
+      method,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    }
+
+    if (body) {
+      options.body = JSON.stringify(body, jsonReplacer)
+    }
+
+    return options
   }
 }

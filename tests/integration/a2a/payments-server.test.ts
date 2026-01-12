@@ -4,16 +4,23 @@
 
 import request from 'supertest'
 import { PaymentsA2AServer } from '../../../src/a2a/server.js'
-import type { AgentCard } from '../../../src/a2a/types.js'
+import type { AgentCard, AgentExecutor } from '../../../src/a2a/types.js'
 import type { Payments } from '../../../src/payments.js'
-import type { AgentExecutor } from '../../../src/a2a/types.js'
+import * as utils from '../../../src/utils.js'
+
+const mockDecodeToken = (_token: string) => ({
+  subscriberAddress: '0xSubscriber123',
+  planId: 'plan-123',
+})
+
+jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
 
 function createNoopExecutor(): AgentExecutor {
   return {
     execute: async (_requestContext, eventBus) => {
       eventBus.finished()
     },
-    cancelTask: async () => {},
+    cancelTask: async () => { },
   }
 }
 
@@ -33,24 +40,22 @@ describe('PaymentsA2AServer', () => {
               agentId: 'agent-1',
               paymentType: 'fixed',
               credits: 1,
+              planId: 'plan-123',
             },
           },
         ],
       },
-    } as AgentCard
+    } as unknown as AgentCard
 
     dummyPayments = {
-      requests: {
-        startProcessingRequest: jest.fn().mockResolvedValue({
-          agentRequestId: 'REQ',
-          balance: {
-            isSubscriber: true,
-            balance: 100,
-            creditsContract: '0x1234567890abcdef',
-            pricePerCredit: 0.01,
-          },
+      facilitator: {
+        verifyPermissions: jest.fn().mockResolvedValue({
+          success: true,
         }),
-        redeemCreditsFromRequest: jest.fn().mockResolvedValue({}),
+        settlePermissions: jest.fn().mockResolvedValue({ success: true, txHash: '0x1234567890abcdef', data: { creditsBurned: 1n } }),
+      },
+      agents: {
+        getAgentPlans: jest.fn().mockResolvedValue({ plans: [] }),
       },
     }
   })
