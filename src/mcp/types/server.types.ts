@@ -24,8 +24,8 @@ export interface McpToolConfig {
  * Configuration for a resource.
  */
 export interface McpResourceConfig {
-  /** Human-readable name for the resource */
-  name: string
+  /** Human-readable title for the resource */
+  title?: string
   /** Description of the resource */
   description?: string
   /** MIME type of the resource content */
@@ -36,12 +36,12 @@ export interface McpResourceConfig {
  * Configuration for a prompt.
  */
 export interface McpPromptConfig {
-  /** Human-readable name for the prompt */
-  name: string
+  /** Human-readable title for the prompt */
+  title?: string
   /** Description of the prompt */
   description?: string
-  /** Arguments the prompt accepts (ZodType) */
-  inputSchema?: ZodType
+  /** Arguments the prompt accepts (ZodRawShape or ZodType) */
+  argsSchema?: any
 }
 
 /**
@@ -191,7 +191,8 @@ export interface ToolRegistration {
  * Internal registration entry for a resource.
  */
 export interface ResourceRegistration {
-  uri: string
+  name: string
+  uriOrTemplate: string
   config: McpResourceConfig
   handler: ResourceHandler
   options: McpRegistrationOptions

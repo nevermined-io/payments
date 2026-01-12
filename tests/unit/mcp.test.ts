@@ -14,9 +14,10 @@ const mockDecodeToken = (_token: string) => ({
 jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
 
 class PaymentsMock {
-  public calls: Array<[string, string, string, number?, string?]> = []
-  public facilitator: any
+  public calls: Array<[string, string, string, string | number, string?]> = []
+  public requests: any
   public agents: any
+  public facilitator: any
 
   constructor(settleResult?: any) {
     const settle_result = settleResult || { success: true }
@@ -95,10 +96,14 @@ describe('MCP Integration', () => {
 
       expect(out).toBeDefined()
       expect(
-        mockInstance.calls.some((c: any) => c[0] === 'verify' && c[1] === 'plan123' && c[2] === 'token'),
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'verify' && c[1] === 'plan123' && c[2] === 'token',
+        ),
       ).toBe(true)
       expect(
-        mockInstance.calls.some((c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'token' && c[3] === 2),
+        mockInstance.calls.some(
+          (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'token' && c[3] === 2,
+        ),
       ).toBe(true)
     })
 
@@ -338,7 +343,12 @@ describe('MCP Integration', () => {
         return { ok: true }
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'hdr', credits: 1n, planId: 'plan123' })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'hdr',
+        credits: 1n,
+        planId: 'plan123',
+      })
       for (let i = 0; i < variants.length; i++) {
         mockInstance.calls = []
         await wrapped({}, variants[i])
@@ -369,7 +379,12 @@ describe('MCP Integration', () => {
         return makeIterable(['one', 'two', 'three'])
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'stream', credits: 5n, planId: 'plan123' })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
       const iterable = await wrapped({}, extra)
       // Not redeemed yet
@@ -410,7 +425,12 @@ describe('MCP Integration', () => {
         return makeIterable(['one', 'two', 'three'])
       }
 
-      const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'stream', credits: 2n, planId: 'plan123' })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 2n,
+        planId: 'plan123',
+      })
       const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
       const iterable = await wrapped({}, extra)
 
@@ -445,6 +465,64 @@ describe('MCP Integration', () => {
   })
 
   describe('PaywallContext', () => {
+    class PaymentsMockWithAgentRequest {
+      public calls: Array<[string, string, string, string | number, string?]> = []
+      public requests: any
+      public agents: any
+
+      constructor(redeemResult?: any) {
+        const redeem_result = redeemResult || { success: true }
+
+        class Req {
+          private parent: PaymentsMockWithAgentRequest
+          private redeem_result: any
+
+          constructor(parent: PaymentsMockWithAgentRequest, redeem_result: any) {
+            this.parent = parent
+            this.redeem_result = redeem_result
+          }
+
+          async startProcessingRequest(
+            agentId: string,
+            token: string,
+            url: string,
+            method: string,
+            batch?: boolean,
+          ) {
+            this.parent.calls.push(['start', agentId, token, url, method])
+            return {
+              agentRequestId: 'req-123',
+              agentName: 'Test Agent',
+              agentId: agentId,
+              balance: {
+                balance: 1000,
+                creditsContract: '0x123',
+                isSubscriber: true,
+                pricePerCredit: 0.01,
+              },
+              urlMatching: url,
+              verbMatching: method,
+              batch: batch || false,
+            }
+          }
+
+          async redeemCreditsFromRequest(requestId: string, token: string, credits: bigint) {
+            this.parent.calls.push(['redeem', requestId, token, Number(credits)])
+            return this.redeem_result
+          }
+        }
+
+        class Agents {
+          async getAgentPlans(agentId: string) {
+            return { plans: [] }
+          }
+        }
+
+        this.requests = new Req(this, redeem_result)
+        this.agents = new Agents()
+      }
+    }
+
     test('should work with handlers without context parameter', async () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
