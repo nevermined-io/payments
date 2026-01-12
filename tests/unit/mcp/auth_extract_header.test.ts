@@ -61,7 +61,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const extra = { requestInfo: { headers: {} } }
 
     await expect(
-      authenticator.authenticate(extra, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(extra, {}, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Authorization required'),
@@ -75,7 +75,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const authenticator = new PaywallAuthenticator(pm)
 
     await expect(
-      authenticator.authenticate(undefined, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(undefined, {}, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Authorization required'),
@@ -89,7 +89,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const authenticator = new PaywallAuthenticator(pm)
 
     await expect(
-      authenticator.authenticate(null, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(null, {}, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Authorization required'),
@@ -106,6 +106,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
 
     const result = await authenticator.authenticate(
       extra,
+      { planId: 'plan-1' },
       'did:nv:agent',
       'test-server',
       'tool1',
@@ -129,6 +130,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
 
     const result = await authenticator.authenticate(
       extra,
+      { planId: 'plan-1' },
       'did:nv:agent',
       'test-server',
       'tool1',
@@ -147,7 +149,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
     await expect(
-      authenticator.authenticate(extra, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Payment required'),
@@ -163,7 +165,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const extra = { requestInfo: { headers: { authorization: 'Bearer bad-token' } } }
 
     await expect(
-      authenticator.authenticate(extra, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Available plans'),
@@ -184,7 +186,7 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
     try {
-      await authenticator.authenticate(extra, 'did:nv:agent', 'test-server', 'tool1', 'tool', {})
+      await authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {})
       fail('Should have thrown')
     } catch (error: any) {
       expect(error.message).toContain('plan-1')
@@ -203,6 +205,7 @@ describe('PaywallAuthenticator - authenticateMeta', () => {
 
     const result = await authenticator.authenticateMeta(
       extra,
+      { planId: 'plan-1' },
       'did:nv:agent',
       'test-server',
       'initialize',
@@ -223,7 +226,7 @@ describe('PaywallAuthenticator - authenticateMeta', () => {
     const extra = { requestInfo: { headers: {} } }
 
     await expect(
-      authenticator.authenticateMeta(extra, 'did:nv:agent', 'test-server', 'tools/list'),
+      authenticator.authenticateMeta(extra, {}, 'did:nv:agent', 'test-server', 'tools/list'),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Authorization required'),
@@ -239,7 +242,7 @@ describe('PaywallAuthenticator - authenticateMeta', () => {
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
     await expect(
-      authenticator.authenticateMeta(extra, 'did:nv:agent', 'test-server', 'initialize'),
+      authenticator.authenticateMeta(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'initialize'),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Payment required'),

@@ -87,6 +87,7 @@ export class PaywallDecorator {
       // 1. Authenticate request
       const authResult = await this.authenticator.authenticate(
         extra,
+        { planId: options?.planId },
         this.config.agentId,
         this.config.serverName,
         name,

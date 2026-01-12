@@ -78,7 +78,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       return { content: [{ type: 'text', text: `Weather in ${args.city}` }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'weather', credits: 5n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'weather', credits: 5n, planId: 'plan-basic' })
 
     // Attempt to call with invalid token
     await expect(
@@ -111,7 +111,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       return { content: [{ type: 'text', text: 'result' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
 
     try {
       await wrapped(
@@ -136,7 +136,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       return { content: [{ type: 'text', text: 'result' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
 
     await expect(
       wrapped(
@@ -168,7 +168,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'process', credits: 10n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'process', credits: 10n, planId: 'plan-basic' })
 
     const result = await wrapped(
       { action: 'analyze' },
@@ -200,16 +200,19 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       kind: 'tool',
       name: 'simple',
       credits: 1n,
+      planId: 'plan-basic',
     })
     const complexTool = mcp.withPaywall(complexHandler, {
       kind: 'tool',
       name: 'complex',
       credits: 5n,
+      planId: 'plan-basic',
     })
     const premiumTool = mcp.withPaywall(premiumHandler, {
       kind: 'tool',
       name: 'premium',
       credits: 20n,
+      planId: 'plan-basic',
     })
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
@@ -241,6 +244,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       kind: 'tool',
       name: 'test',
       credits: 100n,
+      planId: 'plan-basic',
       onRedeemError: 'propagate',
     })
 
@@ -268,6 +272,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       kind: 'tool',
       name: 'test',
       credits: 100n,
+      planId: 'plan-basic',
       // onRedeemError defaults to 'ignore'
     })
 
@@ -295,7 +300,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n })
+    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
 
     // Multiple failed attempts
     const attempts = 5

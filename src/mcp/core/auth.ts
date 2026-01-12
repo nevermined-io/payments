@@ -70,6 +70,7 @@ export class PaywallAuthenticator {
    */
   async authenticate(
     extra: any,
+    options: {planId?: string} = {},
     agentId: string,
     serverName: string,
     name: string,
@@ -93,28 +94,9 @@ export class PaywallAuthenticator {
         throw new Error('Invalid access token')
       }
 
-      let planId =
-        decodedAccessToken.planId ||
-        decodedAccessToken.plan_id ||
-        decodedAccessToken.plan ||
-        decodedAccessToken.planID
-      const subscriberAddress =
-        decodedAccessToken.subscriberAddress ||
-        decodedAccessToken.subscriber_address ||
-        decodedAccessToken.sub
+      const planId = options.planId
 
-      // If planId is not in the token, try to get it from the agent's plans
-      if (!planId) {
-        try {
-          const agentPlans = await this.payments.agents.getAgentPlans(agentId)
-          if (agentPlans && Array.isArray(agentPlans.plans) && agentPlans.plans.length > 0) {
-            // Use the first plan (or could filter by subscriber if needed)
-            planId = agentPlans.plans[0].planId || agentPlans.plans[0].id
-          }
-        } catch (planError) {
-          // Ignore errors fetching plans
-        }
-      }
+      const subscriberAddress = decodedAccessToken.subscriberAddress 
 
       if (!planId || !subscriberAddress) {
         throw new Error('Cannot determine plan_id or subscriber_address from token')
@@ -155,10 +137,7 @@ export class PaywallAuthenticator {
             decodedAccessToken.plan_id ||
             decodedAccessToken.plan ||
             decodedAccessToken.planID
-          const subscriberAddress =
-            decodedAccessToken.subscriberAddress ||
-            decodedAccessToken.subscriber_address ||
-            decodedAccessToken.sub
+          const subscriberAddress = decodedAccessToken.subscriberAddress
 
           // If planId is not in the token, try to get it from the agent's plans
           if (!planId) {
@@ -229,6 +208,7 @@ export class PaywallAuthenticator {
    */
   async authenticateMeta(
     extra: any,
+    options: {planId?: string} = {},
     agentId: string,
     serverName: string,
     method: string,
@@ -247,15 +227,8 @@ export class PaywallAuthenticator {
       if (!decodedAccessToken) {
         throw new Error('Invalid access token')
       }
-      const planId =
-        decodedAccessToken.planId ||
-        decodedAccessToken.plan_id ||
-        decodedAccessToken.plan ||
-        decodedAccessToken.planID
-      const subscriberAddress =
-        decodedAccessToken.subscriberAddress ||
-        decodedAccessToken.subscriber_address ||
-        decodedAccessToken.sub
+      const planId = options.planId
+      const subscriberAddress = decodedAccessToken.subscriberAddress
       if (!planId || !subscriberAddress) {
         throw new Error('Cannot determine plan_id or subscriber_address from token')
       }

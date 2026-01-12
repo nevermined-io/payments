@@ -69,7 +69,7 @@ export const getNativeTokenPriceConfig = (amount: bigint, receiver: Address): Pl
 export const getExpirableDurationConfig = (durationOfPlan: bigint): PlanCreditsConfig => {
   return {
     isRedemptionAmountFixed: false,
-    redemptionType: PlanRedemptionType.ONLY_OWNER,
+    redemptionType: PlanRedemptionType.ONLY_SUBSCRIBER,
     proofRequired: false,
     durationSecs: durationOfPlan,
     amount: 1n,
@@ -88,7 +88,7 @@ export const getFixedCreditsConfig = (
 ): PlanCreditsConfig => {
   return {
     isRedemptionAmountFixed: true,
-    redemptionType: PlanRedemptionType.ONLY_OWNER,
+    redemptionType: PlanRedemptionType.ONLY_SUBSCRIBER,
     proofRequired: false,
     durationSecs: 0n,
     amount: creditsGranted,
@@ -104,7 +104,7 @@ export const getDynamicCreditsConfig = (
 ): PlanCreditsConfig => {
   return {
     isRedemptionAmountFixed: false,
-    redemptionType: PlanRedemptionType.ONLY_OWNER,
+    redemptionType: PlanRedemptionType.ONLY_SUBSCRIBER,
     proofRequired: false,
     durationSecs: 0n,
     amount: creditsGranted,

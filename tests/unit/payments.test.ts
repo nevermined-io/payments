@@ -74,13 +74,13 @@ describe('Payments', () => {
 
     test('getServiceHostFromEndpoints should extract host correctly', () => {
       const endpoints: Endpoint[] = [
-        { POST: 'https://one-backend.testing.nevermined.app/api/v1/agents/(.*)/tasks' },
+        { POST: 'https://api.sandbox.nevermined.app/api/v1/agents/(.*)/tasks' },
         {
-          GET: 'https://one-backend.testing.nevermined.app/api/v1/agents/(.*)/tasks/(.*)',
+          GET: 'https://api.sandbox.nevermined.app/api/v1/agents/(.*)/tasks/(.*)',
         },
       ]
       const serviceHost = getServiceHostFromEndpoints(endpoints)
-      expect(serviceHost).toBe('https://one-backend.testing.nevermined.app')
+      expect(serviceHost).toBe('https://api.sandbox.nevermined.app')
     })
   })
 })

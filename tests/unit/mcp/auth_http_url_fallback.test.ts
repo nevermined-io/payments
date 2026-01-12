@@ -64,6 +64,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
     const result = await requestContextStorage.run(requestContext, async () => {
       return await authenticator.authenticate(
         extra,
+        { planId: 'plan-1' },
         'did:nv:agent',
         'test-server',
         'tool1',
@@ -100,6 +101,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
     const result = await requestContextStorage.run(requestContext, async () => {
       return await authenticator.authenticate(
         extra,
+        { planId: 'plan-1' },
         'did:nv:agent',
         'test-server',
         'tool1',
@@ -133,7 +135,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     await requestContextStorage.run(requestContext, async () => {
       await expect(
-        authenticator.authenticate(extra, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+        authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
       ).rejects.toMatchObject({
         code: -32003,
         message: expect.stringContaining('Available plans'),
@@ -164,6 +166,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
     const result = await requestContextStorage.run(requestContext, async () => {
       return await authenticator.authenticate(
         extra,
+        { planId: 'plan-1' },
         'did:nv:agent',
         'test-server',
         'tool1',
@@ -193,6 +196,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
     const result = await requestContextStorage.run(requestContext, async () => {
       return await authenticator.authenticate(
         extra,
+        { planId: 'plan-1' },
         'did:nv:agent',
         'test-server',
         'tool1',
@@ -212,7 +216,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     // No requestContextStorage, so no HTTP fallback available
     await expect(
-      authenticator.authenticate(extra, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
     ).rejects.toMatchObject({
       code: -32003,
       data: { reason: 'invalid' },
@@ -243,6 +247,7 @@ describe('PaywallAuthenticator - authenticateMeta with HTTP fallback', () => {
     const result = await requestContextStorage.run(requestContext, async () => {
       return await authenticator.authenticateMeta(
         extra,
+        { planId: 'plan-1' },
         'did:nv:agent',
         'test-server',
         'initialize',

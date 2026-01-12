@@ -99,9 +99,9 @@ export class Payments extends BasePaymentsAPI {
    * @param options - The options to initialize the payments class.
    * @example
    * ```
-   * const payments = Payments.getInstance({1
+   * const payments = Payments.getInstance({
    *   nvmApiKey: 'your-nvm-api-key',
-   *   environment: 'testing'
+   *   environment: 'sandbox'
    * })
    * ```
    * @returns An instance of {@link Payments}
@@ -125,7 +125,7 @@ export class Payments extends BasePaymentsAPI {
    * ```
    * const payments = Payments.getBrowserInstance({
    *   returnUrl: 'https://mysite.example',
-   *   environment: 'testing',
+   *   environment: 'sandbox',
    *   appId: 'my-app-id',
    *   version: '1.0.0'
    * })

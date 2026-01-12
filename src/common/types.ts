@@ -6,8 +6,8 @@ import { EnvironmentName } from '../environments.js'
 export interface PaymentOptions {
   /**
    * The Nevermined environment to connect to.
-   * If you are developing an agent it's recommended to use the "testing" environment.
-   * When deploying to production use the "arbitrum" environment.
+   * If you are developing an agent it's recommended to use the "sandbox" environment.
+   * When deploying to live use the "live" environment.
    */
   environment: EnvironmentName
 

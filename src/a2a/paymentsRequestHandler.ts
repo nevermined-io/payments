@@ -173,10 +173,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
 
-    const subscriberAddress =
-      decodedAccessToken.subscriberAddress ||
-      decodedAccessToken.subscriber_address ||
-      decodedAccessToken.sub
+    const subscriberAddress = decodedAccessToken.subscriberAddress 
 
     if (!subscriberAddress) {
       throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token')
@@ -186,7 +183,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       planId: planId as string,
       maxAmount: 1n,
       x402AccessToken: bearerToken,
-      subscriberAddress: decodedAccessToken.subscriberAddress,
+      subscriberAddress,
     }
 
     // Add endpoint and httpVerb if provided
@@ -268,10 +265,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
 
-    const subscriberAddress =
-      decodedAccessToken.subscriberAddress ||
-      decodedAccessToken.subscriber_address ||
-      decodedAccessToken.sub
+    const subscriberAddress = decodedAccessToken.subscriberAddress 
 
     if (!subscriberAddress) {
       throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token.')

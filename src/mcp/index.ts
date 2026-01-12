@@ -303,11 +303,11 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * @param method - The MCP method being called
    * @returns Authentication result
    */
-  async function authenticateMeta(extra: any, method: string) {
+  async function authenticateMeta(extra: any, options: {planId?: string} = {}, method: string) {
     const cfg = extendedConfig
     const agentId = cfg.agentId || ''
     const serverName = cfg.serverName || 'mcp-server'
-    return authenticator.authenticateMeta(extra, agentId, serverName, method)
+    return authenticator.authenticateMeta(extra, { planId: options?.planId }, agentId, serverName, method)
   }
 
   /**
