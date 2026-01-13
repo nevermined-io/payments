@@ -6,10 +6,24 @@ import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
 import * as utils from '../../src/utils.js'
 
-// Mock decodeAccessToken for tests (x402 tokens only contain subscriberAddress, not planId)
+// Mock decodeAccessToken to provide x402-compliant token structure
 const mockDecodeToken = (_token: string) => ({
-  subscriberAddress: '0xSubscriber123',
-  planId: 'plan-123',
+  x402Version: 2,
+  accepted: {
+    scheme: 'nvm:erc4337',
+    network: 'eip155:84532',
+    planId: 'plan-123',
+    extra: { version: '1' },
+  },
+  payload: {
+    signature: '0x123',
+    authorization: {
+      from: '0xSubscriber123',
+      sessionKeysProvider: 'zerodev',
+      sessionKeys: [],
+    },
+  },
+  extensions: {},
 })
 
 jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)

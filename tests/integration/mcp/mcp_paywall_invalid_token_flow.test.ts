@@ -8,8 +8,22 @@ import type { Payments } from '../../../src/payments.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
-    planId: 'plan-basic',
-    subscriberAddress: '0xabc',
+    x402Version: 2,
+    accepted: {
+      scheme: 'nvm:erc4337',
+      network: 'eip155:84532',
+      planId: 'plan-basic',
+      extra: { version: '1' },
+    },
+    payload: {
+      signature: '0x123',
+      authorization: {
+        from: '0xabc',
+        sessionKeysProvider: 'zerodev',
+        sessionKeys: [],
+      },
+    },
+    extensions: {},
   })),
 }))
 

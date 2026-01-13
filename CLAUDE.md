@@ -114,10 +114,19 @@ When updating code that changes token structure (e.g., x402 spec alignment), upd
 ```
 
 Test files with mock tokens that may need updating:
+
+**Unit tests:**
 - `tests/unit/mcp.test.ts`
 - `tests/unit/mcp/auth_extract_header.test.ts`
 - `tests/unit/mcp/auth_http_url_fallback.test.ts`
 - `tests/unit/a2a/payments-request-handler.test.ts`
+
+**Integration tests:**
+- `tests/integration/mcp-integration.test.ts`
+- `tests/integration/mcp/mcp_paywall_invalid_token_flow.test.ts`
+- `tests/integration/mcp/mcp_handler_auth_header_propagation.test.ts`
+- `tests/integration/a2a/complete-message-send-flow.test.ts`
+- `tests/integration/a2a/payments-server.test.ts`
 
 ## Continuous Integration
 

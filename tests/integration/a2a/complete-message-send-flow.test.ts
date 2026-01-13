@@ -10,9 +10,22 @@ import type { Payments } from '../../../src/payments.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
-    subscriber: '0xsub',
-    subscriberAddress: '0xsub',
-    planId: 'test-plan',
+    x402Version: 2,
+    accepted: {
+      scheme: 'nvm:erc4337',
+      network: 'eip155:84532',
+      planId: 'test-plan',
+      extra: { version: '1' },
+    },
+    payload: {
+      signature: '0x123',
+      authorization: {
+        from: '0xsub',
+        sessionKeysProvider: 'zerodev',
+        sessionKeys: [],
+      },
+    },
+    extensions: {},
   })),
 }))
 
@@ -315,7 +328,7 @@ describe('Complete Message/Send Flow', () => {
     expect(response.status).toBe(401)
     const responseData = response.body
     expect(responseData.error).toBeDefined()
-    expect(responseData.error.message).toMatch(/Missing bearer token/i)
+    expect(responseData.error.message).toMatch(/Missing payment token/i)
 
     // No validation or credit burning should occur
     expect(mockPayments.facilitator.validationCallCount).toBe(0)
