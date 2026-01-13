@@ -62,6 +62,8 @@ const payments = Payments.getInstance({
 
 ## Validating Changes
 
+**IMPORTANT**: Always run tests after any code change to ensure nothing is broken.
+
 Before submitting changes, run these checks:
 
 ```bash
@@ -73,6 +75,49 @@ For full validation including integration tests:
 ```bash
 yarn build && yarn lint && yarn test:unit && yarn test:integration && yarn test:e2e
 ```
+
+### After Modifying Source Files
+
+When you modify source files, especially:
+- Token handling code (`src/a2a/`, `src/mcp/core/auth.ts`, `src/x402/`)
+- API interfaces or types
+- Authentication/authorization logic
+
+You MUST:
+1. Run `yarn build` to verify TypeScript compilation
+2. Run `yarn test:unit` to verify unit tests pass
+3. If modifying E2E-related code, run `yarn test:e2e`
+
+### Updating Mock Tokens in Tests
+
+When updating code that changes token structure (e.g., x402 spec alignment), update mock tokens in test files to match the new structure. The x402-compliant token structure is:
+
+```typescript
+{
+  x402Version: 2,
+  accepted: {
+    scheme: 'nvm:erc4337',
+    network: 'eip155:84532',
+    planId: 'plan-id',
+    extra: { version: '1' },
+  },
+  payload: {
+    signature: '0x...',
+    authorization: {
+      from: '0xsubscriberAddress',  // subscriberAddress location
+      sessionKeysProvider: 'zerodev',
+      sessionKeys: [],
+    },
+  },
+  extensions: {},
+}
+```
+
+Test files with mock tokens that may need updating:
+- `tests/unit/mcp.test.ts`
+- `tests/unit/mcp/auth_extract_header.test.ts`
+- `tests/unit/mcp/auth_http_url_fallback.test.ts`
+- `tests/unit/a2a/payments-request-handler.test.ts`
 
 ## Continuous Integration
 

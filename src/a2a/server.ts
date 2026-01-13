@@ -110,8 +110,9 @@ export interface PaymentsA2AServerResult {
  * This middleware is applied after A2A routes are set up and extracts authentication
  * information for credit validation.
  *
- * Per x402 HTTP transport spec v2, expects:
- * - PAYMENT-SIGNATURE: Base64-encoded PaymentPayload
+ * Accepts tokens from:
+ * - PAYMENT-SIGNATURE header (x402 HTTP transport spec v2)
+ * - Authorization: Bearer header (A2A protocol / general use)
  *
  * @param req - Express request object
  * @param res - Express response object
@@ -128,20 +129,29 @@ async function bearerTokenMiddleware(
     return next()
   }
 
-  // x402 HTTP spec v2: client sends payment in PAYMENT-SIGNATURE header (base64-encoded)
+  // Try x402 HTTP spec v2 header first, then fall back to Authorization: Bearer
   const paymentSignatureHeader = req.headers['payment-signature'] as string | undefined
+  const authHeader = req.headers['authorization'] as string | undefined
 
-  if (!paymentSignatureHeader) {
+  let bearerToken: string | undefined
+
+  if (paymentSignatureHeader) {
+    // x402 HTTP spec v2: PAYMENT-SIGNATURE header (base64-encoded PaymentPayload)
+    bearerToken = paymentSignatureHeader
+  } else if (authHeader?.toLowerCase().startsWith('bearer ')) {
+    // A2A protocol / general use: Authorization: Bearer header
+    bearerToken = authHeader.slice(7).trim()
+  }
+
+  if (!bearerToken) {
     res.status(401).json({
       error: {
         code: -32001,
-        message: 'Missing PAYMENT-SIGNATURE header.',
+        message: 'Missing payment token. Provide PAYMENT-SIGNATURE or Authorization: Bearer header.',
       },
     })
     return
   }
-
-  const bearerToken = paymentSignatureHeader
 
   // Transform relative URL to absolute URL
   const absoluteUrl = new URL(req.originalUrl, req.protocol + '://' + req.get('host')).toString()
