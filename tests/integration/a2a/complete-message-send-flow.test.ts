@@ -23,42 +23,38 @@ class MockFacilitatorAPI {
   shouldFailValidation = false
   shouldFailSettle = false
 
-  async verifyPermissions(_: {
-    planId: string
-    maxAmount: bigint
-    x402AccessToken: string
-    subscriberAddress: string
-  }): Promise<{ success: boolean; message?: string }> {
+  async verifyPermissions(_: any): Promise<{ isValid: boolean; invalidReason?: string }> {
     this.validationCallCount++
     if (this.shouldFailValidation) {
-      return { success: false, message: 'Insufficient credits' }
+      return { isValid: false, invalidReason: 'Insufficient credits' }
     }
-    return { success: true }
+    return { isValid: true }
   }
 
-  async settlePermissions(_: {
-    planId: string
-    maxAmount: bigint
-    x402AccessToken: string
-    subscriberAddress: string
-  }): Promise<{ txHash: string; amountOfCredits: bigint }> {
+  async settlePermissions(_: any): Promise<{ success: boolean; transaction: string; network: string; creditsRedeemed: string }> {
     this.settleCallCount++
     this.lastSettleAmount = _.maxAmount
     if (this.shouldFailSettle) {
       throw new Error('Failed to settle credits')
     }
     return {
-      txHash: '0xdeadbeef',
-      amountOfCredits: _.maxAmount,
+      success: true,
+      transaction: '0xdeadbeef',
+      network: 'eip155:84532',
+      creditsRedeemed: String(_.maxAmount || 0),
     }
   }
 }
 
 class MockPaymentsService {
   facilitator: MockFacilitatorAPI
+  agents: { getAgentPlans: () => Promise<{ plans: any[] }> }
 
   constructor() {
     this.facilitator = new MockFacilitatorAPI()
+    this.agents = {
+      getAgentPlans: async () => ({ plans: [] }),
+    }
   }
 }
 

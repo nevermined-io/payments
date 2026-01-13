@@ -50,9 +50,9 @@ describe('PaymentsA2AServer', () => {
     dummyPayments = {
       facilitator: {
         verifyPermissions: jest.fn().mockResolvedValue({
-          success: true,
+          isValid: true,
         }),
-        settlePermissions: jest.fn().mockResolvedValue({ success: true, txHash: '0x1234567890abcdef', data: { creditsBurned: 1n } }),
+        settlePermissions: jest.fn().mockResolvedValue({ success: true, transaction: '0x1234567890abcdef', network: 'eip155:84532', creditsRedeemed: '1' }),
       },
       agents: {
         getAgentPlans: jest.fn().mockResolvedValue({ plans: [] }),
