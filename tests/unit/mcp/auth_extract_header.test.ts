@@ -31,9 +31,9 @@ class PaymentsMock {
       verifyPermissions: jest.fn(async (params: any) => {
         this.calls.push(['verifyPermissions', params])
         if (shouldReject) {
-          return { success: false, message: 'Access denied' }
+          return { isValid: false, invalidReason: 'Access denied' }
         }
-        return { success: true }
+        return { isValid: true }
       }),
     }
 

@@ -32,7 +32,7 @@ class PaymentsMock {
       }
 
       async verifyPermissions(input: any) {
-        const planId = typeof input === 'object' ? input.planId : input
+        const planId = typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
         const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
         const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
@@ -43,11 +43,11 @@ class PaymentsMock {
           Number(maxAmount),
           subscriberAddress,
         ])
-        return { success: true }
+        return { isValid: true }
       }
 
       async settlePermissions(input: any) {
-        const planId = typeof input === 'object' ? input.planId : input
+        const planId = typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
         const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
         const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
