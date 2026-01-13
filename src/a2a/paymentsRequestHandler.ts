@@ -23,6 +23,7 @@ import { PaymentsError } from '../common/payments.error.js'
 import { StartAgentRequest } from '../common/types.js'
 import { Payments } from '../payments.js'
 import { decodeAccessToken } from '../utils.js'
+import type { X402PaymentRequired } from '../x402/facilitator-api.js'
 import type {
   A2AAuthResult,
   A2AStreamEvent,
@@ -179,28 +180,31 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token')
     }
 
-    const verifyParams: any = {
-      planId: planId as string,
-      maxAmount: 1n,
+    const agentId = paymentExtension?.params?.agentId as string | undefined
+
+    const paymentRequired: X402PaymentRequired = {
+      x402Version: 2,
+      resource: {
+        url: endpoint || '',
+      },
+      accepts: [{
+        scheme: 'nvm:erc4337',
+        network: 'eip155:84532',
+        planId: planId as string,
+        extra: {
+          ...(agentId && { agentId }),
+          ...(httpVerb && { httpVerb }),
+        },
+      }],
+      extensions: {},
+    }
+
+    const result = await this.paymentsService.facilitator.verifyPermissions({
+      paymentRequired,
       x402AccessToken: bearerToken,
-      subscriberAddress,
-    }
-
-    // Add endpoint and httpVerb if provided
-    if (endpoint !== undefined) {
-      verifyParams.endpoint = endpoint
-    }
-    if (httpVerb !== undefined) {
-      verifyParams.httpVerb = httpVerb
-    }
-
-    // Add agentId if available from payment extension
-    if (paymentExtension?.params?.agentId) {
-      verifyParams.agentId = paymentExtension.params.agentId
-    }
-
-    const result = await this.paymentsService.facilitator.verifyPermissions(verifyParams)
-    if (!result.success) {
+      maxAmount: 1n,
+    })
+    if (!result.isValid) {
       throw PaymentsError.unauthorized('Permission verification failed.')
     }
     return {

@@ -19,6 +19,17 @@ yarn test:e2e         # Run end-to-end tests only
 
 ## Development Workflow
 
+### Always Verify Build and Lint After Changes
+
+After making any code changes, always run:
+
+```bash
+yarn build   # TypeScript compilation must pass
+yarn lint    # ESLint must pass (no errors)
+```
+
+Both commands must succeed before considering the changes complete.
+
 ### Code Changes Require Test Updates
 
 When modifying code in `src/`, always update the corresponding tests:

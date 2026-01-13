@@ -98,11 +98,11 @@ export interface X402PaymentRequired {
   /** Human-readable error message */
   error?: string
   /** Protected resource information */
-  resource?: X402Resource
+  resource: X402Resource
   /** Array of accepted payment schemes */
   accepts: X402Scheme[]
   /** Extensions object (empty object for nvm:erc4337) */
-  extensions?: Record<string, unknown>
+  extensions: Record<string, unknown>
 }
 
 /**

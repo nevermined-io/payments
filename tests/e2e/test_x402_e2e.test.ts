@@ -141,6 +141,7 @@ describe('X402 Access Token Flow', () => {
     // Note: planId and subscriberAddress are extracted from the token
     const paymentRequired = {
       x402Version: 2,
+      resource: { url: '/test/endpoint' },
       accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
       extensions: {},
     }
@@ -164,6 +165,7 @@ describe('X402 Access Token Flow', () => {
     // Note: planId and subscriberAddress are extracted from the token
     const paymentRequired = {
       x402Version: 2,
+      resource: { url: '/test/endpoint' },
       accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
       extensions: {},
     }
@@ -217,6 +219,7 @@ describe('X402 Access Token Flow', () => {
     // Note: planId and subscriberAddress are extracted from the token
     const paymentRequired = {
       x402Version: 2,
+      resource: { url: '/test/endpoint' },
       accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
       extensions: {},
     }

@@ -3,6 +3,7 @@
  */
 import type { Payments } from '../../payments.js'
 import { decodeAccessToken } from '../../utils.js'
+import type { X402PaymentRequired } from '../../x402/facilitator-api.js'
 import { getCurrentRequestContext } from '../http/mcp-handler.js'
 import { AuthResult } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
@@ -102,17 +103,30 @@ export class PaywallAuthenticator {
         throw new Error('Cannot determine plan_id or subscriber_address from token')
       }
 
+      const paymentRequired: X402PaymentRequired = {
+        x402Version: 2,
+        resource: {
+          url: logicalUrl,
+        },
+        accepts: [{
+          scheme: 'nvm:erc4337',
+          network: 'eip155:84532',
+          planId,
+          extra: {
+            ...(agentId && { agentId }),
+            httpVerb: 'POST',
+          },
+        }],
+        extensions: {},
+      }
+
       const result = await this.payments.facilitator.verifyPermissions({
-        planId,
-        maxAmount: 1n,
+        paymentRequired,
         x402AccessToken: accessToken,
-        subscriberAddress,
-        agentId,
-        endpoint: logicalUrl,
-        httpVerb: 'POST',
+        maxAmount: 1n,
       })
 
-      if (!result.success) {
+      if (!result.isValid) {
         throw new Error('Permission verification failed')
       }
 
@@ -155,17 +169,30 @@ export class PaywallAuthenticator {
             throw new Error('Cannot determine plan_id or subscriber_address from token')
           }
 
+          const paymentRequired: X402PaymentRequired = {
+            x402Version: 2,
+            resource: {
+              url: httpUrl,
+            },
+            accepts: [{
+              scheme: 'nvm:erc4337',
+              network: 'eip155:84532',
+              planId,
+              extra: {
+                ...(agentId && { agentId }),
+                httpVerb: 'POST',
+              },
+            }],
+            extensions: {},
+          }
+
           const result = await this.payments.facilitator.verifyPermissions({
-            planId,
-            maxAmount: 1n,
+            paymentRequired,
             x402AccessToken: accessToken,
-            subscriberAddress,
-            agentId,
-            endpoint: httpUrl,
-            httpVerb: 'POST',
+            maxAmount: 1n,
           })
 
-          if (!result.success) {
+          if (!result.isValid) {
             throw new Error('Permission verification failed')
           }
 
@@ -232,16 +259,30 @@ export class PaywallAuthenticator {
       if (!planId || !subscriberAddress) {
         throw new Error('Cannot determine plan_id or subscriber_address from token')
       }
+
+      const paymentRequired: X402PaymentRequired = {
+        x402Version: 2,
+        resource: {
+          url: logicalUrl,
+        },
+        accepts: [{
+          scheme: 'nvm:erc4337',
+          network: 'eip155:84532',
+          planId,
+          extra: {
+            ...(agentId && { agentId }),
+            httpVerb: 'POST',
+          },
+        }],
+        extensions: {},
+      }
+
       const result = await this.payments.facilitator.verifyPermissions({
-        planId,
-        maxAmount: 1n,
+        paymentRequired,
         x402AccessToken: accessToken,
-        subscriberAddress,
-        agentId,
-        endpoint: logicalUrl,
-        httpVerb: 'POST',
+        maxAmount: 1n,
       })
-      if (!result.success) {
+      if (!result.isValid) {
         throw new Error('Permission verification failed')
       }
       return {
@@ -271,16 +312,30 @@ export class PaywallAuthenticator {
           if (!planId || !subscriberAddress) {
             throw new Error('Cannot determine plan_id or subscriber_address from token')
           }
+
+          const paymentRequired: X402PaymentRequired = {
+            x402Version: 2,
+            resource: {
+              url: httpUrl,
+            },
+            accepts: [{
+              scheme: 'nvm:erc4337',
+              network: 'eip155:84532',
+              planId,
+              extra: {
+                ...(agentId && { agentId }),
+                httpVerb: 'POST',
+              },
+            }],
+            extensions: {},
+          }
+
           const result = await this.payments.facilitator.verifyPermissions({
-            planId,
-            maxAmount: 1n,
+            paymentRequired,
             x402AccessToken: accessToken,
-            subscriberAddress,
-            agentId,
-            endpoint: httpUrl,
-            httpVerb: 'POST',
+            maxAmount: 1n,
           })
-          if (!result.success) {
+          if (!result.isValid) {
             throw new Error('Permission verification failed')
           }
           return {
