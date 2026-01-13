@@ -174,10 +174,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
 
-    const subscriberAddress = decodedAccessToken.subscriberAddress 
+    // Extract subscriberAddress from token (payload.authorization.from per x402 spec)
+    const subscriberAddress = decodedAccessToken.payload?.authorization?.from
 
     if (!subscriberAddress) {
-      throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token')
+      throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token (expected payload.authorization.from)')
     }
 
     const agentId = paymentExtension?.params?.agentId as string | undefined

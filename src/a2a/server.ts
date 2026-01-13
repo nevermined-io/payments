@@ -106,9 +106,12 @@ export interface PaymentsA2AServerResult {
 }
 
 /**
- * Middleware to extract bearer token from HTTP headers and store it in the global context.
+ * Middleware to extract payment token from HTTP headers and store it in the global context.
  * This middleware is applied after A2A routes are set up and extracts authentication
  * information for credit validation.
+ *
+ * Per x402 HTTP transport spec v2, expects:
+ * - PAYMENT-SIGNATURE: Base64-encoded PaymentPayload
  *
  * @param req - Express request object
  * @param res - Express response object
@@ -125,21 +128,20 @@ async function bearerTokenMiddleware(
     return next()
   }
 
-  // Extract bearer token from Authorization header
-  const authHeader = req.headers.authorization
-  let bearerToken: string
+  // x402 HTTP spec v2: client sends payment in PAYMENT-SIGNATURE header (base64-encoded)
+  const paymentSignatureHeader = req.headers['payment-signature'] as string | undefined
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    bearerToken = authHeader.substring(7) // Remove 'Bearer ' prefix
-  } else {
+  if (!paymentSignatureHeader) {
     res.status(401).json({
       error: {
         code: -32001,
-        message: 'Missing bearer token.',
+        message: 'Missing PAYMENT-SIGNATURE header.',
       },
     })
     return
   }
+
+  const bearerToken = paymentSignatureHeader
 
   // Transform relative URL to absolute URL
   const absoluteUrl = new URL(req.originalUrl, req.protocol + '://' + req.get('host')).toString()

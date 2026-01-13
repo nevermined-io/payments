@@ -14,6 +14,7 @@ import { ZeroAddress } from '../../src/environments.js'
 import { Payments } from '../../src/payments.js'
 import { ONE_DAY_DURATION } from '../../src/plans.js'
 import { getRandomBigInt } from '../../src/utils.js'
+import { buildPaymentRequired } from '../../src/x402/facilitator-api.js'
 import { retryWithBackoff } from '../utils.js'
 import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
 
@@ -35,6 +36,17 @@ let builderAddress: Address | null = null
 let agentAccessParams: AgentAccessCredentials | null = null
 
 /**
+ * Helper to check if a URL matches an endpoint pattern with path parameters
+ * e.g., pattern "http://localhost:8889/test/:agentId/tasks" matches "http://localhost:8889/test/123/tasks"
+ */
+function matchesEndpointPattern(requestedUrl: string, pattern: string): boolean {
+  // Convert pattern to regex: replace :param with [^/]+ (matches any path segment)
+  const regexPattern = pattern.replace(/:[^/]+/g, '[^/]+')
+  const regex = new RegExp(`^${regexPattern}$`)
+  return regex.test(requestedUrl)
+}
+
+/**
  * Mock HTTP Server for Agent testing
  */
 class MockAgentServer {
@@ -44,68 +56,108 @@ class MockAgentServer {
   private agentId: string | null = null
   private planId: string | null = null
   private startupTimeout: NodeJS.Timeout | null = null
+  private allowedEndpoints: Array<{ method: string; pattern: string }> = []
 
-  async start(paymentsBuilder: Payments, agentId: string, planId: string, subscriberAddress: Address): Promise<void> {
+  async start(paymentsBuilder: Payments, agentId: string, planId: string): Promise<void> {
+    // Define allowed endpoint patterns (matching AGENT_ENDPOINTS)
+    this.allowedEndpoints = [
+      { method: 'POST', pattern: 'http://localhost:8889/test/:agentId/tasks' },
+      { method: 'GET', pattern: 'http://localhost:8889/test/:agentId/tasks/:taskId' },
+    ]
     // Store references for use in request handler
     this.paymentsBuilder = paymentsBuilder
     this.agentId = agentId
     this.planId = planId
 
     this.server = http.createServer(async (req, res) => {
-      const authHeader = req.headers['authorization'] as string
-      console.log('Auth Header', authHeader)
+      // x402 HTTP spec v2: client sends payment in PAYMENT-SIGNATURE header (base64-encoded)
+      const paymentSignatureHeader = req.headers['payment-signature'] as string
+
+      // Extract token from PAYMENT-SIGNATURE header
+      let accessToken: string | undefined
+      if (paymentSignatureHeader) {
+        accessToken = paymentSignatureHeader
+        console.log('PAYMENT-SIGNATURE Header (first 20 chars):', paymentSignatureHeader.substring(0, 20))
+      }
+
       const requestedUrl = `http://localhost:${this.port}${req.url}`
       const httpVerb = req.method
 
       console.log(
-        `Received request: endpoint=${requestedUrl}, httpVerb=${httpVerb}, authHeader=${authHeader?.substring(0, 20)}...`,
+        `Received request: endpoint=${requestedUrl}, httpVerb=${httpVerb}`,
       )
 
+      // Build paymentRequired for 402 responses (per x402 HTTP spec)
+      const paymentRequired = this.planId ? buildPaymentRequired(this.planId, {
+        endpoint: requestedUrl,
+        agentId: this.agentId || undefined,
+        httpVerb: httpVerb,
+      }) : null
+
+      // Helper to send x402-compliant 402 response
+      const send402Response = (errorMsg: string) => {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        // x402 HTTP spec: include PAYMENT-REQUIRED header with base64-encoded PaymentRequired
+        if (paymentRequired) {
+          headers['PAYMENT-REQUIRED'] = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
+        }
+        res.writeHead(402, headers)
+        res.end(JSON.stringify({ error: errorMsg }))
+      }
+
       try {
-        if (this.paymentsBuilder && this.agentId && this.planId) {
-          // Validate the request using the real Nevermined logic
-          // const result = await this.paymentsBuilder.requests.startProcessingRequest(
-          //   this.agentId,
-          //   authHeader,
-          //   requestedUrl,
-          //   httpVerb || 'GET',
-          // )
+        if (this.paymentsBuilder && this.agentId && this.planId && accessToken) {
+          // First, validate that the requested endpoint matches allowed patterns
+          const isEndpointAllowed = this.allowedEndpoints.some(
+            (ep) => ep.method === httpVerb && matchesEndpointPattern(requestedUrl, ep.pattern),
+          )
+
+          if (!isEndpointAllowed) {
+            console.log(`Endpoint not allowed: ${httpVerb} ${requestedUrl}`)
+            send402Response('Endpoint not allowed')
+            return
+          }
+
+          // Validate the request using x402 verifyPermissions
           const result = await this.paymentsBuilder.facilitator.verifyPermissions({
-            planId: this.planId,
+            paymentRequired: paymentRequired!,
             maxAmount: 1n,
-            x402AccessToken: authHeader.substring(7),
-            subscriberAddress: subscriberAddress,
-            agentId: this.agentId,
-            endpoint: requestedUrl,
-            httpVerb: httpVerb,
+            x402AccessToken: accessToken,
           })
           console.log('Verify Permissions Response', result)
-          await this.paymentsBuilder.facilitator.settlePermissions({
-            planId: this.planId,
+
+          // Settle permissions (burn credits)
+          const settleResult = await this.paymentsBuilder.facilitator.settlePermissions({
+            paymentRequired: paymentRequired!,
             maxAmount: 1n,
-            x402AccessToken: authHeader.substring(7),
-            subscriberAddress: subscriberAddress,
-            agentId: this.agentId,
-            endpoint: requestedUrl,
-            httpVerb: httpVerb,
+            x402AccessToken: accessToken,
           })
-          console.log('Settle Permissions Response', result)
-          // If the request is valid and the user is a subscriber
-          if (result && result.success) {
-            res.writeHead(200, { 'Content-Type': 'application/json' })
+          console.log('Settle Permissions Response', settleResult)
+
+          // If the request is valid, return success with PAYMENT-RESPONSE header
+          if (result && result.isValid) {
+            const paymentResponse = {
+              success: settleResult.success,
+              network: settleResult.network,
+              transaction: settleResult.transaction,
+            }
+            res.writeHead(200, {
+              'Content-Type': 'application/json',
+              // x402 HTTP spec: include PAYMENT-RESPONSE header with settlement result
+              'PAYMENT-RESPONSE': Buffer.from(JSON.stringify(paymentResponse)).toString('base64'),
+            })
             res.end(JSON.stringify({ message: 'Hello from the Agent!' }))
             return
           }
         }
       } catch (error) {
         console.log(
-          `Unauthorized access attempt: ${authHeader?.substring(0, 20)}..., error: ${error}`,
+          `Unauthorized access attempt: ${accessToken?.substring(0, 20)}..., error: ${error}`,
         )
       }
 
       // If the request is not valid or there is an exception, respond with 402
-      res.writeHead(402, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Unauthorized' }))
+      send402Response('Payment required')
     })
 
     await new Promise<void>((resolve, reject) => {
@@ -512,7 +564,7 @@ describe('Payments E2E Tests', () => {
       // Setup mock HTTP server for agent testing
       // This must be done after agent_id is set by previous test
       expect(agentId).not.toBeNull()
-      await mockServer.start(paymentsBuilder, agentId!, creditsPlanId!, paymentsSubscriber.getAccountAddress() as Address)
+      await mockServer.start(paymentsBuilder, agentId!, creditsPlanId!)
     }, TEST_TIMEOUT)
 
     afterAll(async () => {
@@ -562,7 +614,8 @@ describe('Payments E2E Tests', () => {
         const headers = {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${agentAccessParams!.accessToken}`,
+          // x402 HTTP spec v2: send payment token in PAYMENT-SIGNATURE header
+          'PAYMENT-SIGNATURE': agentAccessParams!.accessToken,
         }
 
         const response = await fetch(agentUrl, {
@@ -584,7 +637,8 @@ describe('Payments E2E Tests', () => {
         const headers = {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          Authorization: 'Bearer INVALID_TOKEN',
+          // x402 HTTP spec v2: send payment token in PAYMENT-SIGNATURE header
+          'PAYMENT-SIGNATURE': 'INVALID_TOKEN',
         }
 
         const response = await fetch(agentUrl, {
@@ -607,7 +661,8 @@ describe('Payments E2E Tests', () => {
         const headers = {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${agentAccessParams!.accessToken}`,
+          // x402 HTTP spec v2: send payment token in PAYMENT-SIGNATURE header
+          'PAYMENT-SIGNATURE': agentAccessParams!.accessToken,
         }
 
         const response = await fetch(wrongAgentUrl, {
