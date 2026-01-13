@@ -98,6 +98,14 @@ CI is configured in `.github/workflows/testing.yml` and runs on every push:
 
 See [TESTING.md](./TESTING.md) for testing patterns when building applications with this library.
 
+### E2E Tests and Staging
+
+E2E tests run directly against the **staging environment**. When making changes:
+
+1. Ensure E2E tests pass after code changes: `yarn test:e2e`
+2. If E2E tests fail after backend API changes (in `nvm-monorepo`), the staging environment may need to be redeployed with those changes before the SDK E2E tests will pass
+3. E2E test failures due to pending backend deployments are expected - coordinate with the team to deploy backend changes to staging first
+
 ## Running Agents
 
 See [RUN.md](./RUN.md) for complete examples:

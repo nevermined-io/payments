@@ -3,7 +3,7 @@
  */
 
 export { X402TokenAPI } from './token.js'
-export { FacilitatorAPI } from './facilitator-api.js'
+export { FacilitatorAPI, buildPaymentRequired } from './facilitator-api.js'
 export type {
   // x402 types
   X402Resource,

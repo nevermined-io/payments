@@ -168,6 +168,77 @@ export interface SettlePermissionsResult {
 }
 
 /**
+ * Build an X402PaymentRequired object for verify/settle operations.
+ *
+ * This helper simplifies the creation of payment requirement objects
+ * that are needed for the facilitator API.
+ *
+ * @param planId - The Nevermined plan identifier (required)
+ * @param options - Optional configuration for the payment requirement
+ * @param options.endpoint - The protected resource URL
+ * @param options.agentId - The AI agent identifier
+ * @param options.httpVerb - The HTTP method for the endpoint
+ * @param options.network - The blockchain network in CAIP-2 format (default: "eip155:84532")
+ * @param options.description - Human-readable description of the resource
+ * @returns X402PaymentRequired object ready to use with verifyPermissions/settlePermissions
+ *
+ * @example
+ * ```typescript
+ * import { buildPaymentRequired } from '@nevermined-io/payments'
+ *
+ * const paymentRequired = buildPaymentRequired('123456789', {
+ *   endpoint: '/api/v1/agents/task',
+ *   agentId: '987654321',
+ *   httpVerb: 'POST'
+ * })
+ *
+ * const result = await payments.facilitator.verifyPermissions({
+ *   paymentRequired,
+ *   x402AccessToken: token,
+ *   maxAmount: 2n
+ * })
+ * ```
+ */
+export function buildPaymentRequired(
+  planId: string,
+  options?: {
+    endpoint?: string
+    agentId?: string
+    httpVerb?: string
+    network?: string
+    description?: string
+  },
+): X402PaymentRequired {
+  const { endpoint, agentId, httpVerb, network = 'eip155:84532', description } = options || {}
+
+  // Build extra fields if any are provided
+  const extra: X402SchemeExtra | undefined =
+    agentId || httpVerb
+      ? {
+        ...(agentId && { agentId }),
+        ...(httpVerb && { httpVerb }),
+      }
+      : undefined
+
+  return {
+    x402Version: 2,
+    resource: {
+      url: endpoint || '',
+      ...(description && { description }),
+    },
+    accepts: [
+      {
+        scheme: 'nvm:erc4337',
+        network,
+        planId,
+        ...(extra && { extra }),
+      },
+    ],
+    extensions: {},
+  }
+}
+
+/**
  * The FacilitatorAPI class provides methods to verify and settle AI agent permissions.
  * It enables AI agents to act as facilitators, managing credit verification and settlement
  * for subscribers using X402 access tokens.

@@ -23,7 +23,7 @@ import { PaymentsError } from '../common/payments.error.js'
 import { StartAgentRequest } from '../common/types.js'
 import { Payments } from '../payments.js'
 import { decodeAccessToken } from '../utils.js'
-import type { X402PaymentRequired } from '../x402/facilitator-api.js'
+import { buildPaymentRequired, type X402PaymentRequired } from '../x402/facilitator-api.js'
 import type {
   A2AAuthResult,
   A2AStreamEvent,
@@ -256,46 +256,33 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Invalid access token.')
     }
 
-    let planId
+    let planId: string | undefined
+    let agentId: string | undefined
     const agentCard = await this.getAgentCard()
     const paymentExtension = agentCard.capabilities?.extensions?.find(
       (ext: any) => ext.uri === 'urn:nevermined:payment',
     )
     if (paymentExtension) {
-      planId = paymentExtension.params?.planId
+      planId = paymentExtension.params?.planId as string | undefined
+      agentId = paymentExtension.params?.agentId as string | undefined
     }
 
     if (!planId) {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
 
-    const subscriberAddress = decodedAccessToken.subscriberAddress 
+    // Build paymentRequired using the helper
+    const paymentRequired = buildPaymentRequired(planId, {
+      endpoint: httpContext?.urlRequested,
+      agentId,
+      httpVerb: httpContext?.httpMethodRequested,
+    })
 
-    if (!subscriberAddress) {
-      throw PaymentsError.unauthorized('Cannot determine subscriberAddress from token.')
-    }
-
-    const settleParams: any = {
-      planId: planId as string,
-      maxAmount: BigInt(creditsUsed),
+    return await this.paymentsService.facilitator.settlePermissions({
+      paymentRequired,
       x402AccessToken: bearerToken,
-      subscriberAddress,
-    }
-
-    // Add endpoint and httpVerb if available from HTTP context
-    if (httpContext?.urlRequested) {
-      settleParams.endpoint = httpContext.urlRequested
-    }
-    if (httpContext?.httpMethodRequested) {
-      settleParams.httpVerb = httpContext.httpMethodRequested
-    }
-
-    // Add agentId if available from validation
-    if (httpContext?.validation?.agentRequestId) {
-      settleParams.agentId = httpContext.validation.agentRequestId
-    }
-
-    return await this.paymentsService.facilitator.settlePermissions(settleParams)
+      maxAmount: BigInt(creditsUsed),
+    })
   }
 
   /**
