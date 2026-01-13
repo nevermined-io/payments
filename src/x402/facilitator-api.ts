@@ -4,7 +4,7 @@
  *
  * @example
  * ```typescript
- * import { Payments } from '@nevermined-io/payments'
+ * import { Payments, X402PaymentRequired } from '@nevermined-io/payments'
  *
  * // Initialize the Payments instance
  * const payments = Payments.getInstance({
@@ -12,13 +12,24 @@
  *   environment: 'sandbox'
  * })
  *
- * // Get X402 access token from X402 API
- * const tokenResult = await payments.x402.getX402AccessToken('123', '456')
- * const x402Token = tokenResult.accessToken
+ * // The server's 402 PaymentRequired response
+ * const paymentRequired: X402PaymentRequired = {
+ *   x402Version: 2,
+ *   accepts: [{
+ *     scheme: 'nvm:erc4337',
+ *     network: 'eip155:84532',
+ *     planId: '123',
+ *     extra: { version: '1', agentId: '456' }
+ *   }],
+ *   extensions: {}
+ * }
+ *
+ * // Get X402 access token from subscriber
+ * const x402Token = req.headers['x-payment'] as string
  *
  * // Verify if subscriber has sufficient permissions/credits
- * // Note: planId and subscriberAddress are extracted from the token
  * const verification = await payments.facilitator.verifyPermissions({
+ *   paymentRequired,
  *   x402AccessToken: x402Token,
  *   maxAmount: 2n
  * })
@@ -26,6 +37,7 @@
  * if (verification.isValid) {
  *   // Settle (burn) the credits
  *   const settlement = await payments.facilitator.settlePermissions({
+ *     paymentRequired,
  *     x402AccessToken: x402Token,
  *     maxAmount: 2n
  *   })
@@ -89,7 +101,7 @@ export interface X402PaymentRequired {
   resource?: X402Resource
   /** Array of accepted payment schemes */
   accepts: X402Scheme[]
-  /** Extensions object (empty {} for nvm:erc4337) */
+  /** Extensions object (empty object for nvm:erc4337) */
   extensions?: Record<string, unknown>
 }
 
@@ -97,12 +109,12 @@ export interface X402PaymentRequired {
  * Parameters for verifying permissions
  */
 export interface VerifyPermissionsParams {
+  /** The server's 402 PaymentRequired response */
+  paymentRequired: X402PaymentRequired
   /** The X402 access token (base64-encoded) */
   x402AccessToken: string
   /** Maximum credits to verify (optional) */
   maxAmount?: bigint
-  /** x402 PaymentRequired from 402 response (optional, for validation) */
-  paymentRequired?: X402PaymentRequired
 }
 
 /**
@@ -124,12 +136,12 @@ export interface VerifyPermissionsResult {
  * Parameters for settling permissions
  */
 export interface SettlePermissionsParams {
+  /** The server's 402 PaymentRequired response */
+  paymentRequired: X402PaymentRequired
   /** The X402 access token (base64-encoded) */
   x402AccessToken: string
   /** Number of credits to burn (optional) */
   maxAmount?: bigint
-  /** x402 PaymentRequired from 402 response (optional, for validation) */
-  paymentRequired?: X402PaymentRequired
 }
 
 /**
@@ -179,27 +191,25 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    * The planId and subscriberAddress are extracted from the x402AccessToken.
    *
    * @param params - Verification parameters (see {@link VerifyPermissionsParams}).
+   *   - paymentRequired: x402 PaymentRequired from 402 response (required, for validation)
    *   - x402AccessToken: X402 access token (contains planId, subscriberAddress, agentId)
    *   - maxAmount: maximum credits to verify (optional, bigint)
-   *   - paymentRequired: x402 PaymentRequired from 402 response (optional, for validation)
    * @returns A promise that resolves to a verification result with 'isValid' boolean
    *
    * @throws PaymentsError if verification fails
    */
   async verifyPermissions(params: VerifyPermissionsParams): Promise<VerifyPermissionsResult> {
-    const { x402AccessToken, maxAmount, paymentRequired } = params
+    const { paymentRequired, x402AccessToken, maxAmount } = params
 
     const url = new URL(API_URL_VERIFY_PERMISSIONS, this.environment.backend)
 
     const body: Record<string, unknown> = {
+      paymentRequired,
       x402AccessToken,
     }
 
     if (maxAmount !== undefined) {
       body.maxAmount = maxAmount.toString()
-    }
-    if (paymentRequired !== undefined) {
-      body.paymentRequired = paymentRequired
     }
 
     const options = this.getPublicHTTPOptions('POST', body)
@@ -240,27 +250,25 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    * The planId and subscriberAddress are extracted from the x402AccessToken.
    *
    * @param params - Settlement parameters (see {@link SettlePermissionsParams}).
+   *   - paymentRequired: x402 PaymentRequired from 402 response (required, for validation)
    *   - x402AccessToken: X402 access token (contains planId, subscriberAddress, agentId)
    *   - maxAmount: number of credits to burn (optional, bigint)
-   *   - paymentRequired: x402 PaymentRequired from 402 response (optional, for validation)
    * @returns A promise that resolves to a settlement result with transaction details
    *
    * @throws PaymentsError if settlement fails
    */
   async settlePermissions(params: SettlePermissionsParams): Promise<SettlePermissionsResult> {
-    const { x402AccessToken, maxAmount, paymentRequired } = params
+    const { paymentRequired, x402AccessToken, maxAmount } = params
 
     const url = new URL(API_URL_SETTLE_PERMISSIONS, this.environment.backend)
 
     const body: Record<string, unknown> = {
+      paymentRequired,
       x402AccessToken,
     }
 
     if (maxAmount !== undefined) {
       body.maxAmount = maxAmount.toString()
-    }
-    if (paymentRequired !== undefined) {
-      body.paymentRequired = paymentRequired
     }
 
     const options = this.getPublicHTTPOptions('POST', body)

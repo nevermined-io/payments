@@ -139,7 +139,13 @@ describe('X402 Access Token Flow', () => {
     console.log(`Verifying permissions for plan: ${planId}, max_amount: 2`)
 
     // Note: planId and subscriberAddress are extracted from the token
+    const paymentRequired = {
+      x402Version: 2,
+      accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
+      extensions: {},
+    }
     const response = await paymentsAgent.facilitator.verifyPermissions({
+      paymentRequired,
       x402AccessToken,
       maxAmount: 2n,
     })
@@ -156,9 +162,15 @@ describe('X402 Access Token Flow', () => {
     console.log(`Settling permissions for plan: ${planId}, max_amount: 2`)
 
     // Note: planId and subscriberAddress are extracted from the token
+    const paymentRequired = {
+      x402Version: 2,
+      accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
+      extensions: {},
+    }
     const response = await retryWithBackoff(
       () =>
         paymentsAgent.facilitator.settlePermissions({
+          paymentRequired,
           x402AccessToken,
           maxAmount: 2n,
         }),
@@ -203,9 +215,15 @@ describe('X402 Access Token Flow', () => {
     // Settle 2 more credits (should have 6 remaining after previous settlement)
     console.log('Settling 2 more credits...')
     // Note: planId and subscriberAddress are extracted from the token
+    const paymentRequired = {
+      x402Version: 2,
+      accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
+      extensions: {},
+    }
     const response = await retryWithBackoff(
       () =>
         paymentsAgent.facilitator.settlePermissions({
+          paymentRequired,
           x402AccessToken,
           maxAmount: 2n,
         }),
