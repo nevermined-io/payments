@@ -6,10 +6,24 @@ import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
 import * as utils from '../../src/utils.js'
 
-// Mock decodeAccessToken to provide planId + subscriberAddress (x402 tokens may miss planId)
+// Mock decodeAccessToken to provide x402-compliant token structure
 const mockDecodeToken = (_token: string) => ({
-  planId: 'plan123',
-  subscriberAddress: '0x123subscriber',
+  x402Version: 2,
+  accepted: {
+    scheme: 'nvm:erc4337',
+    network: 'eip155:84532',
+    planId: 'plan123',
+    extra: { version: '1' },
+  },
+  payload: {
+    signature: '0x123',
+    authorization: {
+      from: '0x123subscriber',
+      sessionKeysProvider: 'zerodev',
+      sessionKeys: [],
+    },
+  },
+  extensions: {},
 })
 jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
 
@@ -32,7 +46,7 @@ class PaymentsMock {
       }
 
       async verifyPermissions(input: any) {
-        const planId = typeof input === 'object' ? input.planId : input
+        const planId = typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
         const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
         const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
@@ -43,11 +57,11 @@ class PaymentsMock {
           Number(maxAmount),
           subscriberAddress,
         ])
-        return { success: true }
+        return { isValid: true }
       }
 
       async settlePermissions(input: any) {
-        const planId = typeof input === 'object' ? input.planId : input
+        const planId = typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
         const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
         const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]

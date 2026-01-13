@@ -3,6 +3,7 @@
  */
 import { Address, NvmAPIResult } from '../../common/types.js'
 import type { Payments } from '../../payments.js'
+import type { X402PaymentRequired } from '../../x402/facilitator-api.js'
 import {
   McpConfig,
   PaywallOptions,
@@ -186,14 +187,27 @@ export class PaywallDecorator {
     }
     try {
       if (credits && credits > 0n && subscriberAddress && planId) {
+        const paymentRequired: X402PaymentRequired = {
+          x402Version: 2,
+          resource: {
+            url: endpoint || '',
+          },
+          accepts: [{
+            scheme: 'nvm:erc4337',
+            network: 'eip155:84532',
+            planId,
+            extra: {
+              ...(agentId && { agentId }),
+              ...(httpVerb && { httpVerb }),
+            },
+          }],
+          extensions: {},
+        }
+
         ret = await this.payments.facilitator.settlePermissions({
-          planId,
-          maxAmount: credits,
+          paymentRequired,
           x402AccessToken: token,
-          subscriberAddress,
-          agentId,
-          endpoint,
-          httpVerb,
+          maxAmount: credits,
         })
       }
     } catch (e) {

@@ -9,8 +9,22 @@ import type { Payments } from '../../../src/payments.js'
 import * as utils from '../../../src/utils.js'
 
 const mockDecodeToken = (_token: string) => ({
-  subscriberAddress: '0xSubscriber123',
-  planId: 'plan-123',
+  x402Version: 2,
+  accepted: {
+    scheme: 'nvm:erc4337',
+    network: 'eip155:84532',
+    planId: 'plan-123',
+    extra: { version: '1' },
+  },
+  payload: {
+    signature: '0x123',
+    authorization: {
+      from: '0xSubscriber123',
+      sessionKeysProvider: 'zerodev',
+      sessionKeys: [],
+    },
+  },
+  extensions: {},
 })
 
 jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
@@ -50,9 +64,9 @@ describe('PaymentsA2AServer', () => {
     dummyPayments = {
       facilitator: {
         verifyPermissions: jest.fn().mockResolvedValue({
-          success: true,
+          isValid: true,
         }),
-        settlePermissions: jest.fn().mockResolvedValue({ success: true, txHash: '0x1234567890abcdef', data: { creditsBurned: 1n } }),
+        settlePermissions: jest.fn().mockResolvedValue({ success: true, transaction: '0x1234567890abcdef', network: 'eip155:84532', creditsRedeemed: '1' }),
       },
       agents: {
         getAgentPlans: jest.fn().mockResolvedValue({ plans: [] }),

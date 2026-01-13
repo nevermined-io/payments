@@ -8,8 +8,22 @@ import type { Payments } from '../../../src/payments.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
-    planId: 'plan-basic',
-    subscriberAddress: '0xabc',
+    x402Version: 2,
+    accepted: {
+      scheme: 'nvm:erc4337',
+      network: 'eip155:84532',
+      planId: 'plan-basic',
+      extra: { version: '1' },
+    },
+    payload: {
+      signature: '0x123',
+      authorization: {
+        from: '0xabc',
+        sessionKeysProvider: 'zerodev',
+        sessionKeys: [],
+      },
+    },
+    extensions: {},
   })),
 }))
 
@@ -35,9 +49,9 @@ class PaymentsMockWithFailures {
       verifyPermissions: jest.fn(async (params: any) => {
         this.calls.push(['verifyPermissions', params])
         if (this.failureMode === 'invalid-token' || this.failureMode === 'not-subscriber') {
-          return { success: false, message: 'Payment required' }
+          return { isValid: false, invalidReason: 'Payment required' }
         }
-        return { success: true }
+        return { isValid: true }
       }),
       settlePermissions: jest.fn(async (params: any) => {
         this.calls.push(['settle', params])
@@ -46,8 +60,9 @@ class PaymentsMockWithFailures {
         }
         return {
           success: true,
-          txHash: '0xtest123',
-          data: { amountOfCredits: params.maxAmount },
+          transaction: '0xtest123',
+          network: 'eip155:84532',
+          creditsRedeemed: String(params.maxAmount),
         }
       }),
     }

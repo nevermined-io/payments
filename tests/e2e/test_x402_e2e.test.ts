@@ -135,46 +135,46 @@ describe('X402 Access Token Flow', () => {
   test('should verify permissions using X402 access token', async () => {
     expect(planId).not.toBeNull()
     expect(x402AccessToken).not.toBeNull()
-    expect(subscriberAddress).not.toBeNull()
 
-    console.log(
-      `Verifying permissions for plan: ${planId}, max_amount: 2, subscriber: ${subscriberAddress}`,
-    )
+    console.log(`Verifying permissions for plan: ${planId}, max_amount: 2`)
 
+    // Note: planId and subscriberAddress are extracted from the token
+    const paymentRequired = {
+      x402Version: 2,
+      resource: { url: '/test/endpoint' },
+      accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
+      extensions: {},
+    }
     const response = await paymentsAgent.facilitator.verifyPermissions({
-      planId,
-      maxAmount: 2n,
+      paymentRequired,
       x402AccessToken,
-      subscriberAddress,
-      agentId,
-      endpoint: `https://myagent.ai/api/v1/secret/${agentId}/tasks`,
-      httpVerb: 'POST',
+      maxAmount: 2n,
     })
 
     expect(response).toBeDefined()
-    expect(response.success).toBe(true)
+    expect(response.isValid).toBe(true)
     console.log(`Verify permissions response: ${JSON.stringify(response)}`)
   })
 
   test('should settle (burn) credits using X402 access token', async () => {
     expect(planId).not.toBeNull()
     expect(x402AccessToken).not.toBeNull()
-    expect(subscriberAddress).not.toBeNull()
 
-    console.log(
-      `Settling permissions for plan: ${planId}, max_amount: 2, subscriber: ${subscriberAddress}`,
-    )
+    console.log(`Settling permissions for plan: ${planId}, max_amount: 2`)
 
+    // Note: planId and subscriberAddress are extracted from the token
+    const paymentRequired = {
+      x402Version: 2,
+      resource: { url: '/test/endpoint' },
+      accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
+      extensions: {},
+    }
     const response = await retryWithBackoff(
       () =>
         paymentsAgent.facilitator.settlePermissions({
-          planId,
-          maxAmount: 2n,
+          paymentRequired,
           x402AccessToken,
-          subscriberAddress,
-          agentId,
-          endpoint: `https://myagent.ai/api/v1/secret/${agentId}/tasks`,
-          httpVerb: 'POST',
+          maxAmount: 2n,
         }),
       {
         label: 'X402 Settle Permissions',
@@ -184,10 +184,9 @@ describe('X402 Access Token Flow', () => {
 
     expect(response).toBeDefined()
     expect(response.success).toBe(true)
-    expect(response.data).toBeDefined()
-    expect(response.data.creditsBurned).toBe('2')
+    expect(response.creditsRedeemed).toBe('2')
     console.log(`Settle permissions response: ${JSON.stringify(response)}`)
-    console.log(`Credits burned: ${response.data.creditsBurned}`)
+    console.log(`Credits redeemed: ${response.creditsRedeemed}`)
 
     // Wait for balance to be updated (should now be 8)
     await waitForCondition(
@@ -214,20 +213,22 @@ describe('X402 Access Token Flow', () => {
   test('should settle the remaining credits in smaller amounts', async () => {
     expect(planId).not.toBeNull()
     expect(x402AccessToken).not.toBeNull()
-    expect(subscriberAddress).not.toBeNull()
 
     // Settle 2 more credits (should have 6 remaining after previous settlement)
     console.log('Settling 2 more credits...')
+    // Note: planId and subscriberAddress are extracted from the token
+    const paymentRequired = {
+      x402Version: 2,
+      resource: { url: '/test/endpoint' },
+      accepts: [{ scheme: 'nvm:erc4337', network: 'eip155:84532', planId, extra: { agentId } }],
+      extensions: {},
+    }
     const response = await retryWithBackoff(
       () =>
         paymentsAgent.facilitator.settlePermissions({
-          planId,
-          maxAmount: 2n,
+          paymentRequired,
           x402AccessToken,
-          subscriberAddress,
-          agentId,
-          endpoint: `https://myagent.ai/api/v1/secret/${agentId}/tasks`,
-          httpVerb: 'POST',
+          maxAmount: 2n,
         }),
       {
         label: 'X402 Settle Additional Credits',
@@ -237,8 +238,8 @@ describe('X402 Access Token Flow', () => {
 
     expect(response).toBeDefined()
     expect(response.success).toBe(true)
-    expect(response.data.creditsBurned).toBe('2')
-    console.log('Successfully burned 2 more credits')
+    expect(response.creditsRedeemed).toBe('2')
+    console.log('Successfully redeemed 2 more credits')
 
     // Wait for balance to be updated (should now be 6)
     await waitForCondition(

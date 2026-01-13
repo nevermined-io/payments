@@ -6,10 +6,24 @@ import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
 import * as utils from '../../src/utils.js'
 
-// Mock decodeAccessToken for tests (x402 tokens only contain subscriberAddress, not planId)
+// Mock decodeAccessToken to provide x402-compliant token structure
 const mockDecodeToken = (_token: string) => ({
-  subscriberAddress: '0xSubscriber123',
-  planId: 'plan-123',
+  x402Version: 2,
+  accepted: {
+    scheme: 'nvm:erc4337',
+    network: 'eip155:84532',
+    planId: 'plan-123',
+    extra: { version: '1' },
+  },
+  payload: {
+    signature: '0x123',
+    authorization: {
+      from: '0xSubscriber123',
+      sessionKeysProvider: 'zerodev',
+      sessionKeys: [],
+    },
+  },
+  extensions: {},
 })
 
 jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
@@ -29,15 +43,15 @@ class PaymentsMinimal {
         this.subscriber = subscriber
       }
 
-      async verifyPermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+      async verifyPermissions(params: any) {
         if (!this.subscriber) {
           throw new Error('Subscriber not found')
         }
-        return { success: true }
+        return { isValid: true }
       }
 
-      async settlePermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
-        return { success: true, txHash: '0x1234567890abcdef', data: { creditsBurned: maxAmount } }
+      async settlePermissions(params: any) {
+        return { success: true, transaction: '0x1234567890abcdef', network: 'eip155:84532', creditsRedeemed: String(params.maxAmount) }
       }
     }
 
@@ -101,18 +115,20 @@ describe('MCP Integration', () => {
             this.outer = outer
             this.subscriber = subscriber
           }
-          async verifyPermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+          async verifyPermissions(params: any) {
             if (!this.subscriber) {
               throw new Error('Subscriber not found')
             }
-            return { success: true }
+            return { isValid: true }
           }
 
-          async settlePermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+          async settlePermissions(params: any) {
+            const planId = params.paymentRequired?.accepts?.[0]?.planId || 'plan-123'
+            const maxAmount = params.maxAmount || 0n
             const hash = `${planId}-${maxAmount}`
               .split('')
               .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-            return { success: true, txHash: `0x${(hash % 1000000000).toString(16)}`, data: { creditsBurned: maxAmount } }
+            return { success: true, transaction: `0x${(hash % 1000000000).toString(16)}`, network: 'eip155:84532', creditsRedeemed: String(maxAmount) }
           }
         }
 

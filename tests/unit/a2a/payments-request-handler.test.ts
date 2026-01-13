@@ -11,9 +11,22 @@ jest.mock('@a2a-js/sdk/server')
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
-    subscriber: '0xsub',
-    subscriberAddress: '0xsub',
-    planId: 'plan-1',
+    x402Version: 2,
+    accepted: {
+      scheme: 'nvm:erc4337',
+      network: 'eip155:84532',
+      planId: 'plan-1',
+      extra: { version: '1' },
+    },
+    payload: {
+      signature: '0x123',
+      authorization: {
+        from: '0xsub',
+        sessionKeysProvider: 'zerodev',
+        sessionKeys: [],
+      },
+    },
+    extensions: {},
   })),
 }))
 
@@ -102,10 +115,19 @@ describe('PaymentsRequestHandler', () => {
 
       expect(settleMock).toHaveBeenCalledTimes(1)
       expect(settleMock).toHaveBeenCalledWith({
-        planId: 'plan-1',
-        maxAmount: 5n,
+        paymentRequired: {
+          x402Version: 2,
+          resource: { url: '' },
+          accepts: [{
+            scheme: 'nvm:erc4337',
+            network: 'eip155:84532',
+            planId: 'plan-1',
+            extra: { agentId: 'test-agent' },
+          }],
+          extensions: {},
+        },
         x402AccessToken: 'BEARER_TOKEN',
-        subscriberAddress: '0xsub',
+        maxAmount: 5n,
       })
       expect(event.metadata?.txHash).toBe('0xabc')
       expect(event.metadata?.creditsCharged).toBe(5)
@@ -217,10 +239,19 @@ describe('PaymentsRequestHandler', () => {
 
       expect(settleMock).toHaveBeenCalledTimes(1)
       expect(settleMock).toHaveBeenCalledWith({
-        planId: 'plan-1',
-        maxAmount: 5n,
+        paymentRequired: {
+          x402Version: 2,
+          resource: { url: '' },
+          accepts: [{
+            scheme: 'nvm:erc4337',
+            network: 'eip155:84532',
+            planId: 'plan-1',
+            extra: { agentId: 'test-agent' },
+          }],
+          extensions: {},
+        },
         x402AccessToken: 'BEARER_TOKEN',
-        subscriberAddress: '0xsub',
+        maxAmount: 5n,
       })
     })
   })

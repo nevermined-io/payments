@@ -70,21 +70,31 @@ export class X402TokenAPI extends BasePaymentsAPI {
     const urlPath = API_URL_CREATE_PERMISSION
     const url = new URL(urlPath, this.environment.backend)
 
+    // Build x402-aligned request body
     const body: Record<string, any> = {
-      planId: planId,
+      accepted: {
+        scheme: 'nvm:erc4337',
+        network: 'eip155:84532',
+        planId: planId,
+        extra: {
+          ...(agentId && { agentId }),
+        },
+      },
     }
 
-    if (agentId !== undefined) {
-      body.agentId = agentId
-    }
+    // Add session key config if any options are provided
+    const sessionKeyConfig: Record<string, any> = {}
     if (redemptionLimit !== undefined) {
-      body.redemptionLimit = redemptionLimit
+      sessionKeyConfig.redemptionLimit = redemptionLimit
     }
     if (orderLimit !== undefined) {
-      body.orderLimit = orderLimit
+      sessionKeyConfig.orderLimit = orderLimit
     }
     if (expiration !== undefined) {
-      body.expiration = expiration
+      sessionKeyConfig.expiration = expiration
+    }
+    if (Object.keys(sessionKeyConfig).length > 0) {
+      body.sessionKeyConfig = sessionKeyConfig
     }
 
     const options = this.getBackendHTTPOptions('POST', body)

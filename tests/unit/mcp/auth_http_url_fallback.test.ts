@@ -7,11 +7,25 @@ import { requestContextStorage } from '../../../src/mcp/http/mcp-handler.js'
 import type { RequestContext } from '../../../src/mcp/http/session-manager.js'
 import type { Payments } from '../../../src/payments.js'
 
-// Mock decodeAccessToken so we can control plan/subscriber without real tokens
+// Mock decodeAccessToken to provide x402-compliant token structure
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
-    planId: 'plan-1',
-    subscriberAddress: '0xabc',
+    x402Version: 2,
+    accepted: {
+      scheme: 'nvm:erc4337',
+      network: 'eip155:84532',
+      planId: 'plan-1',
+      extra: { version: '1' },
+    },
+    payload: {
+      signature: '0x123',
+      authorization: {
+        from: '0xabc',
+        sessionKeysProvider: 'zerodev',
+        sessionKeys: [],
+      },
+    },
+    extensions: {},
   })),
 }))
 
@@ -27,7 +41,7 @@ class PaymentsMock {
     getAgentPlans: jest.Mock
   }
 
-  constructor(verifySequence: Array<{ success: boolean }> = [{ success: true }]) {
+  constructor(verifySequence: Array<{ isValid: boolean }> = [{ isValid: true }]) {
     this.facilitator = {
       verifyPermissions: jest.fn(),
     }
@@ -45,7 +59,7 @@ class PaymentsMock {
 
 describe('PaywallAuthenticator - HTTP URL Fallback', () => {
   test('should try logical URL first, then HTTP URL on failure', async () => {
-    const payments = new PaymentsMock([{ success: false }, { success: true }]) as any as Payments
+    const payments = new PaymentsMock([{ isValid: false }, { isValid: true }]) as any as Payments
     const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
@@ -85,7 +99,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
   })
 
   test('should use logical URL if it succeeds (no fallback)', async () => {
-    const payments = new PaymentsMock([{ success: true }]) as any as Payments
+    const payments = new PaymentsMock([{ isValid: true }]) as any as Payments
     const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
@@ -120,7 +134,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
   })
 
   test('should fail with plans message when both URLs fail', async () => {
-    const payments = new PaymentsMock([{ success: false }, { success: false }]) as any as Payments
+    const payments = new PaymentsMock([{ isValid: false }, { isValid: false }]) as any as Payments
     const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
@@ -149,7 +163,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
   })
 
   test('should build HTTP URL from x-forwarded-host header', async () => {
-    const payments = new PaymentsMock([{ success: false }, { success: true }]) as any as Payments
+    const payments = new PaymentsMock([{ isValid: false }, { isValid: true }]) as any as Payments
     const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
@@ -180,7 +194,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
   })
 
   test('should default to http protocol when x-forwarded-proto is missing', async () => {
-    const payments = new PaymentsMock([{ success: false }, { success: true }]) as any as Payments
+    const payments = new PaymentsMock([{ isValid: false }, { isValid: true }]) as any as Payments
     const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
@@ -209,7 +223,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
   })
 
   test('should fail with logical URL when no HTTP context is available', async () => {
-    const payments = new PaymentsMock([{ success: false }]) as any as Payments
+    const payments = new PaymentsMock([{ isValid: false }]) as any as Payments
     const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
@@ -230,7 +244,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
 describe('PaywallAuthenticator - authenticateMeta with HTTP fallback', () => {
   test('should use HTTP fallback for meta operations when logical URL fails', async () => {
-    const payments = new PaymentsMock([{ success: false }, { success: true }]) as any as Payments
+    const payments = new PaymentsMock([{ isValid: false }, { isValid: true }]) as any as Payments
     const authenticator = new PaywallAuthenticator(payments)
 
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }

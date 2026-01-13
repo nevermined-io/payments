@@ -10,8 +10,22 @@ import type { Payments } from '../../../src/payments.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
-    planId: 'plan-1',
-    subscriberAddress: '0xabc',
+    x402Version: 2,
+    accepted: {
+      scheme: 'nvm:erc4337',
+      network: 'eip155:84532',
+      planId: 'plan-1',
+      extra: { version: '1' },
+    },
+    payload: {
+      signature: '0x123',
+      authorization: {
+        from: '0xabc',
+        sessionKeysProvider: 'zerodev',
+        sessionKeys: [],
+      },
+    },
+    extensions: {},
   })),
 }))
 
@@ -31,7 +45,7 @@ class PaymentsMockWithTracking {
     this.facilitator = {
       verifyPermissions: jest.fn(async (params: any) => {
         this.calls.push(['verifyPermissions', params])
-        return { success: true }
+        return { isValid: true }
       }),
     }
 

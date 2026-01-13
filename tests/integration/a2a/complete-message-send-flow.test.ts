@@ -10,9 +10,22 @@ import type { Payments } from '../../../src/payments.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
-    subscriber: '0xsub',
-    subscriberAddress: '0xsub',
-    planId: 'test-plan',
+    x402Version: 2,
+    accepted: {
+      scheme: 'nvm:erc4337',
+      network: 'eip155:84532',
+      planId: 'test-plan',
+      extra: { version: '1' },
+    },
+    payload: {
+      signature: '0x123',
+      authorization: {
+        from: '0xsub',
+        sessionKeysProvider: 'zerodev',
+        sessionKeys: [],
+      },
+    },
+    extensions: {},
   })),
 }))
 
@@ -23,42 +36,38 @@ class MockFacilitatorAPI {
   shouldFailValidation = false
   shouldFailSettle = false
 
-  async verifyPermissions(_: {
-    planId: string
-    maxAmount: bigint
-    x402AccessToken: string
-    subscriberAddress: string
-  }): Promise<{ success: boolean; message?: string }> {
+  async verifyPermissions(_: any): Promise<{ isValid: boolean; invalidReason?: string }> {
     this.validationCallCount++
     if (this.shouldFailValidation) {
-      return { success: false, message: 'Insufficient credits' }
+      return { isValid: false, invalidReason: 'Insufficient credits' }
     }
-    return { success: true }
+    return { isValid: true }
   }
 
-  async settlePermissions(_: {
-    planId: string
-    maxAmount: bigint
-    x402AccessToken: string
-    subscriberAddress: string
-  }): Promise<{ txHash: string; amountOfCredits: bigint }> {
+  async settlePermissions(_: any): Promise<{ success: boolean; transaction: string; network: string; creditsRedeemed: string }> {
     this.settleCallCount++
     this.lastSettleAmount = _.maxAmount
     if (this.shouldFailSettle) {
       throw new Error('Failed to settle credits')
     }
     return {
-      txHash: '0xdeadbeef',
-      amountOfCredits: _.maxAmount,
+      success: true,
+      transaction: '0xdeadbeef',
+      network: 'eip155:84532',
+      creditsRedeemed: String(_.maxAmount || 0),
     }
   }
 }
 
 class MockPaymentsService {
   facilitator: MockFacilitatorAPI
+  agents: { getAgentPlans: () => Promise<{ plans: any[] }> }
 
   constructor() {
     this.facilitator = new MockFacilitatorAPI()
+    this.agents = {
+      getAgentPlans: async () => ({ plans: [] }),
+    }
   }
 }
 
@@ -319,7 +328,7 @@ describe('Complete Message/Send Flow', () => {
     expect(response.status).toBe(401)
     const responseData = response.body
     expect(responseData.error).toBeDefined()
-    expect(responseData.error.message).toMatch(/Missing bearer token/i)
+    expect(responseData.error.message).toMatch(/Missing payment token/i)
 
     // No validation or credit burning should occur
     expect(mockPayments.facilitator.validationCallCount).toBe(0)

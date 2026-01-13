@@ -62,6 +62,8 @@ const payments = Payments.getInstance({
 
 ## Validating Changes
 
+**IMPORTANT**: Always run tests after any code change to ensure nothing is broken.
+
 Before submitting changes, run these checks:
 
 ```bash
@@ -73,6 +75,58 @@ For full validation including integration tests:
 ```bash
 yarn build && yarn lint && yarn test:unit && yarn test:integration && yarn test:e2e
 ```
+
+### After Modifying Source Files
+
+When you modify source files, especially:
+- Token handling code (`src/a2a/`, `src/mcp/core/auth.ts`, `src/x402/`)
+- API interfaces or types
+- Authentication/authorization logic
+
+You MUST:
+1. Run `yarn build` to verify TypeScript compilation
+2. Run `yarn test:unit` to verify unit tests pass
+3. If modifying E2E-related code, run `yarn test:e2e`
+
+### Updating Mock Tokens in Tests
+
+When updating code that changes token structure (e.g., x402 spec alignment), update mock tokens in test files to match the new structure. The x402-compliant token structure is:
+
+```typescript
+{
+  x402Version: 2,
+  accepted: {
+    scheme: 'nvm:erc4337',
+    network: 'eip155:84532',
+    planId: 'plan-id',
+    extra: { version: '1' },
+  },
+  payload: {
+    signature: '0x...',
+    authorization: {
+      from: '0xsubscriberAddress',  // subscriberAddress location
+      sessionKeysProvider: 'zerodev',
+      sessionKeys: [],
+    },
+  },
+  extensions: {},
+}
+```
+
+Test files with mock tokens that may need updating:
+
+**Unit tests:**
+- `tests/unit/mcp.test.ts`
+- `tests/unit/mcp/auth_extract_header.test.ts`
+- `tests/unit/mcp/auth_http_url_fallback.test.ts`
+- `tests/unit/a2a/payments-request-handler.test.ts`
+
+**Integration tests:**
+- `tests/integration/mcp-integration.test.ts`
+- `tests/integration/mcp/mcp_paywall_invalid_token_flow.test.ts`
+- `tests/integration/mcp/mcp_handler_auth_header_propagation.test.ts`
+- `tests/integration/a2a/complete-message-send-flow.test.ts`
+- `tests/integration/a2a/payments-server.test.ts`
 
 ## Continuous Integration
 
@@ -97,6 +151,14 @@ CI is configured in `.github/workflows/testing.yml` and runs on every push:
 - `tests/utils.ts` - Utilities: `retryWithBackoff`, `waitForCondition`
 
 See [TESTING.md](./TESTING.md) for testing patterns when building applications with this library.
+
+### E2E Tests and Staging
+
+E2E tests run directly against the **staging environment**. When making changes:
+
+1. Ensure E2E tests pass after code changes: `yarn test:e2e`
+2. If E2E tests fail after backend API changes (in `nvm-monorepo`), the staging environment may need to be redeployed with those changes before the SDK E2E tests will pass
+3. E2E test failures due to pending backend deployments are expected - coordinate with the team to deploy backend changes to staging first
 
 ## Running Agents
 
