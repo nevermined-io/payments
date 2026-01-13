@@ -174,12 +174,7 @@ export interface SettlePermissionsResult {
  * that are needed for the facilitator API.
  *
  * @param planId - The Nevermined plan identifier (required)
- * @param options - Optional configuration for the payment requirement
- * @param options.endpoint - The protected resource URL
- * @param options.agentId - The AI agent identifier
- * @param options.httpVerb - The HTTP method for the endpoint
- * @param options.network - The blockchain network in CAIP-2 format (default: "eip155:84532")
- * @param options.description - Human-readable description of the resource
+ * @param options - Optional configuration with endpoint, agentId, httpVerb, network, description
  * @returns X402PaymentRequired object ready to use with verifyPermissions/settlePermissions
  *
  * @example
