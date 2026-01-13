@@ -29,15 +29,15 @@ class PaymentsMinimal {
         this.subscriber = subscriber
       }
 
-      async verifyPermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+      async verifyPermissions(params: any) {
         if (!this.subscriber) {
           throw new Error('Subscriber not found')
         }
-        return { success: true }
+        return { isValid: true }
       }
 
-      async settlePermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
-        return { success: true, txHash: '0x1234567890abcdef', data: { creditsBurned: maxAmount } }
+      async settlePermissions(params: any) {
+        return { success: true, transaction: '0x1234567890abcdef', network: 'eip155:84532', creditsRedeemed: String(params.maxAmount) }
       }
     }
 
@@ -101,18 +101,20 @@ describe('MCP Integration', () => {
             this.outer = outer
             this.subscriber = subscriber
           }
-          async verifyPermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+          async verifyPermissions(params: any) {
             if (!this.subscriber) {
               throw new Error('Subscriber not found')
             }
-            return { success: true }
+            return { isValid: true }
           }
 
-          async settlePermissions(planId: string, maxAmount: bigint, x402AccessToken: string, subscriberAddress: string) {
+          async settlePermissions(params: any) {
+            const planId = params.paymentRequired?.accepts?.[0]?.planId || 'plan-123'
+            const maxAmount = params.maxAmount || 0n
             const hash = `${planId}-${maxAmount}`
               .split('')
               .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-            return { success: true, txHash: `0x${(hash % 1000000000).toString(16)}`, data: { creditsBurned: maxAmount } }
+            return { success: true, transaction: `0x${(hash % 1000000000).toString(16)}`, network: 'eip155:84532', creditsRedeemed: String(maxAmount) }
           }
         }
 

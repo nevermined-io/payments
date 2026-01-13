@@ -31,7 +31,7 @@ class PaymentsMockWithTracking {
     this.facilitator = {
       verifyPermissions: jest.fn(async (params: any) => {
         this.calls.push(['verifyPermissions', params])
-        return { success: true }
+        return { isValid: true }
       }),
     }
 

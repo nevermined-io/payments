@@ -35,9 +35,9 @@ class PaymentsMockWithFailures {
       verifyPermissions: jest.fn(async (params: any) => {
         this.calls.push(['verifyPermissions', params])
         if (this.failureMode === 'invalid-token' || this.failureMode === 'not-subscriber') {
-          return { success: false, message: 'Payment required' }
+          return { isValid: false, invalidReason: 'Payment required' }
         }
-        return { success: true }
+        return { isValid: true }
       }),
       settlePermissions: jest.fn(async (params: any) => {
         this.calls.push(['settle', params])
@@ -46,8 +46,9 @@ class PaymentsMockWithFailures {
         }
         return {
           success: true,
-          txHash: '0xtest123',
-          data: { amountOfCredits: params.maxAmount },
+          transaction: '0xtest123',
+          network: 'eip155:84532',
+          creditsRedeemed: String(params.maxAmount),
         }
       }),
     }
