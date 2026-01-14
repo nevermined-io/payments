@@ -8,6 +8,19 @@ export * from './api/query-api.js'
 export * from './api/observability-api/observability-api.js'
 export type { BackendApiOptions } from './api/nvm-api.js'
 export { ContractsAPI } from './api/contracts-api.js'
+
+// x402 utilities and types
+export { buildPaymentRequired } from './x402/facilitator-api.js'
+export type {
+  X402PaymentRequired,
+  X402Resource,
+  X402Scheme,
+  X402SchemeExtra,
+  VerifyPermissionsParams,
+  VerifyPermissionsResult,
+  SettlePermissionsParams,
+  SettlePermissionsResult,
+} from './x402/facilitator-api.js'
 // MCP public types
 export type {
   CreditsContext,
