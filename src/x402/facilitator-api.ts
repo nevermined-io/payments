@@ -210,9 +210,9 @@ export function buildPaymentRequired(
   const extra: X402SchemeExtra | undefined =
     agentId || httpVerb
       ? {
-        ...(agentId && { agentId }),
-        ...(httpVerb && { httpVerb }),
-      }
+          ...(agentId && { agentId }),
+          ...(httpVerb && { httpVerb }),
+        }
       : undefined
 
   return {
@@ -247,6 +247,36 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    */
   static getInstance(options: PaymentOptions): FacilitatorAPI {
     return new FacilitatorAPI(options)
+  }
+
+  /**
+   * Build an X402PaymentRequired object for verify/settle operations.
+   * Instance method that wraps the standalone buildPaymentRequired function.
+   *
+   * @param planId - The Nevermined plan identifier (required)
+   * @param options - Optional configuration with endpoint, agentId, httpVerb, network, description
+   * @returns X402PaymentRequired object ready to use with verifyPermissions/settlePermissions
+   *
+   * @example
+   * ```typescript
+   * const paymentRequired = payments.facilitator.buildPaymentRequired('123456789', {
+   *   endpoint: '/api/v1/agents/task',
+   *   agentId: '987654321',
+   *   httpVerb: 'POST'
+   * })
+   * ```
+   */
+  buildPaymentRequired(
+    planId: string,
+    options?: {
+      endpoint?: string
+      agentId?: string
+      httpVerb?: string
+      network?: string
+      description?: string
+    },
+  ): X402PaymentRequired {
+    return buildPaymentRequired(planId, options)
   }
 
   /**
