@@ -479,64 +479,6 @@ describe('MCP Integration', () => {
   })
 
   describe('PaywallContext', () => {
-    class PaymentsMockWithAgentRequest {
-      public calls: Array<[string, string, string, string | number, string?]> = []
-      public requests: any
-      public agents: any
-
-      constructor(redeemResult?: any) {
-        const redeem_result = redeemResult || { success: true }
-
-        class Req {
-          private parent: PaymentsMockWithAgentRequest
-          private redeem_result: any
-
-          constructor(parent: PaymentsMockWithAgentRequest, redeem_result: any) {
-            this.parent = parent
-            this.redeem_result = redeem_result
-          }
-
-          async startProcessingRequest(
-            agentId: string,
-            token: string,
-            url: string,
-            method: string,
-            batch?: boolean,
-          ) {
-            this.parent.calls.push(['start', agentId, token, url, method])
-            return {
-              agentRequestId: 'req-123',
-              agentName: 'Test Agent',
-              agentId: agentId,
-              balance: {
-                balance: 1000,
-                creditsContract: '0x123',
-                isSubscriber: true,
-                pricePerCredit: 0.01,
-              },
-              urlMatching: url,
-              verbMatching: method,
-              batch: batch || false,
-            }
-          }
-
-          async redeemCreditsFromRequest(requestId: string, token: string, credits: bigint) {
-            this.parent.calls.push(['redeem', requestId, token, Number(credits)])
-            return this.redeem_result
-          }
-        }
-
-        class Agents {
-          async getAgentPlans(agentId: string) {
-            return { plans: [] }
-          }
-        }
-
-        this.requests = new Req(this, redeem_result)
-        this.agents = new Agents()
-      }
-    }
-
     test('should work with handlers without context parameter', async () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments

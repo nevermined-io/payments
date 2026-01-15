@@ -3,18 +3,18 @@
  */
 import type { Payments } from '../../payments.js'
 import { decodeAccessToken } from '../../utils.js'
-import type { X402PaymentRequired } from '../../x402/facilitator-api.js'
 import { getCurrentRequestContext } from '../http/mcp-handler.js'
 import { AuthResult } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
 import { buildLogicalMetaUrl, buildLogicalUrl } from '../utils/logical-url.js'
 import { extractAuthHeader, stripBearer } from '../utils/request.js'
+import { buildPaymentRequired, type X402PaymentRequired } from '../../x402/facilitator-api.js'
 
 /**
  * Handles authentication and authorization for MCP requests
  */
 export class PaywallAuthenticator {
-  constructor(private payments: Payments) { }
+  constructor(private payments: Payments) {}
 
   /**
    * Extract authorization header from extra context or AsyncLocalStorage.
@@ -71,7 +71,7 @@ export class PaywallAuthenticator {
    */
   async authenticate(
     extra: any,
-    options: {planId?: string} = {},
+    options: { planId?: string } = {},
     agentId: string,
     serverName: string,
     name: string,
@@ -101,25 +101,16 @@ export class PaywallAuthenticator {
       const subscriberAddress = decodedAccessToken.payload?.authorization?.from
 
       if (!planId || !subscriberAddress) {
-        throw new Error('Cannot determine plan_id or subscriber_address from token (expected payload.authorization.from)')
+        throw new Error(
+          'Cannot determine plan_id or subscriber_address from token (expected payload.authorization.from)',
+        )
       }
 
-      const paymentRequired: X402PaymentRequired = {
-        x402Version: 2,
-        resource: {
-          url: logicalUrl,
-        },
-        accepts: [{
-          scheme: 'nvm:erc4337',
-          network: 'eip155:84532',
-          planId,
-          extra: {
-            ...(agentId && { agentId }),
-            httpVerb: 'POST',
-          },
-        }],
-        extensions: {},
-      }
+      const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
+        endpoint: logicalUrl,
+        agentId,
+        httpVerb: 'POST',
+      })
 
       const result = await this.payments.facilitator.verifyPermissions({
         paymentRequired,
@@ -165,25 +156,16 @@ export class PaywallAuthenticator {
           }
 
           if (!planId || !subscriberAddress) {
-            throw new Error('Cannot determine plan_id or subscriber_address from token (expected accepted.planId and payload.authorization.from)')
+            throw new Error(
+              'Cannot determine plan_id or subscriber_address from token (expected accepted.planId and payload.authorization.from)',
+            )
           }
 
-          const paymentRequired: X402PaymentRequired = {
-            x402Version: 2,
-            resource: {
-              url: httpUrl,
-            },
-            accepts: [{
-              scheme: 'nvm:erc4337',
-              network: 'eip155:84532',
-              planId,
-              extra: {
-                ...(agentId && { agentId }),
-                httpVerb: 'POST',
-              },
-            }],
-            extensions: {},
-          }
+          const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
+            endpoint: httpUrl,
+            agentId,
+            httpVerb: 'POST',
+          })
 
           const result = await this.payments.facilitator.verifyPermissions({
             paymentRequired,
@@ -234,7 +216,7 @@ export class PaywallAuthenticator {
    */
   async authenticateMeta(
     extra: any,
-    options: {planId?: string} = {},
+    options: { planId?: string } = {},
     agentId: string,
     serverName: string,
     method: string,
@@ -257,25 +239,16 @@ export class PaywallAuthenticator {
       // Extract subscriberAddress from payload.authorization.from per x402 spec
       const subscriberAddress = decodedAccessToken.payload?.authorization?.from
       if (!planId || !subscriberAddress) {
-        throw new Error('Cannot determine plan_id or subscriber_address from token (expected payload.authorization.from)')
+        throw new Error(
+          'Cannot determine plan_id or subscriber_address from token (expected payload.authorization.from)',
+        )
       }
 
-      const paymentRequired: X402PaymentRequired = {
-        x402Version: 2,
-        resource: {
-          url: logicalUrl,
-        },
-        accepts: [{
-          scheme: 'nvm:erc4337',
-          network: 'eip155:84532',
-          planId,
-          extra: {
-            ...(agentId && { agentId }),
-            httpVerb: 'POST',
-          },
-        }],
-        extensions: {},
-      }
+      const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
+        endpoint: logicalUrl,
+        agentId,
+        httpVerb: 'POST',
+      })
 
       const result = await this.payments.facilitator.verifyPermissions({
         paymentRequired,
@@ -305,25 +278,16 @@ export class PaywallAuthenticator {
           // Extract subscriberAddress from payload.authorization.from per x402 spec
           const subscriberAddress = decodedAccessToken.payload?.authorization?.from
           if (!planId || !subscriberAddress) {
-            throw new Error('Cannot determine plan_id or subscriber_address from token (expected accepted.planId and payload.authorization.from)')
+            throw new Error(
+              'Cannot determine plan_id or subscriber_address from token (expected accepted.planId and payload.authorization.from)',
+            )
           }
 
-          const paymentRequired: X402PaymentRequired = {
-            x402Version: 2,
-            resource: {
-              url: httpUrl,
-            },
-            accepts: [{
-              scheme: 'nvm:erc4337',
-              network: 'eip155:84532',
-              planId,
-              extra: {
-                ...(agentId && { agentId }),
-                httpVerb: 'POST',
-              },
-            }],
-            extensions: {},
-          }
+          const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
+            endpoint: httpUrl,
+            agentId,
+            httpVerb: 'POST',
+          })
 
           const result = await this.payments.facilitator.verifyPermissions({
             paymentRequired,

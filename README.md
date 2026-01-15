@@ -275,59 +275,195 @@ const response = await fetch(new URL(agentURL), agentHTTPOptions)
 
 ## MCP (Model Context Protocol)
 
-### What is MCP
+### What is MCP?
 
-- MCP is a protocol for LLM apps to call external tools/resources/prompts via JSON‑RPC over HTTP (plus SSE streams). Think of it as an USB-C interface for LLMs
-- MCP servers expose handlers (tools/resources/prompts) with their logical urls, such as mcp://mcp-server/tools/my-tooling. Clients send requests with `Authorization: Bearer <token>`, protected by Nevermined Payments Engine and receive JSON‑RPC results or errors.
+The **Model Context Protocol (MCP)** is a standardized communication layer for AI. It allows agents to discover and use server capabilities through:
 
-### Integration API
+- **Tools**: Actions the agent can execute (e.g., fetch weather data)
+- **Resources**: Stable data pointers identified by URI (e.g., JSON weather data)
+- **Prompts**: Pre-defined templates guiding agent behavior
 
-Nevermined integration to protect MCP handlers and burn credits.
+MCP servers expose handlers (tools/resources/prompts) with their logical URLs, such as `mcp://mcp-server/tools/my-tooling`. Clients send requests with `Authorization: Bearer <token>`, protected by Nevermined Payments Engine and receive JSON‑RPC results or errors.
 
-### Steps
+### Why Nevermined Payments?
 
-```ts
-import { Payments } from '@nevermined-io/payments'
+While MCP defines *what* an agent can do, it doesn't specify *who* can access it or *how* to charge for it. **Nevermined Payments** adds:
 
-// 1) Create Payments on the server
-const payments = Payments.getInstance({ nvmApiKey, environment })
+- **Authentication**: Validates user tokens via `Authorization` header
+- **Credit System**: Checks and deducts credits per request
+- **Automatic Setup**: Handles Express, sessions, OAuth endpoints
 
-// 2) Configure the MCP wrapper
-payments.mcp.configure({ agentId: process.env.NVM_AGENT_ID!, serverName: 'my-mcp' })
+### How It Works
 
-// 3) Wrap your handlers (works for both high-level and low-level servers)
-// Tool
-const toolHandler = async ({ city }: { city: string }) => ({
-  content: [{ type: 'text', text: `Weather for ${city}` }],
-})
-const protectedTool = payments.mcp.withPaywall(toolHandler, {
-  kind: 'tool',
-  name: 'weather.today',
-  credits: 2n, // or (ctx) => bigint
-})
-// High-level: server.registerTool('weather.today', config, protectedTool)
-// Low-level: const tools = new Map([[ 'weather.today', protectedTool ]])
+#### 1. Initialize Nevermined Payments
 
-// Alternative registration:
-const { registerResource } = payments.mcp.attach(server)
-const resourceHandler = async (uri: URL, vars: Record<string, string | string[]>) => ({
-  contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify({ city: vars.city }) }],
-})
-registerResource('weather-today', template, config, resourceHandler, { credits: 1n })
+```typescript
+import { Payments, EnvironmentName } from "@nevermined-io/payments";
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: process.env.NVM_ENVIRONMENT! as EnvironmentName,
+});
 ```
 
-Notes:
- - Low-level servers should keep their own routing tables (e.g., Maps) and call protected handlers directly, passing an `extra` object with `headers.Authorization` (e.g., `extra = { headers: req.headers }`). 
+#### 2. Register Protected Tools
 
-### JSON‑RPC errors
+```typescript
+import { z } from "zod";
 
-- **-32003 Payment required** (missing/invalid token, not a subscriber)
-- **-32002 Network/other** (unexpected or redeem failure if `onRedeemError: 'propagate'`)
-- Domain codes are fine (e.g., -32004 “City not found”)
+const schema = z.object({
+  city: z.string().describe("City name"),
+}) as any;
+
+payments.mcp.registerTool(
+  "weather.today",
+  {
+    title: "Today's Weather",
+    description: "Get weather for a city",
+    inputSchema: schema,
+  },
+  async (args) => {
+    const { city } = args as { city: string };
+    return {
+      content: [{ type: "text", text: `Weather for ${city}: Sunny, 25C` }],
+    };
+  },
+  { credits: 1n }
+);
+```
+
+#### 3. Register Protected Resources
+
+```typescript
+payments.mcp.registerResource(
+  "Weather Data",
+  "weather://today",
+  {
+    title: "Today's Weather",
+    description: "JSON weather data",
+    mimeType: "application/json",
+  },
+  async (uri) => {
+    return {
+      contents: [{ uri: uri.href, text: "{...}", mimeType: "application/json" }],
+    };
+  },
+  { credits: 5n }
+);
+```
+
+#### 4. Register Protected Prompts
+
+```typescript
+payments.mcp.registerPrompt(
+  "weather.ensureCity",
+  {
+    title: "Ensure city",
+    description: "Guide to call weather.today",
+    argsSchema: schema,
+  },
+  (args) => {
+    return {
+      messages: [{ role: "user", content: { type: "text", text: "..." } }],
+    };
+  },
+  { credits: (ctx) => ctx.result.length > 100 ? 2n : 1n }  // Dynamic credits
+);
+```
+
+#### 5. Start the Server
+
+```typescript
+const { info, stop } = await payments.mcp.start({
+  port: 3002,
+  agentId: process.env.NVM_AGENT_ID!,
+  serverName: "weather-mcp",
+  version: "0.1.0",
+});
+```
+
+### Credit Configuration
+
+All registration functions support fixed or dynamic credits:
+
+```typescript
+// Fixed credits
+{ credits: 1n }
+{ credits: 5n }
+
+// Dynamic credits based on input
+{ credits: (ctx) => ctx.args.premium ? 5n : 1n }
+
+// Dynamic credits based on result
+{ credits: (ctx) => ctx.result.length > 1000 ? 3n : 1n }
+
+// Tiered pricing
+{ credits: (ctx) => {
+  const size = JSON.stringify(ctx.result).length;
+  if (size > 1000) return 5n;
+  if (size > 500) return 3n;
+  return 1n;
+}}
+```
+
+### Client Usage
+
+#### Get Access Token
+
+```typescript
+import { Payments } from "@nevermined-io/payments";
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: "sandbox",
+});
+
+const { accessToken } = await payments.agents.getAgentAccessToken(
+  process.env.NVM_PLAN_ID!,
+  process.env.NVM_AGENT_ID!
+);
+```
+
+#### Call Protected Tools
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp";
+
+const transport = new StreamableHTTPClientTransport(
+  new URL("http://localhost:3002/mcp"),
+  { requestInit: { headers: { Authorization: `Bearer ${accessToken}` } } }
+);
+
+const client = new Client({ name: "my-client" });
+await client.connect(transport);
+
+const result = await client.callTool({
+  name: "weather.today",
+  arguments: { city: "London" },
+});
+```
+
+### Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /mcp` | MCP JSON-RPC requests |
+| `GET /mcp` | SSE stream for notifications |
+| `DELETE /mcp` | Session termination |
+| `GET /health` | Health check |
+| `GET /` | Server info |
+
+### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `-32003` | Authorization required / Payment required / Insufficient credits |
+| `-32002` | Server error |
 
 ### Notes
 
-- The wrapper reads `Authorization`, calls Nevermined `startProcessingRequest`, executes the handler, and calls `redeemCreditsFromRequest`.
+- The wrapper reads `Authorization` header, authenticates the x402 token via `authenticator.authenticate()`, executes the handler, and redeems credits via `facilitator.settlePermissions()` using x402 PaymentRequired.
 - `credits` can be a `bigint` or `(ctx) => bigint` with `{ args, result }`. Use `args` for input-based pricing and `result` for output-based pricing.
 - `name` builds the logical URL `mcp://{serverName}/{kind}/{name}`.
 

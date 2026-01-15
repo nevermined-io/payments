@@ -13,16 +13,11 @@
  * })
  *
  * // The server's 402 PaymentRequired response
- * const paymentRequired: X402PaymentRequired = {
- *   x402Version: 2,
- *   accepts: [{
- *     scheme: 'nvm:erc4337',
- *     network: 'eip155:84532',
- *     planId: '123',
- *     extra: { version: '1', agentId: '456' }
- *   }],
- *   extensions: {}
- * }
+ * const paymentRequired: X402PaymentRequired = buildPaymentRequired('123456789', {
+ *   endpoint: '/api/v1/agents/task',
+ *   agentId: '987654321',
+ *   httpVerb: 'POST'
+ * })
  *
  * // Get X402 access token from subscriber
  * const x402Token = req.headers['x-payment'] as string
