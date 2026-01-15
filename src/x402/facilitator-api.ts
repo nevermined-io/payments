@@ -210,9 +210,9 @@ export function buildPaymentRequired(
   const extra: X402SchemeExtra | undefined =
     agentId || httpVerb
       ? {
-        ...(agentId && { agentId }),
-        ...(httpVerb && { httpVerb }),
-      }
+          ...(agentId && { agentId }),
+          ...(httpVerb && { httpVerb }),
+        }
       : undefined
 
   return {
