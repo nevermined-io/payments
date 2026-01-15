@@ -3,7 +3,7 @@
  */
 import { Address, NvmAPIResult } from '../../common/types.js'
 import type { Payments } from '../../payments.js'
-import type { X402PaymentRequired } from '../../x402/facilitator-api.js'
+import { buildPaymentRequired, type X402PaymentRequired } from '../../x402/facilitator-api.js'
 import {
   McpConfig,
   PaywallOptions,
@@ -29,7 +29,7 @@ export class PaywallDecorator {
     private payments: Payments,
     private authenticator: PaywallAuthenticator,
     private creditsContext: CreditsContextProvider,
-  ) { }
+  ) {}
 
   /**
    * Configure the paywall with agent and server information
@@ -140,7 +140,13 @@ export class PaywallDecorator {
             'POST',
           )
         }
-        return wrapAsyncIterable(result, onFinally, effectivePlanId, authResult.subscriberAddress, credits)
+        return wrapAsyncIterable(
+          result,
+          onFinally,
+          effectivePlanId,
+          authResult.subscriberAddress,
+          credits,
+        )
       }
 
       // 7. Non-streaming: redeem immediately
@@ -187,22 +193,11 @@ export class PaywallDecorator {
     }
     try {
       if (credits && credits > 0n && subscriberAddress && planId) {
-        const paymentRequired: X402PaymentRequired = {
-          x402Version: 2,
-          resource: {
-            url: endpoint || '',
-          },
-          accepts: [{
-            scheme: 'nvm:erc4337',
-            network: 'eip155:84532',
-            planId,
-            extra: {
-              ...(agentId && { agentId }),
-              ...(httpVerb && { httpVerb }),
-            },
-          }],
-          extensions: {},
-        }
+        const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
+          endpoint: endpoint || '',
+          agentId,
+          httpVerb: httpVerb,
+        })
 
         ret = await this.payments.facilitator.settlePermissions({
           paymentRequired,
