@@ -47,7 +47,7 @@ describe('PaymentsA2AServer Middleware', () => {
     servers = []
   })
 
-  function createServer(startProcessing?: any): {
+  function createServer(verifyPermissions?: any): {
     app: any
     handler: any
     client: ReturnType<typeof request>
@@ -55,19 +55,20 @@ describe('PaymentsA2AServer Middleware', () => {
     close: () => Promise<void>
   } {
     const paymentsStub = {
-      requests: {
-        startProcessingRequest:
-          startProcessing ||
+      facilitator: {
+        verifyPermissions:
+          verifyPermissions ||
           jest.fn().mockResolvedValue({
+            isValid: true,
             agentRequestId: 'REQ',
-            balance: {
-              isSubscriber: true,
-              balance: 100,
-              creditsContract: '0x1234567890abcdef',
-              pricePerCredit: 0.01,
-            },
+            payer: '0x1234567890abcdef',
           }),
-        redeemCreditsFromRequest: jest.fn().mockResolvedValue({}),
+        settlePermissions: jest.fn().mockResolvedValue({
+          success: true,
+          transaction: '0xabcdef1234567890',
+          network: 'eip155:84532',
+          creditsRedeemed: '1',
+        }),
       },
     }
 
@@ -96,7 +97,10 @@ describe('PaymentsA2AServer Middleware', () => {
   }, 15000)
 
   test('should return 402 when validation fails', async () => {
-    const failValidation = jest.fn().mockRejectedValue(new Error('validation failed'))
+    const failValidation = jest.fn().mockResolvedValue({
+      isValid: false,
+      invalidReason: 'validation failed',
+    })
     const { client, close } = createServer(failValidation)
     servers.push({ close })
 
