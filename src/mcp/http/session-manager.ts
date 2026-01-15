@@ -4,9 +4,7 @@
  * Also stores request context (headers) per session for authentication.
  */
 import { randomUUID } from 'crypto'
-
-// We'll dynamically import the SDK to avoid hard dependency issues
-let StreamableHTTPServerTransport: any = null
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 
 /**
  * Request context stored per session.
@@ -17,23 +15,6 @@ export interface RequestContext {
   method?: string
   url?: string
   ip?: string
-}
-
-/**
- * Lazily load the MCP SDK transport.
- */
-async function getTransportClass(): Promise<any> {
-  if (!StreamableHTTPServerTransport) {
-    try {
-      const module = await import('@modelcontextprotocol/sdk/server/streamableHttp.js')
-      StreamableHTTPServerTransport = module.StreamableHTTPServerTransport
-    } catch (error) {
-      throw new Error(
-        'Failed to load @modelcontextprotocol/sdk. Make sure it is installed: npm install @modelcontextprotocol/sdk',
-      )
-    }
-  }
-  return StreamableHTTPServerTransport
 }
 
 /**
@@ -120,14 +101,11 @@ export class SessionManager {
       throw new Error('MCP server not set. Call setMcpServer() first.')
     }
 
-    const TransportClass = await getTransportClass()
-
-    const transport = new TransportClass({
-      sessionIdGenerator: undefined,
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => sessionId,
       enableJsonResponse: true,
     })
 
-    transport.sessionId = sessionId
     transport.onclose = () => {
       this.log?.(`Transport closed for session ${sessionId}`)
       this.sessions.delete(sessionId)
