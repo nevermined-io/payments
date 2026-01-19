@@ -51,7 +51,7 @@ import type { Request, Response, NextFunction } from 'express'
 /**
  * Express middleware function type.
  * Using explicit signature instead of RequestHandler to avoid type resolution issues
- * when SDK's @types/express version differs from consumer's.
+ * when SDK's \@types/express version differs from consumer's.
  */
 export type ExpressMiddleware = (req: Request, res: Response, next: NextFunction) => void
 import type { Payments } from '../../payments.js'
@@ -72,7 +72,7 @@ export interface RouteConfig {
 }
 
 /**
- * Route configuration map: "METHOD /path" -> RouteConfig
+ * Route configuration map: "METHOD \/path" -> RouteConfig
  */
 export type RouteConfigMap = Record<string, RouteConfig>
 
@@ -181,7 +181,7 @@ function matchRoute(req: Request, routes: RouteConfigMap): RouteConfig | null {
  * 5. Settles (burns) the credits after successful response
  *
  * @param payments - The Payments instance
- * @param routes - Map of routes to protect: { "METHOD /path": { planId, credits } }
+ * @param routes - Map of routes to protect: \{ "METHOD \/path": \{ planId, credits \} \}
  * @param options - Optional middleware configuration
  * @returns Express middleware function
  *
@@ -205,13 +205,10 @@ function sendPaymentRequired(
   // Base64 encode the PaymentRequired object for the header (per x402 spec)
   const paymentRequiredBase64 = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
 
-  res
-    .status(402)
-    .setHeader(X402_HEADERS.PAYMENT_REQUIRED, paymentRequiredBase64)
-    .json({
-      error: 'Payment Required',
-      message,
-    })
+  res.status(402).setHeader(X402_HEADERS.PAYMENT_REQUIRED, paymentRequiredBase64).json({
+    error: 'Payment Required',
+    message,
+  })
 }
 
 export function paymentMiddleware(
@@ -219,8 +216,12 @@ export function paymentMiddleware(
   routes: RouteConfigMap,
   options: PaymentMiddlewareOptions = {},
 ): ExpressMiddleware {
-  const { tokenHeader = DEFAULT_TOKEN_HEADERS, onPaymentError, onBeforeVerify, onAfterSettle } =
-    options
+  const {
+    tokenHeader = DEFAULT_TOKEN_HEADERS,
+    onPaymentError,
+    onBeforeVerify,
+    onAfterSettle,
+  } = options
 
   return (req: Request, res: Response, next: NextFunction): void => {
     // Wrap async logic to handle promises properly
@@ -298,7 +299,8 @@ export function paymentMiddleware(
         }
 
         // Attach to request for potential use by route handler
-        ;(req as Request & { paymentContext?: typeof paymentContext }).paymentContext = paymentContext
+        ;(req as Request & { paymentContext?: typeof paymentContext }).paymentContext =
+          paymentContext
 
         // Override res.json to settle BEFORE sending response
         // This ensures credits are burned and payment-response header is included

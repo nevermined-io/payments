@@ -10,6 +10,7 @@ export type {
   X402SchemeExtra,
   X402Scheme,
   X402PaymentRequired,
+  X402PaymentAccepted,
   // Facilitator params and results
   VerifyPermissionsParams,
   VerifyPermissionsResult,

@@ -122,12 +122,14 @@ export class SessionManager {
 
     const TransportClass = await getTransportClass()
 
+    // Use stateless mode (sessionIdGenerator: undefined) to avoid requiring
+    // Mcp-Session-Id header on every request. This allows clients to make
+    // direct JSON-RPC calls without the full MCP initialization handshake.
     const transport = new TransportClass({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     })
 
-    transport.sessionId = sessionId
     transport.onclose = () => {
       this.log?.(`Transport closed for session ${sessionId}`)
       this.sessions.delete(sessionId)
@@ -135,6 +137,15 @@ export class SessionManager {
     }
 
     await this.mcpServer.connect(transport)
+
+    // Force _initialized to true to allow requests without requiring initialize first.
+    // This maintains backward compatibility with clients that don't send initialize.
+    // The SDK sets _initialized = true only after processing an initialize request,
+    // but we want to accept tool/resource/prompt calls directly.
+    if (transport._initialized === false) {
+      transport._initialized = true
+    }
+
     this.sessions.set(sessionId, transport)
 
     this.log?.(`Created new transport for session ${sessionId}`)

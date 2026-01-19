@@ -101,6 +101,26 @@ export interface X402PaymentRequired {
 }
 
 /**
+ * x402 PaymentAccepted response (accepted payment scheme)
+ */
+export interface X402PaymentAccepted {
+  /** The x402 version */
+  x402Version: number
+  /** The accepted payment scheme (nvm:erc4337) */
+  accepted: X402Scheme
+  /** The payload of the payment accepted */
+  payload: {
+    signature: string
+    authorization: {
+      from: string
+      sessionKeysProvider: string
+      sessionKeys: string[]
+    }
+  }
+  extensions: Record<string, unknown>
+}
+
+/**
  * Parameters for verifying permissions
  */
 export interface VerifyPermissionsParams {
