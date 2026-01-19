@@ -13,6 +13,7 @@ export { ContractsAPI } from './api/contracts-api.js'
 export { buildPaymentRequired } from './x402/facilitator-api.js'
 export type {
   X402PaymentRequired,
+  X402PaymentAccepted,
   X402Resource,
   X402Scheme,
   X402SchemeExtra,

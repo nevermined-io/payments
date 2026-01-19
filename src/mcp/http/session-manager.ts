@@ -122,12 +122,13 @@ export class SessionManager {
 
     const TransportClass = await getTransportClass()
 
+    // Use sessionIdGenerator function instead of trying to set sessionId directly
+    // (sessionId is read-only in StreamableHTTPServerTransport)
     const transport = new TransportClass({
-      sessionIdGenerator: undefined,
+      sessionIdGenerator: () => sessionId,
       enableJsonResponse: true,
     })
 
-    transport.sessionId = sessionId
     transport.onclose = () => {
       this.log?.(`Transport closed for session ${sessionId}`)
       this.sessions.delete(sessionId)
