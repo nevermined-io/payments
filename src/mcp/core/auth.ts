@@ -71,6 +71,7 @@ export class PaywallAuthenticator {
    */
   async authenticate(
     extra: any,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options: { planId?: string } = {},
     agentId: string,
     serverName: string,
