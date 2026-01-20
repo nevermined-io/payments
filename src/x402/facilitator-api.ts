@@ -19,8 +19,8 @@
  *   httpVerb: 'POST'
  * })
  *
- * // Get X402 access token from subscriber
- * const x402Token = req.headers['x-payment'] as string
+ * // Get X402 access token from subscriber (x402 v2: payment-signature header)
+ * const x402Token = req.headers['payment-signature'] as string
  *
  * // Verify if subscriber has sufficient permissions/credits
  * const verification = await payments.facilitator.verifyPermissions({
