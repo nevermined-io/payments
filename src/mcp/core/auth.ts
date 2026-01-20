@@ -71,6 +71,7 @@ export class PaywallAuthenticator {
    */
   async authenticate(
     extra: any,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options: { planId?: string } = {},
     agentId: string,
     serverName: string,
@@ -95,7 +96,7 @@ export class PaywallAuthenticator {
         throw new Error('Invalid access token')
       }
 
-      const planId = options.planId
+      const planId = decodedAccessToken.accepted?.planId
 
       // Extract subscriberAddress from payload.authorization.from per x402 spec
       const subscriberAddress = decodedAccessToken.payload?.authorization?.from

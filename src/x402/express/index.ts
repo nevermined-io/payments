@@ -1,7 +1,5 @@
 /**
  * Express middleware for Nevermined payment protection using the x402 protocol.
- *
- * @module @nevermined-io/payments/express
  */
 
 export {
