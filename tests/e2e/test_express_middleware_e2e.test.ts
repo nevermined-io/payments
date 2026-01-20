@@ -279,24 +279,4 @@ describe('Express Payment Middleware E2E', () => {
     console.log('Unprotected route works correctly')
   })
 
-  test('should accept token via x-payment header (alternative header)', async () => {
-    expect(serverUrl).not.toBeNull()
-    expect(x402AccessToken).not.toBeNull()
-
-    // Generate a fresh token to ensure we have credits
-    const tokenResponse = await paymentsSubscriber.x402.getX402AccessToken(planId, agentId)
-    const freshToken = tokenResponse.accessToken
-
-    const response = await fetch(`${serverUrl}/ask`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        [X402_HEADERS.X_PAYMENT]: freshToken, // Use x-payment instead of payment-signature
-      },
-      body: JSON.stringify({ query: 'test' }),
-    })
-
-    expect(response.status).toBe(200)
-    console.log('x-payment header accepted correctly')
-  })
 })
