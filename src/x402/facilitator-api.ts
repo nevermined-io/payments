@@ -44,7 +44,7 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_SETTLE_PERMISSIONS, API_URL_VERIFY_PERMISSIONS } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions } from '../common/types.js'
+import { PaymentOptions, StartAgentRequest } from '../common/types.js'
 
 /**
  * x402 Resource information
@@ -125,6 +125,10 @@ export interface VerifyPermissionsResult {
   payer?: string
   /** Agent request ID for observability tracking (Nevermined extension) */
   agentRequestId?: string
+  /** URL pattern that matched the endpoint (Nevermined extension) */
+  urlMatching?: string
+  /** Agent request context for observability (Nevermined extension) */
+  agentRequest?: StartAgentRequest
 }
 
 /**
@@ -137,6 +141,12 @@ export interface SettlePermissionsParams {
   x402AccessToken: string
   /** Number of credits to burn (optional) */
   maxAmount?: bigint
+  /** Agent request ID for observability tracking. Returned by verifyPermissions. */
+  agentRequestId?: string
+  /** Whether this is a batch request (multiple LLM calls under one agentRequestId) */
+  batch?: boolean
+  /** Margin percentage (0-10) for credit calculation. Mutually exclusive with maxAmount when agentRequestId provided. */
+  marginPercent?: number
 }
 
 /**
@@ -314,12 +324,16 @@ export class FacilitatorAPI extends BasePaymentsAPI {
    *   - paymentRequired: x402 PaymentRequired from 402 response (required, for validation)
    *   - x402AccessToken: X402 access token (contains planId, subscriberAddress, agentId)
    *   - maxAmount: number of credits to burn (optional, bigint)
+   *   - agentRequestId: Agent request ID for observability tracking (optional)
+   *   - batch: Whether this is a batch request (optional)
+   *   - marginPercent: Margin percentage for credit calculation (optional)
    * @returns A promise that resolves to a settlement result with transaction details
    *
    * @throws PaymentsError if settlement fails
    */
   async settlePermissions(params: SettlePermissionsParams): Promise<SettlePermissionsResult> {
-    const { paymentRequired, x402AccessToken, maxAmount } = params
+    const { paymentRequired, x402AccessToken, maxAmount, agentRequestId, batch, marginPercent } =
+      params
 
     const url = new URL(API_URL_SETTLE_PERMISSIONS, this.environment.backend)
 
@@ -330,6 +344,15 @@ export class FacilitatorAPI extends BasePaymentsAPI {
 
     if (maxAmount !== undefined) {
       body.maxAmount = maxAmount.toString()
+    }
+    if (agentRequestId !== undefined) {
+      body.agentRequestId = agentRequestId
+    }
+    if (batch !== undefined) {
+      body.batch = batch
+    }
+    if (marginPercent !== undefined) {
+      body.marginPercent = marginPercent
     }
 
     const options = this.getPublicHTTPOptions('POST', body)

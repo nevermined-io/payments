@@ -8,7 +8,7 @@
  *
  * Following the x402 spec (https://github.com/coinbase/x402/blob/main/specs/transports-v2/http.md):
  *
- * - **Client → Server**: `payment-signature` or `x-payment` header with base64-encoded token
+ * - **Client → Server**: `payment-signature` header with base64-encoded token
  * - **Server → Client (402)**: `payment-required` header with base64-encoded PaymentRequired
  * - **Server → Client (success)**: `payment-response` header with settlement receipt
  *
@@ -55,7 +55,12 @@ import type { Request, Response, NextFunction } from 'express'
  */
 export type ExpressMiddleware = (req: Request, res: Response, next: NextFunction) => void
 import type { Payments } from '../../payments.js'
-import { buildPaymentRequired, type X402PaymentRequired } from '../facilitator-api.js'
+import type { StartAgentRequest } from '../../common/types.js'
+import {
+  buildPaymentRequired,
+  type X402PaymentRequired,
+  type VerifyPermissionsResult,
+} from '../facilitator-api.js'
 
 /**
  * Configuration for a protected route
@@ -77,14 +82,12 @@ export interface RouteConfig {
 export type RouteConfigMap = Record<string, RouteConfig>
 
 /**
- * x402 HTTP Transport header names (per spec)
+ * x402 HTTP Transport header names (v2 spec)
  * @see https://github.com/coinbase/x402/blob/main/specs/transports-v2/http.md
  */
 export const X402_HEADERS = {
   /** Client sends payment token in this header */
   PAYMENT_SIGNATURE: 'payment-signature',
-  /** Alternative header name for payment token */
-  X_PAYMENT: 'x-payment',
   /** Server sends PaymentRequired in this header (base64-encoded) */
   PAYMENT_REQUIRED: 'payment-required',
   /** Server sends settlement receipt in this header (base64-encoded) */
@@ -92,26 +95,53 @@ export const X402_HEADERS = {
 } as const
 
 /**
+ * Payment context attached to the request after verification.
+ * Available as `req.paymentContext` in route handlers.
+ */
+export interface PaymentContext {
+  /** The x402 access token */
+  token: string
+  /** The payment required object */
+  paymentRequired: X402PaymentRequired
+  /** Number of credits to settle */
+  creditsToSettle: number
+  /** Whether verification was successful */
+  verified: boolean
+  /** Agent request context for observability (from verification response) */
+  agentRequest?: StartAgentRequest
+  /** Agent request ID for observability tracking */
+  agentRequestId?: string
+}
+
+/**
  * Options for the payment middleware
  */
 export interface PaymentMiddlewareOptions {
   /**
    * Header name(s) to check for the x402 access token.
-   * Default: ['payment-signature', 'x-payment'] (x402 compliant)
+   * Default: 'payment-signature' (x402 v2 compliant)
    */
   tokenHeader?: string | string[]
   /** Custom error handler for payment failures */
   onPaymentError?: (error: Error, req: Request, res: Response) => void
   /** Hook called before verification */
   onBeforeVerify?: (req: Request, paymentRequired: X402PaymentRequired) => void | Promise<void>
+  /**
+   * Hook called after successful verification.
+   * Use this to access agentRequest for observability configuration.
+   */
+  onAfterVerify?: (
+    req: Request,
+    verification: VerifyPermissionsResult,
+  ) => void | Promise<void>
   /** Hook called after successful settlement */
   onAfterSettle?: (req: Request, creditsUsed: number, result: unknown) => void | Promise<void>
 }
 
 /**
- * Default header priority for token extraction (x402 compliant)
+ * Default header for token extraction (x402 v2 compliant)
  */
-const DEFAULT_TOKEN_HEADERS = [X402_HEADERS.PAYMENT_SIGNATURE, X402_HEADERS.X_PAYMENT]
+const DEFAULT_TOKEN_HEADERS = [X402_HEADERS.PAYMENT_SIGNATURE]
 
 /**
  * Extract the x402 access token from the request headers.
@@ -219,8 +249,13 @@ export function paymentMiddleware(
   routes: RouteConfigMap,
   options: PaymentMiddlewareOptions = {},
 ): ExpressMiddleware {
-  const { tokenHeader = DEFAULT_TOKEN_HEADERS, onPaymentError, onBeforeVerify, onAfterSettle } =
-    options
+  const {
+    tokenHeader = DEFAULT_TOKEN_HEADERS,
+    onPaymentError,
+    onBeforeVerify,
+    onAfterVerify,
+    onAfterSettle,
+  } = options
 
   return (req: Request, res: Response, next: NextFunction): void => {
     // Wrap async logic to handle promises properly
@@ -243,7 +278,7 @@ export function paymentMiddleware(
         network,
       })
 
-      // Extract token from headers (x402: payment-signature or x-payment)
+      // Extract token from headers (x402 v2: payment-signature)
       const token = extractToken(req, tokenHeader)
       if (!token) {
         const error = new Error('Payment required: missing x402 access token')
@@ -289,27 +324,36 @@ export function paymentMiddleware(
           return
         }
 
-        // Store payment context for settlement
-        const paymentContext = {
+        // Hook: after verification (use for observability setup)
+        if (onAfterVerify) {
+          await onAfterVerify(req, verification)
+        }
+
+        // Store payment context for settlement and route handler access
+        const paymentContext: PaymentContext = {
           token,
           paymentRequired,
           creditsToSettle: creditsToVerify,
           verified: true,
+          agentRequest: verification.agentRequest,
+          agentRequestId: verification.agentRequest?.agentRequestId || verification.agentRequestId,
         }
 
         // Attach to request for potential use by route handler
-        ;(req as Request & { paymentContext?: typeof paymentContext }).paymentContext = paymentContext
+        ;(req as Request & { paymentContext?: PaymentContext }).paymentContext = paymentContext
 
         // Override res.json to settle BEFORE sending response
         // This ensures credits are burned and payment-response header is included
         const originalJson = res.json.bind(res)
         res.json = function (body: unknown) {
           // Settle credits synchronously before sending response
+          // Pass agentRequestId to enable observability updates
           payments.facilitator
             .settlePermissions({
               paymentRequired,
               x402AccessToken: token,
               maxAmount: BigInt(creditsToVerify),
+              agentRequestId: paymentContext.agentRequestId,
             })
             .then((settlement) => {
               // Add settlement response header (base64-encoded per x402 spec)

@@ -11,4 +11,5 @@ export {
   type RouteConfig,
   type RouteConfigMap,
   type PaymentMiddlewareOptions,
+  type PaymentContext,
 } from './middleware.js'
