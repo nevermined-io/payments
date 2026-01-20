@@ -152,8 +152,14 @@ describe('MCP Integration', () => {
       expect(out.metadata.txHash).toBeUndefined()
     })
 
-    test('should add metadata with txHash when redeem returns it', async () => {
-      const settleResult = { success: true, txHash: '0x1234567890abcdef' }
+    test('should add metadata with x402 receipt info including txHash', async () => {
+      // x402 SettlePermissionsResult with transaction hash
+      const settleResult = {
+        success: true,
+        transaction: '0x1234567890abcdef',
+        network: 'eip155:84532',
+        creditsRedeemed: '5',
+      }
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
@@ -172,15 +178,78 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify the result has metadata
+      // Verify metadata structure
       expect(out.metadata).toBeDefined()
-      expect(out.metadata).not.toBeNull()
-      expect(typeof out.metadata).toBe('object')
-
-      // Verify metadata contains expected fields including txHash
-      expect(out.metadata.success).toBe(true)
-      expect(out.metadata.creditsRedeemed).toBe('5')
       expect(out.metadata.txHash).toBe('0x1234567890abcdef')
+      expect(out.metadata.creditsRedeemed).toBe('5')
+      expect(out.metadata.planId).toBe('plan123')
+      expect(out.metadata.subscriberAddress).toBe('0x123subscriber')
+      expect(out.metadata.success).toBe(true)
+    })
+
+    test('should not include txHash when transaction is empty', async () => {
+      // Backend returns empty transaction (no blockchain tx)
+      const settleResult = {
+        success: true,
+        transaction: '',
+        network: 'eip155:84532',
+        creditsRedeemed: '5',
+      }
+      const mockInstance = new PaymentsMock(settleResult)
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+
+      const base = async (_args: any, _extra?: any) => {
+        return { content: [{ type: 'text', text: 'ok' }] }
+      }
+
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
+      const out = await wrapped({}, extra)
+
+      // txHash should NOT be present when transaction is empty
+      expect(out.metadata).toBeDefined()
+      expect(out.metadata.txHash).toBeUndefined()
+      expect(out.metadata.creditsRedeemed).toBe('5')
+      expect(out.metadata.planId).toBe('plan123')
+      expect(out.metadata.success).toBe(true)
+    })
+
+    test('should use creditsRedeemed from x402 settle response', async () => {
+      // x402 SettlePermissionsResult returns creditsRedeemed directly
+      const settleResult = {
+        success: true,
+        transaction: '0xabc123',
+        network: 'eip155:84532',
+        creditsRedeemed: '10', // Backend may return different value than requested
+        remainingBalance: '90',
+      }
+      const mockInstance = new PaymentsMock(settleResult)
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+
+      const base = async (_args: any, _extra?: any) => {
+        return { content: [{ type: 'text', text: 'ok' }] }
+      }
+
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 5n, // Requested 5 credits
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
+      const out = await wrapped({}, extra)
+
+      // Should use creditsRedeemed from response, not the requested amount
+      expect(out.metadata.creditsRedeemed).toBe('10')
     })
 
     test('should not add metadata when redemption fails', async () => {
@@ -420,6 +489,53 @@ describe('MCP Integration', () => {
           (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'tok' && c[3] === 5,
         ),
       ).toBe(true)
+    })
+
+    test('should include x402 receipt metadata in streaming response', async () => {
+      const settleResult = {
+        success: true,
+        transaction: '0xstream123',
+        network: 'eip155:84532',
+        creditsRedeemed: '5',
+      }
+      const mockInstance = new PaymentsMock(settleResult)
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+      async function* makeIterable(chunks: string[]) {
+        for (const c of chunks) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          yield c
+        }
+      }
+
+      const base = async (_args: any, _extra?: any) => {
+        return makeIterable(['chunk1', 'chunk2'])
+      }
+
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
+      const iterable = await wrapped({}, extra)
+
+      const collected: any[] = []
+      for await (const chunk of iterable) {
+        collected.push(chunk)
+      }
+
+      // Last chunk should be metadata with x402 receipt info
+      const lastChunk = collected[collected.length - 1]
+      expect(lastChunk.metadata).toBeDefined()
+      expect(lastChunk.metadata.txHash).toBe('0xstream123')
+      expect(lastChunk.metadata.creditsRedeemed).toBe('5')
+      expect(lastChunk.metadata.planId).toBe('plan123')
+      expect(lastChunk.metadata.subscriberAddress).toBe('0x123subscriber')
+      expect(lastChunk.metadata.success).toBe(true)
     })
 
     test('should redeem when consumer stops stream early', async () => {

@@ -1,9 +1,13 @@
 /**
  * Main paywall decorator for MCP handlers (tools, resources, prompts)
  */
-import { Address, NvmAPIResult } from '../../common/types.js'
+import { Address } from '../../common/types.js'
 import type { Payments } from '../../payments.js'
-import { buildPaymentRequired, type X402PaymentRequired } from '../../x402/facilitator-api.js'
+import {
+  buildPaymentRequired,
+  type SettlePermissionsResult,
+  type X402PaymentRequired,
+} from '../../x402/facilitator-api.js'
 import {
   McpConfig,
   PaywallOptions,
@@ -163,10 +167,12 @@ export class PaywallDecorator {
       if (creditsResult.success) {
         result.metadata = {
           ...result.metadata,
-          txHash: creditsResult.txHash,
+          // Only include txHash if it has a value
+          ...(creditsResult.transaction && { txHash: creditsResult.transaction }),
+          creditsRedeemed: creditsResult.creditsRedeemed ?? credits.toString(),
+          remainingBalance: creditsResult.remainingBalance,
           planId: authResult.planId,
           subscriberAddress: authResult.subscriberAddress,
-          creditsRedeemed: creditsResult.data?.amountOfCredits?.toString() ?? credits.toString(),
           success: true,
         }
       }
@@ -186,10 +192,11 @@ export class PaywallDecorator {
     agentId?: string,
     endpoint?: string,
     httpVerb?: string,
-  ): Promise<NvmAPIResult> {
-    let ret: NvmAPIResult = {
+  ): Promise<SettlePermissionsResult> {
+    let ret: SettlePermissionsResult = {
       success: true,
-      txHash: '',
+      transaction: '',
+      network: '',
     }
     try {
       if (credits && credits > 0n && subscriberAddress && planId) {
@@ -245,10 +252,12 @@ function wrapAsyncIterable<T>(
     // Yield a metadata chunk at the end with the redemption result
     const metadataChunk = {
       metadata: {
-        txHash: creditsResult?.txHash,
+        // Only include txHash if it has a value
+        ...(creditsResult?.transaction && { txHash: creditsResult.transaction }),
+        creditsRedeemed: creditsResult?.creditsRedeemed ?? credits.toString(),
+        remainingBalance: creditsResult?.remainingBalance,
         planId: planId,
         subscriberAddress: subscriberAddress,
-        creditsRedeemed: credits.toString(),
         success: creditsResult?.success || false,
       },
     }
