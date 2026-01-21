@@ -301,10 +301,10 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     expect(result.content[0].text).toBe('result')
 
     // When redemption fails silently, metadata is still added with success: true
-    // but txHash will be empty (from the default NvmAPIResult)
+    // but txHash will be undefined (only included when transaction has a value)
     expect(result.metadata).toBeDefined()
     expect(result.metadata.success).toBe(true)
-    expect(result.metadata.txHash).toBe('')
+    expect(result.metadata.txHash).toBeUndefined()
     expect(result.metadata.creditsRedeemed).toBe('100')
   })
 
