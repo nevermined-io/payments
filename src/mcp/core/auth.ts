@@ -129,6 +129,7 @@ export class PaywallAuthenticator {
         logicalUrl,
         planId,
         subscriberAddress,
+        agentRequest: result.agentRequest,
       }
     } catch (e) {
       // If logical URL validation fails, try with HTTP endpoint
@@ -184,6 +185,7 @@ export class PaywallAuthenticator {
             logicalUrl,
             planId,
             subscriberAddress,
+            agentRequest: result.agentRequest,
           }
         } catch (httpError) {
           void httpError
@@ -265,6 +267,7 @@ export class PaywallAuthenticator {
         logicalUrl,
         planId,
         subscriberAddress,
+        agentRequest: result.agentRequest,
       }
     } catch (e) {
       const httpUrl = this.buildHttpUrlFromContext()
@@ -304,6 +307,7 @@ export class PaywallAuthenticator {
             logicalUrl: httpUrl,
             planId,
             subscriberAddress,
+            agentRequest: result.agentRequest,
           }
         } catch (httpError) {
           void httpError

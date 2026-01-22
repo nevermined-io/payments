@@ -370,18 +370,15 @@ export class McpServerManager {
 
       const protectedHandler = this.paywallDecorator.protect(
         async (args: any, extra?: any, paywallContext?: any) => {
-          // Convert PaywallContext to ToolContext format
-          // Put authResult and credits inside extra (consistent format)
-          const toolContext = paywallContext
+          // Pass agentRequest directly in extra (consistent with resources)
+          const handlerExtra = paywallContext
             ? {
-                extra: {
-                  ...extra,
-                  agentRequest: paywallContext.agentRequest,
-                },
+                ...extra,
+                agentRequest: paywallContext.agentRequest,
               }
-            : { extra }
+            : extra
           // Call the user's handler with the converted context
-          const result = await handler(args, toolContext)
+          const result = await handler(args, handlerExtra)
           return result
         },
         {
