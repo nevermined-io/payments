@@ -1,7 +1,7 @@
 /**
  * Type definitions for MCP paywall functionality
  */
-import type { Address } from '../../common/types.js'
+import type { Address, StartAgentRequest } from '../../common/types.js'
 
 /**
  * Context provided to dynamic credits functions
@@ -72,6 +72,7 @@ export interface AuthResult {
   logicalUrl: string
   planId: string
   subscriberAddress: Address
+  agentRequest?: StartAgentRequest
 }
 
 /**
@@ -82,6 +83,7 @@ export interface PaywallContext {
   credits?: bigint
   planId: string
   subscriberAddress: Address
+  agentRequest?: StartAgentRequest
 }
 
 /**

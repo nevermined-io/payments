@@ -117,6 +117,7 @@ export class PaywallDecorator {
         credits: preCalculatedCredits,
         planId: authResult.planId,
         subscriberAddress: authResult.subscriberAddress,
+        agentRequest: authResult.agentRequest,
       }
 
       // 4. Execute original handler with context
