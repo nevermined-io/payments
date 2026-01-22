@@ -1,0 +1,95 @@
+name: Delete Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to delete (e.g., v1.0.0)'
+        required: true
+        type: string
+      delete_release:
+        description: 'Also delete the associated release?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  delete-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.API_TOKEN_GITHUB }}
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Delete tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          DELETE_RELEASE="${{ inputs.delete_release }}"
+          
+          echo "🗑️ Processing deletion of tag: $TAG"
+          
+          # Delete release if requested
+          if [ "$DELETE_RELEASE" = "true" ]; then
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "🗑️ Deleting release $TAG..."
+              gh release delete "$TAG" --yes
+              echo "✅ Release deleted"
+            else
+              echo "ℹ️ No release found for $TAG"
+            fi
+          fi
+          
+          # Delete remote tag
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+            echo "🗑️ Deleting remote tag $TAG..."
+            git push --delete origin "$TAG"
+            echo "✅ Remote tag deleted"
+          else
+            echo "ℹ️ Tag $TAG not found on remote"
+          fi
+          
+          # Delete local tag
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "🗑️ Deleting local tag $TAG..."
+            git tag -d "$TAG"
+            echo "✅ Local tag deleted"
+          else
+            echo "ℹ️ Tag $TAG not found locally"
+          fi
+          
+          echo ""
+          echo "✅ Cleanup complete for tag: $TAG"
+
+      - name: Summary
+        if: always()
+        run: |
+          TAG="${{ inputs.tag }}"
+          DELETE_RELEASE="${{ inputs.delete_release }}"
+          
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## 🗑️ Tag Deletion Summary
+          
+          ### Details
+          - **Tag:** \`$TAG\`
+          - **Delete Release:** $DELETE_RELEASE
+          
+          ### Actions Performed
+          - 🏷️ Remote tag deletion: Attempted
+          - 🏷️ Local tag deletion: Attempted
+          $([ "$DELETE_RELEASE" = "true" ] && echo "- 📦 Release deletion: Attempted" || echo "- 📦 Release deletion: Skipped")
+          
+          ---
+          🤖 Check the logs above for detailed results.
+          EOF
