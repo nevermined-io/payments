@@ -166,8 +166,8 @@ export class PaywallDecorator {
         'POST',
       )
       if (creditsResult.success) {
-        result.metadata = {
-          ...result.metadata,
+        result._meta = {
+          ...result._meta,
           // Only include txHash if it has a value
           ...(creditsResult.transaction && { txHash: creditsResult.transaction }),
           creditsRedeemed: creditsResult.creditsRedeemed ?? credits.toString(),
@@ -250,9 +250,9 @@ function wrapAsyncIterable<T>(
       creditsResult = await onFinally()
     }
 
-    // Yield a metadata chunk at the end with the redemption result
+    // Yield a _meta chunk at the end with the redemption result
     const metadataChunk = {
-      metadata: {
+      _meta: {
         // Only include txHash if it has a value
         ...(creditsResult?.transaction && { txHash: creditsResult.transaction }),
         creditsRedeemed: creditsResult?.creditsRedeemed ?? credits.toString(),
