@@ -140,16 +140,16 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify the result has metadata
-      expect(out.metadata).toBeDefined()
-      expect(out.metadata).not.toBeNull()
-      expect(typeof out.metadata).toBe('object')
+      // Verify the result has _meta
+      expect(out._meta).toBeDefined()
+      expect(out._meta).not.toBeNull()
+      expect(typeof out._meta).toBe('object')
 
-      // Verify metadata contains expected fields
-      expect(out.metadata.success).toBe(true)
-      expect(out.metadata.creditsRedeemed).toBe('3')
+      // Verify _meta contains expected fields
+      expect(out._meta.success).toBe(true)
+      expect(out._meta.creditsRedeemed).toBe('3')
       // txHash should be undefined since our mock doesn't return it
-      expect(out.metadata.txHash).toBeUndefined()
+      expect(out._meta.txHash).toBeUndefined()
     })
 
     test('should add metadata with x402 receipt info including txHash', async () => {
@@ -178,13 +178,13 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify metadata structure
-      expect(out.metadata).toBeDefined()
-      expect(out.metadata.txHash).toBe('0x1234567890abcdef')
-      expect(out.metadata.creditsRedeemed).toBe('5')
-      expect(out.metadata.planId).toBe('plan123')
-      expect(out.metadata.subscriberAddress).toBe('0x123subscriber')
-      expect(out.metadata.success).toBe(true)
+      // Verify _meta structure
+      expect(out._meta).toBeDefined()
+      expect(out._meta.txHash).toBe('0x1234567890abcdef')
+      expect(out._meta.creditsRedeemed).toBe('5')
+      expect(out._meta.planId).toBe('plan123')
+      expect(out._meta.subscriberAddress).toBe('0x123subscriber')
+      expect(out._meta.success).toBe(true)
     })
 
     test('should not include txHash when transaction is empty', async () => {
@@ -214,11 +214,11 @@ describe('MCP Integration', () => {
       const out = await wrapped({}, extra)
 
       // txHash should NOT be present when transaction is empty
-      expect(out.metadata).toBeDefined()
-      expect(out.metadata.txHash).toBeUndefined()
-      expect(out.metadata.creditsRedeemed).toBe('5')
-      expect(out.metadata.planId).toBe('plan123')
-      expect(out.metadata.success).toBe(true)
+      expect(out._meta).toBeDefined()
+      expect(out._meta.txHash).toBeUndefined()
+      expect(out._meta.creditsRedeemed).toBe('5')
+      expect(out._meta.planId).toBe('plan123')
+      expect(out._meta.success).toBe(true)
     })
 
     test('should use creditsRedeemed from x402 settle response', async () => {
@@ -249,7 +249,7 @@ describe('MCP Integration', () => {
       const out = await wrapped({}, extra)
 
       // Should use creditsRedeemed from response, not the requested amount
-      expect(out.metadata.creditsRedeemed).toBe('10')
+      expect(out._meta.creditsRedeemed).toBe('10')
     })
 
     test('should not add metadata when redemption fails', async () => {
@@ -272,8 +272,8 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify the result does not have metadata when redemption fails
-      expect(out.metadata).toBeUndefined()
+      // Verify the result does not have _meta when redemption fails
+      expect(out._meta).toBeUndefined()
     })
 
     test('should reject when authorization header missing', async () => {
@@ -478,12 +478,12 @@ describe('MCP Integration', () => {
         collected.push(chunk)
       }
 
-      // The last chunk should be metadata
+      // The last chunk should be _meta
       expect(collected.length).toBeGreaterThanOrEqual(3)
       expect(collected.slice(0, 3)).toEqual(['one', 'two', 'three'])
-      // Last chunk should be metadata
+      // Last chunk should be _meta
       const lastChunk = collected[collected.length - 1]
-      expect(lastChunk.metadata).toBeDefined()
+      expect(lastChunk._meta).toBeDefined()
       expect(
         mockInstance.calls.some(
           (c: any) => c[0] === 'settle' && c[1] === 'plan123' && c[2] === 'tok' && c[3] === 5,
@@ -528,14 +528,14 @@ describe('MCP Integration', () => {
         collected.push(chunk)
       }
 
-      // Last chunk should be metadata with x402 receipt info
+      // Last chunk should be _meta with x402 receipt info
       const lastChunk = collected[collected.length - 1]
-      expect(lastChunk.metadata).toBeDefined()
-      expect(lastChunk.metadata.txHash).toBe('0xstream123')
-      expect(lastChunk.metadata.creditsRedeemed).toBe('5')
-      expect(lastChunk.metadata.planId).toBe('plan123')
-      expect(lastChunk.metadata.subscriberAddress).toBe('0x123subscriber')
-      expect(lastChunk.metadata.success).toBe(true)
+      expect(lastChunk._meta).toBeDefined()
+      expect(lastChunk._meta.txHash).toBe('0xstream123')
+      expect(lastChunk._meta.creditsRedeemed).toBe('5')
+      expect(lastChunk._meta.planId).toBe('plan123')
+      expect(lastChunk._meta.subscriberAddress).toBe('0x123subscriber')
+      expect(lastChunk._meta.success).toBe(true)
     })
 
     test('should redeem when consumer stops stream early', async () => {
