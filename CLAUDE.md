@@ -32,8 +32,14 @@ yarn test -- tests/unit/payments.test.ts
 yarn lint                   # ESLint
 yarn format                 # Prettier check
 
-# Generate documentation
+# Generate TypeDoc API documentation (HTML)
 yarn doc
+
+# Validate markdown documentation
+./scripts/generate-docs.sh
+
+# Publish markdown documentation (manual)
+./scripts/publish-docs.sh
 ```
 
 ## Quick Reference
@@ -179,3 +185,60 @@ import { foo } from './bar.js'
 
 - `@nevermined-io/payments` - Main SDK
 - `@nevermined-io/payments/mcp` - MCP-specific exports
+
+## Documentation
+
+The SDK has two types of documentation:
+
+### 1. Markdown Documentation (LLM-Friendly)
+
+Located in `markdown/` directory with 11 comprehensive guides:
+
+- **Installation & Setup**: Getting started with the SDK
+- **Payment Plans & Agents**: Core API usage
+- **Static Resources**: Publishing static content
+- **Payments & Balance**: Making payments and checking credits
+- **Querying Agents**: Using X402 access tokens
+- **Request Validation**: Verifying and settling permissions
+- **MCP Integration**: Model Context Protocol setup
+- **A2A Integration**: Agent-to-Agent protocol setup
+- **X402 Protocol**: Complete payment protocol specification
+
+**Automated Updates:**
+- Documentation is automatically updated on push to main/develop
+- Published to [nevermined-io/docs_mintlify](https://github.com/nevermined-io/docs_mintlify) on tag
+
+**Commands:**
+```bash
+# Validate documentation
+./scripts/generate-docs.sh
+
+# Publish documentation (manual)
+./scripts/publish-docs.sh
+
+# Check workflow status
+gh run list --workflow=update-docs.yml
+gh run list --workflow=publish-docs.yml
+```
+
+**Full Documentation:**
+- See [DOCUMENTATION.md](./DOCUMENTATION.md) for complete automation guide
+- See [markdown/README.md](./markdown/README.md) for documentation overview
+- See [MINTLIFY_API_REFERENCE.md](./MINTLIFY_API_REFERENCE.md) for specification
+
+### 2. TypeDoc API Documentation (HTML)
+
+Located in `docs/` directory - auto-generated HTML documentation:
+
+```bash
+# Generate TypeDoc documentation
+yarn doc
+```
+
+The HTML documentation is generated from TypeScript source code comments and provides:
+- Complete API reference
+- Class and interface documentation
+- Type definitions
+- Method signatures and parameters
+
+**Note**: TypeDoc generation requires all dependencies to be installed and the project to build successfully.
