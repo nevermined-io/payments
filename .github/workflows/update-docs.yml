@@ -1,0 +1,78 @@
+name: Update Documentation
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'MINTLIFY_API_REFERENCE.md'
+
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force documentation update'
+        required: false
+        default: 'false'
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Validate documentation
+        run: |
+          chmod +x ./scripts/generate-docs.sh
+          ./scripts/generate-docs.sh
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet markdown/; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit documentation updates
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add markdown/
+          git commit -m "docs: update markdown documentation [skip ci]"
+          git push
+
+      - name: Create summary
+        run: |
+          echo "### Documentation Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Changed**: ${{ steps.check_changes.outputs.changed }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.check_changes.outputs.changed }}" == "true" ]; then
+            echo "✅ Documentation updated successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No documentation changes needed" >> $GITHUB_STEP_SUMMARY
+          fi

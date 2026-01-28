@@ -1,0 +1,203 @@
+---
+title: "Getting Started"
+description: "Initialize the Payments SDK in Node.js and browser environments with your API key"
+icon: "rocket"
+---
+
+# Initializing the Library
+
+This guide shows how to initialize the Nevermined Payments Library in your application. The library supports both server-side (Node.js) and browser environments with different initialization methods.
+
+## Get Your NVM API Key
+
+Before initializing the library, you need a Nevermined API key:
+
+1. Visit [nevermined.app](https://nevermined.app)
+2. Sign in or create a free account
+3. Navigate to your profile settings
+4. Generate an API key
+
+**Important**: There are two types of API keys:
+- **Builder Key**: For AI builders who register agents and payment plans
+- **Subscriber Key**: For users who purchase access and query agents
+
+Most applications will use a builder key for server-side operations.
+
+## Server-Side Initialization
+
+For Node.js applications, use the `getInstance` method:
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox' as EnvironmentName,
+})
+```
+
+### Configuration Options
+
+The `getInstance` method accepts a `PaymentOptions` object:
+
+```typescript
+interface PaymentOptions {
+  nvmApiKey: string          // Your Nevermined API key (required)
+  environment: EnvironmentName  // Target environment (required)
+  returnUrl?: string         // OAuth callback URL (optional, for browser)
+  appId?: string             // Your application ID (optional)
+  version?: string           // Your application version (optional)
+}
+```
+
+### Complete Server-Side Example
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+
+// Initialize with environment variables
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: process.env.NVM_ENVIRONMENT as EnvironmentName,
+})
+
+// Verify connection
+const accountAddress = payments.getAccountAddress()
+console.log(`Connected as: ${accountAddress}`)
+```
+
+## Browser Initialization
+
+For browser-based applications, use the `getBrowserInstance` method:
+
+```typescript
+import { Payments } from '@nevermined-io/payments'
+
+const payments = Payments.getBrowserInstance({
+  returnUrl: 'https://myapp.example/callback',
+  environment: 'sandbox',
+  appId: 'my-app',
+  version: '1.0.0',
+})
+```
+
+### Browser Authentication Flow
+
+The browser instance supports OAuth-style authentication:
+
+```typescript
+// Check if user is logged in
+if (!payments.isLoggedIn) {
+  // Redirect to Nevermined login
+  payments.connect()
+}
+
+// After login, use the payments instance
+const balance = await payments.plans.getPlanBalance(planId)
+
+// Logout when needed
+payments.logout()
+```
+
+## Environments
+
+The Nevermined protocol supports multiple environments:
+
+### Production Environments
+
+| Environment | Description | Usage |
+|-------------|-------------|-------|
+| `sandbox` | Production testing environment | Development and testing with real blockchain |
+| `live` | Production environment | Live agents and real payments |
+
+### Choosing an Environment
+
+```typescript
+// Development and testing
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox',
+})
+
+// Production deployment
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'live',
+})
+```
+
+**Important**: Agents and plans registered in one environment cannot be accessed from another. Always use the same environment throughout your application.
+
+## Environment Configuration Details
+
+Each environment has specific API endpoints:
+
+```typescript
+// Example environment structure
+interface EnvironmentInfo {
+  frontend: string   // Nevermined App URL
+  backend: string    // API URL
+  proxy: string      // Proxy service URL
+  heliconeUrl: string // Observability service URL
+}
+```
+
+The library automatically configures these endpoints based on your chosen environment.
+
+## Verify Connection
+
+After initialization, verify the connection is working:
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox' as EnvironmentName,
+})
+
+// Get account address from API key
+const accountAddress = payments.getAccountAddress()
+console.log(`Initialized for account: ${accountAddress}`)
+
+// For browser instances
+if (payments.isLoggedIn) {
+  console.log('User authenticated successfully')
+}
+```
+
+## Best Practices
+
+1. **Environment Variables**: Always store API keys in environment variables, never hardcode them
+2. **Singleton Pattern**: Create one Payments instance per application
+3. **Environment Consistency**: Use the same environment for all operations in a session
+4. **Error Handling**: Wrap initialization in try-catch blocks for production apps
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+
+let payments: Payments
+
+try {
+  payments = Payments.getInstance({
+    nvmApiKey: process.env.NVM_API_KEY!,
+    environment: process.env.NVM_ENVIRONMENT as EnvironmentName,
+  })
+  console.log('✓ Nevermined Payments initialized')
+} catch (error) {
+  console.error('Failed to initialize Payments:', error)
+  process.exit(1)
+}
+```
+
+## Related Documentation
+
+- [Payment Plans](payment-plans.mdx)
+- [Agents](agents.mdx)
+
+---
+
+**Source References**:
+- `src/payments.ts` (getInstance, getBrowserInstance methods)
+- `src/environments.ts` (environment configurations)
+- `tests/e2e/fixtures.ts` (createPaymentsBuilder, createPaymentsSubscriber)
