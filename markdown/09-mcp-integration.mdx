@@ -1,0 +1,440 @@
+# MCP Integration
+
+The Model Context Protocol (MCP) integration provides a complete payment-protected MCP server with OAuth 2.1 support and automatic credit management. This is the simplest way to run a payment-protected AI agent.
+
+## Overview of MCP Integration
+
+The MCP integration automatically handles:
+- **OAuth 2.1 Discovery**: Auto-configured `.well-known` endpoints
+- **Paywall Protection**: Automatic token verification and credit burning
+- **Streaming Support**: SSE (Server-Sent Events) for streaming responses
+- **Credit Management**: Fixed or dynamic credit costs per tool/resource/prompt
+- **Client Registration**: Dynamic client registration for OAuth flows
+
+## OAuth 2.1 Discovery
+
+When you start an MCP server, the library automatically exposes OAuth 2.1 discovery endpoints required by the X402 spec:
+
+| Endpoint | Description |
+|----------|-------------|
+| `/.well-known/oauth-protected-resource` | Protected resource metadata |
+| `/.well-known/oauth-authorization-server` | Authorization server metadata |
+| `/.well-known/openid-configuration` | OpenID Connect discovery |
+| `POST /register` | Dynamic client registration |
+
+These endpoints are generated automatically—no manual configuration required.
+
+## Configure MCP
+
+Initialize the MCP integration with your agent details:
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox' as EnvironmentName,
+})
+
+// Configure MCP integration
+payments.mcp.configure({
+  agentId: process.env.NVM_AGENT_ID!,
+  serverName: 'my-mcp-server',
+})
+```
+
+## Register Tools with Credits
+
+Register MCP tools and specify their credit cost:
+
+```typescript
+import { z } from 'zod'
+
+// Register a tool with fixed credit cost
+payments.mcp.registerTool(
+  'get_weather',                    // Tool name
+  {
+    title: 'Get Weather',
+    description: 'Get current weather for a city',
+    inputSchema: z.object({
+      city: z.string().describe('City name'),
+    }),
+  },
+  async (args) => {                 // Handler function
+    // Your tool logic here
+    const weather = await getWeatherData(args.city)
+
+    return {
+      content: [{ type: 'text', text: `Weather in ${args.city}: ${weather}` }],
+    }
+  },
+  { credits: 1n }                   // Fixed: 1 credit per call
+)
+```
+
+### Dynamic Credit Calculation
+
+For variable costs based on input/output:
+
+```typescript
+payments.mcp.registerTool(
+  'analyze_text',
+  {
+    title: 'Analyze Text',
+    description: 'Perform text analysis',
+    inputSchema: z.object({
+      text: z.string(),
+    }),
+  },
+  async (args) => {
+    const analysis = await analyzeText(args.text)
+    return {
+      content: [{ type: 'text', text: JSON.stringify(analysis) }],
+    }
+  },
+  {
+    // Dynamic credits based on text length
+    credits: (args, result) => {
+      const textLength = args.text.length
+      return BigInt(Math.ceil(textLength / 1000))  // 1 credit per KB
+    }
+  }
+)
+```
+
+## Register Resources
+
+Register MCP resources with payment protection:
+
+```typescript
+payments.mcp.registerResource(
+  'weather-data',                   // Resource name
+  'weather://current',              // Resource URI
+  {
+    title: 'Current Weather Data',
+    description: 'Real-time weather information',
+  },
+  async (uri, vars) => {            // Handler function
+    const data = await fetchWeatherData()
+
+    return {
+      contents: [{
+        uri: 'weather://current',
+        mimeType: 'application/json',
+        text: JSON.stringify(data),
+      }],
+    }
+  },
+  { credits: 2n }                   // 2 credits per access
+)
+```
+
+## Register Prompts
+
+Register MCP prompts with credit costs:
+
+```typescript
+payments.mcp.registerPrompt(
+  'weather-query',                  // Prompt name
+  {
+    title: 'Weather Query Template',
+    description: 'Generate weather queries',
+  },
+  async (args) => {                 // Handler function
+    return {
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `What is the weather in ${args.city}?`,
+        },
+      }],
+    }
+  },
+  { credits: 1n }                   // 1 credit per prompt
+)
+```
+
+## Start Managed Server
+
+Start a complete MCP server with all endpoints configured:
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox' as EnvironmentName,
+})
+
+// Configure
+payments.mcp.configure({
+  agentId: process.env.NVM_AGENT_ID!,
+  serverName: 'weather-server',
+})
+
+// Register tools
+payments.mcp.registerTool(
+  'get_weather',
+  {
+    title: 'Get Weather',
+    description: 'Get current weather',
+    inputSchema: z.object({
+      city: z.string(),
+    }),
+  },
+  async (args) => ({
+    content: [{ type: 'text', text: `Weather in ${args.city}: Sunny` }],
+  }),
+  { credits: 1n }
+)
+
+// Start server
+const { info, stop } = await payments.mcp.start({
+  port: 5001,
+  agentId: process.env.NVM_AGENT_ID!,
+  serverName: 'weather-server',
+  version: '1.0.0',
+})
+
+console.log(`MCP Server running at: ${info.baseUrl}`)
+console.log(`MCP endpoint: ${info.baseUrl}/mcp`)
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  await stop()
+  console.log('Server stopped')
+  process.exit(0)
+})
+```
+
+## MCP Logical URIs
+
+When registering your agent at [nevermined.app](https://nevermined.app), use MCP logical URIs instead of HTTP URLs:
+
+### URI Format
+
+```
+mcp://<serverName>/<type>/<name>
+```
+
+### Examples
+
+| Type | URI | Description |
+|------|-----|-------------|
+| Tool | `mcp://weather-server/tools/get_weather` | Single tool |
+| Tool Wildcard | `mcp://weather-server/tools/*` | All tools |
+| Resource | `mcp://weather-server/resources/weather://current` | Single resource |
+| Resource Wildcard | `mcp://weather-server/resources/*` | All resources |
+| Prompt | `mcp://weather-server/prompts/weather-query` | Single prompt |
+
+### Wildcard Registration
+
+Use wildcards to register all tools/resources/prompts at once:
+
+```
+mcp://weather-server/tools/*
+mcp://weather-server/resources/*
+mcp://weather-server/prompts/*
+```
+
+## Auto-Configured Endpoints
+
+The `start()` method automatically creates these endpoints:
+
+```
+POST /mcp              - MCP JSON-RPC endpoint
+GET /mcp               - SSE streaming endpoint
+DELETE /mcp            - Session cleanup
+GET /                  - Server info
+GET /health            - Health check
+GET /.well-known/oauth-protected-resource
+GET /.well-known/oauth-authorization-server
+GET /.well-known/openid-configuration
+POST /register         - Dynamic client registration
+```
+
+## Complete Example: Weather Agent
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+import { z } from 'zod'
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox' as EnvironmentName,
+})
+
+// Configure MCP
+payments.mcp.configure({
+  agentId: process.env.NVM_AGENT_ID!,
+  serverName: 'weather-agent',
+})
+
+// Register multiple tools
+payments.mcp.registerTool(
+  'get_current_weather',
+  {
+    title: 'Get Current Weather',
+    description: 'Get real-time weather for a location',
+    inputSchema: z.object({
+      city: z.string(),
+      country: z.string().optional(),
+    }),
+  },
+  async (args) => {
+    const weather = await fetchWeather(args.city, args.country)
+    return {
+      content: [{ type: 'text', text: JSON.stringify(weather) }],
+    }
+  },
+  { credits: 1n }
+)
+
+payments.mcp.registerTool(
+  'get_forecast',
+  {
+    title: 'Get Weather Forecast',
+    description: 'Get 7-day weather forecast',
+    inputSchema: z.object({
+      city: z.string(),
+      days: z.number().min(1).max(7).default(3),
+    }),
+  },
+  async (args) => {
+    const forecast = await fetchForecast(args.city, args.days)
+    return {
+      content: [{ type: 'text', text: JSON.stringify(forecast) }],
+    }
+  },
+  { credits: 2n }  // Forecasts cost more
+)
+
+// Register resource
+payments.mcp.registerResource(
+  'weather-alerts',
+  'weather://alerts',
+  {
+    title: 'Weather Alerts',
+    description: 'Active weather alerts',
+  },
+  async (uri) => {
+    const alerts = await fetchAlerts()
+    return {
+      contents: [{
+        uri: 'weather://alerts',
+        mimeType: 'application/json',
+        text: JSON.stringify(alerts),
+      }],
+    }
+  },
+  { credits: 1n }
+)
+
+// Start server
+const { info, stop } = await payments.mcp.start({
+  port: 5001,
+  agentId: process.env.NVM_AGENT_ID!,
+  serverName: 'weather-agent',
+  version: '1.0.0',
+})
+
+console.log(`Weather MCP Agent running at ${info.baseUrl}`)
+console.log(`Register in Nevermined App with:`)
+console.log(`  - mcp://weather-agent/tools/*`)
+console.log(`  - mcp://weather-agent/resources/*`)
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  await stop()
+  process.exit(0)
+})
+
+// Mock functions
+async function fetchWeather(city: string, country?: string) {
+  return { city, temp: 72, condition: 'sunny' }
+}
+
+async function fetchForecast(city: string, days: number) {
+  return { city, days, forecast: [] }
+}
+
+async function fetchAlerts() {
+  return { alerts: [] }
+}
+```
+
+## Error Handling
+
+The paywall automatically returns 402 errors for invalid/missing tokens:
+
+```typescript
+// Automatic 402 handling - no code needed
+payments.mcp.registerTool(
+  'premium_tool',
+  toolConfig,
+  handler,
+  {
+    credits: 5n,
+    onRedeemError: 'propagate',  // Propagate credit errors (default: 'ignore')
+  }
+)
+```
+
+## Advanced: Custom Express App
+
+For existing Express applications, use `createRouter`:
+
+```typescript
+import express from 'express'
+import { Payments } from '@nevermined-io/payments'
+
+const app = express()
+const payments = Payments.getInstance({...})
+
+payments.mcp.configure({
+  agentId: process.env.NVM_AGENT_ID!,
+  serverName: 'my-server',
+})
+
+// Register tools...
+
+// Create MCP router
+const mcpRouter = payments.mcp.createRouter({
+  agentId: process.env.NVM_AGENT_ID!,
+  serverName: 'my-server',
+})
+
+// Mount router
+app.use('/mcp', mcpRouter)
+
+// Your other routes
+app.get('/custom', (req, res) => {
+  res.json({ status: 'ok' })
+})
+
+app.listen(5001)
+```
+
+## Best Practices
+
+1. **Descriptive Names**: Use clear tool/resource/prompt names
+2. **Schema Validation**: Always define proper input schemas with Zod
+3. **Credit Pricing**: Set appropriate credits based on resource cost
+4. **Error Messages**: Provide clear error messages in responses
+5. **Graceful Shutdown**: Always implement `SIGINT` handlers
+6. **Wildcard URIs**: Use wildcards for simpler agent registration
+7. **Version Control**: Include version in server configuration
+
+## Related Documentation
+
+- [Agents](04-agents.mdx) - Register your MCP agent in Nevermined
+- [Payment Plans](03-payment-plans.mdx) - Configure pricing for your agent
+- [Validation of Requests](08-validation-of-requests.mdx) - Understanding the validation flow
+
+---
+
+**Source References**:
+- `RUN.md` (MCP Server section, lines 16-86)
+- `src/mcp/index.ts` (MCP integration API)
+- `tests/integration/mcp-integration.test.ts` (integration examples)

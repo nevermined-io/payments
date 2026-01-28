@@ -1,0 +1,305 @@
+# Publishing Static Resources
+
+In addition to AI agents, you can register static resources (files, datasets, documents) as payment-protected content. This allows you to monetize access to files, datasets, models, or any static content through the Nevermined protocol.
+
+## Overview of Static Resources
+
+Static resource agents are specialized agent registrations that provide access to files and documents instead of interactive AI services. They work identically to regular agents but are optimized for static content delivery.
+
+**Use Cases**:
+- Premium datasets (CSV, JSON, Parquet files)
+- Trained ML models (PyTorch, TensorFlow checkpoints)
+- Documents and reports (PDF, DOCX)
+- Media files (images, audio, video)
+- Configuration files and templates
+- API specifications and documentation
+
+## Register Static Resource Agents
+
+Static resources are registered using the same Agents API, but with HTTP GET endpoints pointing to your content URLs:
+
+```typescript
+import { Payments, AgentMetadata, AgentAPIAttributes } from '@nevermined-io/payments'
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox',
+})
+
+// Define static resource metadata
+const resourceMetadata: AgentMetadata = {
+  name: 'Premium Weather Datasets',
+  description: 'Historical weather data for the past 10 years',
+  tags: ['dataset', 'weather', 'csv', 'historical'],
+}
+
+// Configure file endpoints
+const resourceApi: AgentAPIAttributes = {
+  endpoints: [
+    { GET: 'https://storage.example.com/weather/monthly-data-2024.csv' },
+    { GET: 'https://storage.example.com/weather/monthly-data-2023.csv' },
+  ],
+  authType: 'bearer',  // Require X402 access token
+}
+
+// Register as agent
+const { agentId } = await payments.agents.registerAgent(
+  resourceMetadata,
+  resourceApi,
+  [planId]
+)
+
+console.log(`Static resource agent registered: ${agentId}`)
+```
+
+## Using Wildcards for Multiple Files
+
+You can use wildcards to grant access to multiple files with a single endpoint pattern:
+
+### Single Wildcard
+
+```typescript
+const resourceApi: AgentAPIAttributes = {
+  endpoints: [
+    { GET: 'https://storage.example.com/datasets/:dataset/*' },
+  ],
+  authType: 'bearer',
+}
+```
+
+This pattern allows access to:
+- `https://storage.example.com/datasets/weather/2024-data.csv`
+- `https://storage.example.com/datasets/weather/hourly-readings.json`
+- `https://storage.example.com/datasets/climate/temperature-records.csv`
+
+### Multiple Wildcards
+
+```typescript
+const resourceApi: AgentAPIAttributes = {
+  endpoints: [
+    { GET: 'https://storage.example.com/datasets/:category/:year/*' },
+  ],
+  authType: 'bearer',
+}
+```
+
+This pattern allows access to:
+- `https://storage.example.com/datasets/weather/2024/january.csv`
+- `https://storage.example.com/datasets/climate/2023/summer.json`
+
+### File Type Wildcards
+
+```typescript
+const resourceApi: AgentAPIAttributes = {
+  endpoints: [
+    { GET: 'https://storage.example.com/models/:model/*.pt' },      // PyTorch models
+    { GET: 'https://storage.example.com/models/:model/*.safetensors' }, // Safetensors
+    { GET: 'https://storage.example.com/datasets/:name/*.csv' },    // CSV files
+  ],
+  authType: 'bearer',
+}
+```
+
+## Examples
+
+### Example 1: Dataset Collection
+
+```typescript
+import { Payments, AgentMetadata, AgentAPIAttributes } from '@nevermined-io/payments'
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox',
+})
+
+const datasetMetadata: AgentMetadata = {
+  name: 'ML Training Datasets',
+  description: 'Curated datasets for machine learning training',
+  tags: ['dataset', 'ml', 'training', 'csv', 'json'],
+}
+
+const datasetApi: AgentAPIAttributes = {
+  endpoints: [
+    { GET: 'https://cdn.example.com/datasets/:category/:filename' },
+  ],
+  openEndpoints: [
+    'https://cdn.example.com/datasets/samples/preview.json',  // Free preview
+  ],
+  authType: 'bearer',
+}
+
+const { agentId } = await payments.agents.registerAgent(
+  datasetMetadata,
+  datasetApi,
+  [planId]
+)
+
+console.log(`Dataset collection registered: ${agentId}`)
+```
+
+### Example 2: Model Repository
+
+```typescript
+const modelMetadata: AgentMetadata = {
+  name: 'Fine-tuned Language Models',
+  description: 'Pre-trained and fine-tuned models for NLP tasks',
+  tags: ['model', 'nlp', 'pytorch', 'transformers'],
+}
+
+const modelApi: AgentAPIAttributes = {
+  endpoints: [
+    { GET: 'https://models.example.com/nlp/:model-name/*.pt' },
+    { GET: 'https://models.example.com/nlp/:model-name/*.safetensors' },
+    { GET: 'https://models.example.com/nlp/:model-name/config.json' },
+  ],
+  authType: 'bearer',
+}
+
+const { agentId } = await payments.agents.registerAgent(
+  modelMetadata,
+  modelApi,
+  [premiumPlanId]
+)
+```
+
+### Example 3: Document Library
+
+```typescript
+const documentMetadata: AgentMetadata = {
+  name: 'Research Reports & Whitepapers',
+  description: 'Premium industry research and technical whitepapers',
+  tags: ['documents', 'research', 'reports', 'pdf'],
+}
+
+const documentApi: AgentAPIAttributes = {
+  endpoints: [
+    { GET: 'https://docs.example.com/reports/:year/:category/*.pdf' },
+    { GET: 'https://docs.example.com/whitepapers/:topic/*.pdf' },
+  ],
+  openEndpoints: [
+    'https://docs.example.com/samples/index.html',  // Catalog
+  ],
+  authType: 'bearer',
+}
+
+const { agentId } = await payments.agents.registerAgent(
+  documentMetadata,
+  documentApi,
+  [basicPlanId, proPlanId]
+)
+```
+
+### Example 4: Directory-Level Access
+
+```typescript
+const directoryMetadata: AgentMetadata = {
+  name: 'Premium Asset Library',
+  description: 'Complete directory access to all assets',
+  tags: ['assets', 'media', 'images', 'videos'],
+}
+
+const directoryApi: AgentAPIAttributes = {
+  endpoints: [
+    { GET: 'https://assets.example.com/premium/*' },  // Everything under /premium/
+  ],
+  authType: 'bearer',
+}
+
+const { agentId } = await payments.agents.registerAgent(
+  directoryMetadata,
+  directoryApi,
+  [unlimitedPlanId]
+)
+```
+
+## MCP Logical URIs for Static Resources
+
+When registering static resource agents in the Nevermined App, you can also use MCP logical URIs with wildcards:
+
+```
+mcp://storage-server/resources/weather://2024/*
+mcp://model-server/resources/models://:model-name/*
+mcp://docs-server/resources/reports://:category/*
+```
+
+## Access Control
+
+Static resources use the same X402 access token authentication as AI agents:
+
+1. Subscribers order a plan and receive credits
+2. Subscribers generate an X402 access token
+3. Requests to static resources include the token in the `PAYMENT-SIGNATURE` header
+4. Your server verifies the token and grants access
+5. Credits are burned based on your plan configuration
+
+See [Validation of Requests](08-validation-of-requests.mdx) for implementation details.
+
+## Best Practices
+
+1. **Organized Structure**: Use clear URL patterns with logical path segments
+2. **Wildcard Strategy**: Balance flexibility (broad wildcards) with security (specific patterns)
+3. **File Types**: Specify file extensions in patterns when possible (e.g., `*.csv`, `*.pdf`)
+4. **Preview Access**: Consider providing free samples via `openEndpoints`
+5. **Metadata Tags**: Include file types and categories in tags for discoverability
+6. **Plan Configuration**: Set appropriate credits per download based on file size/value
+
+## Complete Example: Multi-Format Resource Library
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+import { AgentMetadata, AgentAPIAttributes } from '@nevermined-io/payments'
+
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox' as EnvironmentName,
+})
+
+const resourceMetadata: AgentMetadata = {
+  name: 'Data Science Resource Library',
+  description: 'Comprehensive collection of datasets, models, and notebooks',
+  tags: ['dataset', 'model', 'notebook', 'ml', 'ai'],
+}
+
+const resourceApi: AgentAPIAttributes = {
+  endpoints: [
+    // Datasets
+    { GET: 'https://cdn.example.com/datasets/:category/:name.csv' },
+    { GET: 'https://cdn.example.com/datasets/:category/:name.json' },
+    { GET: 'https://cdn.example.com/datasets/:category/:name.parquet' },
+
+    // Models
+    { GET: 'https://cdn.example.com/models/:framework/:name/*' },
+
+    // Notebooks
+    { GET: 'https://cdn.example.com/notebooks/:topic/*.ipynb' },
+
+    // Documentation
+    { GET: 'https://cdn.example.com/docs/:section/*.pdf' },
+  ],
+  openEndpoints: [
+    'https://cdn.example.com/catalog.json',
+    'https://cdn.example.com/samples/preview-dataset.csv',
+  ],
+  authType: 'bearer',
+}
+
+const { agentId } = await payments.agents.registerAgent(
+  resourceMetadata,
+  resourceApi,
+  [basicPlanId, proPlanId, enterprisePlanId]
+)
+
+console.log(`Multi-format resource library registered: ${agentId}`)
+```
+
+## Related Documentation
+
+- [Agents](04-agents.mdx) - Agent registration fundamentals
+- [Payment Plans](03-payment-plans.mdx) - Configure pricing for resource access
+- [Validation of Requests](08-validation-of-requests.mdx) - Verify access tokens for downloads
+
+---
+
+**Source References**:
+- `src/api/agents-api.ts` (Agents API for static resources)
+- `RUN.md` (MCP logical URIs with wildcards)
