@@ -14,17 +14,17 @@ The documentation system consists of:
 
 ```
 markdown/
-├── 01-installation.mdx
-├── 02-initializing-the-library.mdx
-├── 03-payment-plans.mdx
-├── 04-agents.mdx
-├── 05-publishing-static-resources.mdx
-├── 06-payments-and-balance.mdx
-├── 07-querying-an-agent.mdx
-├── 08-validation-of-requests.mdx
-├── 09-mcp-integration.mdx
-├── 10-a2a-integration.mdx
-├── 11-x402.mdx
+├── installation.mdx
+├── initializing-the-library.mdx
+├── payment-plans.mdx
+├── agents.mdx
+├── publishing-static-resources.mdx
+├── payments-and-balance.mdx
+├── querying-an-agent.mdx
+├── validation-of-requests.mdx
+├── mcp-integration.mdx
+├── a2a-integration.mdx
+├── x402.mdx
 └── README.md
 ```
 

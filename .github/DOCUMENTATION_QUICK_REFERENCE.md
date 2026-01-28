@@ -6,17 +6,17 @@ Quick reference for the Nevermined Payments SDK documentation automation.
 
 ```
 markdown/
-├── 01-installation.mdx                   # Setup guide
-├── 02-initializing-the-library.mdx      # Getting started
-├── 03-payment-plans.mdx                 # Plans API
-├── 04-agents.mdx                        # Agents API
-├── 05-publishing-static-resources.mdx   # Static content
-├── 06-payments-and-balance.mdx          # Payments
-├── 07-querying-an-agent.mdx             # X402 tokens
-├── 08-validation-of-requests.mdx        # Validation
-├── 09-mcp-integration.mdx               # MCP protocol
-├── 10-a2a-integration.mdx               # A2A protocol
-└── 11-x402.mdx                          # X402 spec
+├── installation.mdx                   # Setup guide
+├── initializing-the-library.mdx      # Getting started
+├── payment-plans.mdx                 # Plans API
+├── agents.mdx                        # Agents API
+├── publishing-static-resources.mdx   # Static content
+├── payments-and-balance.mdx          # Payments
+├── querying-an-agent.mdx             # X402 tokens
+├── validation-of-requests.mdx        # Validation
+├── mcp-integration.mdx               # MCP protocol
+├── a2a-integration.mdx               # A2A protocol
+└── x402.mdx                          # X402 spec
 ```
 
 ## 🤖 Automated Workflows

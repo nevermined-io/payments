@@ -4,17 +4,17 @@ This directory contains the markdown documentation for the Nevermined Payments T
 
 ## Documentation Files
 
-1. **01-installation.mdx** - Installation guide and prerequisites
-2. **02-initializing-the-library.mdx** - Initializing the Payments instance
-3. **03-payment-plans.mdx** - Payment plans, pricing, and credits
-4. **04-agents.mdx** - Agent registration and management
-5. **05-publishing-static-resources.mdx** - Publishing static content agents
-6. **06-payments-and-balance.mdx** - Making payments and checking balances
-7. **07-querying-an-agent.mdx** - Generating tokens and querying agents
-8. **08-validation-of-requests.mdx** - Validating and settling permissions
-9. **09-mcp-integration.mdx** - Model Context Protocol integration
-10. **10-a2a-integration.mdx** - Agent-to-Agent protocol integration
-11. **11-x402.mdx** - X402 payment protocol specification
+1. **installation.mdx** - Installation guide and prerequisites
+2. **initializing-the-library.mdx** - Initializing the Payments instance
+3. **payment-plans.mdx** - Payment plans, pricing, and credits
+4. **agents.mdx** - Agent registration and management
+5. **publishing-static-resources.mdx** - Publishing static content agents
+6. **payments-and-balance.mdx** - Making payments and checking balances
+7. **querying-an-agent.mdx** - Generating tokens and querying agents
+8. **validation-of-requests.mdx** - Validating and settling permissions
+9. **mcp-integration.mdx** - Model Context Protocol integration
+10. **a2a-integration.mdx** - Agent-to-Agent protocol integration
+11. **x402.mdx** - X402 payment protocol specification
 
 ## Automation Workflows
 

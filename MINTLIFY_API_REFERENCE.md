@@ -136,6 +136,6 @@ icon: "download"
 
 This header Must be at the very beginning of the file. Follow the rules:
 
-* title - must represent a short and clear title of the page
-* description - must be a one or two lines summarizing the page content
-* icon - must be a mintlify icon that is displayed properly in the Mintlify left menu
+- title - must represent a short and clear title of the page
+- description - must be a one or two lines summarizing the page content
+- icon - must be a mintlify icon that is displayed properly in the Mintlify left menu
