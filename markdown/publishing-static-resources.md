@@ -238,7 +238,7 @@ Static resources use the same X402 access token authentication as AI agents:
 4. Your server verifies the token and grants access
 5. Credits are burned based on your plan configuration
 
-See [Validation of Requests](validation-of-requests.md) for implementation details.
+See [Validation of Requests](./validation-of-requests) for implementation details.
 
 ## Best Practices
 
@@ -300,9 +300,9 @@ console.log(`Multi-format resource library registered: ${agentId}`)
 
 ## Related Documentation
 
-- [Agents](agents.md) - Agent registration fundamentals
-- [Payment Plans](payment-plans.md) - Configure pricing for resource access
-- [Validation of Requests](validation-of-requests.md) - Verify access tokens for downloads
+- [Agents](./agents) - Agent registration fundamentals
+- [Payment Plans](./payment-plans) - Configure pricing for resource access
+- [Validation of Requests](./validation-of-requests) - Verify access tokens for downloads
 
 ---
 

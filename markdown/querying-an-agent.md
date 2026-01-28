@@ -351,9 +351,9 @@ async function queryWithBalanceCheck(
 
 ## Related Documentation
 
-- [Payments and Balance](payments-and-balance.md) - How to purchase plans and check credits
-- [Validation of Requests](validation-of-requests.md) - How agents validate tokens (for builders)
-- [X402 Protocol](x402.md) - Complete X402 specification
+- [Payments and Balance](./payments-and-balance) - How to purchase plans and check credits
+- [Validation of Requests](./validation-of-requests) - How agents validate tokens (for builders)
+- [X402 Protocol](./x402) - Complete X402 specification
 
 ---
 

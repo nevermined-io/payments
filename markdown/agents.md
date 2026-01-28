@@ -341,9 +341,9 @@ console.log(`Agent has ${plans.length} associated plans`)
 
 ## Related Documentation
 
-- [Payment Plans](payment-plans.md) - Create plans to associate with agents
-- [Publishing Static Resources](publishing-static-resources.md) - Register static content agents
-- [Validation of Requests](validation-of-requests.md) - Validate incoming agent requests
+- [Payment Plans](./payment-plans) - Create plans to associate with agents
+- [Publishing Static Resources](./publishing-static-resources) - Register static content agents
+- [Validation of Requests](./validation-of-requests) - Validate incoming agent requests
 
 ---
 

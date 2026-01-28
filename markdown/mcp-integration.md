@@ -434,9 +434,9 @@ app.listen(5001)
 
 ## Related Documentation
 
-- [Agents](agents.md) - Register your MCP agent in Nevermined
-- [Payment Plans](payment-plans.md) - Configure pricing for your agent
-- [Validation of Requests](validation-of-requests.md) - Understanding the validation flow
+- [Agents](./agents) - Register your MCP agent in Nevermined
+- [Payment Plans](./payment-plans) - Configure pricing for your agent
+- [Validation of Requests](./validation-of-requests) - Understanding the validation flow
 
 ---
 
