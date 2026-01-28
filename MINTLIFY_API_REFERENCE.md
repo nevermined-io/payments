@@ -121,3 +121,21 @@ This page is focused in all the x402 and Facilitator related methods. This page 
 - Generate x402 payment permissions. Reference to the [Nevermined App Permissions page](https://nevermined.app/permissions/agent-permissions) and how the permissions can be generated from there.
 - Verify x402 payment permissions
 - Settle x402 payments
+
+## Formatting Guidelines
+
+Add in each Markdown page a header that has the Mintlify metadata format. For example:
+
+```text
+---                                                                                                                                                                     
+title: "Installation"                                                                                                                                                       
+description: "Install and configure the @nevermined-io/payments TypeScript SDK"                                                                                             
+icon: "download"                                                                                                                                                            
+---
+```
+
+This header Must be at the very beginning of the file. Follow the rules:
+
+* title - must represent a short and clear title of the page
+* description - must be a one or two lines summarizing the page content
+* icon - must be a mintlify icon that is displayed properly in the Mintlify left menu
