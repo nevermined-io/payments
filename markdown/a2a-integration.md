@@ -578,9 +578,9 @@ const { server, close } = await payments.a2a.start({
 
 ## Related Documentation
 
-- [Agents](agents.mdx) - Register your A2A agent in Nevermined
-- [Payment Plans](payment-plans.mdx) - Configure pricing for your agent
-- [Validation of Requests](validation-of-requests.mdx) - Understanding credit settlement
+- [Agents](agents.md) - Register your A2A agent in Nevermined
+- [Payment Plans](payment-plans.md) - Configure pricing for your agent
+- [Validation of Requests](validation-of-requests.md) - Understanding credit settlement
 
 ---
 

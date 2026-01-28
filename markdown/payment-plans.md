@@ -345,8 +345,8 @@ console.log(`Pro: ${proPlanId}`)
 
 ## Related Documentation
 
-- [Agents](agents.mdx) - Associate plans with agents
-- [Payments and Balance](payments-and-balance.mdx) - How subscribers order plans
+- [Agents](agents.md) - Associate plans with agents
+- [Payments and Balance](payments-and-balance.md) - How subscribers order plans
 
 ---
 

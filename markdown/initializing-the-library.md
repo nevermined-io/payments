@@ -192,8 +192,8 @@ try {
 
 ## Related Documentation
 
-- [Payment Plans](payment-plans.mdx)
-- [Agents](agents.mdx)
+- [Payment Plans](payment-plans.md)
+- [Agents](agents.md)
 
 ---
 

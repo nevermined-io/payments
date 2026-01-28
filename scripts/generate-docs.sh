@@ -74,17 +74,17 @@ echo ""
 
 # Validate existing docs
 EXPECTED_FILES=(
-  "installation.mdx"
-  "initializing-the-library.mdx"
-  "payment-plans.mdx"
-  "agents.mdx"
-  "publishing-static-resources.mdx"
-  "payments-and-balance.mdx"
-  "querying-an-agent.mdx"
-  "validation-of-requests.mdx"
-  "mcp-integration.mdx"
-  "a2a-integration.mdx"
-  "x402.mdx"
+  "installation.md"
+  "initializing-the-library.md"
+  "payment-plans.md"
+  "agents.md"
+  "publishing-static-resources.md"
+  "payments-and-balance.md"
+  "querying-an-agent.md"
+  "validation-of-requests.md"
+  "mcp-integration.md"
+  "a2a-integration.md"
+  "x402.md"
 )
 
 echo "Validating existing documentation files..."

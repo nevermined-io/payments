@@ -41,7 +41,7 @@ Automatically updates documentation:
 **Trigger**: Push of version tags (e.g., `v1.0.2`)
 
 Publishes documentation to the docs repository:
-- Copies `markdown/*.mdx` to `nevermined-io/docs_mintlify`
+- Copies `markdown/*.md` to `nevermined-io/docs_mintlify`
 - Creates a pull request with:
   - Version information
   - Change summary
@@ -113,7 +113,7 @@ Tag created → Validate docs → Checkout docs repo → Copy files → Create P
 ```
 
 **What Gets Published**:
-- All 11 `.mdx` files from `markdown/`
+- All 11 `.md` files from `markdown/`
 - Version metadata included in files
 - Copies to `docs/api-reference/typescript/` in docs_mintlify
 
@@ -157,7 +157,7 @@ gh workflow run update-docs.yml
    - Check docs_mintlify repository structure
 
 3. **Markdown files missing**
-   - Ensure all 11 `.mdx` files exist in `markdown/`
+   - Ensure all 11 `.md` files exist in `markdown/`
    - Run `./scripts/generate-docs.sh` to validate
 
 **Manual Debugging**:
@@ -224,7 +224,7 @@ git clone https://github.com/nevermined-io/payments.git
 git clone https://github.com/nevermined-io/docs_mintlify.git
 
 # 2. Copy files
-cp payments/markdown/*.mdx docs_mintlify/docs/api-reference/typescript/
+cp payments/markdown/*.md docs_mintlify/docs/api-reference/typescript/
 
 # 3. Create branch and PR
 cd docs_mintlify

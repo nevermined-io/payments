@@ -4,17 +4,17 @@ This directory contains the markdown documentation for the Nevermined Payments T
 
 ## Documentation Files
 
-1. **installation.mdx** - Installation guide and prerequisites
-2. **initializing-the-library.mdx** - Initializing the Payments instance
-3. **payment-plans.mdx** - Payment plans, pricing, and credits
-4. **agents.mdx** - Agent registration and management
-5. **publishing-static-resources.mdx** - Publishing static content agents
-6. **payments-and-balance.mdx** - Making payments and checking balances
-7. **querying-an-agent.mdx** - Generating tokens and querying agents
-8. **validation-of-requests.mdx** - Validating and settling permissions
-9. **mcp-integration.mdx** - Model Context Protocol integration
-10. **a2a-integration.mdx** - Agent-to-Agent protocol integration
-11. **x402.mdx** - X402 payment protocol specification
+1. **installation.md** - Installation guide and prerequisites
+2. **initializing-the-library.md** - Initializing the Payments instance
+3. **payment-plans.md** - Payment plans, pricing, and credits
+4. **agents.md** - Agent registration and management
+5. **publishing-static-resources.md** - Publishing static content agents
+6. **payments-and-balance.md** - Making payments and checking balances
+7. **querying-an-agent.md** - Generating tokens and querying agents
+8. **validation-of-requests.md** - Validating and settling permissions
+9. **mcp-integration.md** - Model Context Protocol integration
+10. **a2a-integration.md** - Agent-to-Agent protocol integration
+11. **x402.md** - X402 payment protocol specification
 
 ## Automation Workflows
 
@@ -118,7 +118,7 @@ Each file follows this structure:
 
 When a new version is tagged:
 
-1. GitHub Actions copies `markdown/*.mdx` to `docs_mintlify/docs/api-reference/typescript/`
+1. GitHub Actions copies `markdown/*.md` to `docs_mintlify/docs/api-reference/typescript/`
 2. A pull request is created in the docs repository
 3. After PR approval and merge, documentation is published via Mintlify
 4. Documentation becomes available via MCP for LLM consumption
@@ -151,8 +151,8 @@ If version metadata is incorrect:
 To verify all internal links work:
 
 ```bash
-# Check for broken .mdx links
-grep -r "\.mdx)" markdown/ | while read line; do
+# Check for broken .md links
+grep -r "\.md)" markdown/ | while read line; do
   file=$(echo "$line" | cut -d: -f1)
   link=$(echo "$line" | grep -o '[0-9][0-9]-[a-z-]*.mdx')
   if [ ! -f "markdown/$link" ]; then

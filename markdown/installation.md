@@ -76,7 +76,7 @@ After successful installation:
 2. Choose your environment (sandbox for testing, live for production)
 3. Initialize the Payments instance in your application
 
-Continue to [Initializing the Library](initializing-the-library.mdx) to get started.
+Continue to [Initializing the Library](initializing-the-library.md) to get started.
 
 ---
 

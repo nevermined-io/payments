@@ -395,10 +395,10 @@ const settlement = await agentPayments.facilitator.settlePermissions({
 
 ## Related Documentation
 
-- [Querying an Agent](querying-an-agent.mdx) - How subscribers generate and use tokens
-- [X402 Protocol](x402.mdx) - Complete X402 specification
-- [MCP Integration](mcp-integration.mdx) - Automatic validation in MCP servers
-- [A2A Integration](a2a-integration.mdx) - Automatic validation in A2A servers
+- [Querying an Agent](querying-an-agent.md) - How subscribers generate and use tokens
+- [X402 Protocol](x402.md) - Complete X402 specification
+- [MCP Integration](mcp-integration.md) - Automatic validation in MCP servers
+- [A2A Integration](a2a-integration.md) - Automatic validation in A2A servers
 
 ---
 

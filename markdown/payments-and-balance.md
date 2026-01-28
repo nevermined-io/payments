@@ -352,8 +352,8 @@ if (success) {
 
 ## Related Documentation
 
-- [Payment Plans](payment-plans.mdx) - Understanding plan types and pricing
-- [Querying an Agent](querying-an-agent.mdx) - Using credits to access agents
+- [Payment Plans](payment-plans.md) - Understanding plan types and pricing
+- [Querying an Agent](querying-an-agent.md) - Using credits to access agents
 
 ---
 
