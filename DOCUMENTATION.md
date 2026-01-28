@@ -171,12 +171,37 @@ git push origin v1.0.2
 If you want to publish documentation without creating a tag:
 
 ```bash
-# Option 1: Trigger workflow manually
+# Option 1: Trigger workflow manually (to main branch)
 gh workflow run publish-docs.yml -f version=v1.0.2
 
-# Option 2: Use publish script
+# Option 2: Trigger workflow to test/preview branch (for testing)
+gh workflow run publish-docs.yml -f version=v1.0.2 -f target_branch=preview
+
+# Option 3: Use publish script
 ./scripts/publish-docs.sh
 # Select option 1 or 2
+```
+
+### Testing Documentation Before Production
+
+To preview documentation in Mintlify before publishing to production:
+
+```bash
+# 1. Create a preview branch in docs_mintlify (if it doesn't exist)
+cd ../docs_mintlify
+git checkout -b preview
+git push origin preview
+
+# 2. Publish documentation to preview branch
+cd ../payments
+gh workflow run publish-docs.yml -f version=v1.0.2 -f target_branch=preview
+
+# 3. Review PR in docs_mintlify targeting preview branch
+
+# 4. Merge PR and check Mintlify preview deployment
+
+# 5. If satisfied, publish to main branch
+gh workflow run publish-docs.yml -f version=v1.0.2 -f target_branch=main
 ```
 
 ## Full Documentation Regeneration

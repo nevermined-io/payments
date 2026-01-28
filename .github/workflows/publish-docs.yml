@@ -11,6 +11,11 @@ on:
         description: 'Version tag to publish (e.g., v1.0.2)'
         required: true
         type: string
+      target_branch:
+        description: 'Target branch in docs_mintlify repository (e.g., main, preview, test)'
+        required: false
+        type: string
+        default: 'main'
 
 jobs:
   publish-to-mintlify:
@@ -49,6 +54,7 @@ jobs:
           repository: nevermined-io/docs_mintlify
           token: ${{ secrets.DOCS_REPO_TOKEN }}
           path: docs_mintlify
+          ref: ${{ github.event.inputs.target_branch || 'main' }}
 
       - name: Prepare target directory
         run: |
@@ -81,7 +87,7 @@ jobs:
           COPIED_COUNT=$(find "$TARGET_DIR" -name "*.mdx" | wc -l)
           echo "✓ Copied $COPIED_COUNT documentation files"
 
-      - name: Get version info
+      - name: Get version and target info
         id: version
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
@@ -92,18 +98,24 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
+          TARGET_BRANCH="${{ github.event.inputs.target_branch || 'main' }}"
+          echo "target_branch=$TARGET_BRANCH" >> $GITHUB_OUTPUT
+          echo "Target branch: $TARGET_BRANCH"
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.DOCS_REPO_TOKEN }}
           path: docs_mintlify
           branch: update-typescript-docs-${{ steps.version.outputs.version }}
+          base: ${{ steps.version.outputs.target_branch }}
           delete-branch: true
           commit-message: |
             docs: update TypeScript SDK documentation for ${{ steps.version.outputs.version }}
 
             - Updated from nevermined-io/payments@${{ github.sha }}
             - SDK version: ${{ steps.version.outputs.version }}
+            - Target branch: ${{ steps.version.outputs.target_branch }}
             - Generated documentation from tagged release
           title: 'docs: Update TypeScript SDK Documentation (${{ steps.version.outputs.version }})'
           body: |
@@ -115,6 +127,7 @@ jobs:
             - ✅ Updated all 11 documentation files
             - 📦 Source: [nevermined-io/payments@${{ github.sha }}](https://github.com/nevermined-io/payments/commit/${{ github.sha }})
             - 🏷️ Version: `${{ steps.version.outputs.version }}`
+            - 🎯 Target Branch: `${{ steps.version.outputs.target_branch }}`
 
             ### Documentation Files
             - `01-installation.mdx`
@@ -151,6 +164,7 @@ jobs:
           echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Source Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Repository**: nevermined-io/docs_mintlify" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Branch**: ${{ steps.version.outputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Path**: docs/api-reference/typescript/" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ Documentation published successfully" >> $GITHUB_STEP_SUMMARY

@@ -50,7 +50,11 @@ Publishes documentation to the docs repository:
 **Required Secrets**:
 - `DOCS_REPO_TOKEN` - GitHub token with repo access to `nevermined-io/docs_mintlify`
 
-**Manual Trigger**: Can be run manually by specifying a version tag
+**Manual Trigger**: Can be run manually by specifying:
+- `version` - Version tag to publish (e.g., v1.0.2)
+- `target_branch` - Target branch in docs_mintlify (default: main)
+
+**Testing**: Use a test branch (e.g., `preview` or `test`) to preview documentation in Mintlify before merging to main
 
 ## Setting Up Secrets
 
@@ -115,8 +119,14 @@ Tag created → Validate docs → Checkout docs repo → Copy files → Create P
 
 **Manual Workflow**:
 ```bash
-# Trigger manually for specific version
+# Trigger for main branch (production)
 gh workflow run publish-docs.yml -f version=v1.0.2
+
+# Trigger for test/preview branch (testing)
+gh workflow run publish-docs.yml -f version=v1.0.2 -f target_branch=preview
+
+# Trigger for custom branch
+gh workflow run publish-docs.yml -f version=v1.0.2 -f target_branch=test
 ```
 
 ## Troubleshooting

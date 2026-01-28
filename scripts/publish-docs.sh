@@ -78,20 +78,42 @@ case $OPTION in
       VERSION_TAG="v$CURRENT_VERSION"
     fi
 
+    # Ask for target branch
     echo ""
-    echo "Publishing documentation for version: $VERSION_TAG"
+    echo "Target branch in docs_mintlify repository:"
+    echo "  main     - Production documentation (default)"
+    echo "  preview  - Preview/testing branch"
+    echo "  test     - Test branch"
+    echo ""
+    read -p "Enter target branch (default: main): " TARGET_BRANCH
+
+    if [ -z "$TARGET_BRANCH" ]; then
+      TARGET_BRANCH="main"
+    fi
+
+    echo ""
+    echo "Publishing documentation:"
+    echo "  Version: $VERSION_TAG"
+    echo "  Target branch: $TARGET_BRANCH"
     echo ""
 
     # Trigger workflow
-    gh workflow run publish-docs.yml -f version="$VERSION_TAG"
+    gh workflow run publish-docs.yml -f version="$VERSION_TAG" -f target_branch="$TARGET_BRANCH"
 
     echo "✓ Workflow triggered successfully"
+    echo ""
+    echo "The workflow will create a PR in docs_mintlify targeting the '$TARGET_BRANCH' branch."
     echo ""
     echo "Monitor progress:"
     echo "  gh run list --workflow=publish-docs.yml"
     echo ""
     echo "View logs:"
     echo "  gh run view --workflow=publish-docs.yml"
+    echo ""
+    echo "After the PR is created:"
+    echo "  1. Review the PR in docs_mintlify repository"
+    echo "  2. Check Mintlify preview deployment"
+    echo "  3. Merge the PR to publish to $TARGET_BRANCH branch"
     echo ""
     ;;
 

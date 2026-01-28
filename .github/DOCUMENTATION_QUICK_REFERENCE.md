@@ -43,12 +43,17 @@ gh workflow run update-docs.yml
 **Triggers on**: Creating a version tag
 
 ```bash
-# Automatic
+# Automatic (publishes to main branch)
 git tag -a v1.0.2 -m "Release v1.0.2"
 git push origin v1.0.2
 
-# Manual
+# Manual - main branch (production)
 gh workflow run publish-docs.yml -f version=v1.0.2
+
+# Manual - preview branch (testing)
+gh workflow run publish-docs.yml -f version=v1.0.2 -f target_branch=preview
+
+# Manual - using script
 ./scripts/publish-docs.sh
 ```
 
