@@ -94,10 +94,10 @@ Alternatively, use a classic PAT with `repo` scope.
 
 **On Source Changes**:
 ```
-Push → Validate docs → Check changes → Commit if needed → Skip CI
+Push → Validate docs → Create PR → Enable auto-merge
 ```
 
-The `[skip ci]` suffix prevents infinite loops of documentation commits.
+The workflow creates a PR to the same branch that triggered it, with auto-merge enabled. This ensures all changes go through PR review process while allowing automatic merging when checks pass.
 
 **When to Trigger**:
 - Source code changes that affect API
@@ -105,17 +105,29 @@ The `[skip ci]` suffix prevents infinite loops of documentation commits.
 - Documentation spec updated
 - Manual version bump
 
+**Auto-Merge**:
+- PRs are created with auto-merge enabled
+- Will merge automatically when all checks pass
+- Requires repository settings to allow auto-merge
+
 ### publish-docs.yml
 
 **On Tag Push**:
 ```
-Tag created → Validate docs → Checkout docs repo → Copy files → Create PR
+Tag created → Validate docs → Checkout docs repo → Copy files → Create PR → Enable auto-merge
 ```
+
+The workflow creates a PR in the docs_mintlify repository with auto-merge enabled, allowing automatic merging when Mintlify checks pass.
 
 **What Gets Published**:
 - All 11 `.md` files from `markdown/`
 - Version metadata included in files
 - Copies to `docs/api-reference/typescript/` in docs_mintlify
+
+**Auto-Merge**:
+- PRs are created with auto-merge enabled in docs_mintlify
+- Will merge automatically when all checks pass
+- Requires docs_mintlify repository to allow auto-merge
 
 **Manual Workflow**:
 ```bash

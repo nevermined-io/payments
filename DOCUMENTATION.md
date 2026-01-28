@@ -36,8 +36,8 @@ markdown/
 
 **What It Does**:
 - Validates all documentation files exist
-- Updates version metadata in each file
-- Commits changes back to repository (with `[skip ci]`)
+- Creates a pull request with documentation updates
+- Enables auto-merge for automatic merging when checks pass
 
 **Configuration**: `.github/workflows/update-docs.yml`
 
@@ -66,6 +66,7 @@ Actions → Update Documentation → Run workflow
 **What It Does**:
 - Copies all `.md` files from `markdown/` to `docs_mintlify` repository
 - Creates a pull request in the docs repository
+- Enables auto-merge for automatic merging when checks pass
 - Includes version info, change summary, and automated labels
 
 **Configuration**: `.github/workflows/publish-docs.yml`

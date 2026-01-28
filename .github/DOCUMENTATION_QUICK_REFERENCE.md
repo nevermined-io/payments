@@ -35,8 +35,8 @@ gh workflow run update-docs.yml
 
 **What it does**:
 - ✅ Validates all documentation files
-- ✅ Updates version metadata
-- ✅ Commits changes (with [skip ci])
+- ✅ Creates pull request to same branch
+- ✅ Enables auto-merge for automatic merging
 
 ### Publish Documentation (Tag)
 
@@ -60,6 +60,7 @@ gh workflow run publish-docs.yml -f version=v1.0.2 -f target_branch=preview
 **What it does**:
 - ✅ Copies docs to docs_mintlify repo
 - ✅ Creates pull request
+- ✅ Enables auto-merge for automatic merging
 - ✅ Adds version metadata
 
 ## 🛠️ Manual Commands

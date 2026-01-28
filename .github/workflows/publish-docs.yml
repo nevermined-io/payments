@@ -106,6 +106,7 @@ jobs:
           echo "Target branch: $TARGET_BRANCH"
 
       - name: Create Pull Request
+        id: create_pr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.DOCS_REPO_TOKEN }}
@@ -160,6 +161,16 @@ jobs:
           reviewers: |
             aitor
 
+      - name: Enable auto-merge in docs_mintlify
+        if: steps.create_pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_REPO_TOKEN }}
+        run: |
+          gh pr merge ${{ steps.create_pr.outputs.pull-request-number }} \
+            --repo nevermined-io/docs_mintlify \
+            --auto \
+            --squash
+
       - name: Create summary
         run: |
           echo "### Documentation Publication Summary" >> $GITHUB_STEP_SUMMARY
@@ -170,6 +181,11 @@ jobs:
           echo "- **Target Branch**: ${{ steps.version.outputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Path**: docs/api-reference/typescript/" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Documentation published successfully" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "A pull request has been created in the docs_mintlify repository." >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.create_pr.outputs.pull-request-number }}" != "" ]; then
+            echo "✅ Pull request created: #${{ steps.create_pr.outputs.pull-request-number }}" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 URL: ${{ steps.create_pr.outputs.pull-request-url }}" >> $GITHUB_STEP_SUMMARY
+            echo "🤖 Auto-merge enabled - PR will merge automatically when checks pass" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No changes to publish" >> $GITHUB_STEP_SUMMARY
+          fi
