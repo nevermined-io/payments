@@ -32,7 +32,7 @@ if [ ! -d "$PROJECT_ROOT/markdown" ]; then
 fi
 
 # Count markdown files
-FILE_COUNT=$(find "$PROJECT_ROOT/markdown" -name "*.mdx" | wc -l)
+FILE_COUNT=$(find "$PROJECT_ROOT/markdown" -name "*.md" -not -name "README.md" | wc -l)
 echo "Found $FILE_COUNT documentation files"
 
 if [ "$FILE_COUNT" -lt 11 ]; then
@@ -153,10 +153,12 @@ case $OPTION in
 
     # Copy files
     echo "Copying documentation files..."
-    cp "$PROJECT_ROOT/markdown"/*.mdx "$TARGET_DIR/"
+    cp "$PROJECT_ROOT/markdown"/*.md "$TARGET_DIR/"
+    # Remove README.md if it was copied
+    rm -f "$TARGET_DIR/README.md"
 
     # Count copied files
-    COPIED_COUNT=$(find "$TARGET_DIR" -name "*.mdx" | wc -l)
+    COPIED_COUNT=$(find "$TARGET_DIR" -name "*.md" | wc -l)
     echo "✓ Copied $COPIED_COUNT files to $TARGET_DIR"
 
     # Show status

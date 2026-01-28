@@ -6,17 +6,17 @@ Quick reference for the Nevermined Payments SDK documentation automation.
 
 ```
 markdown/
-├── installation.mdx                   # Setup guide
-├── initializing-the-library.mdx      # Getting started
-├── payment-plans.mdx                 # Plans API
-├── agents.mdx                        # Agents API
-├── publishing-static-resources.mdx   # Static content
-├── payments-and-balance.mdx          # Payments
-├── querying-an-agent.mdx             # X402 tokens
-├── validation-of-requests.mdx        # Validation
-├── mcp-integration.mdx               # MCP protocol
-├── a2a-integration.mdx               # A2A protocol
-└── x402.mdx                          # X402 spec
+├── installation.md                   # Setup guide
+├── initializing-the-library.md      # Getting started
+├── payment-plans.md                 # Plans API
+├── agents.md                        # Agents API
+├── publishing-static-resources.md   # Static content
+├── payments-and-balance.md          # Payments
+├── querying-an-agent.md             # X402 tokens
+├── validation-of-requests.md        # Validation
+├── mcp-integration.md               # MCP protocol
+├── a2a-integration.md               # A2A protocol
+└── x402.md                          # X402 spec
 ```
 
 ## 🤖 Automated Workflows
@@ -35,8 +35,8 @@ gh workflow run update-docs.yml
 
 **What it does**:
 - ✅ Validates all documentation files
-- ✅ Updates version metadata
-- ✅ Commits changes (with [skip ci])
+- ✅ Creates pull request to same branch
+- ✅ Enables auto-merge for automatic merging
 
 ### Publish Documentation (Tag)
 
@@ -60,6 +60,7 @@ gh workflow run publish-docs.yml -f version=v1.0.2 -f target_branch=preview
 **What it does**:
 - ✅ Copies docs to docs_mintlify repo
 - ✅ Creates pull request
+- ✅ Enables auto-merge for automatic merging
 - ✅ Adds version metadata
 
 ## 🛠️ Manual Commands
@@ -153,7 +154,7 @@ gh workflow run publish-docs.yml -f version=v1.0.2
 # Option 3: Manual copy
 cd ../docs_mintlify
 git checkout -b update-typescript-docs-v1.0.2
-cp ../payments/markdown/*.mdx docs/api-reference/typescript/
+cp ../payments/markdown/*.md docs/api-reference/typescript/
 git add . && git commit -m "docs: update TypeScript SDK v1.0.2"
 gh pr create
 ```
@@ -204,7 +205,7 @@ gh api user  # Should work with valid token
 
 ```bash
 # Check markdown directory
-ls -la markdown/*.mdx
+ls -la markdown/*.md
 
 # Should show 11 files
 # If missing, regenerate with Claude Code

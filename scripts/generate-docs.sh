@@ -74,17 +74,17 @@ echo ""
 
 # Validate existing docs
 EXPECTED_FILES=(
-  "installation.mdx"
-  "initializing-the-library.mdx"
-  "payment-plans.mdx"
-  "agents.mdx"
-  "publishing-static-resources.mdx"
-  "payments-and-balance.mdx"
-  "querying-an-agent.mdx"
-  "validation-of-requests.mdx"
-  "mcp-integration.mdx"
-  "a2a-integration.mdx"
-  "x402.mdx"
+  "installation.md"
+  "initializing-the-library.md"
+  "payment-plans.md"
+  "agents.md"
+  "publishing-static-resources.md"
+  "payments-and-balance.md"
+  "querying-an-agent.md"
+  "validation-of-requests.md"
+  "mcp-integration.md"
+  "a2a-integration.md"
+  "x402.md"
 )
 
 echo "Validating existing documentation files..."
@@ -112,31 +112,7 @@ fi
 echo ""
 echo "✓ All documentation files present"
 echo ""
-
-# Add SDK version comment to each file
-echo "Adding version metadata to documentation files..."
-for file in "${EXPECTED_FILES[@]}"; do
-  DOC_FILE="$MARKDOWN_DIR/$file"
-
-  # Check if version comment already exists
-  if ! grep -q "<!-- SDK Version:" "$DOC_FILE"; then
-    # Add version comment at the top
-    TEMP_FILE=$(mktemp)
-    echo "<!-- SDK Version: $SDK_VERSION -->" > "$TEMP_FILE"
-    echo "<!-- Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC") -->" >> "$TEMP_FILE"
-    echo "" >> "$TEMP_FILE"
-    cat "$DOC_FILE" >> "$TEMP_FILE"
-    mv "$TEMP_FILE" "$DOC_FILE"
-    echo "  ✓ Updated: $file"
-  else
-    # Update existing version comment
-    sed -i.bak "s/<!-- SDK Version: .* -->/<!-- SDK Version: $SDK_VERSION -->/" "$DOC_FILE"
-    sed -i.bak "s/<!-- Generated: .* -->/<!-- Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC") -->/" "$DOC_FILE"
-    rm -f "$DOC_FILE.bak"
-    echo "  ✓ Updated: $file"
-  fi
-done
-
+echo "Note: Version tracking is managed through Mintlify metadata headers."
 echo ""
 echo "=========================================="
 echo "Documentation validation complete!"

@@ -37,8 +37,8 @@ jobs:
             exit 1
           fi
 
-          # Count markdown files
-          FILE_COUNT=$(find payments/markdown -name "*.mdx" | wc -l)
+          # Count markdown files (excluding README.md)
+          FILE_COUNT=$(find payments/markdown -name "*.md" -not -name "README.md" | wc -l)
           echo "Found $FILE_COUNT documentation files"
 
           if [ "$FILE_COUNT" -lt 11 ]; then
@@ -78,13 +78,16 @@ jobs:
           echo "Copying documentation from $SOURCE_DIR to $TARGET_DIR"
 
           # Remove old files
-          rm -f "$TARGET_DIR"/*.mdx
+          rm -f "$TARGET_DIR"/*.md
 
           # Copy new files
-          cp "$SOURCE_DIR"/*.mdx "$TARGET_DIR/"
+          cp "$SOURCE_DIR"/*.md "$TARGET_DIR/"
+
+          # Remove README.md if it was copied
+          rm -f "$TARGET_DIR/README.md"
 
           # Count copied files
-          COPIED_COUNT=$(find "$TARGET_DIR" -name "*.mdx" | wc -l)
+          COPIED_COUNT=$(find "$TARGET_DIR" -name "*.md" | wc -l)
           echo "✓ Copied $COPIED_COUNT documentation files"
 
       - name: Get version and target info
@@ -103,6 +106,7 @@ jobs:
           echo "Target branch: $TARGET_BRANCH"
 
       - name: Create Pull Request
+        id: create_pr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.DOCS_REPO_TOKEN }}
@@ -130,17 +134,17 @@ jobs:
             - 🎯 Target Branch: `${{ steps.version.outputs.target_branch }}`
 
             ### Documentation Files
-            - `installation.mdx`
-            - `initializing-the-library.mdx`
-            - `payment-plans.mdx`
-            - `agents.mdx`
-            - `publishing-static-resources.mdx`
-            - `payments-and-balance.mdx`
-            - `querying-an-agent.mdx`
-            - `validation-of-requests.mdx`
-            - `mcp-integration.mdx`
-            - `a2a-integration.mdx`
-            - `x402.mdx`
+            - `installation.md`
+            - `initializing-the-library.md`
+            - `payment-plans.md`
+            - `agents.md`
+            - `publishing-static-resources.md`
+            - `payments-and-balance.md`
+            - `querying-an-agent.md`
+            - `validation-of-requests.md`
+            - `mcp-integration.md`
+            - `a2a-integration.md`
+            - `x402.md`
 
             ### Review Checklist
             - [ ] Documentation is complete and accurate
@@ -157,6 +161,16 @@ jobs:
           reviewers: |
             aitor
 
+      - name: Enable auto-merge in docs_mintlify
+        if: steps.create_pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_REPO_TOKEN }}
+        run: |
+          gh pr merge ${{ steps.create_pr.outputs.pull-request-number }} \
+            --repo nevermined-io/docs_mintlify \
+            --auto \
+            --squash
+
       - name: Create summary
         run: |
           echo "### Documentation Publication Summary" >> $GITHUB_STEP_SUMMARY
@@ -167,6 +181,11 @@ jobs:
           echo "- **Target Branch**: ${{ steps.version.outputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Path**: docs/api-reference/typescript/" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Documentation published successfully" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "A pull request has been created in the docs_mintlify repository." >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.create_pr.outputs.pull-request-number }}" != "" ]; then
+            echo "✅ Pull request created: #${{ steps.create_pr.outputs.pull-request-number }}" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 URL: ${{ steps.create_pr.outputs.pull-request-url }}" >> $GITHUB_STEP_SUMMARY
+            echo "🤖 Auto-merge enabled - PR will merge automatically when checks pass" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No changes to publish" >> $GITHUB_STEP_SUMMARY
+          fi

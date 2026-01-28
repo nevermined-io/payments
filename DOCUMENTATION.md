@@ -14,17 +14,17 @@ The documentation system consists of:
 
 ```
 markdown/
-├── installation.mdx
-├── initializing-the-library.mdx
-├── payment-plans.mdx
-├── agents.mdx
-├── publishing-static-resources.mdx
-├── payments-and-balance.mdx
-├── querying-an-agent.mdx
-├── validation-of-requests.mdx
-├── mcp-integration.mdx
-├── a2a-integration.mdx
-├── x402.mdx
+├── installation.md
+├── initializing-the-library.md
+├── payment-plans.md
+├── agents.md
+├── publishing-static-resources.md
+├── payments-and-balance.md
+├── querying-an-agent.md
+├── validation-of-requests.md
+├── mcp-integration.md
+├── a2a-integration.md
+├── x402.md
 └── README.md
 ```
 
@@ -36,8 +36,8 @@ markdown/
 
 **What It Does**:
 - Validates all documentation files exist
-- Updates version metadata in each file
-- Commits changes back to repository (with `[skip ci]`)
+- Creates a pull request with documentation updates
+- Enables auto-merge for automatic merging when checks pass
 
 **Configuration**: `.github/workflows/update-docs.yml`
 
@@ -64,8 +64,9 @@ Actions → Update Documentation → Run workflow
 **Trigger**: Creating a new version tag (e.g., `v1.0.2`)
 
 **What It Does**:
-- Copies all `.mdx` files from `markdown/` to `docs_mintlify` repository
+- Copies all `.md` files from `markdown/` to `docs_mintlify` repository
 - Creates a pull request in the docs repository
+- Enables auto-merge for automatic merging when checks pass
 - Includes version info, change summary, and automated labels
 
 **Configuration**: `.github/workflows/publish-docs.yml`
@@ -97,7 +98,7 @@ Check that all documentation files are present and valid:
 ```
 
 This script:
-- Verifies all 11 `.mdx` files exist
+- Verifies all 11 `.md` files exist
 - Checks source files are present
 - Adds/updates version metadata
 - Reports any issues
