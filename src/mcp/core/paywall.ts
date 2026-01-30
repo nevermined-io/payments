@@ -214,8 +214,9 @@ export class PaywallDecorator {
           maxAmount: credits,
         })
       }
-    } catch (e) {
+    } catch (primaryError) {
       // If logical URL fails and we have an HTTP URL fallback, retry with it
+      let lastError: unknown = primaryError
       if (fallbackEndpoint) {
         try {
           const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
@@ -232,12 +233,12 @@ export class PaywallDecorator {
           return ret
         } catch (fallbackError) {
           // Fallback also failed, use fallback error as the reported error
-          e = fallbackError
+          lastError = fallbackError
         }
       }
 
       ret.success = false
-      ret.errorReason = e instanceof Error ? e.message : String(e)
+      ret.errorReason = lastError instanceof Error ? lastError.message : String(lastError)
       if (options.onRedeemError === 'propagate') {
         throw createRpcError(ERROR_CODES.Misconfiguration, `Failed to redeem credits: ${ret.errorReason}`)
       }
