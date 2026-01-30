@@ -467,6 +467,45 @@ const result = await client.callTool({
 - `credits` can be a `bigint` or `(ctx) => bigint` with `{ args, result }`. Use `args` for input-based pricing and `result` for output-based pricing.
 - `name` builds the logical URL `mcp://{serverName}/{kind}/{name}`.
 
+## Documentation
+
+Comprehensive markdown documentation is available in the `markdown/` directory:
+
+- **Installation** - Setup and prerequisites
+- **Initialization** - Getting started with the SDK
+- **Payment Plans** - Creating and managing payment plans
+- **Agents** - Registering and managing AI agents
+- **Static Resources** - Publishing static content
+- **Payments & Balance** - Ordering plans and checking balances
+- **Querying Agents** - Using X402 access tokens
+- **Request Validation** - Verifying and settling permissions
+- **MCP Integration** - Model Context Protocol setup
+- **A2A Integration** - Agent-to-Agent protocol setup
+- **X402 Protocol** - Complete payment protocol specification
+
+### Automated Documentation
+
+The documentation is automatically maintained and published:
+
+- **On Push**: Documentation metadata is updated when source code changes
+- **On Tag**: Documentation is published to [nevermined-io/docs_mintlify](https://github.com/nevermined-io/docs_mintlify) repository
+
+For more details, see [DOCUMENTATION.md](./DOCUMENTATION.md).
+
+### Quick Commands
+
+```bash
+# Validate documentation
+./scripts/generate-docs.sh
+
+# Publish documentation (manual)
+./scripts/publish-docs.sh
+
+# View workflows
+gh run list --workflow=update-docs.yml
+gh run list --workflow=publish-docs.yml
+```
+
 ## License
 
 ```text
