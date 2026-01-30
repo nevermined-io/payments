@@ -252,8 +252,8 @@ describe('MCP Integration', () => {
       expect(out._meta.creditsRedeemed).toBe('10')
     })
 
-    test('should not add metadata when redemption fails', async () => {
-      const redeemResult = { success: false, error: 'Insufficient credits' }
+    test('should add metadata with success false and errorReason when redemption fails', async () => {
+      const redeemResult = { success: false, errorReason: 'Insufficient credits' }
       const mockInstance = new PaymentsMock(redeemResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
@@ -272,8 +272,12 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify the result does not have _meta when redemption fails
-      expect(out._meta).toBeUndefined()
+      // Verify _meta is present with failure info
+      expect(out._meta).toBeDefined()
+      expect(out._meta.success).toBe(false)
+      expect(out._meta.creditsRedeemed).toBe('0')
+      expect(out._meta.errorReason).toBe('Insufficient credits')
+      expect(out._meta.planId).toBe('plan123')
     })
 
     test('should reject when authorization header missing', async () => {
