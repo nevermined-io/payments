@@ -63,13 +63,6 @@ jobs:
           # Create target directory if it doesn't exist
           mkdir -p "$TARGET_DIR"
 
-          # Backup existing docs if they exist
-          if [ -d "$TARGET_DIR" ] && [ "$(ls -A $TARGET_DIR)" ]; then
-            BACKUP_DIR="docs_mintlify/docs/api-reference/typescript-backup-$(date +%Y%m%d-%H%M%S)"
-            echo "Creating backup at $BACKUP_DIR"
-            cp -r "$TARGET_DIR" "$BACKUP_DIR"
-          fi
-
       - name: Copy documentation files
         run: |
           SOURCE_DIR="payments/markdown"
@@ -158,8 +151,6 @@ jobs:
             documentation
             typescript-sdk
             automated
-          reviewers: |
-            aitor
 
       - name: Enable auto-merge in docs_mintlify
         if: steps.create_pr.outputs.pull-request-number != ''
