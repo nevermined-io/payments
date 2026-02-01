@@ -43,7 +43,7 @@ describe('CLI Basic Integration Tests', () => {
       const { stdout, exitCode } = runCLI(['--version'])
 
       expect(exitCode).toBe(0)
-      expect(stdout).toContain('@nevermined-io/payments-cli')
+      expect(stdout).toContain('@nevermined-io/cli')
       // Version should be in format x.y.z or x.y.z-rcN
       expect(stdout).toMatch(/\d+\.\d+\.\d+(-rc\d+)?/)
     })
