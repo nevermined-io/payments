@@ -36,6 +36,7 @@
   "scripts": {
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build": "tsc",
+    "build:all": "yarn build && yarn cli:build",
     "lint": "eslint ./src",
     "test": "jest --verbose --config ./tests/jest.config.json",
     "test:unit": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/unit",
@@ -43,7 +44,11 @@
     "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e --runInBand",
     "format": "prettier --check ./src",
     "prepublishOnly": "yarn build",
-    "doc": "typedoc --out docs ./src"
+    "doc": "typedoc --out docs ./src",
+    "cli:build": "cd cli && yarn build",
+    "cli:dev": "cd cli && yarn dev",
+    "cli:test": "cd cli && yarn test",
+    "cli:install": "cd cli && yarn install"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
