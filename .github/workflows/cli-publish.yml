@@ -73,15 +73,15 @@ jobs:
           yarn test:unit
           yarn test:integration
 
-      - name: Pack tarballs
-        working-directory: cli
-        run: npx oclif pack tarballs --no-xz
-
       - name: Publish to npm
         working-directory: cli
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Pack tarballs
+        working-directory: cli
+        run: npx oclif pack tarballs --no-xz
 
       - name: Commit version update
         run: |
