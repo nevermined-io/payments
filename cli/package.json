@@ -1,6 +1,6 @@
 {
-  "name": "@nevermined-io/payments-cli",
-  "version": "1.0.2",
+  "name": "@nevermined-io/cli",
+  "version": "1.0.3-rc0",
   "description": "CLI for Nevermined Payments SDK",
   "author": "Nevermined AG",
   "license": "Apache-2.0",
