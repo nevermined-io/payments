@@ -532,6 +532,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -573,6 +574,7 @@ describe('MCP OAuth E2E Tests', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json, text/event-stream',
             Authorization: `Bearer ${subscriberAccessToken}`,
           },
           body: JSON.stringify({
@@ -609,6 +611,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -653,6 +656,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -690,6 +694,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -726,6 +731,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -762,6 +768,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
