@@ -545,6 +545,10 @@ describe('MCP OAuth E2E Tests', () => {
         }),
       })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[E2E] Tool call failed with status ${response.status}: ${errorText}`)
+      }
       expect(response.ok).toBe(true)
       const data = await response.json()
       console.log('[E2E] Tool response:', JSON.stringify(data, null, 2))
@@ -582,6 +586,10 @@ describe('MCP OAuth E2E Tests', () => {
           }),
         })
 
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error(`[E2E] Tool ${tool} call failed with status ${response.status}: ${errorText}`)
+        }
         expect(response.ok).toBe(true)
         const data = await response.json()
         expect(data.result.content).toBeDefined()
@@ -655,6 +663,10 @@ describe('MCP OAuth E2E Tests', () => {
         }),
       })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[E2E] Tools list failed with status ${response.status}: ${errorText}`)
+      }
       expect(response.ok).toBe(true)
       const data = await response.json()
       expect(data.result.tools).toBeDefined()
@@ -688,6 +700,10 @@ describe('MCP OAuth E2E Tests', () => {
         }),
       })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[E2E] Resource templates list failed with status ${response.status}: ${errorText}`)
+      }
       expect(response.ok).toBe(true)
       const data = await response.json()
       expect(data.result.resourceTemplates).toBeDefined()
@@ -720,6 +736,10 @@ describe('MCP OAuth E2E Tests', () => {
         }),
       })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[E2E] Prompts list failed with status ${response.status}: ${errorText}`)
+      }
       expect(response.ok).toBe(true)
       const data = await response.json()
       expect(data.result.prompts).toBeDefined()
