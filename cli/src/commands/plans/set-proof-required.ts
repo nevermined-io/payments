@@ -23,7 +23,7 @@ export default class SetProofRequired extends BaseCommand {
 
 
   public async run(): Promise<void> {
-    const { flags } = await this.parse(this.ctor as any)
+    const { flags } = await this.parse(this.constructor as any)
 
     const payments = await this.initPayments()
 

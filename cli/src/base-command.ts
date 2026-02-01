@@ -31,7 +31,7 @@ export abstract class BaseCommand extends Command {
     await super.init()
     this.configManager = ConfigManager.getInstance()
 
-    const { flags } = await this.parse(this.ctor as any)
+    const { flags } = await this.parse(this.constructor as any)
     this.formatter = new OutputFormatter((flags.format as OutputFormat) || 'table')
   }
 
@@ -43,7 +43,7 @@ export abstract class BaseCommand extends Command {
       return this.payments
     }
 
-    const { flags } = await this.parse(this.ctor as any)
+    const { flags } = await this.parse(this.constructor as any)
     const profile = flags.profile as string | undefined
 
     // Try environment variables first
@@ -123,7 +123,7 @@ export abstract class BaseCommand extends Command {
     }
 
     // Show stack trace in verbose mode
-    const { flags } = this.parse(this.ctor as any) as any
+    const { flags } = this.parse(this.constructor as any) as any
     if (flags?.verbose && error.stack) {
       console.error('\n📋 Stack trace:')
       console.error(error.stack)

@@ -298,9 +298,9 @@ ${runMethod}
 
     // Parse flags and args
     if (hasArgs) {
-      lines.push('    const { flags, args } = await this.parse(this.ctor as any)')
+      lines.push('    const { flags, args } = await this.parse(this.constructor as any)')
     } else {
-      lines.push('    const { flags } = await this.parse(this.ctor as any)')
+      lines.push('    const { flags } = await this.parse(this.constructor as any)')
     }
 
     // Add custom before-init code

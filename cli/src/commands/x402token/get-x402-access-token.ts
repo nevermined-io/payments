@@ -28,7 +28,7 @@ export default class GetX402AccessToken extends BaseCommand {
 
 
   public async run(): Promise<void> {
-    const { flags, args } = await this.parse(this.ctor as any)
+    const { flags, args } = await this.parse(this.constructor as any)
 
     const payments = await this.initPayments()
 

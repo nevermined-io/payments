@@ -53,6 +53,10 @@ jobs:
       - name: Build SDK
         run: yarn build
 
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: yarn install --frozen-lockfile
+
       - name: Build CLI
         working-directory: cli
         run: yarn build
