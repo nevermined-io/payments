@@ -220,7 +220,7 @@ export class PlansAPI extends BasePaymentsAPI {
    * This method is oriented to AI Builders.
    * The NVM API Key must have publication permissions.
    *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   * @see https://nevermined.ai/docs/tutorials/builders/create-plan
    *
    * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
@@ -281,7 +281,7 @@ export class PlansAPI extends BasePaymentsAPI {
    * @remarks This method is oriented to AI Builders
    * @remarks To call this method, the NVM API Key must have publication permissions
    *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   * @see https://nevermined.ai/docs/tutorials/builders/create-plan
    *
    * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
@@ -330,7 +330,7 @@ export class PlansAPI extends BasePaymentsAPI {
    * @remarks This method is oriented to AI Builders
    * @remarks To call this method, the NVM API Key must have publication permissions
    *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   * @see https://nevermined.ai/docs/tutorials/builders/create-plan
    *
    * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
@@ -377,7 +377,7 @@ export class PlansAPI extends BasePaymentsAPI {
    * @remarks This method is oriented to AI Builders
    * @remarks To call this method, the NVM API Key must have publication permissions
    *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   * @see https://nevermined.ai/docs/tutorials/builders/create-plan
    *
    * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}
@@ -414,7 +414,7 @@ export class PlansAPI extends BasePaymentsAPI {
    * @remarks This method is oriented to AI Builders
    * @remarks To call this method, the NVM API Key must have publication permissions
    *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/create-plan
+   * @see https://nevermined.ai/docs/tutorials/builders/create-plan
    *
    * @param planMetadata - @see {@link PlanMetadata}
    * @param priceConfig - @see {@link PlanPriceConfig}

@@ -1,0 +1,256 @@
+# Getting Started
+
+Complete guide to installing and configuring the Nevermined Payments CLI.
+
+## Prerequisites
+
+Before installing the CLI, ensure you have:
+
+- **Node.js** >= 18.0.0
+- **npm** or **yarn** package manager
+- A Nevermined account with API key
+
+## Getting Your API Key
+
+1. Visit [nevermined.app](https://nevermined.app) and sign in
+2. Navigate to your account settings
+3. Generate a new API key from the "API Keys" section
+4. Save your API key securely - you'll need it for CLI configuration
+
+The API key format is: `nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+
+## Installation
+
+### Option 1: Global Installation (Recommended)
+
+Install the CLI globally to use the `nvm` command from anywhere:
+
+```bash
+npm install -g @nevermined-io/payments-cli
+```
+
+Verify installation:
+
+```bash
+nvm --version
+```
+
+### Option 2: Using npx (No Installation)
+
+Run the CLI without installing:
+
+```bash
+npx @nevermined-io/payments-cli --help
+```
+
+This is useful for one-off commands or trying the CLI before installing.
+
+### Option 3: From Source
+
+For development or contributing:
+
+```bash
+# Clone the repository
+git clone https://github.com/nevermined-io/payments
+cd payments/cli
+
+# Install dependencies
+yarn install
+
+# Build the project
+yarn build:manifest
+
+# Run the CLI
+./bin/run.js --help
+```
+
+## Configuration
+
+### Interactive Setup
+
+The easiest way to configure the CLI is using the interactive setup:
+
+```bash
+nvm config init
+```
+
+This will prompt you for:
+- **NVM API Key**: Your API key from nevermined.app
+- **Environment**: Choose from:
+  - `sandbox` - Testing with real blockchain (requires test tokens)
+  - `staging_sandbox` - Development testing (recommended for learning)
+  - `live` - Production environment
+  - `staging_live` - Staging production environment
+
+Example:
+
+```bash
+$ nvm config init
+
+? Enter your NVM API Key: nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+? Select environment: staging_sandbox
+
+✅ Configuration saved to /home/user/.config/nvm/config.json
+```
+
+### Configuration File
+
+The CLI stores configuration in `~/.config/nvm/config.json`:
+
+```json
+{
+  "profiles": {
+    "default": {
+      "nvmApiKey": "nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "environment": "staging_sandbox"
+    }
+  },
+  "activeProfile": "default"
+}
+```
+
+### Multiple Profiles
+
+Create multiple profiles for different environments or accounts:
+
+```bash
+# Initialize with default profile
+nvm config init
+
+# Create a production profile
+nvm config set profiles.production.nvmApiKey nvm-yyyyyyyy...
+nvm config set profiles.production.environment live
+
+# Switch active profile
+nvm config set activeProfile production
+```
+
+Use a specific profile for a command:
+
+```bash
+nvm --profile production plans list
+```
+
+### Environment Variables
+
+Override configuration with environment variables:
+
+```bash
+# Set API key
+export NVM_API_KEY=nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Set environment
+export NVM_ENVIRONMENT=staging_sandbox
+
+# Run commands
+nvm plans list
+```
+
+This is useful for:
+- CI/CD pipelines
+- Temporary configuration changes
+- Scripting
+
+### View Configuration
+
+Display your current configuration:
+
+```bash
+nvm config show
+```
+
+Output:
+
+```
+Current Configuration
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Active Profile: default
+Environment:    staging_sandbox
+API Key:        nvm-xxxxx...xxxxx (truncated)
+```
+
+## Verify Setup
+
+Test your configuration by listing available plans:
+
+```bash
+nvm plans list
+```
+
+If configured correctly, you should see a table of available payment plans.
+
+## Environment Guide
+
+Choose the right environment for your use case:
+
+| Environment | Use Case | Blockchain | Payments |
+|-------------|----------|------------|----------|
+| `staging_sandbox` | Development, learning, testing | Test network | Test credits |
+| `sandbox` | Integration testing | Test network | Test tokens |
+| `staging_live` | Pre-production validation | Mainnet | Test credits |
+| `live` | Production | Mainnet | Real payments |
+
+**Recommendation**: Start with `staging_sandbox` for development and testing.
+
+## Common Issues
+
+### "Command not found: nvm"
+
+After global installation, if `nvm` command is not found:
+
+1. Verify installation: `npm list -g @nevermined-io/payments-cli`
+2. Check your PATH includes npm global bin directory
+3. Restart your terminal
+4. Try using the full path: `npx @nevermined-io/payments-cli`
+
+### "API Key not found"
+
+If you get an API key error:
+
+```bash
+# Initialize configuration
+nvm config init
+
+# Or set environment variable
+export NVM_API_KEY=your-api-key-here
+```
+
+### Permission Errors
+
+If you get permission errors during global installation:
+
+```bash
+# Use npx instead
+npx @nevermined-io/payments-cli --help
+
+# Or install without sudo using nvm/volta
+```
+
+## Next Steps
+
+Now that you've installed and configured the CLI, explore:
+
+- [Plans](./02-plans.md) - Create and manage payment plans
+- [Agents](./03-agents.md) - Register AI agents
+- [Purchases](./04-purchases.md) - Order plans and make payments
+- [Querying](./05-querying.md) - Query agents with access tokens
+
+## Getting Help
+
+Get help for any command:
+
+```bash
+# General help
+nvm --help
+
+# Topic help
+nvm plans --help
+
+# Command help
+nvm plans get-plan --help
+```
+
+For support:
+- Documentation: https://nevermined.ai/docs
+- Issues: https://github.com/nevermined-io/payments/issues
+- Discord: https://discord.gg/nevermined

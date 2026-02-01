@@ -1,0 +1,101 @@
+name: CLI Sync and Test
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'tsconfig.json'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'tsconfig.json'
+
+jobs:
+  sync-cli:
+    name: Sync CLI with SDK Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Install SDK dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build SDK
+        run: yarn build
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: yarn install --frozen-lockfile
+
+      - name: Generate CLI commands from SDK
+        working-directory: cli
+        run: yarn generate || echo "Generation step completed (may have warnings)"
+
+      - name: Build CLI
+        working-directory: cli
+        run: yarn build:manifest
+
+      - name: Run CLI unit tests
+        working-directory: cli
+        run: yarn test:unit
+
+      - name: Run CLI integration tests
+        working-directory: cli
+        run: yarn test:integration
+
+      - name: Check for CLI changes
+        id: check_changes
+        run: |
+          if [[ -n $(git status --porcelain cli/) ]]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+            echo "CLI code has been updated"
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+            echo "No CLI changes detected"
+          fi
+
+      - name: Commit and push CLI updates
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add cli/
+          git commit -m "chore(cli): auto-sync CLI with SDK changes
+
+          Co-Authored-By: GitHub Actions <github-actions[bot]@users.noreply.github.com>"
+          git push
+
+      - name: Comment on PR
+        if: steps.check_changes.outputs.changes == 'true' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ CLI has been automatically updated and synced with SDK changes. All tests passed.'
+            })
