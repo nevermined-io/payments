@@ -44,7 +44,8 @@ describe('CLI Basic Integration Tests', () => {
 
       expect(exitCode).toBe(0)
       expect(stdout).toContain('@nevermined-io/payments-cli')
-      expect(stdout).toContain('1.0.2')
+      // Version should be in format x.y.z or x.y.z-rcN
+      expect(stdout).toMatch(/\d+\.\d+\.\d+(-rc\d+)?/)
     })
 
     test('should display main help', () => {
