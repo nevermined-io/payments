@@ -44,7 +44,7 @@ export class AgentsAPI extends BasePaymentsAPI {
    * @remarks This method is oriented to AI Builders
    * @remarks To call this method, the NVM API Key must have publication permissions
    *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
+   * @see https://nevermined.ai/docs/tutorials/builders/register-agent
    *
    * @param agentMetadata - @see {@link AgentMetadata}
    * @param agentApi - @see {@link AgentAPIAttributes}
@@ -92,7 +92,7 @@ export class AgentsAPI extends BasePaymentsAPI {
    * @remarks This method is oriented to AI Builders
    * @remarks To call this method, the NVM API Key must have publication permissions
    *
-   * @see https://docs.nevermined.app/docs/tutorials/builders/register-agent
+   * @see https://nevermined.ai/docs/tutorials/builders/register-agent
    *
    * @param agentMetadata - @see {@link AgentMetadata}
    * @param agentApi - @see {@link AgentAPIAttributes}

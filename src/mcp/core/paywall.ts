@@ -92,7 +92,7 @@ export class PaywallDecorator {
       // 1. Authenticate request
       const authResult = await this.authenticator.authenticate(
         extra,
-        { planId: options?.planId },
+        { planId: options?.planId, maxAmount: options?.maxAmount },
         this.config.agentId,
         this.config.serverName,
         name,
@@ -142,6 +142,7 @@ export class PaywallDecorator {
             options,
             authResult.agentId,
             authResult.logicalUrl,
+            authResult.httpUrl,
             'POST',
           )
         }
@@ -164,18 +165,17 @@ export class PaywallDecorator {
         authResult.agentId,
         authResult.logicalUrl,
         'POST',
+        authResult.httpUrl,
       )
-      if (creditsResult.success) {
-        result._meta = {
-          ...result._meta,
-          // Only include txHash if it has a value
-          ...(creditsResult.transaction && { txHash: creditsResult.transaction }),
-          creditsRedeemed: creditsResult.creditsRedeemed ?? credits.toString(),
-          remainingBalance: creditsResult.remainingBalance,
-          planId: authResult.planId,
-          subscriberAddress: authResult.subscriberAddress,
-          success: true,
-        }
+      result._meta = {
+        ...result._meta,
+        ...(creditsResult.transaction && { txHash: creditsResult.transaction }),
+        creditsRedeemed: creditsResult.success ? (creditsResult.creditsRedeemed ?? credits.toString()) : '0',
+        remainingBalance: creditsResult.remainingBalance,
+        planId: authResult.planId,
+        subscriberAddress: authResult.subscriberAddress,
+        success: creditsResult.success,
+        ...(creditsResult.errorReason && { errorReason: creditsResult.errorReason }),
       }
       return result
     }
@@ -192,6 +192,7 @@ export class PaywallDecorator {
     options: PaywallOptions,
     agentId?: string,
     endpoint?: string,
+    fallbackEndpoint?: string,
     httpVerb?: string,
   ): Promise<SettlePermissionsResult> {
     let ret: SettlePermissionsResult = {
@@ -213,11 +214,35 @@ export class PaywallDecorator {
           maxAmount: credits,
         })
       }
-    } catch (e) {
-      if (options.onRedeemError === 'propagate') {
-        throw createRpcError(ERROR_CODES.Misconfiguration, 'Failed to redeem credits')
+    } catch (primaryError) {
+      // If logical URL fails and we have an HTTP URL fallback, retry with it
+      let lastError: unknown = primaryError
+      if (fallbackEndpoint) {
+        try {
+          const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
+            endpoint: fallbackEndpoint,
+            agentId,
+            httpVerb: httpVerb,
+          })
+
+          ret = await this.payments.facilitator.settlePermissions({
+            paymentRequired,
+            x402AccessToken: token,
+            maxAmount: credits,
+          })
+          return ret
+        } catch (fallbackError) {
+          // Fallback also failed, use fallback error as the reported error
+          lastError = fallbackError
+        }
       }
-      // Default: ignore redemption errors
+
+      ret.success = false
+      ret.errorReason = lastError instanceof Error ? lastError.message : String(lastError)
+      if (options.onRedeemError === 'propagate') {
+        throw createRpcError(ERROR_CODES.Misconfiguration, `Failed to redeem credits: ${ret.errorReason}`)
+      }
+      // Default: attach error to result but don't throw
     }
     return ret
   }
@@ -255,11 +280,12 @@ function wrapAsyncIterable<T>(
       _meta: {
         // Only include txHash if it has a value
         ...(creditsResult?.transaction && { txHash: creditsResult.transaction }),
-        creditsRedeemed: creditsResult?.creditsRedeemed ?? credits.toString(),
+        creditsRedeemed: creditsResult?.success ? (creditsResult.creditsRedeemed ?? credits.toString()) : '0',
         remainingBalance: creditsResult?.remainingBalance,
         planId: planId,
         subscriberAddress: subscriberAddress,
         success: creditsResult?.success || false,
+        ...(creditsResult?.errorReason && { errorReason: creditsResult.errorReason }),
       },
     }
     yield metadataChunk as T

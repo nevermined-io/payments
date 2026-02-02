@@ -370,6 +370,56 @@ async function fetchAlerts() {
 }
 ```
 
+## Handler Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `credits` | `bigint` or `function` | Credits to consume per call |
+| `planId` | `string` | Optional override for the plan ID (otherwise inferred from token) |
+| `maxAmount` | `bigint` | Max credits to verify during authentication (default: `1n`) |
+| `onRedeemError` | `string` | `'ignore'` (default) or `'propagate'` to throw on redemption failure |
+
+## Response Metadata (`_meta`)
+
+After each paywall-protected call, the SDK injects a `_meta` field into the response following the [MCP specification](https://modelcontextprotocol.io/specification/2025-06-18/basic). This field is always present regardless of whether credit redemption succeeded or failed:
+
+```typescript
+// Successful redemption
+{
+  content: [{ type: 'text', text: 'result' }],
+  _meta: {
+    success: true,
+    txHash: '0xabc...',
+    creditsRedeemed: '5',
+    remainingBalance: '95',
+    planId: 'plan-123',
+    subscriberAddress: '0x123...',
+  }
+}
+
+// Failed redemption
+{
+  content: [{ type: 'text', text: 'result' }],
+  _meta: {
+    success: false,
+    creditsRedeemed: '0',
+    planId: 'plan-123',
+    subscriberAddress: '0x123...',
+    errorReason: 'Insufficient credits',
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | `boolean` | Whether credit redemption succeeded |
+| `txHash` | `string` | Blockchain transaction hash (only on success) |
+| `creditsRedeemed` | `string` | Number of credits burned (`'0'` on failure) |
+| `remainingBalance` | `string` | Credits remaining after redemption |
+| `planId` | `string` | Plan used for the operation |
+| `subscriberAddress` | `string` | Subscriber's wallet address |
+| `errorReason` | `string` | Error message (only on failure) |
+
 ## Error Handling
 
 The paywall automatically returns 402 errors for invalid/missing tokens:

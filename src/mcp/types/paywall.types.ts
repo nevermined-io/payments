@@ -42,6 +42,11 @@ export interface BasePaywallOptions {
    * If omitted, the plan is inferred from the X402 access token.
    */
   planId?: string
+  /**
+   * Maximum amount of credits to verify during authentication.
+   * Defaults to 1n if not specified.
+   */
+  maxAmount?: bigint
 }
 
 export interface ToolOptions extends BasePaywallOptions {
@@ -70,6 +75,7 @@ export interface AuthResult {
   token: string
   agentId: string
   logicalUrl: string
+  httpUrl?: string
   planId: string
   subscriberAddress: Address
   agentRequest?: StartAgentRequest
