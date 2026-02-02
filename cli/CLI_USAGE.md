@@ -14,14 +14,14 @@ yarn build
 ### Option 2: Via npm (After Publishing)
 
 ```bash
-npm install -g @nevermined-io/payments-cli
+npm install -g @nevermined-io/cli
 nvm --help
 ```
 
 ### Option 3: Via npx (No Installation)
 
 ```bash
-npx @nevermined-io/payments-cli <command>
+npx @nevermined-io/cli <command>
 ```
 
 ## Quick Start
@@ -84,22 +84,26 @@ npx @nevermined-io/payments-cli <command>
 ## Available Commands
 
 ### Configuration (`config`)
+
 - `config init` - Initialize CLI configuration
 - `config show` - Display current configuration
 - `config set <key> <value>` - Set configuration value
 
 ### Plans (`plans`)
+
 - `plans list` - List all payment plans
 - `plans get <planId>` - Get plan details
 - `plans balance <planId>` - Get plan balance
 - `plans register` - Register new plan (placeholder)
 
 ### Agents (`agents`)
+
 - `agents list` - List agents (placeholder)
 - `agents get <agentId>` - Get agent details
 - `agents register` - Register agent (placeholder)
 
 ### X402 Protocol (`x402`)
+
 - `x402 get-token <planId>` - Get X402 access token
 
 ## Output Formats
@@ -253,7 +257,7 @@ If you get "command not found" after global installation:
 echo $PATH | grep npm
 
 # Or use npx
-npx @nevermined-io/payments-cli --help
+npx @nevermined-io/cli --help
 ```
 
 ### Configuration Not Found

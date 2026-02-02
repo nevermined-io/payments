@@ -9,6 +9,7 @@ The Nevermined Payments CLI has been successfully implemented with a solid found
 ### 1. Complete CLI Infrastructure
 
 #### Project Structure
+
 ```
 cli/
 ├── bin/
@@ -38,23 +39,27 @@ cli/
 ### 2. Core Features
 
 ✅ **Configuration Management**
+
 - Profile-based configuration system
 - Interactive and non-interactive setup
 - Environment variable override support
 - Persistent config in `~/.config/nvm/config.json`
 
 ✅ **Output Formatting**
+
 - Table format (default, human-readable)
 - JSON format (machine-readable)
 - Quiet mode (scripting-friendly)
 - Colored output with status indicators
 
 ✅ **SDK Integration**
+
 - Seamless Payments SDK integration
 - Automatic API key and environment management
 - Error handling and validation
 
 ✅ **User Experience**
+
 - oclif framework for robust CLI
 - Built-in help system
 - Consistent command structure
@@ -63,6 +68,7 @@ cli/
 ### 3. Implemented Commands
 
 #### Configuration Commands (3)
+
 ```bash
 nvm config init               # Initialize configuration
 nvm config show               # Display configuration
@@ -70,6 +76,7 @@ nvm config set <key> <value>  # Set configuration value
 ```
 
 #### Plans Commands (4)
+
 ```bash
 nvm plans list                # List all plans
 nvm plans get <planId>        # Get plan details
@@ -78,6 +85,7 @@ nvm plans register            # Register plan (placeholder)
 ```
 
 #### Agents Commands (3)
+
 ```bash
 nvm agents list               # List agents (placeholder)
 nvm agents get <agentId>      # Get agent details
@@ -85,6 +93,7 @@ nvm agents register           # Register agent (placeholder)
 ```
 
 #### X402 Commands (1)
+
 ```bash
 nvm x402 get-token <planId>   # Get X402 access token
 ```
@@ -96,7 +105,7 @@ nvm x402 get-token <planId>   # Get X402 access token
 ```bash
 # Version check
 $ ./bin/run.js --version
-@nevermined-io/payments-cli/1.0.2 linux-x64 node-v24.10.0
+@nevermined-io/cli/1.0.2 linux-x64 node-v24.10.0
 
 # Help system
 $ ./bin/run.js --help
@@ -127,24 +136,28 @@ $ yarn cli:build
 ## Key Accomplishments
 
 ### 1. Solid Foundation
+
 - ✅ oclif framework integrated
 - ✅ TypeScript with ESM modules
 - ✅ Base command pattern established
 - ✅ Consistent error handling
 
 ### 2. Configuration System
+
 - ✅ Multiple profile support
 - ✅ Environment management
 - ✅ Config file persistence
 - ✅ Environment variable override
 
 ### 3. Output Flexibility
+
 - ✅ Human-readable tables
 - ✅ Machine-readable JSON
 - ✅ Quiet mode for scripting
 - ✅ Colored status messages
 
 ### 4. Developer Experience
+
 - ✅ Clear documentation
 - ✅ Easy to extend
 - ✅ Build scripts integrated
@@ -160,6 +173,7 @@ $ yarn cli:build
 ## Build Integration
 
 ### Root package.json Scripts
+
 ```json
 {
   "cli:build": "cd cli && yarn build",
@@ -171,6 +185,7 @@ $ yarn cli:build
 ```
 
 ### Usage
+
 ```bash
 # Build CLI
 yarn cli:build
@@ -185,12 +200,14 @@ yarn cli:dev
 ## Known Limitations
 
 ### Current State
+
 - **Register commands are placeholders** - Direct users to use config files
 - **No auto-generation yet** - All commands manually created
 - **No automated tests** - Only manual testing completed
 - **Not published to npm** - Only usable from source
 
 ### Expected in Next Phases
+
 - Phase 2: More specialized commands (10-15 additional)
 - Phase 3: Auto-generation system
 - Phase 4: Multi-platform builds and npm publishing
@@ -200,7 +217,9 @@ yarn cli:dev
 ## Next Steps
 
 ### Immediate (Can Do Now)
+
 1. **Test with real API credentials**
+
    ```bash
    ./bin/run.js config init --api-key <real-key> --environment staging_sandbox
    ./bin/run.js plans list
@@ -217,18 +236,21 @@ yarn cli:dev
    - X402 token usage
 
 ### Short-term (Phase 2-3)
+
 1. Build API scanner with ts-morph
 2. Generate remaining 35+ commands
 3. Set up sync verification
 4. Add CI checks
 
 ### Medium-term (Phase 4-5)
+
 1. Configure multi-platform builds
 2. Set up npm publishing
 3. Integrate with documentation
 4. Add autocomplete support
 
 ### Long-term (Phase 6)
+
 1. Complete test coverage
 2. Polish error messages
 3. Add progress indicators
@@ -237,6 +259,7 @@ yarn cli:dev
 ## Success Metrics
 
 ### ✅ Phase 1 Goals Achieved
+
 - [x] CLI project structure (100%)
 - [x] oclif framework integration (100%)
 - [x] Configuration management (100%)
@@ -247,6 +270,7 @@ yarn cli:dev
 - [x] Documentation (100%)
 
 ### Remaining for Full Implementation
+
 - [ ] 35+ additional commands (0%)
 - [ ] Auto-generation system (0%)
 - [ ] Multi-platform builds (0%)
@@ -257,6 +281,7 @@ yarn cli:dev
 ## Usage Examples
 
 ### Basic Workflow
+
 ```bash
 # 1. Initialize
 ./bin/run.js config init
@@ -275,6 +300,7 @@ yarn cli:dev
 ```
 
 ### Using Profiles
+
 ```bash
 # Production profile
 ./bin/run.js config init --profile production
@@ -282,6 +308,7 @@ yarn cli:dev
 ```
 
 ### JSON Output for Scripting
+
 ```bash
 # Get plans as JSON
 ./bin/run.js plans list --format json | jq '.[] | .did'
@@ -295,6 +322,7 @@ done
 ## Files Modified/Created
 
 ### New Files (20+)
+
 - `cli/package.json`
 - `cli/tsconfig.json`
 - `cli/.eslintrc.json`
@@ -322,11 +350,13 @@ done
 - `CLI_SUMMARY.md`
 
 ### Modified Files (1)
+
 - `package.json` - Added CLI build scripts
 
 ## Dependencies Added
 
 ### Runtime
+
 - `@oclif/core`: ^3.26.0
 - `@oclif/plugin-help`: ^6.0.21
 - `@oclif/plugin-plugins`: ^5.0.11
@@ -336,6 +366,7 @@ done
 - `inquirer`: ^9.2.15
 
 ### Development
+
 - `@oclif/test`: ^3.2.10
 - `oclif`: ^4.6.4
 - `ts-morph`: ^22.0.0
@@ -347,6 +378,7 @@ done
 **Phase 1 is complete and successful!**
 
 The Nevermined Payments CLI now has:
+
 - ✅ A solid, extensible foundation
 - ✅ 11 working commands
 - ✅ Professional CLI framework (oclif)

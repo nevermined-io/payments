@@ -14,6 +14,7 @@ Automated CI/CD for Nevermined Payments SDK and CLI with two main workflows:
 **File:** `.github/workflows/cli-sync-and-test.yml`
 
 ### Trigger
+
 - Push or Pull Request to `main`/`develop`
 - Only when SDK code changes: `src/**`, `package.json`, `tsconfig.json`
 
@@ -31,6 +32,7 @@ graph LR
 ```
 
 ### Process
+
 1. ✅ Detects SDK changes
 2. ✅ Installs dependencies (SDK + CLI)
 3. ✅ Builds SDK
@@ -42,6 +44,7 @@ graph LR
 9. ✅ Adds PR comment
 
 ### Auto-Commit Example
+
 ```
 chore(cli): auto-sync CLI with SDK changes
 
@@ -49,6 +52,7 @@ Co-Authored-By: GitHub Actions <github-actions[bot]@users.noreply.github.com>
 ```
 
 ### Benefits
+
 - 🎯 Zero manual CLI synchronization
 - 🎯 CLI always in sync with SDK
 - 🎯 Tests run automatically
@@ -62,6 +66,7 @@ Co-Authored-By: GitHub Actions <github-actions[bot]@users.noreply.github.com>
 **File:** `.github/workflows/cli-publish.yml`
 
 ### Trigger
+
 - New version tag: `v1.0.3`, `v2.1.0`, etc.
 - Manual dispatch via GitHub UI
 
@@ -83,23 +88,26 @@ graph TD
 ### Job 1: Publish CLI (`publish-cli`)
 
 **Steps:**
+
 1. ✅ Extracts version from tag (`v1.0.3` → `1.0.3`)
 2. ✅ Updates `cli/package.json` version
 3. ✅ Regenerates CLI commands
 4. ✅ Builds CLI
 5. ✅ Runs full test suite
-6. ✅ Publishes to npm: `@nevermined-io/payments-cli@1.0.3`
+6. ✅ Publishes to npm: `@nevermined-io/cli@1.0.3`
 7. ✅ Packs tarballs for standalone distribution
 8. ✅ Creates GitHub Release with binaries
 
 **npm Package:**
+
 ```bash
-npm install -g @nevermined-io/payments-cli@1.0.3
+npm install -g @nevermined-io/cli@1.0.3
 ```
 
 ### Job 2: Update Documentation (`update-documentation`)
 
 **Steps:**
+
 1. ✅ Checks out `nevermined-io/docs_mintlify`
 2. ✅ Updates CLI docs → `docs/products/cli/`
 3. ✅ Updates SDK docs → `docs/api-reference/typescript/`
@@ -107,6 +115,7 @@ npm install -g @nevermined-io/payments-cli@1.0.3
 5. ✅ Creates PR in docs repository
 
 **Documentation Structure:**
+
 ```
 nevermined-io/docs_mintlify/
 ├── docs/
@@ -124,6 +133,7 @@ nevermined-io/docs_mintlify/
 ```
 
 **Version Metadata Added:**
+
 ```yaml
 ---
 version: 1.0.3
@@ -136,13 +146,15 @@ lastUpdated: 2026-02-01
 ## Version Strategy
 
 ### Synchronized Versioning
+
 ```
 SDK Tag:    v1.0.3
 ├── SDK:    @nevermined-io/payments@1.0.3
-└── CLI:    @nevermined-io/payments-cli@1.0.3  (auto-updated)
+└── CLI:    @nevermined-io/cli@1.0.3  (auto-updated)
 ```
 
 **Key Points:**
+
 - ✅ Single source of truth: Git tags
 - ✅ CLI version auto-matches SDK version
 - ✅ No independent CLI versioning
@@ -156,9 +168,9 @@ SDK Tag:    v1.0.3
 
 Add these secrets in repository settings:
 
-| Secret | Description | How to Get |
-|--------|-------------|------------|
-| `NPM_TOKEN` | npm automation token | [npmjs.com](https://npmjs.com) → Account → Access Tokens → Generate (Automation) |
+| Secret             | Description                    | How to Get                                                                                                                                                                                              |
+| ------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NPM_TOKEN`        | npm automation token           | [npmjs.com](https://npmjs.com) → Account → Access Tokens → Generate (Automation)                                                                                                                        |
 | `API_TOKEN_GITHUB` | Fine-grained PAT for docs repo | [github.com/settings/tokens](https://github.com/settings/personal-access-tokens/new) → Repository access → nevermined-io/docs_mintlify → Permissions: Contents (Read/Write), Pull Requests (Read/Write) |
 
 **Optional (for testing workflows):**
@@ -169,6 +181,7 @@ Add these secrets in repository settings:
 | `TEST_ENVIRONMENT` | Test environment (e.g., `staging_sandbox`) |
 
 ### NPM Token Setup
+
 ```bash
 # Login to npm
 npm login
@@ -183,6 +196,7 @@ npm token create --type=automation
 ```
 
 ### GitHub Token Setup
+
 ```bash
 # Create fine-grained PAT at:
 # https://github.com/settings/personal-access-tokens/new
@@ -209,6 +223,7 @@ Permissions:
 ### Normal Development Workflow
 
 **Developer makes SDK changes:**
+
 ```bash
 # 1. Make changes to SDK
 vim src/api/plans-api.ts
@@ -234,6 +249,7 @@ git push origin feature/new-plan-method
 ### Creating a Release
 
 **Maintainer creates new version:**
+
 ```bash
 # 1. Ensure main branch is up to date
 git checkout main
@@ -268,7 +284,7 @@ git push --tags
 
 # 8. Verify published packages
 npm view @nevermined-io/payments@1.0.3
-npm view @nevermined-io/payments-cli@1.0.3
+npm view @nevermined-io/cli@1.0.3
 
 # 9. Review and merge docs PR
 #    - Go to nevermined-io/docs_mintlify
@@ -279,6 +295,7 @@ npm view @nevermined-io/payments-cli@1.0.3
 ### Manual CLI Publish (if needed)
 
 **Via GitHub UI:**
+
 ```
 1. Go to Actions tab
 2. Select "Publish CLI Package"
@@ -294,6 +311,7 @@ npm view @nevermined-io/payments-cli@1.0.3
 ### On SDK Changes (Push/PR)
 
 **Scenario 1: API Changes**
+
 ```
 Developer changes: src/api/plans-api.ts
 → Workflow runs
@@ -303,12 +321,14 @@ Developer changes: src/api/plans-api.ts
 ```
 
 **Scenario 2: Non-API Changes**
+
 ```
 Developer changes: README.md
 → Workflow skipped (no src/ changes) ⏭️
 ```
 
 **Scenario 3: CLI Already Synced**
+
 ```
 Developer changes: src/api/plans-api.ts
 → Workflow runs
@@ -319,6 +339,7 @@ Developer changes: src/api/plans-api.ts
 ### On Version Tag
 
 **Scenario 1: Successful Release**
+
 ```
 Tag created: v1.0.3
 → Both workflows run in parallel
@@ -329,6 +350,7 @@ Tag created: v1.0.3
 ```
 
 **Scenario 2: Failed Tests**
+
 ```
 Tag created: v1.0.3
 → Tests fail
@@ -347,12 +369,14 @@ Tag created: v1.0.3
 **Problem:** Changes to SDK but CLI not updated
 
 **Check:**
+
 1. Did the push modify `src/**`?
 2. Is the branch `main` or `develop`?
 3. Check workflow run in Actions tab
 4. Look for errors in "Generate CLI commands" step
 
 **Fix:**
+
 ```bash
 # Manually trigger sync
 cd cli
@@ -368,14 +392,16 @@ git commit -m "chore(cli): manual sync"
 **Problem:** Workflow fails at npm publish step
 
 **Check:**
+
 1. Is `NPM_TOKEN` secret set correctly?
-2. Does version already exist? `npm view @nevermined-io/payments-cli versions`
+2. Does version already exist? `npm view @nevermined-io/cli versions`
 3. Is npm registry accessible?
 
 **Fix:**
+
 ```bash
 # Check package doesn't exist
-npm view @nevermined-io/payments-cli@1.0.3
+npm view @nevermined-io/cli@1.0.3
 # If exists: Need to bump version
 
 # Re-run workflow with new version
@@ -389,11 +415,13 @@ git push --delete origin v1.0.3
 **Problem:** Documentation PR not appearing in docs_mintlify
 
 **Check:**
+
 1. Is `API_TOKEN_GITHUB` valid and not expired?
 2. Does token have correct permissions?
 3. Check workflow logs in "Create documentation PR" step
 
 **Fix:**
+
 ```bash
 # Regenerate GitHub token
 # Update secret in repository settings
@@ -405,6 +433,7 @@ git push --delete origin v1.0.3
 ## Testing Before Production
 
 ### Test CLI Sync Locally
+
 ```bash
 # 1. Make SDK change
 echo "// test" >> src/api/plans-api.ts
@@ -426,6 +455,7 @@ git checkout -- ../src/api/plans-api.ts cli/
 ```
 
 ### Test CLI Publishing (Dry Run)
+
 ```bash
 # Build without publishing
 cd cli
@@ -448,12 +478,14 @@ rm -rf dist/
 ### Updating Workflows
 
 **When to update:**
+
 - Adding new SDK API surfaces
 - Changing CLI structure
 - Modifying documentation layout
 - Adding new test suites
 
 **How to update:**
+
 ```bash
 # 1. Edit workflow file
 vim .github/workflows/cli-publish.yml
@@ -469,12 +501,14 @@ git push origin test/update-workflow
 ### Monitoring
 
 **Check workflow status:**
+
 - GitHub → Actions tab
 - Filter by workflow name
 - Review recent runs
 - Check logs for errors
 
 **Set up notifications:**
+
 - GitHub → Settings → Notifications
 - Enable "Actions" notifications
 - Configure email/Slack alerts
@@ -484,18 +518,21 @@ git push origin test/update-workflow
 ## Benefits Summary
 
 ### For Developers
+
 - ✅ No manual CLI synchronization
 - ✅ Automated testing on every change
 - ✅ Immediate feedback on PRs
 - ✅ Reduced review burden
 
 ### For Maintainers
+
 - ✅ One-command releases
 - ✅ Consistent versioning
 - ✅ Automated documentation
 - ✅ Reduced manual work
 
 ### For Users
+
 - ✅ Always-synced CLI
 - ✅ Up-to-date documentation
 - ✅ Reliable releases

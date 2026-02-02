@@ -43,7 +43,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCLI(['--version'])
 
       expect(exitCode).toBe(0)
-      expect(stdout).toContain('@nevermined-io/payments-cli')
+      expect(stdout).toContain('@nevermined-io/cli')
       expect(stdout).toContain('1.0.2')
     })
 

@@ -17,13 +17,13 @@ Complete guide for using and developing the Nevermined Payments CLI.
 ### npm (Recommended)
 
 ```bash
-npm install -g @nevermined-io/payments-cli
+npm install -g @nevermined-io/cli
 ```
 
 ### npx (No Install)
 
 ```bash
-npx @nevermined-io/payments-cli --help
+npx @nevermined-io/cli --help
 ```
 
 ### From Source
@@ -44,6 +44,7 @@ nvm config init
 ```
 
 This will prompt you for:
+
 - API Key (get one from https://nevermined.app)
 - Environment (staging_sandbox, staging_live, sandbox, live)
 
@@ -199,16 +200,19 @@ All commands support these flags:
 ### Output Formats
 
 **Table (default)**: Human-readable table output
+
 ```bash
 nvm plans list
 ```
 
 **JSON**: Machine-readable JSON output
+
 ```bash
 nvm plans list --format json
 ```
 
 **Quiet**: Minimal output for scripting
+
 ```bash
 nvm plans list --format quiet
 ```
@@ -291,9 +295,7 @@ import { BaseCommand } from '../../base-command.js'
 export default class MyCommand extends BaseCommand {
   static override description = 'My command description'
 
-  static override examples = [
-    '$ nvm mytopic mycommand <arg>',
-  ]
+  static override examples = ['$ nvm mytopic mycommand <arg>']
 
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -480,6 +482,7 @@ nvm <command> --verbose
 ```
 
 This shows:
+
 - Detailed error messages
 - Stack traces
 - API request/response details

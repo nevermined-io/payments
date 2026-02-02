@@ -7,6 +7,7 @@ The Nevermined Payments CLI (`nvm`) has been successfully implemented with core 
 ## What's Been Implemented
 
 ### 1. Project Structure ✅
+
 ```
 cli/
 ├── bin/
@@ -32,6 +33,7 @@ cli/
 ### 2. Core Infrastructure ✅
 
 #### Base Command Class
+
 - **Location**: `cli/src/base-command.ts`
 - **Features**:
   - Payments SDK initialization with config management
@@ -40,6 +42,7 @@ cli/
   - JSON input parsing (files and strings)
 
 #### Configuration Manager
+
 - **Location**: `cli/src/utils/config-manager.ts`
 - **Features**:
   - Profile-based configuration
@@ -49,6 +52,7 @@ cli/
   - Cosmiconfig integration with fallback
 
 #### Output Formatter
+
 - **Location**: `cli/src/utils/output-formatter.ts`
 - **Features**:
   - Table output (cli-table3)
@@ -60,6 +64,7 @@ cli/
 ### 3. Implemented Commands ✅
 
 #### Configuration Commands
+
 - ✅ `nvm config init` - Initialize configuration
   - Interactive mode with prompts
   - Flag-based mode (--api-key, --environment)
@@ -72,6 +77,7 @@ cli/
   - Profile support
 
 #### Plans Commands
+
 - ✅ `nvm plans list` - List all payment plans
   - Table output with key columns
   - JSON output support
@@ -84,6 +90,7 @@ cli/
   - Supports --config for JSON input
 
 #### Agents Commands
+
 - ✅ `nvm agents list` - List agents (placeholder)
   - Provides guidance on using getAgent
 - ✅ `nvm agents get <agentId>` - Get agent details
@@ -92,6 +99,7 @@ cli/
   - Supports --config for JSON input
 
 #### X402 Commands
+
 - ✅ `nvm x402 get-token <planId>` - Get X402 access token
   - Uses `payments.x402.getX402AccessToken()`
   - Formatted output with usage instructions
@@ -99,6 +107,7 @@ cli/
 ### 4. Development Tools ✅
 
 #### Package Scripts (Root)
+
 ```json
 {
   "cli:build": "cd cli && yarn build",
@@ -110,6 +119,7 @@ cli/
 ```
 
 #### Build System
+
 - TypeScript compilation to ESM modules
 - oclif framework integration
 - Proper bin entry points
@@ -117,10 +127,11 @@ cli/
 ## Testing
 
 ### Manual Testing Completed ✅
+
 ```bash
 # Version check
 ./bin/run.js --version
-# Output: @nevermined-io/payments-cli/1.0.2 linux-x64 node-v24.10.0
+# Output: @nevermined-io/cli/1.0.2 linux-x64 node-v24.10.0
 
 # Help system
 ./bin/run.js --help
@@ -136,6 +147,7 @@ cli/
 ```
 
 ### Configuration File Validation ✅
+
 ```json
 {
   "profiles": {
@@ -172,6 +184,7 @@ cli/
 ### Planned Enhancements (Next Phases)
 
 #### Phase 2: Additional Manual Commands
+
 - `nvm plans register-credits` - Credits-based plans
 - `nvm plans register-time` - Time-based plans
 - `nvm plans balance <planId>` - Check plan balance
@@ -181,6 +194,7 @@ cli/
 - `nvm organizations list-members` - List org members
 
 #### Phase 3: Auto-generation System
+
 - API scanner using ts-morph
 - Command generator
 - Sync verification script
@@ -188,18 +202,21 @@ cli/
 - CI integration
 
 #### Phase 4: Build & Distribution
+
 - Multi-platform builds (macOS, Linux, Windows)
 - npm publishing workflow
 - GitHub Actions integration
 - Standalone binary distribution
 
 #### Phase 5: Documentation
+
 - Auto-generated command reference
 - Integration with Mintlify docs
 - Examples and tutorials
 - Troubleshooting guide
 
 #### Phase 6: Testing & Polish
+
 - Jest test suite
 - Integration tests
 - E2E tests
@@ -210,6 +227,7 @@ cli/
 ## Dependencies
 
 ### Runtime
+
 - `@nevermined-io/payments`: ^1.0.2
 - `@oclif/core`: ^3.26.0
 - `@oclif/plugin-help`: ^6.0.21
@@ -220,6 +238,7 @@ cli/
 - `inquirer`: ^9.2.15
 
 ### Development
+
 - TypeScript: ^5.4.3
 - ts-morph: ^22.0.0 (for auto-generation)
 - Jest: ^29.7.0
@@ -229,9 +248,10 @@ cli/
 ## Usage Examples
 
 ### Basic Workflow
+
 ```bash
 # 1. Install CLI
-npm install -g @nevermined-io/payments-cli
+npm install -g @nevermined-io/cli
 
 # 2. Configure
 nvm config init
@@ -247,6 +267,7 @@ nvm x402 get-token did:nvm:abc123
 ```
 
 ### Using Profiles
+
 ```bash
 # Create production profile
 nvm config init --profile production
@@ -259,6 +280,7 @@ nvm config show --all
 ```
 
 ### JSON Output
+
 ```bash
 # For scripting
 nvm plans list --format json | jq '.[] | .did'
@@ -289,6 +311,7 @@ const token = await payments.x402.getX402AccessToken(planId)
 ## Configuration Options
 
 ### Environment Variables
+
 ```bash
 export NVM_API_KEY=nvm-your-api-key
 export NVM_ENVIRONMENT=staging_sandbox
@@ -296,6 +319,7 @@ export NVM_CONFIG=/custom/path/config.json
 ```
 
 ### Config File
+
 ```json
 {
   "profiles": {
@@ -313,6 +337,7 @@ export NVM_CONFIG=/custom/path/config.json
 ```
 
 ### Supported Environments
+
 - `staging_sandbox` - Testing environment (recommended)
 - `staging_live` - Staging live environment
 - `sandbox` - Sandbox environment
@@ -322,6 +347,7 @@ export NVM_CONFIG=/custom/path/config.json
 ## Success Metrics
 
 ### Phase 1 Completion ✅
+
 - [x] CLI project structure created
 - [x] oclif framework integrated
 - [x] Base command infrastructure
@@ -332,6 +358,7 @@ export NVM_CONFIG=/custom/path/config.json
 - [x] Documentation created
 
 ### Remaining for Full Implementation
+
 - [ ] 35+ additional commands (auto-generated)
 - [ ] Auto-generation system
 - [ ] Multi-platform builds

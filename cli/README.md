@@ -7,13 +7,13 @@ Official command-line interface for the Nevermined Payments SDK.
 ### Via npm (global)
 
 ```bash
-npm install -g @nevermined-io/payments-cli
+npm install -g @nevermined-io/cli
 ```
 
 ### Via npx (no installation)
 
 ```bash
-npx @nevermined-io/payments-cli <command>
+npx @nevermined-io/cli <command>
 ```
 
 ### From source
@@ -35,6 +35,7 @@ nvm config init
 ```
 
 This will prompt you for:
+
 - Your Nevermined API key
 - Target environment (staging_sandbox, staging_live, sandbox, live)
 

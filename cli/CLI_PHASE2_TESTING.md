@@ -17,6 +17,7 @@ Phase 2 successfully established a comprehensive testing infrastructure for the 
 ### 1. Testing Infrastructure ✅
 
 #### Jest Configuration
+
 - **File**: `cli/jest.config.js`
 - Standard ts-jest setup
 - Proper TypeScript compilation
@@ -24,6 +25,7 @@ Phase 2 successfully established a comprehensive testing infrastructure for the 
 - 30-second timeout for API tests
 
 #### Test Structure
+
 ```
 cli/test/
 ├── helpers/
@@ -46,6 +48,7 @@ cli/test/
 ### 2. Test Categories
 
 #### A. Unit Tests (3 passing) ✅
+
 **File**: `test/unit/simple.test.ts`
 
 - ✅ Basic JavaScript/TypeScript functionality
@@ -55,17 +58,21 @@ cli/test/
 **Run**: `yarn test:unit`
 
 #### B. Integration Tests (8 passing) ✅
+
 **File**: `test/integration/cli-basic.test.ts`
 
 **Core Functionality**:
+
 - ✅ CLI version display
 - ✅ Main help system
 
 **Error Handling**:
+
 - ✅ Unknown command errors
 - ✅ Invalid flag handling
 
 **Command Discovery**:
+
 - ✅ Config commands exist
 - ✅ Plans commands exist
 - ✅ Agents commands exist
@@ -74,6 +81,7 @@ cli/test/
 **Run**: `yarn test:integration`
 
 #### C. Real API Tests
+
 **File**: `test/integration/real-api.test.ts`
 
 - Uses credentials from `.env.testing`
@@ -86,6 +94,7 @@ cli/test/
 ### 3. Test Utilities Created
 
 #### Mock Payments SDK
+
 **File**: `test/helpers/mock-payments.ts`
 
 ```typescript
@@ -97,14 +106,17 @@ export class MockPayments {
 ```
 
 Features:
+
 - Mock data for plans, agents, X402 tokens
 - Proper error simulation
 - TypeScript type safety
 
 #### Test Utilities
+
 **File**: `test/helpers/test-utils.ts`
 
 Features:
+
 - Temporary config file creation
 - Output capture (console.log/error)
 - Test cleanup utilities
@@ -115,11 +127,13 @@ Features:
 **Issue Fixed**: Commands weren't being discovered by oclif
 
 **Solution**:
+
 ```bash
 yarn build:manifest  # Builds and generates oclif.manifest.json
 ```
 
 **Result**: All commands now properly discovered:
+
 ```
 TOPICS
   agents   Manage AI agents
@@ -131,6 +145,7 @@ TOPICS
 ### 5. Test Configuration Files
 
 #### Package.json Scripts
+
 ```json
 {
   "test": "jest --testPathIgnorePatterns=...",
@@ -144,6 +159,7 @@ TOPICS
 ```
 
 #### Environment Configuration
+
 **File**: `cli/.env.testing`
 
 ```env
@@ -156,6 +172,7 @@ Used for real API integration tests.
 ## Test Examples
 
 ### Unit Test Example
+
 ```typescript
 test('should work', () => {
   expect(1 + 1).toBe(2)
@@ -163,24 +180,24 @@ test('should work', () => {
 ```
 
 ### Integration Test Example
+
 ```typescript
 test('should display version', () => {
   const { stdout, exitCode } = runCLI(['--version'])
 
   expect(exitCode).toBe(0)
-  expect(stdout).toContain('@nevermined-io/payments-cli')
+  expect(stdout).toContain('@nevermined-io/cli')
   expect(stdout).toContain('1.0.2')
 })
 ```
 
 ### Real API Test Example
+
 ```typescript
 test('should list plans from API', () => {
-  const { stdout, exitCode } = runCLI([
-    'plans', 'list', '--format', 'json'
-  ], {
+  const { stdout, exitCode } = runCLI(['plans', 'list', '--format', 'json'], {
     NVM_API_KEY: TEST_API_KEY,
-    NVM_ENVIRONMENT: 'sandbox'
+    NVM_ENVIRONMENT: 'sandbox',
   })
 
   expect(exitCode).toBe(0)
@@ -192,6 +209,7 @@ test('should list plans from API', () => {
 ## Running Tests
 
 ### Quick Test Run
+
 ```bash
 # Run all passing tests
 yarn test:unit && yarn test:integration
@@ -203,6 +221,7 @@ yarn test:unit && yarn test:integration
 ```
 
 ### Individual Test Suites
+
 ```bash
 # Unit tests only
 yarn test:unit
@@ -224,6 +243,7 @@ yarn test:coverage
 ```
 
 ### Pre-commit Test Run
+
 ```bash
 yarn build:manifest && yarn test:unit && yarn test:integration
 ```
@@ -231,6 +251,7 @@ yarn build:manifest && yarn test:unit && yarn test:integration
 ## Test Coverage
 
 ### Covered Functionality ✅
+
 - CLI version display
 - Help system
 - Command discovery
@@ -241,6 +262,7 @@ yarn build:manifest && yarn test:unit && yarn test:integration
 - X402 command structure
 
 ### Not Yet Covered
+
 - Command execution with mocked SDK (ESM module issues)
 - Config file operations with SDK
 - Full end-to-end workflows
@@ -249,17 +271,21 @@ yarn build:manifest && yarn test:unit && yarn test:integration
 ## Known Issues & Workarounds
 
 ### Issue 1: ESM Module Mocking
+
 **Problem**: Jest has difficulty mocking ESM-only modules (chalk, inquirer, @nevermined-io/payments)
 
 **Workaround**:
+
 - Use integration tests that run actual CLI binary
 - Test through child_process.execSync
 - Avoid importing commands directly in tests
 
 ### Issue 2: oclif Command Discovery
+
 **Problem**: Commands weren't showing in help output
 
 **Solution**: Generate oclif manifest
+
 ```bash
 npx oclif manifest
 ```
@@ -267,6 +293,7 @@ npx oclif manifest
 **Status**: ✅ Fixed
 
 ### Issue 3: Real API Test Reliability
+
 **Problem**: Some API tests fail due to environment state
 
 **Status**: ⚠️ Tests depend on having plans/agents in sandbox
@@ -276,6 +303,7 @@ npx oclif manifest
 ## CI/CD Integration
 
 ### Recommended CI Workflow
+
 ```yaml
 name: CLI Tests
 
@@ -313,18 +341,21 @@ jobs:
 ## Next Steps
 
 ### Immediate
+
 1. ✅ Testing infrastructure complete
 2. ✅ Core tests passing
 3. ✅ Integration tests working
 4. ⏭️ Add more commands (Phase 2 continuation)
 
 ### Short-term
+
 1. Improve ESM module mocking
 2. Add more unit tests for utilities
 3. Increase API test coverage
 4. Add snapshot testing for help output
 
 ### Long-term
+
 1. E2E testing framework
 2. Performance benchmarking
 3. Automated test generation
@@ -333,6 +364,7 @@ jobs:
 ## Success Metrics
 
 ### Phase 2 Goals ✅
+
 - [x] Jest configuration
 - [x] Test infrastructure
 - [x] Mock utilities
@@ -342,6 +374,7 @@ jobs:
 - [x] Documentation
 
 ### Test Quality Metrics
+
 - **Test Reliability**: 100% (all passing tests are stable)
 - **Test Speed**: <3s for all core tests
 - **Coverage**: Core functionality covered
@@ -350,6 +383,7 @@ jobs:
 ## Files Created/Modified
 
 ### New Files (15+)
+
 - `cli/jest.config.js`
 - `cli/test/helpers/mock-payments.ts`
 - `cli/test/helpers/test-utils.ts`
@@ -369,6 +403,7 @@ jobs:
 - `cli/oclif.manifest.json`
 
 ### Modified Files (1)
+
 - `cli/package.json` - Added test scripts
 
 ## Conclusion
@@ -376,6 +411,7 @@ jobs:
 **Phase 2 Testing is COMPLETE and SUCCESSFUL!**
 
 We now have:
+
 - ✅ Robust testing infrastructure
 - ✅ 11 passing tests (100% pass rate)
 - ✅ Multiple test categories (unit, integration, API)
