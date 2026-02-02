@@ -31,6 +31,44 @@ jobs:
       - name: Lint
         run: yarn lint
 
+  cli_sync_check:
+    name: CLI Sync Check
+    runs-on: ubuntu-latest
+    needs: lint_build
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build SDK
+        run: yarn build
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: yarn install --frozen-lockfile
+
+      - name: Build CLI
+        working-directory: cli
+        run: yarn build
+
+      - name: Run CLI sync check
+        working-directory: cli
+        run: yarn sync-check
+
+      - name: Run CLI tests
+        working-directory: cli
+        run: yarn test
+
   unit_integration:
     name: Unit & Integration
     runs-on: ubuntu-latest

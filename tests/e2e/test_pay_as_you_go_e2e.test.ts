@@ -15,7 +15,7 @@ import type {
 } from '../../src/common/types.js'
 import { getPayAsYouGoCreditsConfig } from '../../src/plans.js'
 import { getRandomBigInt } from '../../src/utils.js'
-import { makeWaitForPlan, makeWaitForAgent } from '../utils.js'
+import { makeWaitForPlan, makeWaitForAgent, retryWithBackoff } from '../utils.js'
 import { ZeroAddress } from '../../src/environments.js'
 import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
 
@@ -55,16 +55,23 @@ describe('Pay-As-You-Go E2E', () => {
       )
       const creditsConfig = getPayAsYouGoCreditsConfig()
 
-      const { planId: createdPlanId } = await paymentsBuilder.plans.registerPlan(
-        planMetadata,
-        priceConfig,
-        creditsConfig,
-        getRandomBigInt(),
-        'credits',
+      const result = await retryWithBackoff<{ planId: string }>(
+        () =>
+          paymentsBuilder.plans.registerPlan(
+            planMetadata,
+            priceConfig,
+            creditsConfig,
+            getRandomBigInt(),
+            'credits',
+          ),
+        {
+          label: 'registerPlan (PAYG)',
+          attempts: 6,
+        },
       )
 
-      expect(createdPlanId).toBeDefined()
-      planId = createdPlanId
+      expect(result.planId).toBeDefined()
+      planId = result.planId
 
       const plan = await waitForPlan(planId, 20_000, 1_000)
       const registry = (plan as any).registry || {}
@@ -97,14 +104,16 @@ describe('Pay-As-You-Go E2E', () => {
         token: 'my-secret-token',
       }
 
-      const { agentId: createdAgentId } = await paymentsBuilder.agents.registerAgent(
-        agentMetadata,
-        agentApi,
-        [planId],
+      const result = await retryWithBackoff<{ agentId: string }>(
+        () => paymentsBuilder.agents.registerAgent(agentMetadata, agentApi, [planId]),
+        {
+          label: 'registerAgent (PAYG)',
+          attempts: 6,
+        },
       )
 
-      expect(createdAgentId).toBeDefined()
-      agentId = createdAgentId
+      expect(result.agentId).toBeDefined()
+      agentId = result.agentId
 
       const agent = await waitForAgent(agentId, 20_000, 1_000)
       expect(agent.id).toBe(agentId)
@@ -116,7 +125,13 @@ describe('Pay-As-You-Go E2E', () => {
   test(
     'subscriber can order PAYG plan',
     async () => {
-      const orderResult = await paymentsSubscriber.plans.orderPlan(planId)
+      const orderResult = await retryWithBackoff(
+        () => paymentsSubscriber.plans.orderPlan(planId),
+        {
+          label: 'orderPlan (PAYG)',
+          attempts: 3,
+        },
+      )
       expect(orderResult).toBeDefined()
       expect(orderResult.success).toBe(true)
     },

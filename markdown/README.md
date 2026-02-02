@@ -174,6 +174,6 @@ When contributing documentation changes:
 ## Resources
 
 - **Source Code**: [nevermined-io/payments](https://github.com/nevermined-io/payments)
-- **Published Docs**: [Nevermined Documentation](https://docs.nevermined.io)
+- **Published Docs**: [Nevermined Documentation](https://nevermined.ai/docs)
 - **Mintlify Docs**: [nevermined-io/docs_mintlify](https://github.com/nevermined-io/docs_mintlify)
 - **Specification**: `MINTLIFY_API_REFERENCE.md`

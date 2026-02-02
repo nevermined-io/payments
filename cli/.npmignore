@@ -1,0 +1,20 @@
+# Exclude platform-specific tarballs from npm package
+# These are published as GitHub release assets instead
+dist/*.tar.gz
+dist/*.tar.xz
+
+# Exclude test files
+test/
+*.test.ts
+*.test.js
+
+# Exclude source files (only include compiled dist)
+src/
+
+# Exclude development files
+tsconfig.json
+.eslintrc.json
+.prettierrc
+
+# Exclude CI/CD files
+.github/

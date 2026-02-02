@@ -38,7 +38,7 @@ export interface BackendApiOptions {
   /**
    * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
    * You can get your API key by logging in to the Nevermined App.
-   * @see https://docs.nevermined.app/docs/tutorials/integration/nvm-api-keys
+   * @see https://nevermined.ai/docs/tutorials/integration/nvm-api-keys
    */
   apiKey?: string
 
