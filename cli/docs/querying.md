@@ -1,3 +1,9 @@
+---
+title: "Querying Agents"
+description: "Complete guide to accessing AI agents using X402 access tokens with the Nevermined CLI"
+icon: "messages"
+---
+
 # Querying Agents
 
 Complete guide to accessing AI agents using X402 access tokens with the Nevermined CLI.
@@ -582,6 +588,6 @@ curl -H "X-402: $TOKEN" https://agent-api.example.com
 
 ## Next Steps
 
-- [Other Commands](./06-other-commands.md) - Additional CLI features
-- [Purchases](./04-purchases.md) - Managing your credits
-- [Agents](./03-agents.md) - Discover more agents
+- [Other Commands](./other-commands.md) - Additional CLI features
+- [Purchases](./purchases.md) - Managing your credits
+- [Agents](./agents.md) - Discover more agents

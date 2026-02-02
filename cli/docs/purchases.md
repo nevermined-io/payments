@@ -1,3 +1,9 @@
+---
+title: "Making Purchases"
+description: "Complete guide to ordering payment plans and managing subscriptions with the Nevermined CLI"
+icon: "cart-shopping"
+---
+
 # Making Purchases
 
 Complete guide to ordering payment plans and managing subscriptions with the Nevermined CLI.
@@ -569,6 +575,6 @@ nvm plans get-transaction-status <tx-hash>
 
 ## Next Steps
 
-- [Querying](./05-querying.md) - Use your credits to query agents
-- [Plans](./02-plans.md) - Learn about different plan types
-- [Agents](./03-agents.md) - Discover available agents
+- [Querying](./querying.md) - Use your credits to query agents
+- [Plans](./plans.md) - Learn about different plan types
+- [Agents](./agents.md) - Discover available agents

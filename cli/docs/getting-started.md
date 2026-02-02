@@ -1,6 +1,12 @@
+---
+title: "Getting Started"
+description: "Complete guide to installing and configuring the Nevermined CLI"
+icon: "rocket"
+---
+
 # Getting Started
 
-Complete guide to installing and configuring the Nevermined Payments CLI.
+Complete guide to installing and configuring the Nevermined CLI.
 
 ## Prerequisites
 
@@ -26,7 +32,7 @@ The API key format is: `nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
 Install the CLI globally to use the `nvm` command from anywhere:
 
 ```bash
-npm install -g @nevermined-io/payments-cli
+npm install -g @nevermined-io/cli
 ```
 
 Verify installation:
@@ -40,7 +46,7 @@ nvm --version
 Run the CLI without installing:
 
 ```bash
-npx @nevermined-io/payments-cli --help
+npx @nevermined-io/cli --help
 ```
 
 This is useful for one-off commands or trying the CLI before installing.
@@ -198,10 +204,10 @@ Choose the right environment for your use case:
 
 After global installation, if `nvm` command is not found:
 
-1. Verify installation: `npm list -g @nevermined-io/payments-cli`
+1. Verify installation: `npm list -g @nevermined-io/cli`
 2. Check your PATH includes npm global bin directory
 3. Restart your terminal
-4. Try using the full path: `npx @nevermined-io/payments-cli`
+4. Try using the full path: `npx @nevermined-io/cli`
 
 ### "API Key not found"
 
@@ -221,7 +227,7 @@ If you get permission errors during global installation:
 
 ```bash
 # Use npx instead
-npx @nevermined-io/payments-cli --help
+npx @nevermined-io/cli --help
 
 # Or install without sudo using nvm/volta
 ```
@@ -230,10 +236,10 @@ npx @nevermined-io/payments-cli --help
 
 Now that you've installed and configured the CLI, explore:
 
-- [Plans](./02-plans.md) - Create and manage payment plans
-- [Agents](./03-agents.md) - Register AI agents
-- [Purchases](./04-purchases.md) - Order plans and make payments
-- [Querying](./05-querying.md) - Query agents with access tokens
+- [Plans](./plans.md) - Create and manage payment plans
+- [Agents](./agents.md) - Register AI agents
+- [Purchases](./purchases.md) - Order plans and make payments
+- [Querying](./querying.md) - Query agents with access tokens
 
 ## Getting Help
 

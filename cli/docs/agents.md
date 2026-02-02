@@ -1,3 +1,9 @@
+---
+title: "Managing AI Agents"
+description: "Complete guide to registering and managing AI agents with the Nevermined CLI"
+icon: "robot"
+---
+
 # Managing AI Agents
 
 Complete guide to registering and managing AI agents with the Nevermined CLI.
@@ -507,6 +513,6 @@ nvm config show
 
 ## Next Steps
 
-- [Purchases](./04-purchases.md) - Users ordering your agent plans
-- [Querying](./05-querying.md) - Accessing agents with X402 tokens
-- [Plans](./02-plans.md) - Creating payment plans for your agents
+- [Purchases](./purchases.md) - Users ordering your agent plans
+- [Querying](./querying.md) - Accessing agents with X402 tokens
+- [Plans](./plans.md) - Creating payment plans for your agents

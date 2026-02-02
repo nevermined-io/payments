@@ -1,3 +1,9 @@
+---
+title: "Other Commands"
+description: "Reference guide for additional CLI commands including configuration, facilitator operations, organizations, and utilities"
+icon: "terminal"
+---
+
 # Other Commands
 
 Reference guide for additional CLI commands including configuration, facilitator operations, organizations, and utilities.
@@ -521,7 +527,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Install CLI
-        run: npm install -g @nevermined-io/payments-cli
+        run: npm install -g @nevermined-io/cli
 
       - name: Configure CLI
         run: |
@@ -651,8 +657,8 @@ chmod 600 ~/.config/nvm/config.json
 
 ## Next Steps
 
-- [Getting Started](./01-getting-started.md) - Installation and setup
-- [Plans](./02-plans.md) - Create and manage plans
-- [Agents](./03-agents.md) - Register and manage agents
-- [Purchases](./04-purchases.md) - Order plans and manage credits
-- [Querying](./05-querying.md) - Query agents with X402 tokens
+- [Getting Started](./getting-started.md) - Installation and setup
+- [Plans](./plans.md) - Create and manage plans
+- [Agents](./agents.md) - Register and manage agents
+- [Purchases](./purchases.md) - Order plans and manage credits
+- [Querying](./querying.md) - Query agents with X402 tokens

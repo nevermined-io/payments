@@ -1,3 +1,9 @@
+---
+title: "Managing Payment Plans"
+description: "Complete guide to creating and managing payment plans with the Nevermined CLI"
+icon: "credit-card"
+---
+
 # Managing Payment Plans
 
 Complete guide to creating and managing payment plans with the Nevermined CLI.
@@ -461,6 +467,6 @@ nvm --profile staging plans get-plan <plan-id>
 
 ## Next Steps
 
-- [Agents](./03-agents.md) - Register agents with your plans
-- [Purchases](./04-purchases.md) - Order plans and make payments
-- [Querying](./05-querying.md) - Query agents with access tokens
+- [Agents](./agents.md) - Register agents with your plans
+- [Purchases](./purchases.md) - Order plans and make payments
+- [Querying](./querying.md) - Query agents with access tokens

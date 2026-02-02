@@ -17,7 +17,7 @@ The Nevermined Payments CLI is a command-line interface for interacting with the
 
 ### Getting Started
 
-**[Getting Started Guide](./01-getting-started.md)**
+**[Getting Started Guide](./getting-started.md)**
 
 Everything you need to install and configure the CLI:
 - Prerequisites and system requirements
@@ -29,7 +29,7 @@ Everything you need to install and configure the CLI:
 
 ### Core Functionality
 
-**[Managing Payment Plans](./02-plans.md)**
+**[Managing Payment Plans](./plans.md)**
 
 Create and manage payment plans for your services:
 - Listing and viewing plans
@@ -39,7 +39,7 @@ Create and manage payment plans for your services:
 - Plan files and transfers
 - Advanced plan operations
 
-**[Managing AI Agents](./03-agents.md)**
+**[Managing AI Agents](./agents.md)**
 
 Register and configure AI agents:
 - Listing and viewing agents
@@ -49,7 +49,7 @@ Register and configure AI agents:
 - Agent files and resources
 - Access control configuration
 
-**[Making Purchases](./04-purchases.md)**
+**[Making Purchases](./purchases.md)**
 
 Order plans and manage subscriptions:
 - Ordering payment plans
@@ -59,7 +59,7 @@ Order plans and manage subscriptions:
 - Transaction history and analytics
 - Automated purchasing and budgeting
 
-**[Querying Agents](./05-querying.md)**
+**[Querying Agents](./querying.md)**
 
 Access agents using X402 tokens:
 - Generating X402 access tokens
@@ -69,7 +69,7 @@ Access agents using X402 tokens:
 - Batch queries and rate limiting
 - Monitoring credit usage
 
-**[Other Commands](./06-other-commands.md)**
+**[Other Commands](./other-commands.md)**
 
 Additional CLI features and utilities:
 - Configuration management
@@ -85,10 +85,10 @@ Additional CLI features and utilities:
 
 ```bash
 # Global installation
-npm install -g @nevermined-io/payments-cli
+npm install -g @nevermined-io/cli
 
 # Using npx
-npx @nevermined-io/payments-cli --help
+npx @nevermined-io/cli --help
 ```
 
 ### First Steps
@@ -334,10 +334,10 @@ Common issues and solutions:
 
 ```bash
 # Verify installation
-npm list -g @nevermined-io/payments-cli
+npm list -g @nevermined-io/cli
 
 # Reinstall if needed
-npm install -g @nevermined-io/payments-cli
+npm install -g @nevermined-io/cli
 ```
 
 ### API Key Errors
@@ -357,7 +357,7 @@ export NVM_API_KEY=your-api-key
 chmod 600 ~/.config/nvm/config.json
 
 # Use npx instead of global install
-npx @nevermined-io/payments-cli
+npx @nevermined-io/cli
 ```
 
 ## Contributing
@@ -386,5 +386,5 @@ nvm --version
 Update to latest:
 
 ```bash
-npm update -g @nevermined-io/payments-cli
+npm update -g @nevermined-io/cli
 ```
