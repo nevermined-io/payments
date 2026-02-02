@@ -93,6 +93,7 @@ You MUST:
 1. Run `yarn build` to verify TypeScript compilation
 2. Run `yarn test:unit` to verify unit tests pass
 3. If modifying E2E-related code, run `yarn test:e2e`
+4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. These are manually maintained guides — not auto-generated. Validate with `./scripts/generate-docs.sh`
 
 ### Updating Mock Tokens in Tests
 
