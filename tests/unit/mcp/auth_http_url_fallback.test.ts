@@ -269,7 +269,8 @@ describe('PaywallAuthenticator - authenticateMeta with HTTP fallback', () => {
     })
 
     expect(result).toBeDefined()
-    expect(result.logicalUrl).toBe('https://api.example.com/mcp')
+    expect(result.logicalUrl).toBe('mcp://test-server/meta/initialize')
+    expect(result.httpUrl).toBe('https://api.example.com/mcp')
 
     // Should have tried both logical and HTTP fallback validations
     expect((payments as any).facilitator.verifyPermissions).toHaveBeenCalledTimes(2)

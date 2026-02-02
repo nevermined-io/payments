@@ -300,12 +300,11 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     expect(result).toBeDefined()
     expect(result.content[0].text).toBe('result')
 
-    // When redemption fails silently, _meta is still added with success: true
-    // but txHash will be undefined (only included when transaction has a value)
+    // When redemption fails silently, _meta reports the failure
     expect(result._meta).toBeDefined()
-    expect(result._meta.success).toBe(true)
+    expect(result._meta.success).toBe(false)
     expect(result._meta.txHash).toBeUndefined()
-    expect(result._meta.creditsRedeemed).toBe('100')
+    expect(result._meta.creditsRedeemed).toBe('0')
   })
 
   test('should handle multiple authentication failures in sequence', async () => {

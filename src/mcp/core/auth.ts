@@ -6,9 +6,19 @@ import { decodeAccessToken } from '../../utils.js'
 import { getCurrentRequestContext } from '../http/mcp-handler.js'
 import { AuthResult } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
+import { Address } from '../../common/types.js'
 import { buildLogicalMetaUrl, buildLogicalUrl } from '../utils/logical-url.js'
 import { extractAuthHeader, stripBearer } from '../utils/request.js'
 import { buildPaymentRequired, type X402PaymentRequired } from '../../x402/facilitator-api.js'
+
+interface VerifyContext {
+  accessToken: string
+  logicalUrl: string
+  httpUrl: string | undefined
+  maxAmount: bigint
+  agentId: string
+  planIdOverride?: string
+}
 
 /**
  * Handles authentication and authorization for MCP requests
@@ -67,12 +77,139 @@ export class PaywallAuthenticator {
   }
 
   /**
+   * Core verification logic shared by authenticate and authenticateMeta.
+   * Tries logical URL first, falls back to HTTP URL if available.
+   */
+  private async verifyWithFallback(ctx: VerifyContext): Promise<AuthResult> {
+    const { accessToken, logicalUrl, httpUrl, maxAmount, agentId, planIdOverride } = ctx
+
+    // Try logical URL first
+    try {
+      const result = await this.verifyWithEndpoint(
+        accessToken,
+        logicalUrl,
+        agentId,
+        maxAmount,
+        planIdOverride,
+      )
+      return {
+        token: accessToken,
+        agentId,
+        logicalUrl,
+        httpUrl,
+        planId: result.planId,
+        subscriberAddress: result.subscriberAddress,
+        agentRequest: result.agentRequest,
+      }
+    } catch {
+      // If logical URL fails and we have an HTTP URL, try that
+    }
+
+    if (httpUrl) {
+      try {
+        const result = await this.verifyWithEndpoint(
+          accessToken,
+          httpUrl,
+          agentId,
+          maxAmount,
+          planIdOverride,
+        )
+        return {
+          token: accessToken,
+          agentId,
+          logicalUrl,
+          httpUrl,
+          planId: result.planId,
+          subscriberAddress: result.subscriberAddress,
+          agentRequest: result.agentRequest,
+        }
+      } catch {
+        // HTTP fallback also failed
+      }
+    }
+
+    // Both attempts failed — enrich denial with suggested plans (best-effort)
+    let plansMsg = ''
+    try {
+      const plans = await this.payments.agents.getAgentPlans(agentId)
+      if (plans && Array.isArray(plans.plans) && plans.plans.length > 0) {
+        const top = plans.plans.slice(0, 3)
+        const summary = top
+          .map((p: any) => `${p.planId || p.id || 'plan'}${p.name ? ` (${p.name})` : ''}`)
+          .join(', ')
+        plansMsg = summary ? ` Available plans: ${summary}...` : ''
+      }
+    } catch {
+      // Ignore errors fetching plans - best effort only
+    }
+
+    throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
+      reason: 'invalid',
+    })
+  }
+
+  /**
+   * Verify permissions against a single endpoint URL.
+   * Resolves planId from the token or from the agent's plans as fallback.
+   */
+  private async verifyWithEndpoint(
+    accessToken: string,
+    endpoint: string,
+    agentId: string,
+    maxAmount: bigint,
+    planIdOverride?: string,
+  ): Promise<{ planId: string; subscriberAddress: Address; agentRequest?: any }> {
+    const decodedAccessToken = decodeAccessToken(accessToken)
+    if (!decodedAccessToken) {
+      throw new Error('Invalid access token')
+    }
+
+    let planId = planIdOverride ?? decodedAccessToken.accepted?.planId
+    const subscriberAddress = decodedAccessToken.payload?.authorization?.from
+
+    // If planId is not available, try to get it from the agent's plans
+    if (!planId) {
+      try {
+        const agentPlans = await this.payments.agents.getAgentPlans(agentId)
+        if (agentPlans && Array.isArray(agentPlans.plans) && agentPlans.plans.length > 0) {
+          planId = agentPlans.plans[0].planId || agentPlans.plans[0].id
+        }
+      } catch {
+        // Ignore errors fetching plans
+      }
+    }
+
+    if (!planId || !subscriberAddress) {
+      throw new Error(
+        'Cannot determine plan_id or subscriber_address from token (expected accepted.planId and payload.authorization.from)',
+      )
+    }
+
+    const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
+      endpoint,
+      agentId,
+      httpVerb: 'POST',
+    })
+
+    const result = await this.payments.facilitator.verifyPermissions({
+      paymentRequired,
+      x402AccessToken: accessToken,
+      maxAmount,
+    })
+
+    if (!result.isValid) {
+      throw new Error('Permission verification failed')
+    }
+
+    return { planId, subscriberAddress, agentRequest: result.agentRequest }
+  }
+
+  /**
    * Authenticate an MCP request
    */
   async authenticate(
     extra: any,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    options: { planId?: string } = {},
+    options: { planId?: string; maxAmount?: bigint } = {},
     agentId: string,
     serverName: string,
     name: string,
@@ -86,131 +223,14 @@ export class PaywallAuthenticator {
       })
     }
 
-    const accessToken = stripBearer(authHeader)
-    const logicalUrl = buildLogicalUrl({ kind, serverName, name, argsOrVars })
-
-    // Validate access with Nevermined - try logical URL first
-    try {
-      const decodedAccessToken = decodeAccessToken(accessToken)
-      if (!decodedAccessToken) {
-        throw new Error('Invalid access token')
-      }
-
-      const planId = decodedAccessToken.accepted?.planId
-
-      // Extract subscriberAddress from payload.authorization.from per x402 spec
-      const subscriberAddress = decodedAccessToken.payload?.authorization?.from
-
-      if (!planId || !subscriberAddress) {
-        throw new Error(
-          'Cannot determine plan_id or subscriber_address from token (expected payload.authorization.from)',
-        )
-      }
-
-      const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
-        endpoint: logicalUrl,
-        agentId,
-        httpVerb: 'POST',
-      })
-
-      const result = await this.payments.facilitator.verifyPermissions({
-        paymentRequired,
-        x402AccessToken: accessToken,
-        maxAmount: 1n,
-      })
-
-      if (!result.isValid) {
-        throw new Error('Permission verification failed')
-      }
-
-      return {
-        token: accessToken,
-        agentId,
-        logicalUrl,
-        planId,
-        subscriberAddress,
-        agentRequest: result.agentRequest,
-      }
-    } catch (e) {
-      // If logical URL validation fails, try with HTTP endpoint
-      const httpUrl = this.buildHttpUrlFromContext()
-      if (httpUrl) {
-        try {
-          const decodedAccessToken = decodeAccessToken(accessToken)
-          if (!decodedAccessToken) {
-            throw new Error('Invalid access token')
-          }
-          // Extract planId from accepted.planId per x402 spec
-          let planId = decodedAccessToken.accepted?.planId
-          // Extract subscriberAddress from payload.authorization.from per x402 spec
-          const subscriberAddress = decodedAccessToken.payload?.authorization?.from
-
-          // If planId is not in the token, try to get it from the agent's plans
-          if (!planId) {
-            try {
-              const agentPlans = await this.payments.agents.getAgentPlans(agentId)
-              if (agentPlans && Array.isArray(agentPlans.plans) && agentPlans.plans.length > 0) {
-                planId = agentPlans.plans[0].planId || agentPlans.plans[0].id
-              }
-            } catch (planError) {
-              // Ignore errors fetching plans
-            }
-          }
-
-          if (!planId || !subscriberAddress) {
-            throw new Error(
-              'Cannot determine plan_id or subscriber_address from token (expected accepted.planId and payload.authorization.from)',
-            )
-          }
-
-          const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
-            endpoint: httpUrl,
-            agentId,
-            httpVerb: 'POST',
-          })
-
-          const result = await this.payments.facilitator.verifyPermissions({
-            paymentRequired,
-            x402AccessToken: accessToken,
-            maxAmount: 1n,
-          })
-
-          if (!result.isValid) {
-            throw new Error('Permission verification failed')
-          }
-
-          return {
-            token: accessToken,
-            agentId,
-            logicalUrl,
-            planId,
-            subscriberAddress,
-            agentRequest: result.agentRequest,
-          }
-        } catch (httpError) {
-          void httpError
-        }
-      }
-
-      // Enrich denial with suggested plans (best-effort)
-      let plansMsg = ''
-      try {
-        const plans = await this.payments.agents.getAgentPlans(agentId)
-        if (plans && Array.isArray(plans.plans) && plans.plans.length > 0) {
-          const top = plans.plans.slice(0, 3)
-          const summary = top
-            .map((p: any) => `${p.planId || p.id || 'plan'}${p.name ? ` (${p.name})` : ''}`)
-            .join(', ')
-          plansMsg = summary ? ` Available plans: ${summary}...` : ''
-        }
-      } catch {
-        // Ignore errors fetching plans - best effort only
-      }
-
-      throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
-        reason: 'invalid',
-      })
-    }
+    return this.verifyWithFallback({
+      accessToken: stripBearer(authHeader),
+      logicalUrl: buildLogicalUrl({ kind, serverName, name, argsOrVars }),
+      httpUrl: this.buildHttpUrlFromContext(),
+      maxAmount: options.maxAmount ?? 1n,
+      agentId,
+      planIdOverride: options.planId,
+    })
   }
 
   /**
@@ -219,7 +239,7 @@ export class PaywallAuthenticator {
    */
   async authenticateMeta(
     extra: any,
-    options: { planId?: string } = {},
+    options: { planId?: string; maxAmount?: bigint } = {},
     agentId: string,
     serverName: string,
     method: string,
@@ -230,107 +250,14 @@ export class PaywallAuthenticator {
         reason: 'missing',
       })
     }
-    const accessToken = stripBearer(authHeader)
-    const logicalUrl = buildLogicalMetaUrl(serverName, method)
 
-    try {
-      const decodedAccessToken = decodeAccessToken(accessToken)
-      if (!decodedAccessToken) {
-        throw new Error('Invalid access token')
-      }
-      const planId = options.planId
-      // Extract subscriberAddress from payload.authorization.from per x402 spec
-      const subscriberAddress = decodedAccessToken.payload?.authorization?.from
-      if (!planId || !subscriberAddress) {
-        throw new Error(
-          'Cannot determine plan_id or subscriber_address from token (expected payload.authorization.from)',
-        )
-      }
-
-      const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
-        endpoint: logicalUrl,
-        agentId,
-        httpVerb: 'POST',
-      })
-
-      const result = await this.payments.facilitator.verifyPermissions({
-        paymentRequired,
-        x402AccessToken: accessToken,
-        maxAmount: 1n,
-      })
-      if (!result.isValid) {
-        throw new Error('Permission verification failed')
-      }
-      return {
-        token: accessToken,
-        agentId,
-        logicalUrl,
-        planId,
-        subscriberAddress,
-        agentRequest: result.agentRequest,
-      }
-    } catch (e) {
-      const httpUrl = this.buildHttpUrlFromContext()
-      if (httpUrl) {
-        try {
-          const decodedAccessToken = decodeAccessToken(accessToken)
-          if (!decodedAccessToken) {
-            throw new Error('Invalid access token')
-          }
-          // Extract planId from accepted.planId per x402 spec
-          const planId = decodedAccessToken.accepted?.planId
-          // Extract subscriberAddress from payload.authorization.from per x402 spec
-          const subscriberAddress = decodedAccessToken.payload?.authorization?.from
-          if (!planId || !subscriberAddress) {
-            throw new Error(
-              'Cannot determine plan_id or subscriber_address from token (expected accepted.planId and payload.authorization.from)',
-            )
-          }
-
-          const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
-            endpoint: httpUrl,
-            agentId,
-            httpVerb: 'POST',
-          })
-
-          const result = await this.payments.facilitator.verifyPermissions({
-            paymentRequired,
-            x402AccessToken: accessToken,
-            maxAmount: 1n,
-          })
-          if (!result.isValid) {
-            throw new Error('Permission verification failed')
-          }
-          return {
-            token: accessToken,
-            agentId,
-            logicalUrl: httpUrl,
-            planId,
-            subscriberAddress,
-            agentRequest: result.agentRequest,
-          }
-        } catch (httpError) {
-          void httpError
-        }
-      }
-
-      let plansMsg = ''
-      try {
-        const plans = await this.payments.agents.getAgentPlans(agentId)
-        if (plans && Array.isArray(plans.plans) && plans.plans.length > 0) {
-          const top = plans.plans.slice(0, 3)
-          const summary = top
-            .map((p: any) => `${p.planId || p.id || 'plan'}${p.name ? ` (${p.name})` : ''}`)
-            .join(', ')
-          plansMsg = summary ? ` Available plans: ${summary}...` : ''
-        }
-      } catch (_err) {
-        void _err
-      }
-
-      throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
-        reason: 'invalid',
-      })
-    }
+    return this.verifyWithFallback({
+      accessToken: stripBearer(authHeader),
+      logicalUrl: buildLogicalMetaUrl(serverName, method),
+      httpUrl: this.buildHttpUrlFromContext(),
+      maxAmount: options.maxAmount ?? 1n,
+      agentId,
+      planIdOverride: options.planId,
+    })
   }
 }
