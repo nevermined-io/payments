@@ -102,7 +102,7 @@ nvm facilitator verify-permissions \
 
 ```json
 {
-  "planId": "did:nvm:abc123",
+  "planId": ""123456789012345678"",
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "creditsRequired": 5
 }
@@ -114,7 +114,7 @@ Output:
 Permission Verification
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Status: Valid
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Subscriber: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
 Credits Available: 100
 Credits Required: 5
@@ -135,7 +135,7 @@ nvm facilitator settle-permissions \
 
 ```json
 {
-  "planId": "did:nvm:abc123",
+  "planId": ""123456789012345678"",
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "creditsBurned": 5,
   "executionId": "exec-20240315-001",
@@ -152,7 +152,7 @@ Output:
 ```
 Credits Settled
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Credits Burned: 5
 Previous Balance: 100
 New Balance: 95
@@ -287,7 +287,7 @@ nvm x402token get-x402-access-token <plan-id>
 Example:
 
 ```bash
-nvm x402token get-x402-access-token did:nvm:abc123
+nvm x402token get-x402-access-token "123456789012345678"
 ```
 
 Output:
@@ -296,7 +296,7 @@ Output:
 X402 Access Token
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Issued: 2024-03-15 10:30:00 UTC
 Expires: 2024-03-15 11:30:00 UTC
 Credits: 100
@@ -308,11 +308,11 @@ Save token for later use:
 
 ```bash
 # Save to file
-nvm x402token get-x402-access-token did:nvm:abc123 \
+nvm x402token get-x402-access-token "123456789012345678" \
   --format json | jq -r '.token' > ~/.nvm/token.txt
 
 # Save to environment variable
-export X402_TOKEN=$(nvm x402token get-x402-access-token did:nvm:abc123 \
+export X402_TOKEN=$(nvm x402token get-x402-access-token "123456789012345678" \
   --format json | jq -r '.token')
 ```
 
@@ -352,7 +352,7 @@ nvm --profile staging agents list
 Enable verbose output with detailed logging:
 
 ```bash
-nvm plans order-plan did:nvm:abc123 --verbose
+nvm plans order-plan "123456789012345678" --verbose
 ```
 
 Output includes:
@@ -494,7 +494,7 @@ for PROFILE in "${PROFILES[@]}"; do
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   nvm --profile $PROFILE $COMMAND
-  echo ""
+  echo "
 done
 ```
 
@@ -561,17 +561,17 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # Configuration
 echo "Current Configuration:"
 nvm config show
-echo ""
+echo "
 
 # Plans
 echo "Active Plans:"
 nvm plans list
-echo ""
+echo "
 
 # Agents
 echo "Registered Agents:"
 nvm agents list
-echo ""
+echo "
 
 # Balances
 echo "Plan Balances:"
@@ -625,7 +625,7 @@ Create scripts for common operations:
 Always use `--format json` in scripts:
 
 ```bash
-PLAN_DATA=$(nvm plans get-plan did:nvm:abc123 --format json)
+PLAN_DATA=$(nvm plans get-plan "123456789012345678" --format json)
 PLAN_NAME=$(echo $PLAN_DATA | jq -r '.name')
 ```
 

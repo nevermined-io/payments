@@ -37,9 +37,9 @@ Payment Plans
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Plan ID                  Name              Type      Price
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-did:nvm:abc123          Basic Plan        Credits   $10.00
-did:nvm:xyz789          Pro Plan          Credits   $50.00
-did:nvm:def456          Enterprise        Time      $100.00
+"123456789012345678"          Basic Plan        Credits   $10.00
+"234567890123456789"          Pro Plan          Credits   $50.00
+"345678901234567890"          Enterprise        Time      $100.00
 ```
 
 ## Getting Plan Details
@@ -53,7 +53,7 @@ nvm plans get-plan <plan-id>
 Example:
 
 ```bash
-nvm plans get-plan did:nvm:abc123
+nvm plans get-plan "123456789012345678"
 ```
 
 Output includes:
@@ -78,7 +78,7 @@ nvm plans get-plan-balance <plan-id> --account-address 0x1234...
 Example:
 
 ```bash
-nvm plans get-plan-balance did:nvm:abc123
+nvm plans get-plan-balance "123456789012345678"
 ```
 
 Output:
@@ -87,7 +87,7 @@ Output:
 Plan Balance
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Credits Remaining: 1000
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Account: 0xYourAddress...
 ```
 
@@ -291,7 +291,7 @@ Use `--format json` for machine-readable output:
 
 ```bash
 # Get plan details as JSON
-PLAN_DATA=$(nvm plans get-plan did:nvm:abc123 --format json)
+PLAN_DATA=$(nvm plans get-plan "123456789012345678" --format json)
 
 # Extract specific field with jq
 PLAN_NAME=$(echo $PLAN_DATA | jq -r '.name')
@@ -361,7 +361,7 @@ nvm plans get-plan $FIRST_PLAN
 #!/bin/bash
 # Script to monitor plan balance
 
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 MIN_CREDITS=10
 
 BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')

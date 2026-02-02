@@ -216,7 +216,7 @@ nvm config init
 nvm plans list
 
 # 3. Get plan details
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 nvm plans get-plan $PLAN_ID
 
 # 4. Purchase plan
