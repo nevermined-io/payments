@@ -83,12 +83,12 @@ jobs:
 
             **npm (recommended):**
             ```bash
-            npm install -g @nevermined-io/payments-cli
+            npm install -g @nevermined-io/cli
             ```
 
             **npx (no install):**
             ```bash
-            npx @nevermined-io/payments-cli --help
+            npx @nevermined-io/cli --help
             ```
 
             **Standalone binaries:**
@@ -98,7 +98,7 @@ jobs:
             See the release notes below for details.
 
             ### Documentation
-            - [CLI Documentation](https://nevermined.ai/docs/cli)
+            - [CLI Documentation](https://nevermined.ai/docs/api-reference/cli)
             - [SDK Documentation](https://nevermined.ai/docs/payments)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

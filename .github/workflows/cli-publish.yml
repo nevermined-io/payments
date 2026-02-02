@@ -107,19 +107,19 @@ jobs:
 
             **npm (recommended):**
             ```bash
-            npm install -g @nevermined-io/payments-cli@${{ steps.version.outputs.version }}
+            npm install -g @nevermined-io/cli@${{ steps.version.outputs.version }}
             ```
 
             **npx (no install):**
             ```bash
-            npx @nevermined-io/payments-cli@${{ steps.version.outputs.version }} --help
+            npx @nevermined-io/cli@${{ steps.version.outputs.version }} --help
             ```
 
             **Standalone binaries:**
             Download the appropriate tarball for your platform below and extract it.
 
             ### Documentation
-            - [CLI Documentation](https://nevermined.ai/docs/products/cli)
+            - [CLI Documentation](https://nevermined.ai/docs/api-reference/cli)
             - [SDK Documentation](https://nevermined.ai/docs/payments)
 
             ### What's New
@@ -165,14 +165,14 @@ jobs:
       - name: Update CLI documentation
         run: |
           # Create CLI docs directory if it doesn't exist
-          mkdir -p docs_mintlify/docs/products/cli
+          mkdir -p docs_mintlify/docs/api-reference/cli
 
           # Copy CLI documentation files
-          cp -r cli/docs/* docs_mintlify/docs/products/cli/ || echo "CLI docs not found, skipping"
-          cp cli/README.md docs_mintlify/docs/products/cli/index.md || echo "CLI README not found"
+          cp -r cli/docs/* docs_mintlify/docs/api-reference/cli/ || echo "CLI docs not found, skipping"
+          cp cli/README.md docs_mintlify/docs/api-reference/cli/index.md || echo "CLI README not found"
 
           # Add version metadata to CLI docs
-          find docs_mintlify/docs/products/cli -name "*.md" -exec sed -i "1i---\nversion: ${{ steps.version.outputs.version }}\nlastUpdated: $(date -u +%Y-%m-%d)\n---\n" {} \;
+          find docs_mintlify/docs/api-reference/cli -name "*.md" -exec sed -i "1i---\nversion: ${{ steps.version.outputs.version }}\nlastUpdated: $(date -u +%Y-%m-%d)\n---\n" {} \;
 
       - name: Update Payments SDK documentation
         run: |
@@ -191,10 +191,10 @@ jobs:
           BRANCH_NAME="docs/payments-cli-v${{ steps.version.outputs.version }}"
           git checkout -b "$BRANCH_NAME"
 
-          git add docs/products/cli docs/api-reference/typescript
+          git add docs/api-reference/cli docs/api-reference/typescript
           git commit -m "docs: update Payments SDK and CLI documentation for v${{ steps.version.outputs.version }}
 
-          - Updated CLI documentation in docs/products/cli/
+          - Updated CLI documentation in docs/api-reference/cli/
           - Updated Payments SDK documentation in docs/api-reference/typescript/
           - Version: ${{ steps.version.outputs.version }}
           - Auto-generated from nevermined-io/payments@${{ github.sha }}
@@ -211,7 +211,7 @@ jobs:
           This PR updates the documentation for Nevermined Payments SDK and CLI to version **${{ steps.version.outputs.version }}**.
 
           ### Changes
-          - ✅ CLI documentation → \`docs/products/cli/\`
+          - ✅ CLI documentation → \`docs/api-reference/cli/\`
           - ✅ Payments SDK documentation → \`docs/api-reference/typescript/\`
           - ✅ Version metadata added to all files
 
@@ -221,7 +221,7 @@ jobs:
           - Commit: ${{ github.sha }}
 
           ### Links
-          - [CLI Package on npm](https://www.npmjs.com/package/@nevermined-io/payments-cli)
+          - [CLI Package on npm](https://www.npmjs.com/package/@nevermined-io/cli)
           - [SDK Package on npm](https://www.npmjs.com/package/@nevermined-io/payments)
           - [GitHub Release](https://github.com/nevermined-io/payments/releases/tag/v${{ steps.version.outputs.version }})
 

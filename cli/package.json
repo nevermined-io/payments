@@ -90,8 +90,12 @@
         "description": "Manage organizations"
       }
     },
-    "additionalHelpFlags": ["-h"],
-    "additionalVersionFlags": ["-v"]
+    "additionalHelpFlags": [
+      "-h"
+    ],
+    "additionalVersionFlags": [
+      "-v"
+    ]
   },
   "repository": {
     "type": "git",
