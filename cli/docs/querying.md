@@ -25,7 +25,7 @@ nvm x402token get-x402-access-token <plan-id>
 Example:
 
 ```bash
-nvm x402token get-x402-access-token did:nvm:abc123
+nvm x402token get-x402-access-token "123456789012345678"
 ```
 
 Output:
@@ -34,7 +34,7 @@ Output:
 X402 Access Token
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Expires: 2024-03-15 10:30:00 UTC
 Credits: 100
 
@@ -56,7 +56,7 @@ Store the token for multiple requests:
 
 ```bash
 # Get token and save to file
-TOKEN=$(nvm x402token get-x402-access-token did:nvm:abc123 --format json | jq -r '.token')
+TOKEN=$(nvm x402token get-x402-access-token "123456789012345678" --format json | jq -r '.token')
 echo $TOKEN > ~/.nvm-token
 
 # Use token from file
@@ -71,7 +71,7 @@ Query an agent using curl:
 
 ```bash
 # Get access token
-TOKEN=$(nvm x402token get-x402-access-token did:nvm:abc123 --format json | jq -r '.token')
+TOKEN=$(nvm x402token get-x402-access-token "123456789012345678" --format json | jq -r '.token')
 
 # Make request with X-402 header
 curl -X POST https://agent-api.example.com/v1/chat \
@@ -89,7 +89,7 @@ curl -X POST https://agent-api.example.com/v1/chat \
 // Get token from CLI
 const { execSync } = require('child_process')
 
-const planId = 'did:nvm:abc123'
+const planId = '"123456789012345678"'
 const tokenCmd = `nvm x402token get-x402-access-token ${planId} --format json`
 const result = JSON.parse(execSync(tokenCmd).toString())
 const token = result.token
@@ -119,7 +119,7 @@ import json
 import requests
 
 # Get token from CLI
-plan_id = 'did:nvm:abc123'
+plan_id = '"123456789012345678"'
 cmd = f'nvm x402token get-x402-access-token {plan_id} --format json'
 result = subprocess.run(cmd.split(), capture_output=True, text=True)
 token_data = json.loads(result.stdout)
@@ -156,7 +156,7 @@ nvm facilitator verify-permissions \
 
 ```json
 {
-  "planId": "did:nvm:abc123",
+  "planId": ""123456789012345678"",
   "token": "eyJhbGci...",
   "creditsRequired": 5
 }
@@ -168,7 +168,7 @@ Output:
 Permission Verification
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Status: Valid
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Subscriber: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
 Credits Available: 100
 Credits Required: 5
@@ -189,7 +189,7 @@ const payments = Payments.getInstance({
 
 // Verify incoming request
 const isValid = await payments.facilitator.verifyPermissions({
-  planId: 'did:nvm:abc123',
+  planId: '"123456789012345678"',
   token: req.headers['x-402'],
   creditsRequired: 5
 })
@@ -214,7 +214,7 @@ nvm facilitator settle-permissions \
 
 ```json
 {
-  "planId": "did:nvm:abc123",
+  "planId": ""123456789012345678"",
   "token": "eyJhbGci...",
   "creditsBurned": 5,
   "executionId": "exec-123"
@@ -226,7 +226,7 @@ Output:
 ```
 Credits Settled
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Credits Burned: 5
 Remaining Balance: 95
 Transaction Hash: 0x1234567890abcdef...
@@ -240,7 +240,7 @@ Integrate settlement into your agent:
 ```typescript
 // After processing request
 await payments.facilitator.settlePermissions({
-  planId: 'did:nvm:abc123',
+  planId: '"123456789012345678"',
   token: req.headers['x-402'],
   creditsBurned: 5,
   executionId: requestId
@@ -257,7 +257,7 @@ Complete flow from purchase to query:
 #!/bin/bash
 # Complete agent query workflow
 
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 AGENT_API="https://agent-api.example.com/v1/chat"
 
 # 1. Purchase plan if needed
@@ -301,7 +301,7 @@ Process multiple queries efficiently:
 #!/bin/bash
 # Batch query script
 
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 AGENT_API="https://agent-api.example.com/v1/chat"
 
 # Get token once
@@ -340,7 +340,7 @@ Respect rate limits:
 #!/bin/bash
 # Rate-limited query script
 
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 AGENT_API="https://agent-api.example.com/v1/chat"
 RATE_LIMIT=10  # requests per minute
 DELAY=$(echo "60 / $RATE_LIMIT" | bc -l)
@@ -422,7 +422,7 @@ query_agent() {
 }
 
 # Usage
-query_agent "did:nvm:abc123" "Hello, agent!"
+query_agent ""123456789012345678"" "Hello, agent!"
 ```
 
 ## Monitoring Usage
@@ -435,7 +435,7 @@ Monitor how credits are used per query:
 #!/bin/bash
 # Credit usage tracking
 
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 LOG_FILE="credit-usage.log"
 
 # Get initial balance
@@ -480,7 +480,7 @@ AVG=$(echo "$TOTAL_USED / $NUM_QUERIES" | bc -l | xargs printf "%.2f")
 echo "Average per Query: $AVG"
 
 # Queries by date
-echo ""
+echo "
 echo "Queries by Date:"
 awk -F'|' '{print substr($1, 1, 10)}' credit-usage.log | sort | uniq -c
 ```
