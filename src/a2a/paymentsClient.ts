@@ -78,6 +78,15 @@ export class PaymentsClient extends A2AClient {
   }
 
   /**
+   * Type guard to check if a JSON-RPC response is an error response.
+   * @param response - The JSON-RPC response to check
+   * @returns true if the response contains an error, false otherwise
+   */
+  private isErrorResponse(response: any): boolean {
+    return response && typeof response === 'object' && 'error' in response
+  }
+
+  /**
    * Sends a message to the agent, managing authentication automatically.
    * @param params - The parameters for sending the message.
    * @returns The response from the agent.

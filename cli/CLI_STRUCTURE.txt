@@ -1,0 +1,28 @@
+cli
+├── bin
+│   ├── dev.js
+│   └── run.js
+├── package.json
+├── README.md
+├── src
+│   ├── base-command.ts
+│   ├── commands
+│   │   ├── agents
+│   │   ├── config
+│   │   ├── plans
+│   │   └── x402
+│   ├── generator
+│   ├── index.ts
+│   └── utils
+│       ├── config-manager.ts
+│       └── output-formatter.ts
+├── test
+│   ├── fixtures
+│   ├── integration
+│   └── unit
+├── test-cli.sh
+├── tsconfig.json
+├── tsconfig.tsbuildinfo
+└── yarn.lock
+
+14 directories, 12 files

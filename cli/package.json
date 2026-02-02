@@ -1,0 +1,111 @@
+{
+  "name": "@nevermined-io/cli",
+  "version": "1.0.2",
+  "description": "CLI for Nevermined Payments SDK",
+  "author": "Nevermined AG",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "nvm": "./bin/run.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "/bin",
+    "/dist",
+    "/oclif.manifest.json"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "build:manifest": "tsc -b && npx oclif manifest",
+    "dev": "tsx src/index.ts",
+    "generate": "tsx src/generator/generate.ts",
+    "sync-check": "tsx src/generator/sync-check.ts",
+    "test": "yarn test:unit && yarn test:integration",
+    "test:unit": "jest test/unit/simple.test.ts test/unit/output-formatter-basic.test.ts",
+    "test:unit:all": "jest --testPathPattern=test/unit",
+    "test:integration": "jest test/integration/cli-basic.test.ts test/integration/generated-commands.test.ts",
+    "test:integration:config": "jest test/integration/config-workflow.test.ts",
+    "test:integration:api": "jest test/integration/real-api.test.ts",
+    "test:integration:all": "jest --testPathPattern=test/integration",
+    "test:all": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint . --ext .ts",
+    "prepack": "yarn build && oclif manifest && oclif readme",
+    "postpack": "rm -f oclif.manifest.json",
+    "version": "oclif readme && git add README.md"
+  },
+  "dependencies": {
+    "@nevermined-io/payments": "^1.0.2",
+    "@oclif/core": "^3.26.0",
+    "@oclif/plugin-help": "^6.0.21",
+    "@oclif/plugin-plugins": "^5.0.11",
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.3",
+    "cosmiconfig": "^9.0.0",
+    "inquirer": "^9.2.15"
+  },
+  "devDependencies": {
+    "@oclif/test": "^3.2.10",
+    "@types/inquirer": "^9.0.7",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.30",
+    "@typescript-eslint/eslint-plugin": "^7.3.1",
+    "@typescript-eslint/parser": "^7.3.1",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "oclif": "^4.6.4",
+    "ts-jest": "^29.1.2",
+    "ts-morph": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "oclif": {
+    "bin": "nvm",
+    "dirname": "nvm",
+    "commands": "./dist/commands",
+    "plugins": [
+      "@oclif/plugin-help",
+      "@oclif/plugin-plugins"
+    ],
+    "topicSeparator": " ",
+    "topics": {
+      "config": {
+        "description": "Manage CLI configuration"
+      },
+      "plans": {
+        "description": "Manage payment plans"
+      },
+      "agents": {
+        "description": "Manage AI agents"
+      },
+      "x402": {
+        "description": "X402 protocol operations"
+      },
+      "organizations": {
+        "description": "Manage organizations"
+      }
+    },
+    "additionalHelpFlags": [
+      "-h"
+    ],
+    "additionalVersionFlags": [
+      "-v"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nevermined-io/payments"
+  },
+  "keywords": [
+    "nevermined",
+    "payments",
+    "cli",
+    "ai",
+    "agents"
+  ]
+}
