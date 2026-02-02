@@ -25,7 +25,7 @@ nvm plans order-plan <plan-id>
 Example:
 
 ```bash
-nvm plans order-plan did:nvm:abc123
+nvm plans order-plan "123456789012345678"
 ```
 
 Output:
@@ -33,15 +33,15 @@ Output:
 ```
 Plan Order Success
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Credits Purchased: 100
 Transaction Hash: 0x1234567890abcdef...
 Status: Confirmed
 
 ✨ Next steps:
-   1. Get your X402 access token: nvm x402token get-x402-access-token did:nvm:abc123
+   1. Get your X402 access token: nvm x402token get-x402-access-token "123456789012345678"
    2. Use the token to query the agent
-   3. Check your balance: nvm plans get-plan-balance did:nvm:abc123
+   3. Check your balance: nvm plans get-plan-balance "123456789012345678"
 ```
 
 ### Order with Specific Payment Method
@@ -86,7 +86,7 @@ Example output:
 ```
 Plan Balance
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Plan ID: did:nvm:abc123
+Plan ID: "123456789012345678"
 Plan Name: Basic Plan
 Credits Remaining: 75
 Credits Used: 25
@@ -103,12 +103,12 @@ Check balances for all your plans:
 # Check all plan balances
 
 # Get all plans you've ordered (from transaction history or saved list)
-PLANS=("did:nvm:plan1" "did:nvm:plan2" "did:nvm:plan3")
+PLANS=(""111111111111111111"" ""222222222222222222"" ""333333333333333333"")
 
 for PLAN in "${PLANS[@]}"; do
   echo "Checking balance for $PLAN..."
   nvm plans get-plan-balance $PLAN
-  echo ""
+  echo "
 done
 ```
 
@@ -157,7 +157,7 @@ Order multiple plans at once:
 #!/bin/bash
 # Purchase credits for multiple plans
 
-PLANS=("did:nvm:plan1" "did:nvm:plan2")
+PLANS=(""111111111111111111"" ""222222222222222222"")
 
 for PLAN in "${PLANS[@]}"; do
   echo "Ordering $PLAN..."
@@ -182,9 +182,9 @@ Purchase History
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Date                Plan ID              Credits    Amount    Status
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-2024-03-15 10:30    did:nvm:abc123      100        $10.00    Confirmed
-2024-03-10 14:20    did:nvm:xyz789      500        $50.00    Confirmed
-2024-03-05 09:15    did:nvm:def456      1000       $90.00    Confirmed
+2024-03-15 10:30    "123456789012345678"      100        $10.00    Confirmed
+2024-03-10 14:20    "234567890123456789"      500        $50.00    Confirmed
+2024-03-05 09:15    "345678901234567890"      1000       $90.00    Confirmed
 ```
 
 ### Export Transaction Data
@@ -221,7 +221,7 @@ Example output:
 ```
 Credit Usage Report
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Plan: Basic Plan (did:nvm:abc123)
+Plan: Basic Plan ("123456789012345678")
 Period: Last 30 days
 
 Total Credits Used: 250
@@ -242,7 +242,7 @@ Create a script to alert when credits run low:
 #!/bin/bash
 # Credit monitoring script
 
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 MIN_CREDITS=10
 EMAIL="your@email.com"
 
@@ -273,7 +273,7 @@ Automatically refill credits when low:
 # Auto-refill credits script
 # Run as cron job: 0 */6 * * * /path/to/auto-refill.sh
 
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 MIN_CREDITS=20
 REFILL_AMOUNT=100
 
@@ -306,7 +306,7 @@ For time-based plans, set up auto-renewal:
 #!/bin/bash
 # Check and renew expiring subscriptions
 
-PLANS=("did:nvm:plan1" "did:nvm:plan2")
+PLANS=(""111111111111111111"" ""222222222222222222"")
 DAYS_BEFORE_EXPIRY=7
 
 for PLAN in "${PLANS[@]}"; do
@@ -420,7 +420,7 @@ echo "Available Plans:"
 nvm plans list
 
 # 2. Get details about a specific plan
-PLAN_ID="did:nvm:abc123"
+PLAN_ID="123456789012345678"
 nvm plans get-plan $PLAN_ID
 
 # 3. Check current balance
@@ -447,19 +447,19 @@ nvm x402token get-x402-access-token $PLAN_ID
 # Purchase different tiers based on usage needs
 
 # Light user: Basic plan
-nvm plans order-plan did:nvm:basic-plan
+nvm plans order-plan "111111111111111111"
 
 # Power user: Pro plan
-nvm plans order-plan did:nvm:pro-plan
+nvm plans order-plan "222222222222222222"
 
 # Enterprise: Custom plan
-nvm plans order-plan did:nvm:enterprise-plan
+nvm plans order-plan "333333333333333333"
 
 # Check all balances
 echo "Current Balances:"
-nvm plans get-plan-balance did:nvm:basic-plan
-nvm plans get-plan-balance did:nvm:pro-plan
-nvm plans get-plan-balance did:nvm:enterprise-plan
+nvm plans get-plan-balance "111111111111111111"
+nvm plans get-plan-balance "222222222222222222"
+nvm plans get-plan-balance "333333333333333333"
 ```
 
 ### Example 3: Team Purchase Management
@@ -469,9 +469,9 @@ nvm plans get-plan-balance did:nvm:enterprise-plan
 # Manage purchases for a team
 
 TEAM_PLANS=(
-  "did:nvm:dev-plan"
-  "did:nvm:qa-plan"
-  "did:nvm:prod-plan"
+  ""111111111111111111"
+  ""222222222222222222"
+  ""333333333333333333"
 )
 
 # Purchase for entire team

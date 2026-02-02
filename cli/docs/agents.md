@@ -35,9 +35,9 @@ AI Agents
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Agent ID                 Name                    Plans
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-did:nvm:agent1          GPT-4 Assistant         3
-did:nvm:agent2          Code Helper             2
-did:nvm:agent3          Data Analyzer           1
+"987654321098765432"          GPT-4 Assistant         3
+"876543210987654321"          Code Helper             2
+"765432109876543210"          Data Analyzer           1
 ```
 
 ## Getting Agent Details
@@ -51,7 +51,7 @@ nvm agents get-agent <agent-id>
 Example:
 
 ```bash
-nvm agents get-agent did:nvm:agent123
+nvm agents get-agent "987654321098765432"23
 ```
 
 Output includes:
@@ -71,7 +71,7 @@ Register a new AI agent with payment plans:
 nvm agents register-agent \
   --agent-metadata agent-metadata.json \
   --agent-api "https://api.example.com/v1/agent" \
-  --payment-plans "did:nvm:plan1,did:nvm:plan2"
+  --payment-plans ""111111111111111111","222222222222222222"
 ```
 
 **agent-metadata.json**:
@@ -99,7 +99,7 @@ Register an agent with detailed service configuration:
 nvm agents register-agent \
   --agent-metadata metadata.json \
   --agent-api "https://api.example.com" \
-  --payment-plans "did:nvm:plan1" \
+  --payment-plans ""111111111111111111"" \
   --service-config service-config.json
 ```
 
@@ -161,7 +161,7 @@ Associate additional payment plans with an agent:
 
 ```bash
 nvm agents add-agent-plan <agent-id> \
-  --plan-id did:nvm:new-plan
+  --plan-id "444444444444444444"
 ```
 
 ### Remove Payment Plans
@@ -170,7 +170,7 @@ Disassociate a payment plan from an agent:
 
 ```bash
 nvm agents remove-agent-plan <agent-id> \
-  --plan-id did:nvm:old-plan
+  --plan-id "555555555555555555"
 ```
 
 ## Agent Files and Resources
@@ -266,8 +266,8 @@ nvm agents update-agent-access-config <agent-id> \
   ],
   "requiresPayment": true,
   "allowedPlans": [
-    "did:nvm:plan1",
-    "did:nvm:plan2"
+    ""111111111111111111"",
+    ""222222222222222222"
   ]
 }
 ```
@@ -344,7 +344,7 @@ Monitor agent usage and executions:
 #!/bin/bash
 # Agent monitoring script
 
-AGENT_ID="did:nvm:agent123"
+AGENT_ID="987654321098765432"23"
 
 # Get agent details
 echo "Agent Details:"
@@ -365,7 +365,7 @@ Use `--format json` to integrate with other tools:
 
 ```bash
 # Get agent data
-AGENT=$(nvm agents get-agent did:nvm:agent123 --format json)
+AGENT=$(nvm agents get-agent "987654321098765432"23 --format json)
 
 # Extract fields
 NAME=$(echo $AGENT | jq -r '.name')
@@ -377,7 +377,7 @@ echo "API: $API"
 echo "Plans: $PLANS"
 
 # Check if agent has specific plan
-HAS_PLAN=$(echo $AGENT | jq --arg pid "did:nvm:plan1" \
+HAS_PLAN=$(echo $AGENT | jq --arg pid ""111111111111111111"" \
   '.plans | contains([$pid])')
 
 if [ "$HAS_PLAN" = "true" ]; then
