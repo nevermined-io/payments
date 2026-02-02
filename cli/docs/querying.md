@@ -149,7 +149,7 @@ Verify that a request is valid before processing (for agent owners):
 
 ```bash
 nvm facilitator verify-permissions \
-  --verify-permissions-params verify.json
+  --params verify.json
 ```
 
 **verify.json**:
@@ -207,7 +207,7 @@ After processing a request, burn the credits (agent owners):
 
 ```bash
 nvm facilitator settle-permissions \
-  --settle-permissions-params settle.json
+  --params settle.json
 ```
 
 **settle.json**:

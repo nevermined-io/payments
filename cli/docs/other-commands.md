@@ -95,7 +95,7 @@ Verify that a request has valid permissions before processing:
 
 ```bash
 nvm facilitator verify-permissions \
-  --verify-permissions-params verify.json
+  --params verify.json
 ```
 
 **verify.json**:
@@ -128,7 +128,7 @@ Burn credits after processing a request:
 
 ```bash
 nvm facilitator settle-permissions \
-  --settle-permissions-params settle.json
+  --params settle.json
 ```
 
 **settle.json**:
@@ -174,7 +174,7 @@ REQUESTS=("request1.json" "request2.json" "request3.json")
 for REQUEST in "${REQUESTS[@]}"; do
   echo "Verifying $REQUEST..."
   RESULT=$(nvm facilitator verify-permissions \
-    --verify-permissions-params $REQUEST \
+    --params $REQUEST \
     --format json)
 
   CAN_PROCEED=$(echo $RESULT | jq -r '.canProceed')
