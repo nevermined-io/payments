@@ -136,7 +136,9 @@ jobs:
 
       - name: Pack tarballs
         working-directory: cli
-        run: npx oclif pack tarballs --no-xz
+        run: |
+          yarn config set ignore-engines true
+          npx oclif pack tarballs --no-xz
 
       - name: Upload CLI tarballs
         uses: actions/upload-artifact@v4
