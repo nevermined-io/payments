@@ -66,7 +66,7 @@ docs/api-reference/typescript/   ← SDK docs (existing)
 ## Version Strategy
 
 **Synchronized Versions:** CLI version exactly matches SDK version
-- SDK: `v1.0.3` → CLI: `v1.0.3`
+- SDK: `v1.0.4` → CLI: `v1.0.4`
 - Single source of truth from git tags
 - CLI version auto-updated by workflow
 
