@@ -302,15 +302,6 @@ jobs:
           cp -r payments/cli/docs/* docs_mintlify/docs/api-reference/cli/ || echo "CLI docs not found, skipping"
           cp payments/cli/README.md docs_mintlify/docs/api-reference/cli/index.md || echo "CLI README not found"
 
-      - name: Add version metadata
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          DATE=$(date -u +%Y-%m-%d)
-          find docs_mintlify/docs/api-reference/typescript -name "*.md" \
-            -exec sed -i "1i---\nversion: $VERSION\nlastUpdated: $DATE\n---\n" {} \;
-          find docs_mintlify/docs/api-reference/cli -name "*.md" \
-            -exec sed -i "1i---\nversion: $VERSION\nlastUpdated: $DATE\n---\n" {} \;
-
       - name: Create documentation PR
         working-directory: docs_mintlify
         env:
