@@ -56,8 +56,11 @@ jobs:
       - name: Update CLI version
         working-directory: cli
         run: |
-          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
-          echo "Updated CLI version to ${{ steps.version.outputs.version }}"
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "${{ steps.version.outputs.version }}" ]; then
+            npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          fi
+          echo "CLI version is ${{ steps.version.outputs.version }}"
 
       - name: Generate CLI commands
         working-directory: cli
