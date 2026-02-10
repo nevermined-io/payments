@@ -21,7 +21,7 @@ This directory contains automated workflows for the Nevermined Payments SDK and 
 
 ---
 
-### 2. `cli-sync-and-test.yml` - CLI Auto-Sync ⭐ NEW
+### 2. `cli-sync-and-test.yml` - CLI Auto-Sync
 **Trigger:** Push or PR to `main`/`develop` with SDK code changes
 
 **Purpose:** Automatically sync CLI with SDK changes and validate
@@ -31,44 +31,74 @@ This directory contains automated workflows for the Nevermined Payments SDK and 
 2. Regenerates CLI commands from SDK API (`yarn generate`)
 3. Builds CLI (`yarn build:manifest`)
 4. Runs all CLI tests (unit + integration)
-5. If changes detected → commits to the same branch/PR
+5. If changes detected, commits to the same branch/PR
 6. Comments on PR with sync status
-
-**Key Features:**
-- ✅ Auto-commits CLI updates to PRs
-- ✅ Ensures CLI stays in sync with SDK
-- ✅ Blocks merge if tests fail
-- ✅ No manual intervention required
 
 ---
 
-### 3. `cli-publish.yml` - CLI Publishing ⭐ NEW
-**Trigger:** New version tag (`v*.*.*`) or manual dispatch
+### 3. `release.yml` - Consolidated Release
+**Trigger:** New version tag (`v*.*.*`)
 
-**Purpose:** Publish CLI to npm and update documentation
+**Purpose:** Single workflow that handles the entire release pipeline
 
 **Jobs:**
-1. **publish-cli** - Builds, tests, and publishes CLI to npm
-2. **update-documentation** - Updates docs in mintlify repository
+1. **build** - Build SDK + CLI and run CLI tests (gate)
+2. **publish-sdk** - Publish `@nevermined-io/payments` to npm
+3. **publish-cli** - Publish `@nevermined-io/cli` to npm, pack tarballs
+4. **github-release** - Create GitHub Release with SDK .tgz and CLI tarballs
+5. **publish-documentation** - Create PR in docs_mintlify with SDK + CLI docs (skipped for pre-release tags like `-rc`, `-alpha`, `-beta`)
 
 **Required Secrets:**
 - `NPM_TOKEN` - npm authentication token
 - `API_TOKEN_GITHUB` - Token with write access to docs repository
 
-**CLI Documentation Structure:**
-```
-docs/products/cli/      ← CLI docs (NEW location)
-docs/api-reference/typescript/   ← SDK docs (existing)
-```
+---
+
+### 4. `finalize-release.yml` - Tag Creation
+**Trigger:** PR merged from `release/*` branch into `main`
+
+**Purpose:** Create and push the version tag, which triggers `release.yml`
+
+**Process:**
+1. Detects merged PR from `release/*` branch
+2. Reads version from `package.json`
+3. Creates and pushes `v*.*.*` tag
+4. Tag push triggers `release.yml` for the full release pipeline
+
+---
+
+### 5. `prepare-release.yml` - Manual Release Preparation
+**Trigger:** Manual dispatch
+
+**Purpose:** Create release branch and PR with version bump
 
 ---
 
 ## Version Strategy
 
 **Synchronized Versions:** CLI version exactly matches SDK version
-- SDK: `v1.0.4` → CLI: `v1.0.4`
+- SDK: `v1.0.4` -> CLI: `v1.0.4`
 - Single source of truth from git tags
 - CLI version auto-updated by workflow
+
+---
+
+## Release Flow
+
+```
+PR merged (release/* -> main)
+        |
+        v
+finalize-release.yml --> creates tag v*.*.*
+        |
+        v (tag push)
+release.yml
+  |-> build (test gate)
+  |-> publish-sdk (npm)
+  |-> publish-cli (npm + tarballs)
+  |-> github-release (GH Release with artifacts)
+  |-> publish-documentation (docs PR in mintlify)
+```
 
 ---
 
@@ -76,12 +106,12 @@ docs/api-reference/typescript/   ← SDK docs (existing)
 
 | Secret | Description | Used By |
 |--------|-------------|---------|
-| `NPM_TOKEN` | npm authentication token | `release-npm.yml`, `cli-publish.yml` |
-| `API_TOKEN_GITHUB` | GitHub token for docs repo | `cli-publish.yml`, `publish-docs.yml` |
+| `NPM_TOKEN` | npm authentication token | `release.yml` |
+| `API_TOKEN_GITHUB` | GitHub token for docs repo and tag pushing | `release.yml`, `finalize-release.yml` |
 | `TEST_SUBSCRIBER_API_KEY` | Test subscriber API key | `testing.yml`, `cli-sync-and-test.yml` |
 | `TEST_BUILDER_API_KEY` | Test builder API key | `testing.yml`, `cli-sync-and-test.yml` |
 | `TEST_ENVIRONMENT` | Test environment name | `testing.yml` |
 
 ---
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-10

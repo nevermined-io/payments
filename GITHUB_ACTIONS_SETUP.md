@@ -2,10 +2,11 @@
 
 ## Overview
 
-Automated CI/CD for Nevermined Payments SDK and CLI with two main workflows:
+Automated CI/CD for Nevermined Payments SDK and CLI with three main workflows:
 
 1. **CLI Auto-Sync** - Keeps CLI in sync with SDK changes on every push/PR
-2. **CLI Publishing** - Publishes CLI to npm and updates documentation on version tags
+2. **Consolidated Release** - Single workflow that publishes SDK, CLI, creates GitHub Release, and updates documentation on version tags
+3. **Finalize Release** - Creates version tags from merged release PRs
 
 ---
 
@@ -33,113 +34,89 @@ graph LR
 
 ### Process
 
-1. ✅ Detects SDK changes
-2. ✅ Installs dependencies (SDK + CLI)
-3. ✅ Builds SDK
-4. ✅ Regenerates CLI commands: `yarn generate`
-5. ✅ Builds CLI: `yarn build:manifest`
-6. ✅ Runs unit tests: `yarn test:unit`
-7. ✅ Runs integration tests: `yarn test:integration`
-8. ✅ Commits CLI updates to same branch/PR
-9. ✅ Adds PR comment
-
-### Auto-Commit Example
-
-```
-chore(cli): auto-sync CLI with SDK changes
-
-Co-Authored-By: GitHub Actions <github-actions[bot]@users.noreply.github.com>
-```
-
-### Benefits
-
-- 🎯 Zero manual CLI synchronization
-- 🎯 CLI always in sync with SDK
-- 🎯 Tests run automatically
-- 🎯 PR workflow unchanged
-- 🎯 Blocks merge if tests fail
+1. Detects SDK changes
+2. Installs dependencies (SDK + CLI)
+3. Builds SDK
+4. Regenerates CLI commands: `yarn generate`
+5. Builds CLI: `yarn build:manifest`
+6. Runs unit tests: `yarn test:unit`
+7. Runs integration tests: `yarn test:integration`
+8. Commits CLI updates to same branch/PR
+9. Adds PR comment
 
 ---
 
-## 2. CLI Publishing Workflow
+## 2. Consolidated Release Workflow
 
-**File:** `.github/workflows/cli-publish.yml`
+**File:** `.github/workflows/release.yml`
 
 ### Trigger
 
-- New version tag: `v1.0.4`, `v2.1.0`, etc.
-- Manual dispatch via GitHub UI
+- New version tag: `v1.0.4`, `v2.1.0`, `v1.0.6-rc0`, etc.
 
 ### What It Does
 
 ```mermaid
 graph TD
-    A[Tag v1.0.4] --> B[Extract Version]
-    B --> C[Update CLI Version]
-    C --> D[Build & Test]
-    D --> E{Tests Pass?}
-    E -->|Yes| F[Publish to npm]
-    E -->|No| G[Fail - Block Release]
-    F --> H[Create GitHub Release]
-    H --> I[Update Documentation]
-    I --> J[Create Docs PR]
+    A[Tag v1.0.4 pushed] --> B[build: Build SDK + CLI, run tests]
+    B --> C[publish-sdk: npm publish SDK]
+    C --> D[publish-cli: npm publish CLI + pack tarballs]
+    D --> E[github-release: Create GH Release with artifacts]
+    D --> F{Pre-release tag?}
+    F -->|No| G[publish-documentation: Create docs PR in mintlify]
+    F -->|Yes| H[Skip documentation]
 ```
 
-### Job 1: Publish CLI (`publish-cli`)
+### Job 1: Build & Test (`build`)
 
-**Steps:**
+- Installs SDK and CLI dependencies
+- Builds SDK and CLI
+- Runs CLI unit and integration tests
+- Acts as a gate for subsequent publish jobs
 
-1. ✅ Extracts version from tag (`v1.0.4` → `1.0.4`)
-2. ✅ Updates `cli/package.json` version
-3. ✅ Regenerates CLI commands
-4. ✅ Builds CLI
-5. ✅ Runs full test suite
-6. ✅ Publishes to npm: `@nevermined-io/cli@1.0.4`
-7. ✅ Packs tarballs for standalone distribution
-8. ✅ Creates GitHub Release with binaries
+### Job 2: Publish SDK (`publish-sdk`)
 
-**npm Package:**
+- Publishes `@nevermined-io/payments` to npm
+- Packs and uploads SDK tarball as artifact
 
-```bash
-npm install -g @nevermined-io/cli@1.0.4
-```
+### Job 3: Publish CLI (`publish-cli`)
 
-### Job 2: Update Documentation (`update-documentation`)
+- Updates CLI version to match tag
+- Publishes `@nevermined-io/cli` to npm
+- Packs standalone tarballs
+- Uploads CLI tarballs as artifact
+- Commits CLI version bump to main
 
-**Steps:**
+### Job 4: GitHub Release (`github-release`)
 
-1. ✅ Checks out `nevermined-io/docs_mintlify`
-2. ✅ Updates CLI docs → `docs/products/cli/`
-3. ✅ Updates SDK docs → `docs/api-reference/typescript/`
-4. ✅ Adds version metadata to all files
-5. ✅ Creates PR in docs repository
+- Downloads SDK tarball and CLI tarballs artifacts
+- Extracts changelog if available
+- Creates GitHub Release with all artifacts attached
 
-**Documentation Structure:**
+### Job 5: Publish Documentation (`publish-documentation`)
 
-```
-nevermined-io/docs_mintlify/
-├── docs/
-│   ├── products/
-│   │   └── cli/              ← CLI Documentation (NEW)
-│   │       ├── index.md      (from cli/README.md)
-│   │       ├── 01-getting-started.md
-│   │       ├── 02-plans.md
-│   │       └── ...
-│   └── api-reference/
-│       └── typescript/        ← SDK Documentation (existing)
-│           ├── installation.md
-│           ├── payment-plans.md
-│           └── ...
-```
+- **Skipped for pre-release tags** (`-rc`, `-alpha`, `-beta`)
+- Checks out `nevermined-io/docs_mintlify`
+- Updates SDK docs in `docs/api-reference/typescript/`
+- Updates CLI docs in `docs/api-reference/cli/`
+- Adds version metadata to all files
+- Creates PR with auto-merge enabled
 
-**Version Metadata Added:**
-
-```yaml
 ---
-version: 1.0.4
-lastUpdated: 2026-02-01
----
-```
+
+## 3. Finalize Release Workflow
+
+**File:** `.github/workflows/finalize-release.yml`
+
+### Trigger
+
+- PR merged from `release/*` branch into `main`
+
+### What It Does
+
+1. Reads version from `package.json`
+2. Creates and pushes `v*.*.*` tag
+3. Tag push triggers `release.yml` for the full release pipeline
 
 ---
 
@@ -155,10 +132,10 @@ SDK Tag:    v1.0.4
 
 **Key Points:**
 
-- ✅ Single source of truth: Git tags
-- ✅ CLI version auto-matches SDK version
-- ✅ No independent CLI versioning
-- ✅ Consistent releases across packages
+- Single source of truth: Git tags
+- CLI version auto-matches SDK version
+- No independent CLI versioning
+- Consistent releases across packages
 
 ---
 
@@ -170,8 +147,8 @@ Add these secrets in repository settings:
 
 | Secret             | Description                    | How to Get                                                                                                                                                                                              |
 | ------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NPM_TOKEN`        | npm automation token           | [npmjs.com](https://npmjs.com) → Account → Access Tokens → Generate (Automation)                                                                                                                        |
-| `API_TOKEN_GITHUB` | Fine-grained PAT for docs repo | [github.com/settings/tokens](https://github.com/settings/personal-access-tokens/new) → Repository access → nevermined-io/docs_mintlify → Permissions: Contents (Read/Write), Pull Requests (Read/Write) |
+| `NPM_TOKEN`        | npm automation token           | [npmjs.com](https://npmjs.com) -> Account -> Access Tokens -> Generate (Automation)                                                                                                                      |
+| `API_TOKEN_GITHUB` | Fine-grained PAT for docs repo | [github.com/settings/tokens](https://github.com/settings/personal-access-tokens/new) -> Repository access -> nevermined-io/docs_mintlify -> Permissions: Contents (Read/Write), Pull Requests (Read/Write) |
 
 **Optional (for testing workflows):**
 | Secret | Description |
@@ -190,7 +167,7 @@ npm login
 npm token create --type=automation
 
 # Add to GitHub Secrets:
-# Settings → Secrets → Actions → New repository secret
+# Settings -> Secrets -> Actions -> New repository secret
 # Name: NPM_TOKEN
 # Value: <paste token>
 ```
@@ -205,13 +182,13 @@ npm token create --type=automation
 Name: Nevermined Docs Automation
 Expiration: 1 year (or custom)
 Repository access: Only select repositories
-  → nevermined-io/docs_mintlify
+  -> nevermined-io/docs_mintlify
 Permissions:
-  → Contents: Read and write
-  → Pull requests: Read and write
+  -> Contents: Read and write
+  -> Pull requests: Read and write
 
 # Add to GitHub Secrets:
-# Settings → Secrets → Actions → New repository secret
+# Settings -> Secrets -> Actions -> New repository secret
 # Name: API_TOKEN_GITHUB
 # Value: <paste token>
 ```
@@ -233,16 +210,13 @@ git add src/api/plans-api.ts
 git commit -m "feat(api): add new plan method"
 git push origin feature/new-plan-method
 
-# 3. Workflow automatically:
+# 3. cli-sync-and-test.yml automatically:
 #    - Regenerates CLI commands
 #    - Runs tests
 #    - Commits CLI updates to your PR
 #    - Adds comment
 
 # 4. Review auto-generated CLI changes
-#    - Check the new commit on your PR
-#    - Verify CLI tests passed
-
 # 5. Merge PR as normal
 ```
 
@@ -271,37 +245,19 @@ git push
 git tag v1.0.4 -m "Release v1.0.4"
 git push --tags
 
-# 6. Workflows automatically:
-#    - Publish SDK to npm
-#    - Publish CLI to npm (with matching version)
-#    - Create GitHub Release
-#    - Update documentation
-#    - Create docs PR
+# 6. release.yml automatically:
+#    - Builds and tests SDK + CLI
+#    - Publishes SDK to npm
+#    - Publishes CLI to npm (with matching version)
+#    - Creates GitHub Release with artifacts
+#    - Creates docs PR in mintlify (stable releases only)
 
 # 7. Monitor workflow progress
-#    - GitHub → Actions tab
-#    - Wait for green checkmarks
+#    GitHub -> Actions tab -> "Release" workflow
 
 # 8. Verify published packages
 npm view @nevermined-io/payments@1.0.4
 npm view @nevermined-io/cli@1.0.4
-
-# 9. Review and merge docs PR
-#    - Go to nevermined-io/docs_mintlify
-#    - Review PR with docs updates
-#    - Merge to publish
-```
-
-### Manual CLI Publish (if needed)
-
-**Via GitHub UI:**
-
-```
-1. Go to Actions tab
-2. Select "Publish CLI Package"
-3. Click "Run workflow"
-4. Enter version (e.g., 1.0.4)
-5. Click "Run workflow"
 ```
 
 ---
@@ -314,50 +270,53 @@ npm view @nevermined-io/cli@1.0.4
 
 ```
 Developer changes: src/api/plans-api.ts
-→ Workflow runs
-→ CLI regenerated with new commands
-→ Tests pass
-→ Auto-commit to PR ✅
+-> cli-sync-and-test.yml runs
+-> CLI regenerated with new commands
+-> Tests pass
+-> Auto-commit to PR
 ```
 
 **Scenario 2: Non-API Changes**
 
 ```
 Developer changes: README.md
-→ Workflow skipped (no src/ changes) ⏭️
-```
-
-**Scenario 3: CLI Already Synced**
-
-```
-Developer changes: src/api/plans-api.ts
-→ Workflow runs
-→ CLI already up to date
-→ No commit needed ✅
+-> Workflow skipped (no src/ changes)
 ```
 
 ### On Version Tag
 
-**Scenario 1: Successful Release**
+**Scenario 1: Stable Release (v1.0.4)**
 
 ```
 Tag created: v1.0.4
-→ Both workflows run in parallel
-→ Tests pass
-→ npm publish successful
-→ GitHub Release created
-→ Docs PR created ✅
+-> release.yml runs sequentially:
+   1. Build & test pass
+   2. SDK published to npm
+   3. CLI published to npm
+   4. GitHub Release created with tarballs
+   5. Documentation PR created in mintlify
 ```
 
-**Scenario 2: Failed Tests**
+**Scenario 2: Pre-release (v1.0.5-rc0)**
+
+```
+Tag created: v1.0.5-rc0
+-> release.yml runs sequentially:
+   1. Build & test pass
+   2. SDK published to npm
+   3. CLI published to npm
+   4. GitHub Release created (marked as pre-release)
+   5. Documentation skipped (pre-release tag)
+```
+
+**Scenario 3: Failed Tests**
 
 ```
 Tag created: v1.0.4
-→ Tests fail
-→ npm publish blocked 🚫
-→ No release created
-→ No docs updated
-→ Fix required
+-> Build & test fail
+-> All publish jobs blocked
+-> No release created
+-> Fix required
 ```
 
 ---
@@ -416,60 +375,10 @@ git push --delete origin v1.0.4
 
 **Check:**
 
-1. Is `API_TOKEN_GITHUB` valid and not expired?
-2. Does token have correct permissions?
-3. Check workflow logs in "Create documentation PR" step
-
-**Fix:**
-
-```bash
-# Regenerate GitHub token
-# Update secret in repository settings
-# Re-run workflow manually
-```
-
----
-
-## Testing Before Production
-
-### Test CLI Sync Locally
-
-```bash
-# 1. Make SDK change
-echo "// test" >> src/api/plans-api.ts
-
-# 2. Regenerate CLI
-cd cli
-yarn generate
-
-# 3. Check for changes
-git status cli/
-
-# 4. Run tests
-yarn build:manifest
-yarn test:unit
-yarn test:integration
-
-# 5. Revert test change
-git checkout -- ../src/api/plans-api.ts cli/
-```
-
-### Test CLI Publishing (Dry Run)
-
-```bash
-# Build without publishing
-cd cli
-npm version 1.0.4 --no-git-tag-version
-yarn build:manifest
-npx oclif pack tarballs --no-xz
-
-# Check output
-ls -lh dist/
-
-# Revert changes
-git checkout package.json
-rm -rf dist/
-```
+1. Is the tag a stable release (not `-rc`, `-alpha`, `-beta`)?
+2. Is `API_TOKEN_GITHUB` valid and not expired?
+3. Does token have correct permissions?
+4. Check workflow logs in "Create documentation PR" step
 
 ---
 
@@ -488,7 +397,7 @@ rm -rf dist/
 
 ```bash
 # 1. Edit workflow file
-vim .github/workflows/cli-publish.yml
+vim .github/workflows/release.yml
 
 # 2. Test changes on a feature branch first
 git checkout -b test/update-workflow
@@ -502,54 +411,14 @@ git push origin test/update-workflow
 
 **Check workflow status:**
 
-- GitHub → Actions tab
-- Filter by workflow name
-- Review recent runs
-- Check logs for errors
-
-**Set up notifications:**
-
-- GitHub → Settings → Notifications
-- Enable "Actions" notifications
-- Configure email/Slack alerts
-
----
-
-## Benefits Summary
-
-### For Developers
-
-- ✅ No manual CLI synchronization
-- ✅ Automated testing on every change
-- ✅ Immediate feedback on PRs
-- ✅ Reduced review burden
-
-### For Maintainers
-
-- ✅ One-command releases
-- ✅ Consistent versioning
-- ✅ Automated documentation
-- ✅ Reduced manual work
-
-### For Users
-
-- ✅ Always-synced CLI
-- ✅ Up-to-date documentation
-- ✅ Reliable releases
-- ✅ Clear versioning
-
----
-
-## Next Steps
-
-1. ✅ Add GitHub Secrets (`NPM_TOKEN`, `API_TOKEN_GITHUB`)
-2. ✅ Test workflows on a feature branch
-3. ✅ Create first release using new automation
-4. ✅ Monitor workflow runs
-5. ✅ Update team documentation
+```bash
+gh run list --workflow=release.yml
+gh run list --workflow=testing.yml
+gh run list --workflow=cli-sync-and-test.yml
+```
 
 ---
 
 **Created:** 2026-02-01
-**Version:** 1.0
-**Status:** Ready for Production ✅
+**Updated:** 2026-02-10
+**Version:** 2.0
