@@ -5,7 +5,7 @@ export default class ConfigSet extends BaseCommand {
   static description = 'Set a configuration value'
 
   static examples = [
-    '<%= config.bin %> <%= command.id %> nvmApiKey nvm-xxx',
+    '<%= config.bin %> <%= command.id %> nvmApiKey sandbox:eyJxxxxaaaabbbbbbbb',
     '<%= config.bin %> <%= command.id %> environment sandbox',
     '<%= config.bin %> <%= command.id %> nvmApiKey nvm-yyy --profile production',
   ]

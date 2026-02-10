@@ -182,7 +182,7 @@ Use profiles to manage multiple environments:
 
 ```bash
 # Create production profile
-nvm config set profiles.production.nvmApiKey nvm-xxxxx...
+nvm config set profiles.production.nvmApiKey live:eyJxxxxaaaabbbbbbbb
 nvm config set profiles.production.environment live
 
 # Use production profile

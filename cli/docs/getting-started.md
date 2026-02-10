@@ -23,7 +23,7 @@ Before installing the CLI, ensure you have:
 3. Generate a new API key from the "API Keys" section
 4. Save your API key securely - you'll need it for CLI configuration
 
-The API key format is: `nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+The API key format is: `live:eyJxxxxaaaa`
 
 ## Installation
 
@@ -93,7 +93,7 @@ Example:
 ```bash
 $ nvm config init
 
-? Enter your NVM API Key: nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+? Enter your NVM API Key: live:eyJxxxxaaaabbbbbbbb
 ? Select environment: staging_sandbox
 
 ✅ Configuration saved to /home/user/.config/nvm/config.json
@@ -107,8 +107,8 @@ The CLI stores configuration in `~/.config/nvm/config.json`:
 {
   "profiles": {
     "default": {
-      "nvmApiKey": "nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "environment": "staging_sandbox"
+      "nvmApiKey": "live:eyJxxxxaaaabbbbbbbb",
+      "environment": "live"
     }
   },
   "activeProfile": "default"
@@ -143,10 +143,10 @@ Override configuration with environment variables:
 
 ```bash
 # Set API key
-export NVM_API_KEY=nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export NVM_API_KEY=sandbox:eyJxxxxaaaabbbbbbbb
 
 # Set environment
-export NVM_ENVIRONMENT=staging_sandbox
+export NVM_ENVIRONMENT=sandbox
 
 # Run commands
 nvm plans list
@@ -172,7 +172,7 @@ Current Configuration
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Active Profile: default
 Environment:    staging_sandbox
-API Key:        nvm-xxxxx...xxxxx (truncated)
+API Key:        live:eyJxxxxaaaabbbbbbbb (truncated)
 ```
 
 ## Verify Setup
