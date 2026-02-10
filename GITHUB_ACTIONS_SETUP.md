@@ -67,14 +67,14 @@ Co-Authored-By: GitHub Actions <github-actions[bot]@users.noreply.github.com>
 
 ### Trigger
 
-- New version tag: `v1.0.3`, `v2.1.0`, etc.
+- New version tag: `v1.0.4`, `v2.1.0`, etc.
 - Manual dispatch via GitHub UI
 
 ### What It Does
 
 ```mermaid
 graph TD
-    A[Tag v1.0.3] --> B[Extract Version]
+    A[Tag v1.0.4] --> B[Extract Version]
     B --> C[Update CLI Version]
     C --> D[Build & Test]
     D --> E{Tests Pass?}
@@ -89,19 +89,19 @@ graph TD
 
 **Steps:**
 
-1. ✅ Extracts version from tag (`v1.0.3` → `1.0.3`)
+1. ✅ Extracts version from tag (`v1.0.4` → `1.0.4`)
 2. ✅ Updates `cli/package.json` version
 3. ✅ Regenerates CLI commands
 4. ✅ Builds CLI
 5. ✅ Runs full test suite
-6. ✅ Publishes to npm: `@nevermined-io/cli@1.0.3`
+6. ✅ Publishes to npm: `@nevermined-io/cli@1.0.4`
 7. ✅ Packs tarballs for standalone distribution
 8. ✅ Creates GitHub Release with binaries
 
 **npm Package:**
 
 ```bash
-npm install -g @nevermined-io/cli@1.0.3
+npm install -g @nevermined-io/cli@1.0.4
 ```
 
 ### Job 2: Update Documentation (`update-documentation`)
@@ -136,7 +136,7 @@ nevermined-io/docs_mintlify/
 
 ```yaml
 ---
-version: 1.0.3
+version: 1.0.4
 lastUpdated: 2026-02-01
 ---
 ```
@@ -148,9 +148,9 @@ lastUpdated: 2026-02-01
 ### Synchronized Versioning
 
 ```
-SDK Tag:    v1.0.3
-├── SDK:    @nevermined-io/payments@1.0.3
-└── CLI:    @nevermined-io/cli@1.0.3  (auto-updated)
+SDK Tag:    v1.0.4
+├── SDK:    @nevermined-io/payments@1.0.4
+└── CLI:    @nevermined-io/cli@1.0.4  (auto-updated)
 ```
 
 **Key Points:**
@@ -257,18 +257,18 @@ git pull
 
 # 2. Update version in package.json
 vim package.json
-# Change: "version": "1.0.3"
+# Change: "version": "1.0.4"
 
 # 3. Update CHANGELOG.md
 vim CHANGELOG.md
 
 # 4. Commit version bump
 git add package.json CHANGELOG.md
-git commit -m "chore: bump version to 1.0.3"
+git commit -m "chore: bump version to 1.0.4"
 git push
 
 # 5. Create and push tag
-git tag v1.0.3 -m "Release v1.0.3"
+git tag v1.0.4 -m "Release v1.0.4"
 git push --tags
 
 # 6. Workflows automatically:
@@ -283,8 +283,8 @@ git push --tags
 #    - Wait for green checkmarks
 
 # 8. Verify published packages
-npm view @nevermined-io/payments@1.0.3
-npm view @nevermined-io/cli@1.0.3
+npm view @nevermined-io/payments@1.0.4
+npm view @nevermined-io/cli@1.0.4
 
 # 9. Review and merge docs PR
 #    - Go to nevermined-io/docs_mintlify
@@ -300,7 +300,7 @@ npm view @nevermined-io/cli@1.0.3
 1. Go to Actions tab
 2. Select "Publish CLI Package"
 3. Click "Run workflow"
-4. Enter version (e.g., 1.0.3)
+4. Enter version (e.g., 1.0.4)
 5. Click "Run workflow"
 ```
 
@@ -341,7 +341,7 @@ Developer changes: src/api/plans-api.ts
 **Scenario 1: Successful Release**
 
 ```
-Tag created: v1.0.3
+Tag created: v1.0.4
 → Both workflows run in parallel
 → Tests pass
 → npm publish successful
@@ -352,7 +352,7 @@ Tag created: v1.0.3
 **Scenario 2: Failed Tests**
 
 ```
-Tag created: v1.0.3
+Tag created: v1.0.4
 → Tests fail
 → npm publish blocked 🚫
 → No release created
@@ -401,12 +401,12 @@ git commit -m "chore(cli): manual sync"
 
 ```bash
 # Check package doesn't exist
-npm view @nevermined-io/cli@1.0.3
+npm view @nevermined-io/cli@1.0.4
 # If exists: Need to bump version
 
 # Re-run workflow with new version
-git tag -d v1.0.3
-git push --delete origin v1.0.3
+git tag -d v1.0.4
+git push --delete origin v1.0.4
 # Bump version and recreate tag
 ```
 
@@ -459,7 +459,7 @@ git checkout -- ../src/api/plans-api.ts cli/
 ```bash
 # Build without publishing
 cd cli
-npm version 1.0.3 --no-git-tag-version
+npm version 1.0.4 --no-git-tag-version
 yarn build:manifest
 npx oclif pack tarballs --no-xz
 

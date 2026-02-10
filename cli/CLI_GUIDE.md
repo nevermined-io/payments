@@ -76,11 +76,11 @@ The CLI stores configuration in `~/.config/nvm/config.json`:
 {
   "profiles": {
     "default": {
-      "nvmApiKey": "nvm-xxx",
-      "environment": "staging_sandbox"
+      "nvmApiKey": "sandbox:eyJxxxxaaaa",
+      "environment": "sandbox"
     },
     "production": {
-      "nvmApiKey": "nvm-yyy",
+      "nvmApiKey": "live:eyJyyyybbbb",
       "environment": "live"
     }
   },
