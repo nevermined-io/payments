@@ -147,7 +147,7 @@ export NVM_API_KEY=sandbox:eyJxxxxaaaabbbbbbbb
 export NVM_ENVIRONMENT=sandbox
 
 # Run commands
-nvm plans list
+nvm plans get-plans
 ```
 
 This is useful for:
@@ -178,7 +178,7 @@ API Key:        live:eyJxxxxaaaabbbbbbbb (truncated)
 Test your configuration by listing available plans:
 
 ```bash
-nvm plans list
+nvm plans get-plans
 ```
 
 If configured correctly, you should see a table of available payment plans.
