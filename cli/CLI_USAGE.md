@@ -33,7 +33,7 @@ npx @nevermined-io/cli <command>
 ./bin/run.js config init
 
 # Non-interactive configuration
-./bin/run.js config init --api-key your-api-key --environment staging_sandbox
+./bin/run.js config init --api-key your-api-key --environment sandbox
 
 # View current configuration
 ./bin/run.js config show
@@ -129,7 +129,7 @@ You can override configuration with environment variables:
 
 ```bash
 export NVM_API_KEY=nvm-your-api-key
-export NVM_ENVIRONMENT=staging_sandbox
+export NVM_ENVIRONMENT=sandbox
 export NVM_CONFIG=/custom/path/config.json
 
 ./bin/run.js plans list
@@ -144,7 +144,7 @@ Default location: `~/.config/nvm/config.json`
   "profiles": {
     "default": {
       "nvmApiKey": "nvm-api-key",
-      "environment": "staging_sandbox"
+      "environment": "sandbox"
     },
     "production": {
       "nvmApiKey": "nvm-prod-key",
@@ -157,9 +157,7 @@ Default location: `~/.config/nvm/config.json`
 
 ### Supported Environments
 
-- `staging_sandbox` - Testing environment (recommended for development)
-- `staging_live` - Staging live environment
-- `sandbox` - Sandbox environment
+- `sandbox` - Testing environment (recommended for development)
 - `live` - Production environment
 - `custom` - Custom environment configuration
 
@@ -182,7 +180,7 @@ Default location: `~/.config/nvm/config.json`
 
 ```bash
 # Configure CLI
-./bin/run.js config init --api-key nvm-your-key --environment staging_sandbox
+./bin/run.js config init --api-key nvm-your-key --environment sandbox
 
 # List all your plans
 ./bin/run.js plans list

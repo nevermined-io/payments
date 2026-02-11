@@ -67,8 +67,8 @@ export abstract class BaseCommand extends Command {
     }
 
     if (!environment) {
-      this.formatter.warning('Environment not set, using "staging_sandbox" as default')
-      environment = 'staging_sandbox' as EnvironmentName
+      this.formatter.warning('Environment not set, using "sandbox" as default')
+      environment = 'sandbox' as EnvironmentName
     }
 
     this.payments = Payments.getInstance({
@@ -156,6 +156,20 @@ export abstract class BaseCommand extends Command {
   }
 
   /**
+   * Reviver for JSON.parse that converts known numeric fields to BigInt.
+   * Fields like durationSecs, minAmount, maxAmount, amount, price, and
+   * amountOfCredits are used in plan/credit configurations and must be
+   * BigInt for the SDK to handle them correctly.
+   */
+  private bigIntReviver(_key: string, value: any): any {
+    const bigIntFields = ['durationSecs', 'minAmount', 'maxAmount', 'amount', 'price', 'amountOfCredits']
+    if (bigIntFields.includes(_key) && typeof value === 'number') {
+      return BigInt(value)
+    }
+    return value
+  }
+
+  /**
    * Parse JSON input from string, file, or stdin
    */
   protected async parseJsonInput(input?: string): Promise<any> {
@@ -168,11 +182,11 @@ export abstract class BaseCommand extends Command {
       if (input.endsWith('.json')) {
         const fs = await import('fs/promises')
         const content = await fs.readFile(input, 'utf-8')
-        return JSON.parse(content)
+        return JSON.parse(content, this.bigIntReviver.bind(this))
       }
 
       // Otherwise parse as JSON string
-      return JSON.parse(input)
+      return JSON.parse(input, this.bigIntReviver.bind(this))
     } catch (error: any) {
       this.error(`Failed to parse JSON input: ${error.message}`, { exit: 1 })
     }

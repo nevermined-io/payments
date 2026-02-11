@@ -83,10 +83,8 @@ nvm config init
 This will prompt you for:
 - **NVM API Key**: Your API key from nevermined.app
 - **Environment**: Choose from:
-  - `sandbox` - Testing with real blockchain (requires test tokens)
-  - `staging_sandbox` - Development testing (recommended for learning)
+  - `sandbox` - Testing (recommended for learning and development)
   - `live` - Production environment
-  - `staging_live` - Staging production environment
 
 Example:
 
@@ -94,7 +92,7 @@ Example:
 $ nvm config init
 
 ? Enter your NVM API Key: live:eyJxxxxaaaabbbbbbbb
-? Select environment: staging_sandbox
+? Select environment: sandbox
 
 ✅ Configuration saved to /home/user/.config/nvm/config.json
 ```
@@ -171,7 +169,7 @@ Output:
 Current Configuration
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Active Profile: default
-Environment:    staging_sandbox
+Environment:    sandbox
 API Key:        live:eyJxxxxaaaabbbbbbbb (truncated)
 ```
 
@@ -191,12 +189,10 @@ Choose the right environment for your use case:
 
 | Environment | Use Case | Blockchain | Payments |
 |-------------|----------|------------|----------|
-| `staging_sandbox` | Development, learning, testing | Test network | Test credits |
-| `sandbox` | Integration testing | Test network | Test tokens |
-| `staging_live` | Pre-production validation | Mainnet | Test credits |
+| `sandbox` | Development, learning, testing | Test network | Test credits |
 | `live` | Production | Mainnet | Real payments |
 
-**Recommendation**: Start with `staging_sandbox` for development and testing.
+**Recommendation**: Start with `sandbox` for development and testing.
 
 ## Common Issues
 

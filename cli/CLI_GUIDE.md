@@ -46,7 +46,7 @@ nvm config init
 This will prompt you for:
 
 - API Key (get one from https://nevermined.app)
-- Environment (staging_sandbox, staging_live, sandbox, live)
+- Environment (sandbox, live)
 
 ### 2. List Available Plans
 
@@ -94,7 +94,7 @@ You can override configuration with environment variables:
 
 ```bash
 export NVM_API_KEY=your-api-key
-export NVM_ENVIRONMENT=staging_sandbox
+export NVM_ENVIRONMENT=sandbox
 ```
 
 ### Using Profiles

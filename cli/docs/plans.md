@@ -21,13 +21,13 @@ View all available payment plans:
 
 ```bash
 # Table output (default)
-nvm plans list
+nvm plans get-plans
 
 # JSON output for scripting
-nvm plans list --format json
+nvm plans get-plans --format json
 
 # Quiet output (IDs only)
-nvm plans list --format quiet
+nvm plans get-plans --format quiet
 ```
 
 Example output:
@@ -346,7 +346,7 @@ nvm plans register-credits-plan \
 
 ```bash
 # Get all plans as JSON
-PLANS=$(nvm plans list --format json)
+PLANS=$(nvm plans get-plans --format json)
 
 # Extract first plan ID
 FIRST_PLAN=$(echo $PLANS | jq -r '.[0].id')
@@ -422,20 +422,20 @@ plans/
 
 ### 4. Test in Staging First
 
-Always test new plans in staging_sandbox before production:
+Always test new plans in sandbox before going live:
 
 ```bash
-# Test in staging
-nvm --profile staging plans register-credits-plan \
+# Test in sandbox
+nvm --profile sandbox plans register-credits-plan \
   --plan-metadata metadata.json \
   --price-config price.json \
   --credits-config credits.json
 
 # Verify it works
-nvm --profile staging plans get-plan <plan-id>
+nvm --profile sandbox plans get-plan <plan-id>
 
-# Then deploy to production
-nvm --profile production plans register-credits-plan \
+# Then deploy to live
+nvm --profile live plans register-credits-plan \
   --plan-metadata metadata.json \
   --price-config price.json \
   --credits-config credits.json

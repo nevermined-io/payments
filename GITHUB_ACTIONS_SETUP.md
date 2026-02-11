@@ -155,7 +155,7 @@ Add these secrets in repository settings:
 |--------|-------------|
 | `TEST_SUBSCRIBER_API_KEY` | Test subscriber API key |
 | `TEST_BUILDER_API_KEY` | Test builder API key |
-| `TEST_ENVIRONMENT` | Test environment (e.g., `staging_sandbox`) |
+| `TEST_ENVIRONMENT` | Test environment (e.g., `sandbox`) |
 
 ### NPM Token Setup
 

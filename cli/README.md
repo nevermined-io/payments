@@ -37,7 +37,7 @@ nvm config init
 This will prompt you for:
 
 - Your Nevermined API key
-- Target environment (staging_sandbox, staging_live, sandbox, live)
+- Target environment (sandbox, live)
 
 Configuration is saved to `~/.config/nvm/config.json`.
 
@@ -82,7 +82,7 @@ Instead of `nvm config init`, you can set environment variables:
 
 ```bash
 export NVM_API_KEY=nvm-your-api-key
-export NVM_ENVIRONMENT=staging_sandbox
+export NVM_ENVIRONMENT=sandbox
 ```
 
 ### Using Configuration Profiles
