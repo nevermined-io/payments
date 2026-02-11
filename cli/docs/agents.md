@@ -493,7 +493,7 @@ Verify the payment plan exists and you're using the correct plan ID:
 
 ```bash
 # List all your plans
-nvm plans list
+nvm plans get-plans
 
 # Verify specific plan
 nvm plans get-plan <plan-id>

@@ -98,7 +98,7 @@ npx @nevermined-io/cli --help
 nvm config init
 
 # List available plans
-nvm plans list
+nvm plans get-plans
 
 # Get plan details
 nvm plans get-plan <plan-id>
@@ -119,7 +119,7 @@ nvm config show              # Display current config
 nvm config set <key> <value> # Update configuration
 
 # Plans
-nvm plans list                          # List all plans
+nvm plans get-plans                          # List all plans
 nvm plans get-plan <plan-id>            # Get plan details
 nvm plans get-plan-balance <plan-id>    # Check balance
 nvm plans order-plan <plan-id>          # Purchase plan
@@ -157,7 +157,7 @@ All commands support these global flags:
 Human-readable table output for interactive use:
 
 ```bash
-nvm plans list
+nvm plans get-plans
 ```
 
 ### JSON
@@ -165,7 +165,7 @@ nvm plans list
 Machine-readable JSON for scripting:
 
 ```bash
-nvm plans list --format json
+nvm plans get-plans --format json
 ```
 
 ### Quiet
@@ -173,7 +173,7 @@ nvm plans list --format json
 Minimal output for automation:
 
 ```bash
-nvm plans list --format quiet
+nvm plans get-plans --format quiet
 ```
 
 ## Configuration Profiles
@@ -211,7 +211,7 @@ nvm config set activeProfile production
 nvm config init
 
 # 2. List available plans
-nvm plans list
+nvm plans get-plans
 
 # 3. Get plan details
 PLAN_ID="123456789012345678"
@@ -227,7 +227,7 @@ nvm plans get-plan-balance $PLAN_ID
 TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
 
 # 7. Query agent
-curl -H "X-402: $TOKEN" https://agent-api.example.com/query
+curl -H "payment-signature: $TOKEN" https://agent-api.example.com/query
 ```
 
 ### Agent Registration
@@ -305,7 +305,7 @@ Use JSON output for scripting:
 BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 
 # Loop over plans
-PLANS=$(nvm plans list --format json | jq -r '.[].id')
+PLANS=$(nvm plans get-plans --format json | jq -r '.[].id')
 for PLAN in $PLANS; do
   nvm plans get-plan $PLAN
 done
@@ -317,7 +317,7 @@ Integrate with other tools:
 
 ```bash
 # Export to CSV
-nvm plans list --format json | jq -r '.[] | [.id, .name, .price] | @csv' > plans.csv
+nvm plans get-plans --format json | jq -r '.[] | [.id, .name, .price] | @csv' > plans.csv
 
 # Send to monitoring
 BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json)
