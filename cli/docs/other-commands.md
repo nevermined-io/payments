@@ -20,7 +20,7 @@ nvm config init
 
 Interactive prompts:
 - NVM API Key
-- Environment (staging_sandbox, sandbox, staging_live, live)
+- Environment (sandbox, live)
 - Profile name (optional)
 
 ### View Configuration
@@ -402,7 +402,7 @@ Switch between environments easily:
 case $1 in
   staging)
     nvm config set activeProfile staging
-    nvm config set environment staging_sandbox
+    nvm config set environment sandbox
     echo "Switched to staging environment"
     ;;
   production)

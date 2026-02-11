@@ -139,7 +139,7 @@ cli/
 ./bin/run.js plans --help
 
 # Configuration
-./bin/run.js config init --api-key test-key --environment staging_sandbox
+./bin/run.js config init --api-key test-key --environment sandbox
 ./bin/run.js config show
 
 # Output formats
@@ -153,7 +153,7 @@ cli/
   "profiles": {
     "default": {
       "nvmApiKey": "test-key",
-      "environment": "staging_sandbox"
+      "environment": "sandbox"
     }
   },
   "activeProfile": "default"
@@ -314,7 +314,7 @@ const token = await payments.x402.getX402AccessToken(planId)
 
 ```bash
 export NVM_API_KEY=nvm-your-api-key
-export NVM_ENVIRONMENT=staging_sandbox
+export NVM_ENVIRONMENT=sandbox
 export NVM_CONFIG=/custom/path/config.json
 ```
 
@@ -325,7 +325,7 @@ export NVM_CONFIG=/custom/path/config.json
   "profiles": {
     "default": {
       "nvmApiKey": "nvm-api-key",
-      "environment": "staging_sandbox"
+      "environment": "sandbox"
     },
     "production": {
       "nvmApiKey": "nvm-prod-key",
@@ -338,9 +338,7 @@ export NVM_CONFIG=/custom/path/config.json
 
 ### Supported Environments
 
-- `staging_sandbox` - Testing environment (recommended)
-- `staging_live` - Staging live environment
-- `sandbox` - Sandbox environment
+- `sandbox` - Testing environment (recommended for development)
 - `live` - Production environment
 - `custom` - Custom environment configuration
 

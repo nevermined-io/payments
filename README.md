@@ -86,8 +86,7 @@ To use the Nevermined Payments Library, you need to get your Nevermined API key.
 
 ### Environments
 
-- Public environments: `sandbox`, `live`.
-- Internal/validation: `staging_sandbox`, `staging_live`.
+- Available environments: `sandbox`, `live`.
 
 Pick the environment that matches where your agent and plans are registered. The agent card `url` must belong to that environment.
 

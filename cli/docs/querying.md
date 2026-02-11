@@ -1,6 +1,6 @@
 ---
 title: "Querying Agents"
-description: "Complete guide to accessing AI agents using X402 access tokens with the Nevermined CLI"
+description: "Complete guide to accessing AI agents using x402 access tokens and the payment-signature header with the Nevermined CLI"
 icon: "messages"
 ---
 
@@ -38,8 +38,8 @@ Plan ID: "123456789012345678"
 Expires: 2024-03-15 10:30:00 UTC
 Credits: 100
 
-Use this token in the X-402 header:
-  curl -H "X-402: eyJhbGci..." https://agent-api.example.com
+Use this token in the payment-signature header:
+  curl -H "payment-signature: eyJhbGci..." https://agent-api.example.com
 ```
 
 ### Token Format
@@ -60,7 +60,7 @@ TOKEN=$(nvm x402token get-x402-access-token "123456789012345678" --format json |
 echo $TOKEN > ~/.nvm-token
 
 # Use token from file
-curl -H "X-402: $(cat ~/.nvm-token)" https://agent-api.example.com/query
+curl -H "payment-signature: $(cat ~/.nvm-token)" https://agent-api.example.com/query
 ```
 
 ## Using X402 Tokens
@@ -73,10 +73,10 @@ Query an agent using curl:
 # Get access token
 TOKEN=$(nvm x402token get-x402-access-token "123456789012345678" --format json | jq -r '.token')
 
-# Make request with X-402 header
+# Make request with payment-signature header
 curl -X POST https://agent-api.example.com/v1/chat \
   -H "Content-Type: application/json" \
-  -H "X-402: $TOKEN" \
+  -H "payment-signature: $TOKEN" \
   -d '{
     "message": "Hello, AI assistant!",
     "temperature": 0.7
@@ -99,7 +99,7 @@ const response = await fetch('https://agent-api.example.com/v1/chat', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-402': token
+    'payment-signature': token
   },
   body: JSON.stringify({
     message: 'Hello, AI assistant!',
@@ -130,7 +130,7 @@ response = requests.post(
     'https://agent-api.example.com/v1/chat',
     headers={
         'Content-Type': 'application/json',
-        'X-402': token
+        'payment-signature': token
     },
     json={
         'message': 'Hello, AI assistant!',
@@ -156,9 +156,9 @@ nvm facilitator verify-permissions \
 
 ```json
 {
-  "planId": ""123456789012345678"",
-  "token": "eyJhbGci...",
-  "creditsRequired": 5
+  "paymentRequired": "eyJhbGci...(base64-encoded payment requirements)...",
+  "x402AccessToken": "eyJhbGci...",
+  "maxAmount": "5"
 }
 ```
 
@@ -180,21 +180,29 @@ Can Proceed: true
 For agent implementations, use the SDK for automatic verification:
 
 ```typescript
-import { Payments } from '@nevermined-io/payments'
+import { Payments, buildPaymentRequired } from '@nevermined-io/payments'
 
 const payments = Payments.getInstance({
   nvmApiKey: process.env.NVM_API_KEY!,
-  environment: 'staging_sandbox'
+  environment: 'sandbox'
+})
+
+// Build payment requirements for your plan/agent
+const paymentRequired = buildPaymentRequired({
+  planId: '"123456789012345678"',
+  endpoint: '/v1/chat',
+  agentId: process.env.NVM_AGENT_ID!,
+  httpVerb: 'POST'
 })
 
 // Verify incoming request
-const isValid = await payments.facilitator.verifyPermissions({
-  planId: '"123456789012345678"',
-  token: req.headers['x-402'],
-  creditsRequired: 5
+const verification = await payments.facilitator.verifyPermissions({
+  paymentRequired,
+  x402AccessToken: req.headers['payment-signature'] as string,
+  maxAmount: BigInt(5)
 })
 
-if (!isValid) {
+if (!verification.isValid) {
   return res.status(402).json({ error: 'Payment required' })
 }
 ```
@@ -214,10 +222,9 @@ nvm facilitator settle-permissions \
 
 ```json
 {
-  "planId": ""123456789012345678"",
-  "token": "eyJhbGci...",
-  "creditsBurned": 5,
-  "executionId": "exec-123"
+  "paymentRequired": "eyJhbGci...(base64-encoded payment requirements)...",
+  "x402AccessToken": "eyJhbGci...",
+  "maxAmount": "5"
 }
 ```
 
@@ -240,10 +247,9 @@ Integrate settlement into your agent:
 ```typescript
 // After processing request
 await payments.facilitator.settlePermissions({
-  planId: '"123456789012345678"',
-  token: req.headers['x-402'],
-  creditsBurned: 5,
-  executionId: requestId
+  paymentRequired,
+  x402AccessToken: req.headers['payment-signature'] as string,
+  maxAmount: BigInt(5)
 })
 ```
 
@@ -277,7 +283,7 @@ TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.tok
 echo "Querying agent..."
 RESPONSE=$(curl -s -X POST $AGENT_API \
   -H "Content-Type: application/json" \
-  -H "X-402: $TOKEN" \
+  -H "payment-signature: $TOKEN" \
   -d '{
     "message": "Explain quantum computing in simple terms",
     "temperature": 0.7
@@ -320,7 +326,7 @@ for QUESTION in "${QUESTIONS[@]}"; do
 
   RESPONSE=$(curl -s -X POST $AGENT_API \
     -H "Content-Type: application/json" \
-    -H "X-402: $TOKEN" \
+    -H "payment-signature: $TOKEN" \
     -d "{\"message\": \"$QUESTION\"}")
 
   echo "Answer: $(echo $RESPONSE | jq -r '.answer')"
@@ -352,7 +358,7 @@ for i in {1..50}; do
 
   curl -s -X POST $AGENT_API \
     -H "Content-Type: application/json" \
-    -H "X-402: $TOKEN" \
+    -H "payment-signature: $TOKEN" \
     -d "{\"message\": \"Query $i\"}"
 
   # Respect rate limit
@@ -389,7 +395,7 @@ query_agent() {
     RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
       https://agent-api.example.com/v1/chat \
       -H "Content-Type: application/json" \
-      -H "X-402: $TOKEN" \
+      -H "payment-signature: $TOKEN" \
       -d "{\"message\": \"$message\"}")
 
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -444,7 +450,7 @@ INITIAL=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 # Make query
 TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
 RESPONSE=$(curl -s -X POST https://agent-api.example.com/v1/chat \
-  -H "X-402: $TOKEN" \
+  -H "payment-signature: $TOKEN" \
   -d '{"message": "test query"}')
 
 # Get new balance
@@ -582,8 +588,8 @@ nvm plans order-plan $PLAN_ID
 The agent requires payment but token is invalid or missing:
 
 ```bash
-# Ensure X-402 header is included
-curl -H "X-402: $TOKEN" https://agent-api.example.com
+# Ensure payment-signature header is included
+curl -H "payment-signature: $TOKEN" https://agent-api.example.com
 ```
 
 ## Next Steps

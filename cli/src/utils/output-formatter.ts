@@ -16,7 +16,7 @@ export class OutputFormatter {
   output(data: any, options?: TableOptions): void {
     switch (this.format) {
       case 'json':
-        console.log(JSON.stringify(data, null, 2))
+        console.log(JSON.stringify(data, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2))
         break
       case 'quiet':
         // No output in quiet mode
@@ -78,7 +78,7 @@ export class OutputFormatter {
 
     Object.entries(data).forEach(([key, value]) => {
       const formattedValue =
-        typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+        typeof value === 'object' ? JSON.stringify(value, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2) : String(value)
       table.push([chalk.cyan(key), formattedValue])
     })
 

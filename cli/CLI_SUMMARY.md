@@ -113,7 +113,7 @@ CLI for Nevermined Payments SDK
 [... full help output ...]
 
 # Configuration
-$ ./bin/run.js config init --api-key test-key --environment staging_sandbox
+$ ./bin/run.js config init --api-key test-key --environment sandbox
 ✓ Configuration initialized for profile "default"
 
 $ ./bin/run.js config show
@@ -121,7 +121,7 @@ $ ./bin/run.js config show
 │ profile     │ default         │
 │ active      │ true            │
 │ nvmApiKey   │ test-key        │
-│ environment │ staging_sandbox │
+│ environment │ sandbox │
 └─────────────┴─────────────────┘
 
 # Plans commands work
@@ -221,7 +221,7 @@ yarn cli:dev
 1. **Test with real API credentials**
 
    ```bash
-   ./bin/run.js config init --api-key <real-key> --environment staging_sandbox
+   ./bin/run.js config init --api-key <real-key> --environment sandbox
    ./bin/run.js plans list
    ```
 

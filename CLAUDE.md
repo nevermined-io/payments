@@ -66,6 +66,25 @@ const payments = Payments.getInstance({
 | `payments.x402` | X402 access token generation |
 | `payments.facilitator` | Verify/settle permissions (credit burning) |
 
+## Important Conventions
+
+### BigInt Handling
+
+The SDK uses `BigInt` for plan configuration fields (`durationSecs`, `minAmount`, `maxAmount`, `amount`, `price`, `amountOfCredits`). When comparing these fields, always wrap with `BigInt()` to tolerate both `number` and `bigint` inputs from callers (e.g., `BigInt(creditsConfig.durationSecs) === 0n` instead of `creditsConfig.durationSecs === 0n`).
+
+The CLI has BigInt-aware JSON parsing (reviver in `cli/src/base-command.ts`) and serialization (replacer in `cli/src/utils/output-formatter.ts`) to handle these fields correctly across the JSON boundary.
+
+### Environment Naming
+
+The SDK and CLI support four environment values: `sandbox`, `live`, `staging_sandbox`, and `staging_live`. The `staging_*` variants are for **internal development only** and must never appear in public-facing documentation. All docs, examples, and SKILL files must use only `sandbox` and `live`. The CLI defaults to `sandbox` when no environment is set.
+
+### x402 Protocol and Documentation Standards
+
+When writing examples or documentation:
+- **Headers**: Always use `payment-signature` (client → server). Never use the deprecated `X-402` header name.
+- **Validation API**: Always use `payments.facilitator.verifyPermissions()` / `payments.facilitator.settlePermissions()`. Never use the deprecated `payments.requests.isValidRequest()`.
+- **Framework middleware**: Prefer `paymentMiddleware` (Express.js) or `PaymentMiddleware` (FastAPI) over manual verify/settle in examples.
+
 ## Validating Changes
 
 **IMPORTANT**: Always run tests after any code change to ensure nothing is broken.

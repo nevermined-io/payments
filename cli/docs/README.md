@@ -196,9 +196,7 @@ nvm config set activeProfile production
 
 | Environment | Use Case | Blockchain | Payments |
 |-------------|----------|------------|----------|
-| `staging_sandbox` | Development, testing | Test network | Test credits |
-| `sandbox` | Integration testing | Test network | Test tokens |
-| `staging_live` | Pre-production | Mainnet | Test credits |
+| `sandbox` | Development, testing | Test network | Test credits |
 | `live` | Production | Mainnet | Real payments |
 
 ## Examples
