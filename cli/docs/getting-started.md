@@ -91,7 +91,7 @@ Example:
 ```bash
 $ nvm config init
 
-? Enter your NVM API Key: live:eyJxxxxaaaabbbbbbbb
+? Enter your NVM API Key: sandbox:eyJxxxxaaaabbbbbbbb
 ? Select environment: sandbox
 
 ✅ Configuration saved to /home/user/.config/nvm/config.json
