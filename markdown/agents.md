@@ -178,22 +178,11 @@ console.log(`Description: ${agent.description}`)
 console.log(`Endpoints: ${JSON.stringify(agent.endpoints)}`)
 ```
 
-### Get All Your Agents
-
-```typescript
-// Get all agents owned by your account
-const agents = await payments.agents.getAgents()
-
-agents.forEach(agent => {
-  console.log(`${agent.name}: ${agent.agentId}`)
-})
-```
-
 ### Get Plans for an Agent
 
 ```typescript
 // Get all payment plans associated with an agent
-const plans = await payments.agents.getPlansForAgent(agentId)
+const plans = await payments.agents.getAgentPlans(agentId)
 
 plans.forEach(plan => {
   console.log(`Plan: ${plan.name} (${plan.planId})`)
@@ -206,7 +195,7 @@ You can update agent metadata and API configuration after registration:
 
 ```typescript
 // Update agent information
-await payments.agents.updateAgent(
+await payments.agents.updateAgentMetadata(
   agentId,
   {
     description: 'Updated description with new features',
@@ -232,7 +221,7 @@ Associate additional payment plans with an existing agent:
 
 ```typescript
 // Add new plans to an agent
-await payments.agents.addPlanToAgent(agentId, newPlanId)
+await payments.agents.addPlanToAgent(newPlanId, agentId)
 
 console.log(`Added plan ${newPlanId} to agent ${agentId}`)
 ```
@@ -243,7 +232,7 @@ Remove payment plan associations:
 
 ```typescript
 // Remove a plan from an agent
-await payments.agents.removePlanFromAgent(agentId, planIdToRemove)
+await payments.agents.removePlanFromAgent(planIdToRemove, agentId)
 
 console.log(`Removed plan ${planIdToRemove} from agent ${agentId}`)
 ```
@@ -325,9 +314,9 @@ console.log(`Advanced agent registered: ${agentId}`)
 
 // Retrieve and verify
 const agent = await payments.agents.getAgent(agentId)
-const plans = await payments.agents.getPlansForAgent(agentId)
+const { plans, total, page, offset } = await payments.agents.getAgentPlans(agentId)
 
-console.log(`Agent has ${plans.length} associated plans`)
+console.log(`Agent has ${plans.length} plans on page ${page} (offset ${offset}, total ${total})`)
 ```
 
 ## Best Practices

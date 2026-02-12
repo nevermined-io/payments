@@ -95,19 +95,8 @@ if (orderResult.success) {
 
 ### Fiat Payment (Stripe)
 
-For plans priced in fiat currency, use Stripe checkout:
-
-```typescript
-// Get Stripe checkout session
-const { clientSecret, checkoutUrl } = await subscriberPayments.plans.getStripeCheckout(
-  planId,
-  'https://myapp.example/success',  // Success redirect URL
-  'https://myapp.example/cancel'    // Cancel redirect URL
-)
-
-// Redirect user to Stripe checkout
-window.location.href = checkoutUrl
-```
+Stripe checkout integration for fiat-priced plans is available through the Nevermined App dashboard.
+Visit [nevermined.app](https://nevermined.app) to configure Stripe payments for your plans.
 
 ### Complete Purchase Flow
 
@@ -194,46 +183,8 @@ await checkAllBalances([planId1, planId2, planId3])
 
 ## Stripe Checkout Integration
 
-### Complete Stripe Flow
-
-```typescript
-import { Payments, EnvironmentName } from '@nevermined-io/payments'
-
-// Initialize
-const payments = Payments.getInstance({
-  nvmApiKey: process.env.NVM_API_KEY!,
-  environment: 'sandbox' as EnvironmentName,
-})
-
-// Create checkout session
-async function initiateStripeCheckout(planId: string) {
-  const successUrl = `${window.location.origin}/payment-success`
-  const cancelUrl = `${window.location.origin}/payment-cancelled`
-
-  const { clientSecret, checkoutUrl } = await payments.plans.getStripeCheckout(
-    planId,
-    successUrl,
-    cancelUrl
-  )
-
-  // Save client secret for later verification (optional)
-  sessionStorage.setItem('stripe_client_secret', clientSecret)
-
-  // Redirect to Stripe
-  window.location.href = checkoutUrl
-}
-
-// Handle success callback
-async function handlePaymentSuccess(planId: string) {
-  // Wait for credits to be allocated
-  const credits = await waitForCredits(payments, planId)
-
-  console.log(`Payment successful! Received ${credits} credits`)
-
-  // Redirect to agent interface
-  window.location.href = '/agents'
-}
-```
+Stripe checkout for fiat-priced plans is managed through the Nevermined App dashboard.
+Visit [nevermined.app](https://nevermined.app) to configure Stripe payments for your plans.
 
 ## Plan Information
 
@@ -358,5 +309,5 @@ if (success) {
 ---
 
 **Source References**:
-- `src/api/plans-api.ts` (orderPlan, getPlanBalance, getStripeCheckout methods)
+- `src/api/plans-api.ts` (orderPlan, getPlanBalance methods)
 - `tests/e2e/test_payments_e2e.test.ts` (ordering and balance verification)
