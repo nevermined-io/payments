@@ -280,7 +280,7 @@ plans.forEach(plan => {
 
 ### Get Plans for an Agent
 
-To find agents associated with a plan, use the agents API:
+To find plans associated with an agent, use the agents API:
 
 ```typescript
 // Get all payment plans associated with an agent
