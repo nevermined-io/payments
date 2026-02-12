@@ -82,7 +82,7 @@ describe('PaymentsClient', () => {
     expect(mockPostRpc).toHaveBeenCalled()
     const callArgs = mockPostRpc.mock.calls[0]
     const headers = callArgs[2]?.headers || callArgs[2] || {}
-    expect(headers.Authorization).toMatch(/^Bearer /)
-    expect(headers.Authorization).toContain('XYZ')
+    expect(headers['payment-signature']).toBeDefined()
+    expect(headers['payment-signature']).toBe('XYZ')
   })
 })
