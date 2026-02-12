@@ -46,10 +46,10 @@ npx @nevermined-io/cli <command>
 
 ```bash
 # List all plans
-./bin/run.js plans list
+./bin/run.js plans get-plans
 
 # List plans in JSON format
-./bin/run.js plans list --format json
+./bin/run.js plans get-plans --format json
 
 # Get specific plan details
 ./bin/run.js plans get did:nvm:abc123
@@ -91,7 +91,7 @@ npx @nevermined-io/cli <command>
 
 ### Plans (`plans`)
 
-- `plans list` - List all payment plans
+- `plans get-plans` - List all payment plans
 - `plans get <planId>` - Get plan details
 - `plans balance <planId>` - Get plan balance
 - `plans register` - Register new plan (placeholder)
@@ -112,13 +112,13 @@ All commands support multiple output formats:
 
 ```bash
 # Table format (default, human-readable)
-./bin/run.js plans list
+./bin/run.js plans get-plans
 
 # JSON format (machine-readable)
-./bin/run.js plans list --format json
+./bin/run.js plans get-plans --format json
 
 # Quiet mode (minimal output, useful for scripts)
-./bin/run.js plans list --format quiet
+./bin/run.js plans get-plans --format quiet
 ```
 
 ## Configuration Options
@@ -132,7 +132,7 @@ export NVM_API_KEY=nvm-your-api-key
 export NVM_ENVIRONMENT=sandbox
 export NVM_CONFIG=/custom/path/config.json
 
-./bin/run.js plans list
+./bin/run.js plans get-plans
 ```
 
 ### Configuration File
@@ -168,7 +168,7 @@ Default location: `~/.config/nvm/config.json`
 ./bin/run.js config init --profile production
 
 # Use a specific profile for a command
-./bin/run.js plans list --profile production
+./bin/run.js plans get-plans --profile production
 
 # Set a value for a specific profile
 ./bin/run.js config set nvmApiKey nvm-prod-key --profile production
@@ -183,7 +183,7 @@ Default location: `~/.config/nvm/config.json`
 ./bin/run.js config init --api-key nvm-your-key --environment sandbox
 
 # List all your plans
-./bin/run.js plans list
+./bin/run.js plans get-plans
 
 # Expected output:
 # ┌────────────────┬─────────────┬──────────┬─────────────┐
@@ -234,7 +234,7 @@ Default location: `~/.config/nvm/config.json`
 #!/bin/bash
 
 # Get all plans and extract DIDs
-plans=$(./bin/run.js plans list --format json)
+plans=$(./bin/run.js plans get-plans --format json)
 plan_ids=$(echo "$plans" | jq -r '.[].did')
 
 # Loop through each plan and get balance
@@ -272,7 +272,7 @@ cat ~/.config/nvm/config.json
 
 ```bash
 # Use verbose flag for detailed error information
-./bin/run.js plans list --verbose
+./bin/run.js plans get-plans --verbose
 
 # Check your API key is valid
 ./bin/run.js config show
@@ -292,10 +292,10 @@ yarn build
 
 ```bash
 # Use dev script for faster iteration
-./bin/dev.js plans list
+./bin/dev.js plans get-plans
 
 # Or use tsx directly
-yarn dev plans list
+yarn dev plans get-plans
 ```
 
 ### Adding New Commands
@@ -334,7 +334,7 @@ export default class MyCommand extends BaseCommand {
 
 # Command-specific help
 ./bin/run.js plans --help
-./bin/run.js plans list --help
+./bin/run.js plans get-plans --help
 
 # Version
 ./bin/run.js --version
