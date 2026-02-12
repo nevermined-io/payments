@@ -149,7 +149,7 @@ describe('PaymentsA2AServer', () => {
       id: 1,
     }
 
-    const response = await client.post('/rpc').set('Authorization', 'Bearer TOKEN').send(payload)
+    const response = await client.post('/rpc').set('payment-signature', 'TOKEN').send(payload)
 
     // At least one hook should have been triggered
     expect(flag.before || flag.after || flag.error).toBe(true)

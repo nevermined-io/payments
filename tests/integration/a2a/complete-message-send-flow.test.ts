@@ -241,7 +241,7 @@ describe('Complete Message/Send Flow', () => {
 
     const response = await client
       .post('/rpc')
-      .set('Authorization', 'Bearer TEST_TOKEN')
+      .set('payment-signature', 'TEST_TOKEN')
       .send(payload)
 
     expect(response.status).toBe(200)
@@ -287,7 +287,7 @@ describe('Complete Message/Send Flow', () => {
 
     const response = await client
       .post('/rpc')
-      .set('Authorization', 'Bearer INVALID_TOKEN')
+      .set('payment-signature', 'INVALID_TOKEN')
       .send(payload)
 
     // Should return 402 (payment required) due to validation failure
@@ -324,11 +324,12 @@ describe('Complete Message/Send Flow', () => {
 
     const response = await client.post('/rpc').send(payload)
 
-    // Should return 401 (unauthorized)
-    expect(response.status).toBe(401)
+    // Should return 402 (payment required) with payment-required header
+    expect(response.status).toBe(402)
+    expect(response.headers['payment-required']).toBeDefined()
     const responseData = response.body
     expect(responseData.error).toBeDefined()
-    expect(responseData.error.message).toMatch(/Missing payment token/i)
+    expect(responseData.error.message).toMatch(/Missing payment-signature header/i)
 
     // No validation or credit burning should occur
     expect(mockPayments.facilitator.validationCallCount).toBe(0)
@@ -362,7 +363,7 @@ describe('Complete Message/Send Flow', () => {
 
     const response = await client
       .post('/rpc')
-      .set('Authorization', 'Bearer NONBLOCK_TEST_TOKEN')
+      .set('payment-signature', 'NONBLOCK_TEST_TOKEN')
       .send(payload)
 
     // Verify immediate response (should be submitted state)
@@ -394,7 +395,7 @@ describe('Complete Message/Send Flow', () => {
 
       const pollResponse = await client
         .post('/rpc')
-        .set('Authorization', 'Bearer NONBLOCK_TEST_TOKEN')
+        .set('payment-signature', 'NONBLOCK_TEST_TOKEN')
         .send(pollPayload)
 
       if (pollResponse.status === 200) {
