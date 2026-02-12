@@ -121,26 +121,7 @@ const result = await response.json()
 console.log(result)
 ```
 
-### Using Authorization Header (A2A Protocol Only)
-
-The standard `Authorization: Bearer` header is used only within the A2A (Agent-to-Agent) protocol. For direct HTTP requests, always use the `payment-signature` header shown above.
-
-```typescript
-// A2A protocol context only
-const response = await fetch('https://agent.example.com/a2a/', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${accessToken}`,
-  },
-  body: JSON.stringify({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'message/send',
-    params: { /* A2A message */ },
-  }),
-})
-```
+**Note**: The A2A (Agent-to-Agent) protocol also uses the `payment-signature` header for authentication. For A2A integration details, see the [A2A Integration](./a2a-integration) guide.
 
 ## Complete Query Example
 
