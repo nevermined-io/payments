@@ -44,19 +44,19 @@ Configuration is saved to `~/.config/nvm/config.json`.
 ### 2. List Plans
 
 ```bash
-nvm plans list
+nvm plans get-plans
 ```
 
 ### 3. Get Plan Details
 
 ```bash
-nvm plans get did:nvm:abc123
+nvm plans get-plan did:nvm:abc123
 ```
 
 ### 4. Get X402 Access Token
 
 ```bash
-nvm x402 get-token did:nvm:plan123
+nvm x402token get-x402-access-token did:nvm:plan123
 ```
 
 ## Usage
@@ -94,7 +94,7 @@ Support for multiple profiles:
 nvm config init --profile production
 
 # Use a specific profile
-nvm plans list --profile production
+nvm plans get-plans --profile production
 
 # Show all profiles
 nvm config show --all
@@ -106,13 +106,13 @@ All commands support multiple output formats:
 
 ```bash
 # Table format (default)
-nvm plans list
+nvm plans get-plans
 
 # JSON format
-nvm plans list --format json
+nvm plans get-plans --format json
 
 # Quiet mode (no output, useful for scripts)
-nvm plans list --format quiet
+nvm plans get-plans --format quiet
 ```
 
 ## Commands
@@ -125,19 +125,28 @@ nvm plans list --format quiet
 
 ### Plan Commands
 
-- `nvm plans list` - List all payment plans
-- `nvm plans get <planId>` - Get details of a specific plan
-- `nvm plans register` - Register a new payment plan (see help for options)
+- `nvm plans get-plans` - List all payment plans
+- `nvm plans get-plan <planId>` - Get details of a specific plan
+- `nvm plans get-plan-balance <planId>` - Get plan balance for a subscriber
+- `nvm plans register-plan` - Register a new payment plan (flexible)
+- `nvm plans register-credits-plan` - Register a credits-based plan
+- `nvm plans register-time-plan` - Register a time-based plan
+- `nvm plans register-credits-trial-plan` - Register a trial credits plan
+- `nvm plans register-time-trial-plan` - Register a trial time plan
 
 ### Agent Commands
 
-- `nvm agents list` - List all AI agents
-- `nvm agents get <agentId>` - Get details of a specific agent
-- `nvm agents register` - Register a new AI agent
+- `nvm agents get-agent <agentId>` - Get details of a specific agent
+- `nvm agents get-agent-plans <agentId>` - Get plans associated with an agent
+- `nvm agents register-agent` - Register a new AI agent
+- `nvm agents register-agent-and-plan` - Register an agent with a plan
+- `nvm agents add-plan-to-agent <planId>` - Associate a plan with an agent
+- `nvm agents remove-plan-from-agent <planId>` - Remove a plan from an agent
+- `nvm agents update-agent-metadata <agentId>` - Update agent metadata
 
 ### X402 Commands
 
-- `nvm x402 get-token <planId>` - Get an X402 access token for a plan
+- `nvm x402token get-x402-access-token <planId>` - Get an X402 access token for a plan
 
 ## Examples
 
@@ -148,20 +157,20 @@ nvm plans list --format quiet
 nvm config init
 
 # Get X402 token for a plan
-nvm x402 get-token did:nvm:abc123 --format json
+nvm x402token get-x402-access-token did:nvm:abc123 --format json
 
 # Get plan details
-nvm plans get did:nvm:abc123
+nvm plans get-plan did:nvm:abc123
 ```
 
 ### Using JSON Config Files
 
 ```bash
 # Register plan from JSON config
-nvm plans register --config plan-config.json
+nvm plans register-plan --config plan-config.json
 
 # Register agent from JSON config
-nvm agents register did:nvm:plan123 --config agent-config.json
+nvm agents register-agent did:nvm:plan123 --config agent-config.json
 ```
 
 ## Development

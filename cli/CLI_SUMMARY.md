@@ -78,7 +78,7 @@ nvm config set <key> <value>  # Set configuration value
 #### Plans Commands (4)
 
 ```bash
-nvm plans list                # List all plans
+nvm plans get-plans                # List all plans
 nvm plans get <planId>        # Get plan details
 nvm plans balance <planId>    # Check plan balance
 nvm plans register            # Register plan (placeholder)
@@ -222,7 +222,7 @@ yarn cli:dev
 
    ```bash
    ./bin/run.js config init --api-key <real-key> --environment sandbox
-   ./bin/run.js plans list
+   ./bin/run.js plans get-plans
    ```
 
 2. **Add more commands manually**
@@ -287,7 +287,7 @@ yarn cli:dev
 ./bin/run.js config init
 
 # 2. List plans
-./bin/run.js plans list
+./bin/run.js plans get-plans
 
 # 3. Get plan details
 ./bin/run.js plans get did:nvm:abc123
@@ -304,17 +304,17 @@ yarn cli:dev
 ```bash
 # Production profile
 ./bin/run.js config init --profile production
-./bin/run.js plans list --profile production
+./bin/run.js plans get-plans --profile production
 ```
 
 ### JSON Output for Scripting
 
 ```bash
 # Get plans as JSON
-./bin/run.js plans list --format json | jq '.[] | .did'
+./bin/run.js plans get-plans --format json | jq '.[] | .did'
 
 # Check multiple balances
-for plan in $(./bin/run.js plans list --format json | jq -r '.[].did'); do
+for plan in $(./bin/run.js plans get-plans --format json | jq -r '.[].did'); do
   ./bin/run.js plans balance "$plan" --format json
 done
 ```

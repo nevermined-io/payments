@@ -78,14 +78,14 @@ cli/
 
 #### Plans Commands
 
-- ✅ `nvm plans list` - List all payment plans
+- ✅ `nvm plans get-plans` - List all payment plans
   - Table output with key columns
   - JSON output support
   - Uses `payments.plans.getPlans()`
-- ✅ `nvm plans get <planId>` - Get plan details
+- ✅ `nvm plans get-plan <planId>` - Get plan details
   - Full plan object output
   - Uses `payments.plans.getPlan()`
-- ✅ `nvm plans register` - Register plan (placeholder)
+- ✅ `nvm plans register-plan` - Register plan (placeholder)
   - Directs to specialized commands
   - Supports --config for JSON input
 
@@ -165,7 +165,7 @@ cli/
 ### Current Limitations
 
 1. **Simplified Registration Commands**
-   - `plans register` and `agents register` are placeholders
+   - `plans register-plan` and `agents register` are placeholders
    - Users directed to provide full JSON config files
    - Need specialized commands for each plan type
 
@@ -187,7 +187,7 @@ cli/
 
 - `nvm plans register-credits` - Credits-based plans
 - `nvm plans register-time` - Time-based plans
-- `nvm plans balance <planId>` - Check plan balance
+- `nvm plans get-plan-balance <planId>` - Check plan balance
 - `nvm plans order <planId>` - Order a plan
 - `nvm x402 verify` - Verify permissions
 - `nvm x402 settle` - Settle permissions
@@ -257,10 +257,10 @@ npm install -g @nevermined-io/cli
 nvm config init
 
 # 3. List plans
-nvm plans list
+nvm plans get-plans
 
 # 4. Get plan details
-nvm plans get did:nvm:abc123
+nvm plans get-plan did:nvm:abc123
 
 # 5. Get access token
 nvm x402 get-token did:nvm:abc123
@@ -273,7 +273,7 @@ nvm x402 get-token did:nvm:abc123
 nvm config init --profile production
 
 # Use specific profile
-nvm plans list --profile production
+nvm plans get-plans --profile production
 
 # View all profiles
 nvm config show --all
@@ -283,7 +283,7 @@ nvm config show --all
 
 ```bash
 # For scripting
-nvm plans list --format json | jq '.[] | .did'
+nvm plans get-plans --format json | jq '.[] | .did'
 
 # Quiet mode
 if nvm x402 get-token did:nvm:abc123 --format quiet; then
