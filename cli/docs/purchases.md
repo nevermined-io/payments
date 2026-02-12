@@ -119,7 +119,7 @@ done
 List all your active subscriptions:
 
 ```bash
-nvm plans list --filter active
+nvm plans get-plans --filter active
 ```
 
 ### Subscription Details
@@ -172,7 +172,7 @@ done
 See your past purchases:
 
 ```bash
-nvm plans list-purchases
+nvm plans get-plans-purchases
 ```
 
 Example output:
@@ -192,18 +192,18 @@ Date                Plan ID              Credits    Amount    Status
 Export purchase history as JSON:
 
 ```bash
-nvm plans list-purchases --format json > purchases.json
+nvm plans get-plans-purchases --format json > purchases.json
 ```
 
 Use with analytics tools:
 
 ```bash
 # Get total spending
-TOTAL=$(nvm plans list-purchases --format json | jq '[.[] | .amount] | add')
+TOTAL=$(nvm plans get-plans-purchases --format json | jq '[.[] | .amount] | add')
 echo "Total spent: \$$TOTAL"
 
 # Count purchases by plan
-nvm plans list-purchases --format json | jq 'group_by(.planId) | map({plan: .[0].planId, count: length})'
+nvm plans get-plans-purchases --format json | jq 'group_by(.planId) | map({plan: .[0].planId, count: length})'
 ```
 
 ## Credit Usage Analytics
@@ -374,7 +374,7 @@ MONTHLY_BUDGET=100
 CURRENT_MONTH=$(date +%Y-%m)
 
 # Get all purchases for current month
-PURCHASES=$(nvm plans list-purchases --format json | jq --arg month "$CURRENT_MONTH" '[.[] | select(.date | startswith($month))]')
+PURCHASES=$(nvm plans get-plans-purchases --format json | jq --arg month "$CURRENT_MONTH" '[.[] | select(.date | startswith($month))]')
 
 TOTAL_SPENT=$(echo $PURCHASES | jq '[.[] | .amount] | add')
 
@@ -397,7 +397,7 @@ Analyze which plans provide best value:
 #!/bin/bash
 # Calculate cost per credit for each plan
 
-PLANS=$(nvm plans list --format json)
+PLANS=$(nvm plans get-plans --format json)
 
 echo "Plan Cost Analysis"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -417,7 +417,7 @@ echo $PLANS | jq -r '.[] |
 
 # 1. Browse available plans
 echo "Available Plans:"
-nvm plans list
+nvm plans get-plans
 
 # 2. Get details about a specific plan
 PLAN_ID="123456789012345678"
@@ -520,7 +520,7 @@ Regularly review purchase history:
 
 ```bash
 # Weekly spending report
-nvm plans list-purchases --format json | \
+nvm plans get-plans-purchases --format json | \
   jq 'group_by(.date | split("T")[0]) |
       map({date: .[0].date, total: map(.amount) | add})'
 ```
@@ -531,7 +531,7 @@ Choose plans that match your usage patterns:
 
 ```bash
 # Compare cost efficiency
-nvm plans list --format json | \
+nvm plans get-plans --format json | \
   jq 'map({name, costPerCredit: (.price / .credits)}) |
       sort_by(.costPerCredit)'
 ```
@@ -558,7 +558,7 @@ The plan may be sold out or no longer active:
 nvm plans get-plan <plan-id>
 
 # Look for alternative plans
-nvm plans list
+nvm plans get-plans
 ```
 
 ### "Transaction failed"

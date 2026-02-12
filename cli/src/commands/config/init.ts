@@ -18,7 +18,7 @@ export default class ConfigInit extends BaseCommand {
     }),
     environment: Flags.string({
       description: 'Environment to use',
-      options: ['staging_sandbox', 'staging_live', 'sandbox', 'live', 'custom'],
+      options: ['sandbox', 'live', 'staging_sandbox', 'staging_live'],
       required: false,
     }),
     interactive: Flags.boolean({
@@ -52,12 +52,12 @@ export default class ConfigInit extends BaseCommand {
             name: 'environment',
             message: 'Select environment:',
             choices: [
-              { name: 'Staging Sandbox (recommended for testing)', value: 'staging_sandbox' },
-              { name: 'Staging Live', value: 'staging_live' },
-              { name: 'Sandbox', value: 'sandbox' },
+              { name: 'Sandbox (recommended for testing)', value: 'sandbox' },
               { name: 'Live (production)', value: 'live' },
+              { name: 'Staging Sandbox (internal)', value: 'staging_sandbox' },
+              { name: 'Staging Live (internal)', value: 'staging_live' },
             ],
-            default: environment || 'staging_sandbox',
+            default: environment || 'sandbox',
             when: !environment,
           },
         ])
@@ -81,7 +81,7 @@ export default class ConfigInit extends BaseCommand {
           `  Environment: ${environment}`
       )
 
-      this.formatter.info('You can now use the CLI with: nvm plans list')
+      this.formatter.info('You can now use the CLI with: nvm plans get-plans')
     } catch (error: any) {
       this.handleError(error)
     }

@@ -46,12 +46,12 @@ nvm config init
 This will prompt you for:
 
 - API Key (get one from https://nevermined.app)
-- Environment (staging_sandbox, staging_live, sandbox, live)
+- Environment (sandbox, live)
 
 ### 2. List Available Plans
 
 ```bash
-nvm plans list
+nvm plans get-plans
 ```
 
 ### 3. Get Plan Details
@@ -76,11 +76,11 @@ The CLI stores configuration in `~/.config/nvm/config.json`:
 {
   "profiles": {
     "default": {
-      "nvmApiKey": "nvm-xxx",
-      "environment": "staging_sandbox"
+      "nvmApiKey": "sandbox:eyJxxxxaaaa",
+      "environment": "sandbox"
     },
     "production": {
-      "nvmApiKey": "nvm-yyy",
+      "nvmApiKey": "live:eyJyyyybbbb",
       "environment": "live"
     }
   },
@@ -94,14 +94,14 @@ You can override configuration with environment variables:
 
 ```bash
 export NVM_API_KEY=your-api-key
-export NVM_ENVIRONMENT=staging_sandbox
+export NVM_ENVIRONMENT=sandbox
 ```
 
 ### Using Profiles
 
 ```bash
 # Use specific profile
-nvm --profile production plans list
+nvm --profile production plans get-plans
 
 # Set active profile
 nvm config set activeProfile production
@@ -121,7 +121,7 @@ nvm config set <key> <value>  # Set configuration value
 
 ```bash
 # List all plans
-nvm plans list [--format json]
+nvm plans get-plans [--format json]
 
 # Get plan details
 nvm plans get-plan <plan-id>
@@ -202,19 +202,19 @@ All commands support these flags:
 **Table (default)**: Human-readable table output
 
 ```bash
-nvm plans list
+nvm plans get-plans
 ```
 
 **JSON**: Machine-readable JSON output
 
 ```bash
-nvm plans list --format json
+nvm plans get-plans --format json
 ```
 
 **Quiet**: Minimal output for scripting
 
 ```bash
-nvm plans list --format quiet
+nvm plans get-plans --format quiet
 ```
 
 ## Development
@@ -506,17 +506,17 @@ nvm plans get-plan --help
 
 ```bash
 # Development
-nvm --profile dev plans list
+nvm --profile dev plans get-plans
 
 # Production
-nvm --profile prod plans list
+nvm --profile prod plans get-plans
 ```
 
 ### 2. Use JSON Output for Scripting
 
 ```bash
 # Get plan and extract ID
-PLAN_ID=$(nvm plans list --format json | jq -r '.plans[0].id')
+PLAN_ID=$(nvm plans get-plans --format json | jq -r '.plans[0].id')
 ```
 
 ### 3. Use JSON Files for Complex Inputs

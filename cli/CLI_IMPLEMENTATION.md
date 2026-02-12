@@ -78,14 +78,14 @@ cli/
 
 #### Plans Commands
 
-- ✅ `nvm plans list` - List all payment plans
+- ✅ `nvm plans get-plans` - List all payment plans
   - Table output with key columns
   - JSON output support
   - Uses `payments.plans.getPlans()`
-- ✅ `nvm plans get <planId>` - Get plan details
+- ✅ `nvm plans get-plan <planId>` - Get plan details
   - Full plan object output
   - Uses `payments.plans.getPlan()`
-- ✅ `nvm plans register` - Register plan (placeholder)
+- ✅ `nvm plans register-plan` - Register plan (placeholder)
   - Directs to specialized commands
   - Supports --config for JSON input
 
@@ -139,7 +139,7 @@ cli/
 ./bin/run.js plans --help
 
 # Configuration
-./bin/run.js config init --api-key test-key --environment staging_sandbox
+./bin/run.js config init --api-key test-key --environment sandbox
 ./bin/run.js config show
 
 # Output formats
@@ -153,7 +153,7 @@ cli/
   "profiles": {
     "default": {
       "nvmApiKey": "test-key",
-      "environment": "staging_sandbox"
+      "environment": "sandbox"
     }
   },
   "activeProfile": "default"
@@ -165,7 +165,7 @@ cli/
 ### Current Limitations
 
 1. **Simplified Registration Commands**
-   - `plans register` and `agents register` are placeholders
+   - `plans register-plan` and `agents register` are placeholders
    - Users directed to provide full JSON config files
    - Need specialized commands for each plan type
 
@@ -187,7 +187,7 @@ cli/
 
 - `nvm plans register-credits` - Credits-based plans
 - `nvm plans register-time` - Time-based plans
-- `nvm plans balance <planId>` - Check plan balance
+- `nvm plans get-plan-balance <planId>` - Check plan balance
 - `nvm plans order <planId>` - Order a plan
 - `nvm x402 verify` - Verify permissions
 - `nvm x402 settle` - Settle permissions
@@ -257,10 +257,10 @@ npm install -g @nevermined-io/cli
 nvm config init
 
 # 3. List plans
-nvm plans list
+nvm plans get-plans
 
 # 4. Get plan details
-nvm plans get did:nvm:abc123
+nvm plans get-plan did:nvm:abc123
 
 # 5. Get access token
 nvm x402 get-token did:nvm:abc123
@@ -273,7 +273,7 @@ nvm x402 get-token did:nvm:abc123
 nvm config init --profile production
 
 # Use specific profile
-nvm plans list --profile production
+nvm plans get-plans --profile production
 
 # View all profiles
 nvm config show --all
@@ -283,7 +283,7 @@ nvm config show --all
 
 ```bash
 # For scripting
-nvm plans list --format json | jq '.[] | .did'
+nvm plans get-plans --format json | jq '.[] | .did'
 
 # Quiet mode
 if nvm x402 get-token did:nvm:abc123 --format quiet; then
@@ -314,7 +314,7 @@ const token = await payments.x402.getX402AccessToken(planId)
 
 ```bash
 export NVM_API_KEY=nvm-your-api-key
-export NVM_ENVIRONMENT=staging_sandbox
+export NVM_ENVIRONMENT=sandbox
 export NVM_CONFIG=/custom/path/config.json
 ```
 
@@ -325,7 +325,7 @@ export NVM_CONFIG=/custom/path/config.json
   "profiles": {
     "default": {
       "nvmApiKey": "nvm-api-key",
-      "environment": "staging_sandbox"
+      "environment": "sandbox"
     },
     "production": {
       "nvmApiKey": "nvm-prod-key",
@@ -338,9 +338,7 @@ export NVM_CONFIG=/custom/path/config.json
 
 ### Supported Environments
 
-- `staging_sandbox` - Testing environment (recommended)
-- `staging_live` - Staging live environment
-- `sandbox` - Sandbox environment
+- `sandbox` - Testing environment (recommended for development)
 - `live` - Production environment
 - `custom` - Custom environment configuration
 

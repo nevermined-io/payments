@@ -5,7 +5,7 @@ export default class ConfigSet extends BaseCommand {
   static description = 'Set a configuration value'
 
   static examples = [
-    '<%= config.bin %> <%= command.id %> nvmApiKey nvm-xxx',
+    '<%= config.bin %> <%= command.id %> nvmApiKey sandbox:eyJxxxxaaaabbbbbbbb',
     '<%= config.bin %> <%= command.id %> environment sandbox',
     '<%= config.bin %> <%= command.id %> nvmApiKey nvm-yyy --profile production',
   ]
@@ -34,7 +34,7 @@ export default class ConfigSet extends BaseCommand {
 
       // Validate environment value
       if (args.key === 'environment') {
-        const validEnvironments = ['staging_sandbox', 'staging_live', 'sandbox', 'live']
+        const validEnvironments = ['sandbox', 'live', 'staging_sandbox', 'staging_live']
         if (!validEnvironments.includes(args.value)) {
           this.error(
             `Invalid environment. Must be one of: ${validEnvironments.join(', ')}`,

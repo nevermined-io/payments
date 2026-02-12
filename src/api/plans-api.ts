@@ -249,7 +249,7 @@ export class PlansAPI extends BasePaymentsAPI {
       )
     }
     if (!accessLimit) {
-      accessLimit = creditsConfig.durationSecs > 0n ? 'time' : 'credits'
+      accessLimit = BigInt(creditsConfig.durationSecs) > 0n ? 'time' : 'credits'
     }
     const body = {
       metadataAttributes: planMetadata,
@@ -306,7 +306,7 @@ export class PlansAPI extends BasePaymentsAPI {
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ planId: string }> {
     // Credits plans must have durationSecs = 0 (non-expirable) and either fixed or dynamic redemption
-    if (creditsConfig.durationSecs !== 0n)
+    if (BigInt(creditsConfig.durationSecs) !== 0n)
       throw new PaymentsError(
         'The creditsConfig.durationSecs must be 0 for credits plans (non-expirable)',
       )
@@ -355,7 +355,7 @@ export class PlansAPI extends BasePaymentsAPI {
     creditsConfig: PlanCreditsConfig,
   ): Promise<{ planId: string }> {
     // Time plans must have durationSecs > 0 (expirable) and isRedemptionAmountFixed = false
-    if (creditsConfig.durationSecs === 0n)
+    if (BigInt(creditsConfig.durationSecs) === 0n)
       throw new PaymentsError(
         'The creditsConfig.durationSecs must be greater than 0 for time plans (expirable)',
       )

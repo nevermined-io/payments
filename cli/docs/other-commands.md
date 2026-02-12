@@ -20,7 +20,7 @@ nvm config init
 
 Interactive prompts:
 - NVM API Key
-- Environment (staging_sandbox, sandbox, staging_live, live)
+- Environment (sandbox, live)
 - Profile name (optional)
 
 ### View Configuration
@@ -37,8 +37,8 @@ Output:
 Current Configuration
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Active Profile: default
-Environment:    staging_sandbox
-API Key:        nvm-xxxxx...xxxxx (truncated)
+Environment:    sandbox
+API Key:        sandbox:eyJxxxxaaaa...bbbbbbbb (truncated)
 Config File:    /home/user/.config/nvm/config.json
 ```
 
@@ -48,16 +48,16 @@ Update specific configuration values:
 
 ```bash
 # Set API key
-nvm config set nvmApiKey nvm-xxxxxxxx...
+nvm config set nvmApiKey sandbox:eyJxxxxaaaa...bbbbbbbb
 
 # Set environment
-nvm config set environment staging_sandbox
+nvm config set environment sandbox
 
 # Set active profile
 nvm config set activeProfile production
 
 # Create new profile
-nvm config set profiles.production.nvmApiKey nvm-yyyyyyyy...
+nvm config set profiles.production.nvmApiKey live:eyJyyyybbbb...
 nvm config set profiles.production.environment live
 ```
 
@@ -69,15 +69,15 @@ The config file at `~/.config/nvm/config.json`:
 {
   "profiles": {
     "default": {
-      "nvmApiKey": "nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "environment": "staging_sandbox"
+      "nvmApiKey": "sandbox:eyJxxxxaaaa...bbbbbbbb",
+      "environment": "sandbox"
     },
     "staging": {
-      "nvmApiKey": "nvm-staging-key",
-      "environment": "staging_sandbox"
+      "nvmApiKey": "sandbox-staging-key",
+      "environment": "sandbox"
     },
     "production": {
-      "nvmApiKey": "nvm-production-key",
+      "nvmApiKey": "live:eyJyyyybbbb...",
       "environment": "live"
     }
   },
@@ -326,13 +326,13 @@ Control output format:
 
 ```bash
 # Table output (default)
-nvm plans list
+nvm plans get-plans
 
 # JSON output
-nvm plans list --format json
+nvm plans get-plans --format json
 
 # Quiet output (minimal)
-nvm plans list --format quiet
+nvm plans get-plans --format quiet
 ```
 
 ### Profile Flag
@@ -402,7 +402,7 @@ Switch between environments easily:
 case $1 in
   staging)
     nvm config set activeProfile staging
-    nvm config set environment staging_sandbox
+    nvm config set environment sandbox
     echo "Switched to staging environment"
     ;;
   production)
@@ -565,7 +565,7 @@ echo "
 
 # Plans
 echo "Active Plans:"
-nvm plans list
+nvm plans get-plans
 echo "
 
 # Agents
@@ -575,7 +575,7 @@ echo "
 
 # Balances
 echo "Plan Balances:"
-PLANS=$(nvm plans list --format json | jq -r '.[].id')
+PLANS=$(nvm plans get-plans --format json | jq -r '.[].id')
 for PLAN in $PLANS; do
   echo "  $PLAN:"
   nvm plans get-plan-balance $PLAN | grep "Credits"
@@ -602,7 +602,7 @@ Never commit API keys to version control:
 
 ```bash
 # Use environment variables
-export NVM_API_KEY=nvm-xxxxxxxx...
+export NVM_API_KEY=sandbox:eyJxxxxaaaa...bbbbbbbb
 
 # Or secure config files
 chmod 600 ~/.config/nvm/config.json

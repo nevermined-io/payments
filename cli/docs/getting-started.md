@@ -23,7 +23,7 @@ Before installing the CLI, ensure you have:
 3. Generate a new API key from the "API Keys" section
 4. Save your API key securely - you'll need it for CLI configuration
 
-The API key format is: `nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+The API key format is: `live:eyJxxxxaaaa`
 
 ## Installation
 
@@ -83,18 +83,16 @@ nvm config init
 This will prompt you for:
 - **NVM API Key**: Your API key from nevermined.app
 - **Environment**: Choose from:
-  - `sandbox` - Testing with real blockchain (requires test tokens)
-  - `staging_sandbox` - Development testing (recommended for learning)
+  - `sandbox` - Testing (recommended for learning and development)
   - `live` - Production environment
-  - `staging_live` - Staging production environment
 
 Example:
 
 ```bash
 $ nvm config init
 
-? Enter your NVM API Key: nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-? Select environment: staging_sandbox
+? Enter your NVM API Key: sandbox:eyJxxxxaaaabbbbbbbb
+? Select environment: sandbox
 
 ✅ Configuration saved to /home/user/.config/nvm/config.json
 ```
@@ -107,8 +105,8 @@ The CLI stores configuration in `~/.config/nvm/config.json`:
 {
   "profiles": {
     "default": {
-      "nvmApiKey": "nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "environment": "staging_sandbox"
+      "nvmApiKey": "live:eyJxxxxaaaabbbbbbbb",
+      "environment": "live"
     }
   },
   "activeProfile": "default"
@@ -143,13 +141,13 @@ Override configuration with environment variables:
 
 ```bash
 # Set API key
-export NVM_API_KEY=nvm-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export NVM_API_KEY=sandbox:eyJxxxxaaaabbbbbbbb
 
 # Set environment
-export NVM_ENVIRONMENT=staging_sandbox
+export NVM_ENVIRONMENT=sandbox
 
 # Run commands
-nvm plans list
+nvm plans get-plans
 ```
 
 This is useful for:
@@ -171,8 +169,8 @@ Output:
 Current Configuration
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Active Profile: default
-Environment:    staging_sandbox
-API Key:        nvm-xxxxx...xxxxx (truncated)
+Environment:    sandbox
+API Key:        live:eyJxxxxaaaabbbbbbbb (truncated)
 ```
 
 ## Verify Setup
@@ -180,7 +178,7 @@ API Key:        nvm-xxxxx...xxxxx (truncated)
 Test your configuration by listing available plans:
 
 ```bash
-nvm plans list
+nvm plans get-plans
 ```
 
 If configured correctly, you should see a table of available payment plans.
@@ -191,12 +189,10 @@ Choose the right environment for your use case:
 
 | Environment | Use Case | Blockchain | Payments |
 |-------------|----------|------------|----------|
-| `staging_sandbox` | Development, learning, testing | Test network | Test credits |
-| `sandbox` | Integration testing | Test network | Test tokens |
-| `staging_live` | Pre-production validation | Mainnet | Test credits |
+| `sandbox` | Development, learning, testing | Test network | Test credits |
 | `live` | Production | Mainnet | Real payments |
 
-**Recommendation**: Start with `staging_sandbox` for development and testing.
+**Recommendation**: Start with `sandbox` for development and testing.
 
 ## Common Issues
 

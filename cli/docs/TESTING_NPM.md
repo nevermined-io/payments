@@ -125,7 +125,7 @@ COMMANDS
 ├─────────────┼─────────────────┤
 │ nvmApiKey   │ test-key        │
 ├─────────────┼─────────────────┤
-│ environment │ staging_sandbox │
+│ environment │ sandbox         │
 └─────────────┴─────────────────┘
 ℹ Config file: /home/aitor/.config/nvm/config.json
 ```

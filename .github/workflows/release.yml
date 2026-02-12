@@ -1,0 +1,371 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.17
+          cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Install SDK dependencies
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build SDK
+        run: yarn build
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Generate CLI commands
+        working-directory: cli
+        run: yarn generate || echo "Generation completed"
+
+      - name: Build CLI
+        working-directory: cli
+        run: yarn build:manifest
+
+      - name: Run CLI tests
+        working-directory: cli
+        run: |
+          yarn test:unit
+          yarn test:integration
+
+  publish-sdk:
+    name: Publish SDK to npm
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.17
+          registry-url: https://registry.npmjs.org/
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build SDK
+        run: yarn build
+
+      - name: Publish SDK package
+        run: npm publish --access public || echo "Version may already exist on npm, continuing"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Pack SDK tarball
+        run: npm pack
+
+      - name: Upload SDK tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-tarball
+          path: '*.tgz'
+
+  publish-cli:
+    name: Publish CLI to npm
+    needs: publish-sdk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.17
+          cache: 'yarn'
+          cache-dependency-path: yarn.lock
+          registry-url: https://registry.npmjs.org/
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Publishing version: $VERSION"
+
+      - name: Install SDK dependencies
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build SDK
+        run: yarn build
+
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Update CLI version
+        working-directory: cli
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "${{ steps.version.outputs.version }}" ]; then
+            npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          fi
+          echo "CLI version is ${{ steps.version.outputs.version }}"
+
+      - name: Generate CLI commands
+        working-directory: cli
+        run: yarn generate || echo "Generation completed"
+
+      - name: Build CLI
+        working-directory: cli
+        run: yarn build:manifest
+
+      - name: Publish CLI package
+        working-directory: cli
+        run: npm publish --access public || echo "Version may already exist on npm, continuing"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Pack tarballs
+        working-directory: cli
+        run: |
+          yarn config set ignore-engines true
+          npx oclif pack tarballs --no-xz
+
+      - name: Upload CLI tarballs
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-tarballs
+          path: cli/dist/*.tar.gz
+
+      - name: Commit CLI version update
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add cli/package.json
+          git diff --cached --quiet || git commit -m "chore(cli): bump version to ${{ steps.version.outputs.version }}"
+          git push origin HEAD:main || echo "Could not push to main (protected branch)"
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish-cli
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download SDK tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: sdk-tarball
+          path: sdk-tarball
+
+      - name: Download CLI tarballs
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-tarballs
+          path: cli-tarballs
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [ ! -f "CHANGELOG.md" ]; then
+            echo "use_auto_notes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          CHANGELOG_CONTENT=$(awk "/^## \[?v?${VERSION}\]?/,/^## \[?v?[0-9]/" CHANGELOG.md | sed '1d;$d' || echo "")
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            echo "use_auto_notes=true" >> $GITHUB_OUTPUT
+          else
+            echo "use_auto_notes=false" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG_CONTENT" > /tmp/release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+          USE_AUTO_NOTES="${{ steps.changelog.outputs.use_auto_notes }}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping"
+            exit 0
+          fi
+
+          PRERELEASE_FLAG=""
+          [[ "$VERSION" =~ (alpha|beta|rc|pre) ]] && PRERELEASE_FLAG="--prerelease"
+
+          if [ "$USE_AUTO_NOTES" = "true" ]; then
+            gh release create "$TAG" \
+              --title "Nevermined Payments $TAG" \
+              --generate-notes \
+              $PRERELEASE_FLAG \
+              sdk-tarball/*.tgz cli-tarballs/*.tar.gz
+          else
+            gh release create "$TAG" \
+              --title "Nevermined Payments $TAG" \
+              --notes-file /tmp/release_notes.md \
+              $PRERELEASE_FLAG \
+              sdk-tarball/*.tgz cli-tarballs/*.tar.gz
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+          cat << 'SUMMARY' >> $GITHUB_STEP_SUMMARY
+          ## Release Summary
+
+          | Item | Status |
+          |------|--------|
+          | **Version** | TAG_PLACEHOLDER |
+          | **SDK tarball** | Attached |
+          | **CLI tarballs** | Attached |
+          | **Release URL** | RELEASE_URL_PLACEHOLDER |
+          SUMMARY
+          sed -i "s|TAG_PLACEHOLDER|$TAG|g" $GITHUB_STEP_SUMMARY
+          sed -i "s|RELEASE_URL_PLACEHOLDER|https://github.com/${{ github.repository }}/releases/tag/$TAG|g" $GITHUB_STEP_SUMMARY
+
+  publish-documentation:
+    name: Publish Documentation
+    needs: publish-cli
+    if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-beta') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout payments repository
+        uses: actions/checkout@v4
+        with:
+          path: payments
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Verify SDK documentation exists
+        run: |
+          if [ ! -d "payments/markdown" ]; then
+            echo "Error: markdown directory not found"
+            exit 1
+          fi
+          FILE_COUNT=$(find payments/markdown -name "*.md" -not -name "README.md" | wc -l)
+          echo "Found $FILE_COUNT SDK documentation files"
+          if [ "$FILE_COUNT" -lt 11 ]; then
+            echo "Error: Expected at least 11 SDK documentation files, found $FILE_COUNT"
+            exit 1
+          fi
+
+      - name: Checkout docs_mintlify repository
+        uses: actions/checkout@v4
+        with:
+          repository: nevermined-io/docs_mintlify
+          token: ${{ secrets.API_TOKEN_GITHUB }}
+          path: docs_mintlify
+
+      - name: Update SDK documentation
+        run: |
+          TARGET_DIR="docs_mintlify/docs/api-reference/typescript"
+          mkdir -p "$TARGET_DIR"
+          rm -f "$TARGET_DIR"/*.md
+          cp payments/markdown/*.md "$TARGET_DIR/"
+          rm -f "$TARGET_DIR/README.md"
+          COPIED_COUNT=$(find "$TARGET_DIR" -name "*.md" | wc -l)
+          echo "Copied $COPIED_COUNT SDK documentation files"
+
+      - name: Update CLI documentation
+        run: |
+          mkdir -p docs_mintlify/docs/api-reference/cli
+          cp -r payments/cli/docs/* docs_mintlify/docs/api-reference/cli/ || echo "CLI docs not found, skipping"
+          cp payments/cli/README.md docs_mintlify/docs/api-reference/cli/index.md || echo "CLI README not found"
+
+      - name: Create documentation PR
+        working-directory: docs_mintlify
+        env:
+          GH_TOKEN: ${{ secrets.API_TOKEN_GITHUB }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          BRANCH_NAME="docs/payments-v${{ steps.version.outputs.version }}"
+          git checkout -b "$BRANCH_NAME"
+
+          git add docs/api-reference/typescript docs/api-reference/cli
+
+          git commit -m "$(cat <<'EOF'
+          docs: update Payments SDK and CLI documentation for v${{ steps.version.outputs.version }}
+
+          - Updated SDK documentation in docs/api-reference/typescript/
+          - Updated CLI documentation in docs/api-reference/cli/
+          - Version: ${{ steps.version.outputs.version }}
+          - Auto-generated from nevermined-io/payments@${{ github.sha }}
+
+          Co-Authored-By: GitHub Actions <github-actions[bot]@users.noreply.github.com>
+          EOF
+          )"
+
+          git push origin "$BRANCH_NAME"
+
+          gh pr create \
+            --title "docs: Payments SDK & CLI v${{ steps.version.outputs.version }}" \
+            --body "$(cat <<'EOF'
+          ## Documentation Update
+
+          This PR updates the documentation for Nevermined Payments SDK and CLI to version **v${{ steps.version.outputs.version }}**.
+
+          ### Changes
+          - SDK documentation in `docs/api-reference/typescript/`
+          - CLI documentation in `docs/api-reference/cli/`
+          - Version metadata added to all files
+
+          ### Source
+          - Repository: nevermined-io/payments
+          - Tag: v${{ steps.version.outputs.version }}
+          - Commit: ${{ github.sha }}
+
+          ### Links
+          - [CLI on npm](https://www.npmjs.com/package/@nevermined-io/cli)
+          - [SDK on npm](https://www.npmjs.com/package/@nevermined-io/payments)
+          - [GitHub Release](https://github.com/nevermined-io/payments/releases/tag/v${{ steps.version.outputs.version }})
+
+          ---
+          Auto-generated by GitHub Actions
+          EOF
+          )" \
+            --base main \
+            --head "$BRANCH_NAME"
+
+          gh pr merge "$BRANCH_NAME" --auto --squash || echo "Auto-merge not available"
+
+      - name: Create summary
+        run: |
+          echo "### Documentation Publication Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Source Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Repository**: nevermined-io/docs_mintlify" >> $GITHUB_STEP_SUMMARY
+          echo "- **SDK Docs**: docs/api-reference/typescript/" >> $GITHUB_STEP_SUMMARY
+          echo "- **CLI Docs**: docs/api-reference/cli/" >> $GITHUB_STEP_SUMMARY
