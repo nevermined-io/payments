@@ -30,7 +30,7 @@ const payments = Payments.getInstance({
 })
 
 // Build agent card with payment extension
-const agentCard = payments.a2a.buildPaymentAgentCard(
+const agentCard = Payments.a2a.buildPaymentAgentCard(
   {
     name: 'Weather AI Agent',
     description: 'Real-time weather forecasts and analysis',
@@ -218,7 +218,7 @@ const payments = Payments.getInstance({
 })
 
 // Build agent card
-const agentCard = payments.a2a.buildPaymentAgentCard(
+const agentCard = Payments.a2a.buildPaymentAgentCard(
   {
     name: 'Weather Agent',
     description: 'Weather forecasts and analysis',
@@ -393,7 +393,7 @@ const payments = Payments.getInstance({
 })
 
 // Build agent card
-const agentCard = payments.a2a.buildPaymentAgentCard(
+const agentCard = Payments.a2a.buildPaymentAgentCard(
   {
     name: 'Weather Forecast Agent',
     description: 'Get weather forecasts for any location',

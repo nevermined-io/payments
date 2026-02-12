@@ -121,19 +121,23 @@ const result = await response.json()
 console.log(result)
 ```
 
-### Using Authorization Header (Alternative)
+### Using Authorization Header (A2A Protocol Only)
 
-Many agents also support the standard Authorization header with Bearer scheme:
+The standard `Authorization: Bearer` header is used only within the A2A (Agent-to-Agent) protocol. For direct HTTP requests, always use the `payment-signature` header shown above.
 
 ```typescript
-const response = await fetch('https://agent.example.com/api/v1/tasks', {
+// A2A protocol context only
+const response = await fetch('https://agent.example.com/a2a/', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${accessToken}`,
   },
   body: JSON.stringify({
-    prompt: 'What is the weather in San Francisco?',
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'message/send',
+    params: { /* A2A message */ },
   }),
 })
 ```
@@ -248,7 +252,7 @@ const response = await fetch('https://mcp-agent.example.com/mcp', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${accessToken}`,
+    'payment-signature': accessToken,
   },
   body: JSON.stringify({
     jsonrpc: '2.0',
