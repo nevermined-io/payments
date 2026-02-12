@@ -102,7 +102,7 @@ import { Payments } from "@nevermined-io/payments";
 export default function Home() {
   const payments = new Payments({
     returnUrl: "http://localhost:8080",
-    environment: "staging",
+    environment: "sandbox",
   });
 
   const onLogin = () => {
@@ -258,18 +258,17 @@ console.log(`Balance: ${balance}`)
 Once the user has purchased a plan, they can query the agent:
 
 ```typescript
-const params = await payments.agents.getAgentAccessToken(creditsPlanId, agentId)
+const { accessToken } = await payments.x402.getX402AccessToken(creditsPlanId, agentId)
 
 const agentHTTPOptions = {
   method: 'POST',
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    Authorization:  `Bearer ${params.accessToken}`
+    'payment-signature': accessToken
   },
 }
 const response = await fetch(new URL(agentURL), agentHTTPOptions)
-
 ```
 
 ## MCP (Model Context Protocol)
@@ -417,7 +416,7 @@ const payments = Payments.getInstance({
   environment: "sandbox",
 });
 
-const { accessToken } = await payments.agents.getAgentAccessToken(
+const { accessToken } = await payments.x402.getX402AccessToken(
   process.env.NVM_PLAN_ID!,
   process.env.NVM_AGENT_ID!
 );

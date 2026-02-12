@@ -78,7 +78,7 @@ nvm config set <key> <value>  # Set configuration value
 #### Plans Commands (4)
 
 ```bash
-nvm plans list                # List all plans
+nvm plans get-plans                # List all plans
 nvm plans get <planId>        # Get plan details
 nvm plans balance <planId>    # Check plan balance
 nvm plans register            # Register plan (placeholder)

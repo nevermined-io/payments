@@ -44,7 +44,7 @@ Configuration is saved to `~/.config/nvm/config.json`.
 ### 2. List Plans
 
 ```bash
-nvm plans list
+nvm plans get-plans
 ```
 
 ### 3. Get Plan Details
@@ -94,7 +94,7 @@ Support for multiple profiles:
 nvm config init --profile production
 
 # Use a specific profile
-nvm plans list --profile production
+nvm plans get-plans --profile production
 
 # Show all profiles
 nvm config show --all
@@ -106,13 +106,13 @@ All commands support multiple output formats:
 
 ```bash
 # Table format (default)
-nvm plans list
+nvm plans get-plans
 
 # JSON format
-nvm plans list --format json
+nvm plans get-plans --format json
 
 # Quiet mode (no output, useful for scripts)
-nvm plans list --format quiet
+nvm plans get-plans --format quiet
 ```
 
 ## Commands
@@ -125,7 +125,7 @@ nvm plans list --format quiet
 
 ### Plan Commands
 
-- `nvm plans list` - List all payment plans
+- `nvm plans get-plans` - List all payment plans
 - `nvm plans get <planId>` - Get details of a specific plan
 - `nvm plans register` - Register a new payment plan (see help for options)
 

@@ -78,7 +78,7 @@ cli/
 
 #### Plans Commands
 
-- ✅ `nvm plans list` - List all payment plans
+- ✅ `nvm plans get-plans` - List all payment plans
   - Table output with key columns
   - JSON output support
   - Uses `payments.plans.getPlans()`
@@ -257,7 +257,7 @@ npm install -g @nevermined-io/cli
 nvm config init
 
 # 3. List plans
-nvm plans list
+nvm plans get-plans
 
 # 4. Get plan details
 nvm plans get did:nvm:abc123
@@ -273,7 +273,7 @@ nvm x402 get-token did:nvm:abc123
 nvm config init --profile production
 
 # Use specific profile
-nvm plans list --profile production
+nvm plans get-plans --profile production
 
 # View all profiles
 nvm config show --all
@@ -283,7 +283,7 @@ nvm config show --all
 
 ```bash
 # For scripting
-nvm plans list --format json | jq '.[] | .did'
+nvm plans get-plans --format json | jq '.[] | .did'
 
 # Quiet mode
 if nvm x402 get-token did:nvm:abc123 --format quiet; then
