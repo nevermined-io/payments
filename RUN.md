@@ -279,7 +279,7 @@ Subscribers access your agent by:
 
 1. Ordering your payment plan via `payments.plans.orderPlan(planId)`
 2. Getting an access token via `payments.x402.getX402AccessToken(planId, agentId)`
-3. Including the token in requests: `Authorization: Bearer <token>`
+3. Including the token in requests: `payment-signature: <token>`
 
 Example subscriber code:
 
@@ -297,7 +297,7 @@ const response = await fetch('http://agent-url/mcp', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${accessToken}`,
+    'payment-signature': accessToken,
   },
   body: JSON.stringify({
     jsonrpc: '2.0',

@@ -45,7 +45,7 @@ Nevermined Payments integrates with the A2A protocol to authorize and charge per
 
 - Discovery: publish the Agent Card at `/.well-known/agent.json`.
 - Streaming and resubscribe: set `capabilities.streaming: true` for `message/stream` and `tasks/resubscribe`.
-- Authentication: credentials travel in HTTP headers (e.g., `Authorization: Bearer ...`), not in the JSON‑RPC payload.
+- Authentication: credentials travel in HTTP headers (`payment-signature` header per X402 v2 spec), not in the JSON‑RPC payload.
 - Authorization/charging: the agent emits a final event with `metadata.creditsUsed`; Nevermined validates and burns credits accordingly.
 
 ### Payment extension required in the Agent Card
@@ -100,7 +100,7 @@ import { useEffect } from "react";
 import { Payments } from "@nevermined-io/payments";
 
 export default function Home() {
-  const payments = new Payments({
+  const payments = Payments.getBrowserInstance({
     returnUrl: "http://localhost:8080",
     environment: "sandbox",
   });
@@ -108,10 +108,6 @@ export default function Home() {
   const onLogin = () => {
     payments.connect();
   };
-
-  useEffect(() => {
-    payments.init();
-  }, []);
 
   return (
     <main>
@@ -122,8 +118,6 @@ export default function Home() {
   );
 }
 ```
-
-The `init()` method should be called immediately after the app returns the user to `returnUrl`.
 
 ### Initialize the Payments library in an AI Agent
 
@@ -232,7 +226,7 @@ const { agentId, planId, txHash } = await payments.agents.registerAgentAndPlan(
   planMetadata,
   priceConfig,
   creditsConfig,
-  'time' // Oexplicitly set access limit to 'time' or 'credits'
+  'time' // Optionally set access limit to 'time' or 'credits'
 )
 ```
 
