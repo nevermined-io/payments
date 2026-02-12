@@ -132,7 +132,7 @@ nvm config set activeProfile production
 Use a specific profile for a command:
 
 ```bash
-nvm --profile production plans list
+nvm --profile production plans get-plans
 ```
 
 ### Environment Variables

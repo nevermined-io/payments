@@ -341,7 +341,7 @@ Use a specific configuration profile:
 
 ```bash
 # Use production profile
-nvm --profile production plans list
+nvm --profile production plans get-plans
 
 # Use staging profile
 nvm --profile staging agents list
@@ -501,7 +501,7 @@ done
 Usage:
 
 ```bash
-./multi-profile.sh plans list
+./multi-profile.sh plans get-plans
 ./multi-profile.sh agents list
 ```
 
@@ -590,10 +590,10 @@ Separate configurations for different environments:
 
 ```bash
 # Development
-nvm --profile dev plans list
+nvm --profile dev plans get-plans
 
 # Production
-nvm --profile prod plans list
+nvm --profile prod plans get-plans
 ```
 
 ### 2. Secure Your API Keys
