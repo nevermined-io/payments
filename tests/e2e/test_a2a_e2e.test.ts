@@ -392,7 +392,7 @@ describe('A2A E2E Flow', () => {
         },
       }
 
-      const headers = { Authorization: `Bearer ${accessToken}` }
+      const headers = { 'payment-signature': accessToken }
 
       console.log(`Sending blocking request to real server: ${serverUrl}`)
       const response = await fetch(`${serverUrl}`, {
@@ -491,7 +491,7 @@ describe('A2A E2E Flow', () => {
       params: { message },
     }
 
-    const headers = { Authorization: 'Bearer INVALID_TOKEN' }
+    const headers = { 'payment-signature': 'INVALID_TOKEN' }
 
     try {
       console.log(`Sending invalid token request to real server: ${serverUrl}`)

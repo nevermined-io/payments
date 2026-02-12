@@ -86,14 +86,15 @@ describe('PaymentsA2AServer Middleware', () => {
     return { app: result.app, handler: result.handler, client, paymentsStub, close: result.close }
   }
 
-  test('should return 401 when bearer token is missing', async () => {
+  test('should return 402 when payment-signature header is missing', async () => {
     const { client, close } = createServer()
     servers.push({ close })
     const payload = { jsonrpc: '2.0', method: 'ping', id: 1 }
 
     const response = await client.post('/rpc').send(payload)
 
-    expect(response.status).toBe(401)
+    expect(response.status).toBe(402)
+    expect(response.headers['payment-required']).toBeDefined()
   }, 15000)
 
   test('should return 402 when validation fails', async () => {
@@ -106,7 +107,7 @@ describe('PaymentsA2AServer Middleware', () => {
 
     const payload = { jsonrpc: '2.0', method: 'ping', id: 1 }
 
-    const response = await client.post('/rpc').set('Authorization', 'Bearer TOK').send(payload)
+    const response = await client.post('/rpc').set('payment-signature', 'TOK').send(payload)
 
     expect(response.status).toBe(402)
     expect(response.body.error.message).toMatch(/Payment validation failed/i)

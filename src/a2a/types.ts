@@ -209,6 +209,12 @@ export interface RequestContext {
   userMessage: Message
   /** Unique identifier for the task */
   taskId: string
+  /** Unique identifier for the context/conversation */
+  contextId: string
+  /** Any existing task state (for task continuation scenarios) */
+  task?: Task
+  /** Reference tasks for multi-turn conversations */
+  referenceTasks?: Task[]
   /** Additional metadata from the original request */
   requestMetadata?: Record<string, any>
   /** Any existing task state (for task continuation scenarios) */

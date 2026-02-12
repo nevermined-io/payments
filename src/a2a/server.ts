@@ -15,6 +15,8 @@ import http from 'http'
 import { InMemoryTaskStore, JsonRpcTransportHandler, AgentExecutor } from '@a2a-js/sdk/server'
 import type { AgentCard, HttpRequestContext } from './types.js'
 import { PaymentsRequestHandler } from './paymentsRequestHandler.js'
+import { buildPaymentRequired } from '../x402/facilitator-api.js'
+import { X402_HEADERS } from '../x402/express/middleware.js'
 
 /**
  * Checks if a value is an AsyncIterable (used to detect streaming responses)
@@ -33,8 +35,16 @@ async function sendRpcResult(res: express.Response, result: any): Promise<void> 
     res.setHeader('Connection', 'keep-alive')
     const anyRes = res as any
     if (typeof anyRes.flushHeaders === 'function') anyRes.flushHeaders()
-    for await (const chunk of result as AsyncGenerator<any, void, undefined>) {
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+    try {
+      for await (const chunk of result as AsyncGenerator<any, void, undefined>) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      }
+    } catch (err: any) {
+      const errorEvent = {
+        jsonrpc: '2.0',
+        error: { code: err?.code || -32603, message: err?.message || 'Internal streaming error' },
+      }
+      res.write(`data: ${JSON.stringify(errorEvent)}\n\n`)
     }
     res.end()
     return
@@ -111,8 +121,7 @@ export interface PaymentsA2AServerResult {
  * information for credit validation.
  *
  * Accepts tokens from:
- * - PAYMENT-SIGNATURE header (x402 HTTP transport spec v2)
- * - Authorization: Bearer header (A2A protocol / general use)
+ * - payment-signature header (x402 HTTP transport spec v2)
  *
  * @param req - Express request object
  * @param res - Express response object
@@ -127,30 +136,6 @@ async function bearerTokenMiddleware(
   // Only process POST requests (A2A uses POST for all operations)
   if (req.method !== 'POST') {
     return next()
-  }
-
-  // Try x402 HTTP spec v2 header first, then fall back to Authorization: Bearer
-  const paymentSignatureHeader = req.headers['payment-signature'] as string | undefined
-  const authHeader = req.headers['authorization'] as string | undefined
-
-  let bearerToken: string | undefined
-
-  if (paymentSignatureHeader) {
-    // x402 HTTP spec v2: PAYMENT-SIGNATURE header (base64-encoded PaymentPayload)
-    bearerToken = paymentSignatureHeader
-  } else if (authHeader?.toLowerCase().startsWith('bearer ')) {
-    // A2A protocol / general use: Authorization: Bearer header
-    bearerToken = authHeader.slice(7).trim()
-  }
-
-  if (!bearerToken) {
-    res.status(401).json({
-      error: {
-        code: -32001,
-        message: 'Missing payment token. Provide PAYMENT-SIGNATURE or Authorization: Bearer header.',
-      },
-    })
-    return
   }
 
   // Transform relative URL to absolute URL
@@ -171,13 +156,35 @@ async function bearerTokenMiddleware(
     return
   }
 
+  // Build paymentRequired for 402 responses
+  const planId = (paymentExtension.params?.planId as string) || ''
+  const agentId = paymentExtension.params?.agentId as string
+  const paymentRequired = buildPaymentRequired(planId, {
+    endpoint: absoluteUrl,
+    agentId,
+    httpVerb: 'POST',
+  })
+  const paymentRequiredHeader = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
+
+  // x402 HTTP spec v2: payment-signature header
+  const bearerToken = req.headers['payment-signature'] as string | undefined
+
+  if (!bearerToken) {
+    res
+      .status(402)
+      .set(X402_HEADERS.PAYMENT_REQUIRED, paymentRequiredHeader)
+      .json({
+        error: {
+          code: -32001,
+          message: 'Missing payment-signature header.',
+        },
+      })
+    return
+  }
+
   let validation: any
   try {
-    validation = await handler.validateRequest(
-      bearerToken,
-      absoluteUrl,
-      req.method,
-    )
+    validation = await handler.validateRequest(bearerToken, absoluteUrl, req.method)
     if (!validation?.balance?.isSubscriber) {
       res.status(402).json({
         error: {
@@ -318,7 +325,9 @@ export class PaymentsA2AServer {
 
     if (exposeDefaultRoutes) {
       // Apply bearer token middleware for all requests under basePath
-      app.use(basePath, express.json(), bearerTokenMiddleware.bind(null, handler))
+      app.use(basePath, express.json(), (req, res, next) => {
+        bearerTokenMiddleware(handler, req, res, next).catch(next)
+      })
 
       // Apply hooks middleware after body parsing and validation
       if (hooks) {
@@ -366,6 +375,11 @@ export class PaymentsA2AServer {
           const result = await transport.handle(req.body)
           await sendRpcResult(res, result)
         } catch (err: any) {
+          if (res.headersSent) {
+            console.error('[PaymentsA2A] Error after headers sent:', err?.message)
+            res.end()
+            return
+          }
           res.status(500).json({
             error: { code: -32603, message: err?.message || 'Internal server error' },
           })

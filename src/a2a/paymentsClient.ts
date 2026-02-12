@@ -9,6 +9,8 @@ import {
   SetTaskPushNotificationConfigResponse,
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
+  JSONRPCResponse,
+  JSONRPCErrorResponse,
 } from '@a2a-js/sdk'
 import { A2AClient } from '@a2a-js/sdk/client'
 import { v4 as uuidv4 } from 'uuid'
@@ -82,8 +84,8 @@ export class PaymentsClient extends A2AClient {
    * @param response - The JSON-RPC response to check
    * @returns true if the response contains an error, false otherwise
    */
-  private isErrorResponse(response: any): boolean {
-    return response && typeof response === 'object' && 'error' in response
+  isErrorResponse(response: JSONRPCResponse): response is JSONRPCErrorResponse {
+    return response != null && typeof response === 'object' && 'error' in response
   }
 
   /**
@@ -93,7 +95,7 @@ export class PaymentsClient extends A2AClient {
    */
   public async sendA2AMessage(params: MessageSendParams): Promise<SendMessageResponse> {
     const accessToken = await this._getX402AccessToken()
-    const headers = { Authorization: `Bearer ${accessToken}` }
+    const headers = { 'payment-signature': accessToken }
     return this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
       'message/send',
       params,
@@ -133,7 +135,7 @@ export class PaymentsClient extends A2AClient {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
-        Authorization: `Bearer ${accessToken}`,
+        'payment-signature': accessToken,
       },
       body: JSON.stringify(rpcRequest),
     })
@@ -315,7 +317,7 @@ export class PaymentsClient extends A2AClient {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
-        Authorization: `Bearer ${accessToken}`,
+        'payment-signature': accessToken,
       },
       body: JSON.stringify(rpcRequest),
     })
@@ -357,7 +359,7 @@ export class PaymentsClient extends A2AClient {
    */
   public async getA2ATask(params: TaskQueryParams): Promise<GetTaskResponse> {
     const accessToken = await this._getX402AccessToken()
-    const headers = { Authorization: `Bearer ${accessToken}` }
+    const headers = { 'payment-signature': accessToken }
     return this._postRpcRequestWithHeaders<TaskQueryParams, GetTaskResponse>(
       'tasks/get',
       params,
@@ -374,7 +376,7 @@ export class PaymentsClient extends A2AClient {
     params: TaskPushNotificationConfig,
   ): Promise<SetTaskPushNotificationConfigResponse> {
     const accessToken = await this._getX402AccessToken()
-    const headers = { Authorization: `Bearer ${accessToken}` }
+    const headers = { 'payment-signature': accessToken }
     return this._postRpcRequestWithHeaders<
       TaskPushNotificationConfig,
       SetTaskPushNotificationConfigResponse
@@ -390,7 +392,7 @@ export class PaymentsClient extends A2AClient {
     params: TaskIdParams,
   ): Promise<GetTaskPushNotificationConfigResponse> {
     const accessToken = await this._getX402AccessToken()
-    const headers = { Authorization: `Bearer ${accessToken}` }
+    const headers = { 'payment-signature': accessToken }
     return this._postRpcRequestWithHeaders<TaskIdParams, GetTaskPushNotificationConfigResponse>(
       'tasks/pushNotificationConfig/get',
       params,
