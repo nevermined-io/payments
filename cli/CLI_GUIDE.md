@@ -101,7 +101,7 @@ export NVM_ENVIRONMENT=sandbox
 
 ```bash
 # Use specific profile
-nvm --profile production plans list
+nvm --profile production plans get-plans
 
 # Set active profile
 nvm config set activeProfile production
@@ -506,10 +506,10 @@ nvm plans get-plan --help
 
 ```bash
 # Development
-nvm --profile dev plans list
+nvm --profile dev plans get-plans
 
 # Production
-nvm --profile prod plans list
+nvm --profile prod plans get-plans
 ```
 
 ### 2. Use JSON Output for Scripting
