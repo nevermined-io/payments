@@ -280,11 +280,11 @@ plans.forEach(plan => {
 
 ### Get Plans for an Agent
 
-To find agents associated with a plan, use the agents API:
+To find plans associated with an agent, use the agents API:
 
 ```typescript
 // Get all payment plans associated with an agent
-const plans = await payments.agents.getAgentPlans(agentId)
+const { plans } = await payments.agents.getAgentPlans(agentId)
 
 plans.forEach(plan => {
   console.log(`Plan: ${plan.name} (${plan.planId})`)

@@ -210,7 +210,7 @@ const { agentId } = await payments.agents.registerAgent(agentMetadata, api, [pla
 
 // Subscriber: Access agent
 const { accessToken } = await payments.x402.getX402AccessToken(planId, agentId)
-fetch(agentUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+fetch(agentUrl, { headers: { 'payment-signature': accessToken } })
 
 // Agent: Verify and settle
 const result = await payments.facilitator.verifyPermissions({ planId, x402AccessToken, ... })

@@ -121,26 +121,7 @@ const result = await response.json()
 console.log(result)
 ```
 
-### A2A Protocol Example
-
-The A2A (Agent-to-Agent) protocol uses the same `payment-signature` header for authentication. Here's an example of making an A2A request:
-
-```typescript
-// A2A protocol request
-const response = await fetch('https://agent.example.com/a2a/', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'payment-signature': accessToken,
-  },
-  body: JSON.stringify({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'message/send',
-    params: { /* A2A message */ },
-  }),
-})
-```
+**Note**: The A2A (Agent-to-Agent) protocol also uses the `payment-signature` header for authentication. For A2A integration details, see the [A2A Integration](./a2a-integration) guide.
 
 ## Complete Query Example
 

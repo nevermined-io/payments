@@ -314,9 +314,9 @@ console.log(`Advanced agent registered: ${agentId}`)
 
 // Retrieve and verify
 const agent = await payments.agents.getAgent(agentId)
-const plans = await payments.agents.getAgentPlans(agentId)
+const { plans, total, page, offset } = await payments.agents.getAgentPlans(agentId)
 
-console.log(`Agent has ${plans.length} associated plans`)
+console.log(`Agent has ${plans.length} plans on page ${page} (offset ${offset}, total ${total})`)
 ```
 
 ## Best Practices

@@ -101,7 +101,8 @@ payments.mcp.registerTool(
   {
     // Dynamic credits based on text length
     credits: (ctx) => {
-      const textLength = (ctx.args as any).text.length
+      const { text } = ctx.args as { text: string }
+      const textLength = text.length
       return BigInt(Math.ceil(textLength / 1000))  // 1 credit per KB
     }
   }
