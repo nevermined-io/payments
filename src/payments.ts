@@ -13,6 +13,7 @@ import { PaymentsA2AServer } from './a2a/server.js'
 import { buildPaymentAgentCard } from './a2a/agent-card.js'
 import * as mcpModule from './mcp/index.js'
 import { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
+import { DelegationAPI } from './delegation/delegation-api.js'
 import { FacilitatorAPI } from './x402/facilitator-api.js'
 import { X402TokenAPI } from './x402/token.js'
 
@@ -37,6 +38,7 @@ export class Payments extends BasePaymentsAPI {
   public observability!: ObservabilityAPI
   public organizations!: OrganizationsAPI
   public contracts!: ContractsAPI
+  public delegation!: DelegationAPI
   public facilitator!: FacilitatorAPI
   public x402!: X402TokenAPI
   private _a2aRegistry?: ClientRegistry
@@ -177,6 +179,7 @@ export class Payments extends BasePaymentsAPI {
     this.organizations = OrganizationsAPI.getInstance(options)
     this.query = AIQueryApi.getInstance()
     this.contracts = new ContractsAPI(options)
+    this.delegation = DelegationAPI.getInstance(options)
     this.facilitator = FacilitatorAPI.getInstance(options)
     this.x402 = X402TokenAPI.getInstance(options)
   }
