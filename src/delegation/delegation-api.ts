@@ -22,7 +22,7 @@
  * const { delegationToken, delegationId } = await payments.delegation.createDelegation({
  *   providerPaymentMethodId: methods[0].id,
  *   spendingLimitCents: 10000, // $100
- *   durationDays: 7,
+ *   durationSecs: 604800, // 7 days
  * })
  *
  * // 4. Use the delegationToken as the x402 access token (payment-signature header)
@@ -49,8 +49,8 @@ export interface CreateDelegationParams {
   providerPaymentMethodId: string
   /** Maximum spending limit in cents */
   spendingLimitCents: number
-  /** Duration of the delegation in days */
-  durationDays: number
+  /** Duration of the delegation in seconds */
+  durationSecs: number
   /** Currency code (default: 'usd') */
   currency?: string
   /** Optional: restrict to a specific plan */
