@@ -29,6 +29,13 @@ export const API_URL_CREATE_USER = '/api/v1/organizations/account'
 export const API_URL_GET_MEMBERS = '/api/v1/organizations/members'
 export const API_URL_CONNECT_STRIPE_ACCOUNT = '/api/v1/stripe/account'
 
+// Delegation endpoints
+export const API_URL_DELEGATION_SETUP_INTENT = '/api/v1/delegation/setup-intent'
+export const API_URL_DELEGATION_CREATE = '/api/v1/delegation/create'
+export const API_URL_DELEGATION_LIST = '/api/v1/delegation'
+export const API_URL_DELEGATION_GET = '/api/v1/delegation'
+export const API_URL_DELEGATION_PAYMENT_METHODS = '/api/v1/delegation/payment-methods'
+
 export interface BackendApiOptions {
   /**
    * The host of the backend server

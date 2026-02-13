@@ -9,6 +9,18 @@ export * from './api/observability-api/observability-api.js'
 export type { BackendApiOptions } from './api/nvm-api.js'
 export { ContractsAPI } from './api/contracts-api.js'
 
+// Delegation types
+export { DelegationAPI } from './delegation/delegation-api.js'
+export type {
+  CreateDelegationParams,
+  PaymentMethodSummary,
+  DelegationSummary,
+  DelegationDetails,
+  DelegationListResult,
+  DelegationTransaction,
+  DelegationTransactionListResult,
+} from './delegation/delegation-api.js'
+
 // x402 utilities and types
 export { buildPaymentRequired } from './x402/facilitator-api.js'
 export type {
