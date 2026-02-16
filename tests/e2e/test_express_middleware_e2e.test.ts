@@ -141,12 +141,28 @@ describe('Express Payment Middleware E2E', () => {
           agentId,
           credits: 1,
         },
+        'POST /dynamic': {
+          planId,
+          agentId,
+          // Dynamic credits function that reads res.locals set by the handler.
+          // Before the fix this is evaluated BEFORE next(), so res.locals is
+          // empty and returns 0 → backend falls back to plan maxCreditsPerRequest (2).
+          credits: (_req, res) => {
+            return res.locals.creditsToCharge || 0
+          },
+        },
       }),
     )
 
     // Simple endpoint that returns a response
     app.post('/ask', (_req, res) => {
       res.json({ response: 'Hello from the protected endpoint!' })
+    })
+
+    // Endpoint that sets dynamic credits via res.locals
+    app.post('/dynamic', (_req, res) => {
+      res.locals.creditsToCharge = 1
+      res.json({ response: 'Dynamic credits endpoint' })
     })
 
     // Start server on random port
@@ -238,6 +254,40 @@ describe('Express Payment Middleware E2E', () => {
     expect(settlement.success).toBe(true)
     expect(settlement.creditsRedeemed).toBeDefined()
     console.log('Settlement receipt:', JSON.stringify(settlement, null, 2))
+  })
+
+  test('should settle dynamic credits based on res.locals, not plan max', async () => {
+    expect(serverUrl).not.toBeNull()
+    expect(x402AccessToken).not.toBeNull()
+
+    const response = await fetch(`${serverUrl}/dynamic`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [X402_HEADERS.PAYMENT_SIGNATURE]: x402AccessToken,
+      },
+      body: JSON.stringify({ query: 'test' }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const body = await response.json()
+    expect(body.response).toBe('Dynamic credits endpoint')
+
+    // Decode the settlement receipt
+    const paymentResponseHeader = response.headers.get(X402_HEADERS.PAYMENT_RESPONSE)
+    expect(paymentResponseHeader).not.toBeNull()
+
+    const settlement = JSON.parse(
+      Buffer.from(paymentResponseHeader!, 'base64').toString('utf-8'),
+    )
+    expect(settlement.success).toBe(true)
+
+    // The handler sets res.locals.creditsToCharge = 1, so settlement should
+    // burn exactly 1 credit. Before the fix, the credits function runs before
+    // the handler → returns 0 → backend falls back to maxCreditsPerRequest (2).
+    expect(settlement.creditsRedeemed).toBe('1')
+    console.log(`Dynamic credits settlement: ${JSON.stringify(settlement, null, 2)}`)
   })
 
   test('should reject request with invalid token', async () => {
