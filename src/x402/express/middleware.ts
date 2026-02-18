@@ -340,28 +340,41 @@ export function paymentMiddleware(
         // This ensures credits are burned and payment-response header is included
         const originalJson = res.json.bind(res)
         res.json = function (body: unknown) {
-          // Settle credits synchronously before sending response
-          // Pass agentRequestId to enable observability updates
-          payments.facilitator
-            .settlePermissions({
-              paymentRequired,
-              x402AccessToken: token,
-              maxAmount: BigInt(creditsToVerify),
-              agentRequestId: paymentContext.agentRequestId,
-            })
-            .then((settlement) => {
-              // Add settlement response header (base64-encoded per x402 spec)
-              const settlementBase64 = Buffer.from(JSON.stringify(settlement)).toString('base64')
-              res.setHeader(X402_HEADERS.PAYMENT_RESPONSE, settlementBase64)
+          // Re-evaluate dynamic credits now that the handler has run and
+          // res.locals is populated. For fixed (numeric) credits this is a no-op.
+          const settlePromise = (
+            typeof credits === 'function'
+              ? Promise.resolve(credits(req, res))
+              : Promise.resolve(creditsToVerify)
+          ).then((creditsToSettle) => {
+            // Update payment context so downstream consumers see the actual value
+            paymentContext.creditsToSettle = creditsToSettle
 
-              // Hook: after settlement
-              if (onAfterSettle) {
-                return Promise.resolve(onAfterSettle(req, creditsToVerify, settlement)).then(
-                  () => settlement,
-                )
-              }
-              return settlement
-            })
+            // Settle credits before sending response
+            // Pass agentRequestId to enable observability updates
+            return payments.facilitator
+              .settlePermissions({
+                paymentRequired,
+                x402AccessToken: token,
+                maxAmount: BigInt(creditsToSettle),
+                agentRequestId: paymentContext.agentRequestId,
+              })
+              .then((settlement) => {
+                // Add settlement response header (base64-encoded per x402 spec)
+                const settlementBase64 = Buffer.from(JSON.stringify(settlement)).toString('base64')
+                res.setHeader(X402_HEADERS.PAYMENT_RESPONSE, settlementBase64)
+
+                // Hook: after settlement
+                if (onAfterSettle) {
+                  return Promise.resolve(onAfterSettle(req, creditsToSettle, settlement)).then(
+                    () => settlement,
+                  )
+                }
+                return settlement
+              })
+          })
+
+          settlePromise
             .catch((settleError) => {
               console.error('Payment settlement failed:', settleError)
               // Still send response even if settlement fails

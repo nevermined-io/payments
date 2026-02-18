@@ -80,7 +80,7 @@
 ### Real API Tests
 **File**: `test/integration/real-api.test.ts`
 
-- Tests plans list from API
+- Tests plans get-plans from API
 - Tests plans get from API
 - Tests X402 token generation
 - Tests error handling

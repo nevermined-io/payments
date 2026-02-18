@@ -186,7 +186,7 @@ nvm config set profiles.production.nvmApiKey live:eyJxxxxaaaabbbbbbbb
 nvm config set profiles.production.environment live
 
 # Use production profile
-nvm --profile production plans list
+nvm --profile production plans get-plans
 
 # Switch active profile
 nvm config set activeProfile production

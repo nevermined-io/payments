@@ -341,7 +341,7 @@ All commands support the `--format` flag with three options:
 
 Commands support the `--profile` flag to use specific configuration profiles.
 
-**Example**: `nvm --profile production plans list`
+**Example**: `nvm --profile production plans get-plans`
 
 **Status**: ✅ Flag working correctly
 

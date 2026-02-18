@@ -31,7 +31,7 @@ Results:
 ✅ config init         # Initialize configuration
 ✅ config show         # Display configuration
 ✅ config set          # Set configuration values
-✅ plans list          # List payment plans
+✅ plans get-plans     # List payment plans
 ✅ plans get           # Get plan details
 ✅ plans balance       # Check plan balance
 ✅ plans register      # Register plan (placeholder)
