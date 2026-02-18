@@ -45,7 +45,6 @@ import type {
   VerifyPermissionsResult,
   SettlePermissionsParams,
   SettlePermissionsResult,
-  X402PaymentRequired,
   X402Resource,
 } from './facilitator-api.js'
 import { PaymentsError } from '../common/payments.error.js'
@@ -214,7 +213,7 @@ export class VisaFacilitatorAPI extends FacilitatorAPI {
    * Sends the base64-encoded PaymentPayload as a PAYMENT-SIGNATURE header
    * to the Visa backend's POST /verify endpoint.
    *
-   * @param params.x402AccessToken — the base64-encoded PaymentPayload from the client
+   * @param params - contains x402AccessToken, the base64-encoded PaymentPayload from the client
    */
   override async verifyPermissions(
     params: VerifyPermissionsParams,
@@ -269,7 +268,7 @@ export class VisaFacilitatorAPI extends FacilitatorAPI {
    * Sends the base64-encoded PaymentPayload as a PAYMENT-SIGNATURE header
    * to the Visa backend's POST /settle endpoint.
    *
-   * @param params.x402AccessToken — the base64-encoded PaymentPayload from the client
+   * @param params - contains x402AccessToken, the base64-encoded PaymentPayload from the client
    */
   override async settlePermissions(
     params: SettlePermissionsParams,
