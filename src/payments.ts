@@ -15,6 +15,8 @@ import * as mcpModule from './mcp/index.js'
 import { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
 import { FacilitatorAPI } from './x402/facilitator-api.js'
 import { X402TokenAPI } from './x402/token.js'
+import { VisaFacilitatorAPI } from './x402/visa-facilitator-api.js'
+import { VisaTokenAPI } from './x402/visa-token-api.js'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -177,8 +179,13 @@ export class Payments extends BasePaymentsAPI {
     this.organizations = OrganizationsAPI.getInstance(options)
     this.query = AIQueryApi.getInstance()
     this.contracts = new ContractsAPI(options)
-    this.facilitator = FacilitatorAPI.getInstance(options)
-    this.x402 = X402TokenAPI.getInstance(options)
+    if (options.scheme === 'visa') {
+      this.facilitator = VisaFacilitatorAPI.getInstance(options)
+      this.x402 = VisaTokenAPI.getInstance(options)
+    } else {
+      this.facilitator = FacilitatorAPI.getInstance(options)
+      this.x402 = X402TokenAPI.getInstance(options)
+    }
   }
 
   /**

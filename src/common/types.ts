@@ -3,6 +3,13 @@ import { EnvironmentName } from '../environments.js'
 /**
  * Options to initialize the Payments class.
  */
+/**
+ * The payment scheme to use.
+ * - 'nvm' (default): Nevermined credit-based payments via ERC-4337 smart accounts.
+ * - 'visa': Visa Token Service fiat payments via x402 HTTP transport.
+ */
+export type PaymentScheme = 'nvm' | 'visa'
+
 export interface PaymentOptions {
   /**
    * The Nevermined environment to connect to.
@@ -14,9 +21,17 @@ export interface PaymentOptions {
   /**
    * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
    * You can get your API key by logging in to the Nevermined App.
+   * Required for 'nvm' scheme. Optional for 'visa' scheme.
    * @see https://nevermined.ai/docs/tutorials/integration/nvm-api-keys
    */
   nvmApiKey: string
+
+  /**
+   * The payment scheme to use. Defaults to 'nvm'.
+   * - 'nvm': Nevermined credit-based payments
+   * - 'visa': Visa Token Service fiat payments
+   */
+  scheme?: PaymentScheme
 
   /**
    * The URL to return to the app after a successful login.

@@ -1,7 +1,7 @@
 import { decodeJwt } from 'jose'
 import { jsonReplacer } from '../common/helper.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions } from '../common/types.js'
+import { PaymentOptions, PaymentScheme } from '../common/types.js'
 import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.js'
 
 /**
@@ -10,6 +10,7 @@ import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.
  */
 export abstract class BasePaymentsAPI {
   protected nvmApiKey: string
+  protected scheme: PaymentScheme
   protected environment: EnvironmentInfo
   protected environmentName: EnvironmentName
   protected returnUrl: string
@@ -21,14 +22,22 @@ export abstract class BasePaymentsAPI {
 
   constructor(options: PaymentOptions) {
     this.nvmApiKey = options.nvmApiKey
+    this.scheme = options.scheme || 'nvm'
     this.returnUrl = options.returnUrl || ''
     this.environment = Environments[options.environment as EnvironmentName]
     this.environmentName = options.environment
     this.appId = options.appId
     this.version = options.version
-    const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
-    this.accountAddress = accountAddress
-    this.heliconeApiKey = heliconeApiKey
+
+    if (this.scheme === 'visa') {
+      // Visa scheme does not use JWT-based NVM API keys
+      this.accountAddress = ''
+      this.heliconeApiKey = ''
+    } else {
+      const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
+      this.accountAddress = accountAddress
+      this.heliconeApiKey = heliconeApiKey
+    }
   }
 
   /**
