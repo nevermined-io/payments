@@ -94,7 +94,10 @@ npx @nevermined-io/cli --help
 ### First Steps
 
 ```bash
-# Initialize configuration
+# Authenticate via browser (recommended)
+nvm login
+
+# Or initialize configuration manually
 nvm config init
 
 # List available plans
@@ -113,6 +116,10 @@ nvm x402token get-x402-access-token <plan-id>
 ### Common Commands
 
 ```bash
+# Authentication
+nvm login                    # Authenticate via browser
+nvm logout                   # Remove API key from config
+
 # Configuration
 nvm config init              # Initialize configuration
 nvm config show              # Display current config
@@ -341,7 +348,10 @@ npm install -g @nevermined-io/cli
 ### API Key Errors
 
 ```bash
-# Initialize configuration
+# Browser login (recommended)
+nvm login
+
+# Or initialize configuration manually
 nvm config init
 
 # Or set environment variable

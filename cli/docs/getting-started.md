@@ -70,6 +70,42 @@ yarn build:manifest
 ./bin/run.js --help
 ```
 
+## Authentication
+
+### Browser Login (Recommended)
+
+The quickest way to authenticate:
+
+```bash
+nvm login
+```
+
+This opens your browser to sign in with Google, X, or email. After login,
+your API key is automatically captured and saved to your CLI config.
+
+Options:
+- `--environment <env>` — Target environment (default: sandbox)
+- `--profile <name>` — Config profile to save to (default: default)
+- `--no-browser` — Print the login URL instead of opening the browser
+
+Examples:
+
+```bash
+nvm login --environment live
+nvm login --profile production --environment live
+nvm login --no-browser
+```
+
+### Logout
+
+Remove your API key from the CLI config:
+
+```bash
+nvm logout
+nvm logout --profile production
+nvm logout --all-profiles
+```
+
 ## Configuration
 
 ### Interactive Setup
@@ -210,7 +246,10 @@ After global installation, if `nvm` command is not found:
 If you get an API key error:
 
 ```bash
-# Initialize configuration
+# Browser login (recommended)
+nvm login
+
+# Or initialize configuration manually
 nvm config init
 
 # Or set environment variable

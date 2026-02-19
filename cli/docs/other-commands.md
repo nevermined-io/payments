@@ -10,6 +10,27 @@ Reference guide for additional CLI commands including configuration, facilitator
 
 ## Configuration Commands
 
+### Login
+
+Authenticate via browser login. Opens your browser, waits for you to sign in, and saves the API key to your CLI config:
+
+```bash
+nvm login
+nvm login --environment live
+nvm login --profile production --environment live
+nvm login --no-browser  # Print URL instead of opening browser
+```
+
+### Logout
+
+Remove your API key from the local configuration so you need to authenticate again:
+
+```bash
+nvm logout
+nvm logout --profile production
+nvm logout --all-profiles  # Remove API keys from every profile
+```
+
 ### Initialize Configuration
 
 Set up your CLI configuration interactively:
