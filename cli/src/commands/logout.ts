@@ -24,6 +24,10 @@ export default class Logout extends BaseCommand {
 
       if (flags['all-profiles']) {
         const profiles = await this.configManager.listProfiles()
+        if (profiles.length === 0) {
+          this.formatter.warning('No profiles found.')
+          return
+        }
         for (const name of profiles) {
           await this.configManager.remove('nvmApiKey', name)
         }
