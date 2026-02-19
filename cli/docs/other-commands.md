@@ -44,19 +44,26 @@ Interactive prompts:
 - Environment (sandbox, live)
 - Profile name (optional)
 
+Flags:
+- `--api-key` — Provide API key non-interactively
+- `--environment` — Set environment (sandbox, live, staging_sandbox, staging_live)
+- `-i, --interactive` — Interactive mode (default: true)
+
 ### View Configuration
 
 Display your current configuration:
 
 ```bash
 nvm config show
+
+# Show all profiles
+nvm config show --all
 ```
 
 Output:
 
 ```
 Current Configuration
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Active Profile: default
 Environment:    sandbox
 API Key:        sandbox:eyJxxxxaaaa...bbbbbbbb (truncated)
@@ -76,10 +83,6 @@ nvm config set environment sandbox
 
 # Set active profile
 nvm config set activeProfile production
-
-# Create new profile
-nvm config set profiles.production.nvmApiKey live:eyJyyyybbbb...
-nvm config set profiles.production.environment live
 ```
 
 ### Configuration File Structure
@@ -91,10 +94,6 @@ The config file at `~/.config/nvm/config.json`:
   "profiles": {
     "default": {
       "nvmApiKey": "sandbox:eyJxxxxaaaa...bbbbbbbb",
-      "environment": "sandbox"
-    },
-    "staging": {
-      "nvmApiKey": "sandbox-staging-key",
       "environment": "sandbox"
     },
     "production": {
@@ -112,7 +111,7 @@ Facilitator commands are used by agent owners to verify and settle permissions (
 
 ### Verify Permissions
 
-Verify that a request has valid permissions before processing:
+Verify that a subscriber has permission to use credits from a payment plan. This simulates credit usage without actually burning credits:
 
 ```bash
 nvm facilitator verify-permissions \
@@ -123,29 +122,15 @@ nvm facilitator verify-permissions \
 
 ```json
 {
-  "planId": ""123456789012345678"",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "creditsRequired": 5
+  "paymentRequired": "eyJhbGci...",
+  "x402AccessToken": "eyJhbGci...",
+  "maxAmount": "5"
 }
-```
-
-Output:
-
-```
-Permission Verification
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Status: Valid
-Plan ID: "123456789012345678"
-Subscriber: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-Credits Available: 100
-Credits Required: 5
-Can Proceed: true
-Signature Valid: true
 ```
 
 ### Settle Permissions
 
-Burn credits after processing a request:
+Settle (burn) credits from a subscriber's payment plan. This executes the actual credit consumption:
 
 ```bash
 nvm facilitator settle-permissions \
@@ -156,150 +141,69 @@ nvm facilitator settle-permissions \
 
 ```json
 {
-  "planId": ""123456789012345678"",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "creditsBurned": 5,
-  "executionId": "exec-20240315-001",
-  "metadata": {
-    "requestType": "chat",
-    "duration": 1234,
-    "tokensUsed": 500
-  }
+  "paymentRequired": "eyJhbGci...",
+  "x402AccessToken": "eyJhbGci...",
+  "maxAmount": "5"
 }
-```
-
-Output:
-
-```
-Credits Settled
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Plan ID: "123456789012345678"
-Credits Burned: 5
-Previous Balance: 100
-New Balance: 95
-Transaction Hash: 0x1234567890abcdef...
-Execution ID: exec-20240315-001
-Status: Confirmed
-```
-
-### Batch Verification
-
-Verify multiple requests at once:
-
-```bash
-#!/bin/bash
-# Batch permission verification
-
-REQUESTS=("request1.json" "request2.json" "request3.json")
-
-for REQUEST in "${REQUESTS[@]}"; do
-  echo "Verifying $REQUEST..."
-  RESULT=$(nvm facilitator verify-permissions \
-    --params $REQUEST \
-    --format json)
-
-  CAN_PROCEED=$(echo $RESULT | jq -r '.canProceed')
-
-  if [ "$CAN_PROCEED" = "true" ]; then
-    echo "✅ Valid - Processing request"
-    # Process request here
-  else
-    echo "❌ Invalid - Rejecting request"
-  fi
-done
 ```
 
 ## Organizations Commands
 
 Manage organization members and settings.
 
-### Create Organization Member
-
-Add a new member to your organization:
-
-```bash
-nvm organizations create-member \
-  --member-data member.json
-```
-
-**member.json**:
-
-```json
-{
-  "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
-  "role": "developer",
-  "permissions": ["read", "write"],
-  "metadata": {
-    "name": "John Doe",
-    "email": "john@example.com",
-    "department": "Engineering"
-  }
-}
-```
-
-Output:
-
-```
-Member Created
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Member ID: member-123
-Address: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-Role: developer
-Permissions: read, write
-Status: Active
-```
-
-### List Organization Members
+### List Members
 
 View all members in your organization:
 
 ```bash
 nvm organizations get-members
+
+# Filter by role
+nvm organizations get-members --role admin
+
+# Filter active members
+nvm organizations get-members --is-active true
+
+# Pagination
+nvm organizations get-members --page 1 --offset 10
 ```
 
-Output:
+### Create Member
 
-```
-Organization Members
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Name            Address          Role          Status
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-John Doe        0x742d35...      developer     Active
-Jane Smith      0x8f3a21...      admin         Active
-Bob Wilson      0x1c5e92...      viewer        Active
-```
-
-### Update Member Role
-
-Modify a member's role or permissions:
+Add a new member to your organization:
 
 ```bash
-nvm organizations update-member <member-id> \
-  --member-data updated-member.json
+nvm organizations create-member <user-id>
+
+# With email and role
+nvm organizations create-member <user-id> --user-email "john@example.com" --user-role "developer"
 ```
 
-**updated-member.json**:
+Flags:
+- `--user-email` — Member's email address (optional)
+- `--user-role` — Member's role (optional)
 
-```json
-{
-  "role": "admin",
-  "permissions": ["read", "write", "delete", "admin"]
-}
-```
+### Connect Stripe Account
 
-### Remove Member
-
-Remove a member from the organization:
+Connect a user with Stripe for fiat payments:
 
 ```bash
-nvm organizations remove-member <member-id>
+nvm organizations connect-stripe-account \
+  --user-email "john@example.com" \
+  --user-country-code "US" \
+  --return-url "https://yourapp.com/stripe-callback"
 ```
+
+All flags are required:
+- `--user-email` — User's email address
+- `--user-country-code` — Two-letter country code
+- `--return-url` — URL to redirect after Stripe connection
 
 ## X402 Token Commands
 
 ### Get X402 Access Token
 
-Generate an access token for a plan:
+Generate an access token for a plan with delegated permissions:
 
 ```bash
 nvm x402token get-x402-access-token <plan-id>
@@ -308,19 +212,30 @@ nvm x402token get-x402-access-token <plan-id>
 Example:
 
 ```bash
-nvm x402token get-x402-access-token "123456789012345678"
+nvm x402token get-x402-access-token "did:nvm:abc123"
+```
+
+Optional flags:
+- `--agent-id` — Target agent ID
+- `--redemption-limit` — Maximum credits that can be redeemed
+- `--order-limit` — Maximum number of orders
+- `--expiration` — Token expiration time
+
+Example with options:
+
+```bash
+nvm x402token get-x402-access-token "did:nvm:abc123" \
+  --agent-id "did:nvm:agent456" \
+  --redemption-limit 100 \
+  --expiration 3600
 ```
 
 Output:
 
 ```
 X402 Access Token
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Plan ID: "123456789012345678"
-Issued: 2024-03-15 10:30:00 UTC
-Expires: 2024-03-15 11:30:00 UTC
-Credits: 100
+Plan ID: did:nvm:abc123
 ```
 
 ### Save Token
@@ -328,13 +243,12 @@ Credits: 100
 Save token for later use:
 
 ```bash
-# Save to file
-nvm x402token get-x402-access-token "123456789012345678" \
-  --format json | jq -r '.token' > ~/.nvm/token.txt
-
 # Save to environment variable
-export X402_TOKEN=$(nvm x402token get-x402-access-token "123456789012345678" \
+export X402_TOKEN=$(nvm x402token get-x402-access-token "did:nvm:abc123" \
   --format json | jq -r '.token')
+
+# Use token in requests
+curl -H "payment-signature: $X402_TOKEN" https://agent-api.example.com
 ```
 
 ## Global Flags
@@ -365,7 +279,7 @@ Use a specific configuration profile:
 nvm --profile production plans get-plans
 
 # Use staging profile
-nvm --profile staging agents list
+nvm --profile staging agents get-agent <agent-id>
 ```
 
 ### Verbose Flag
@@ -373,12 +287,11 @@ nvm --profile staging agents list
 Enable verbose output with detailed logging:
 
 ```bash
-nvm plans order-plan "123456789012345678" --verbose
+nvm plans order-plan "did:nvm:abc123" --verbose
 ```
 
 Output includes:
 - Request/response details
-- API calls made
 - Stack traces for errors
 - Debug information
 
@@ -418,84 +331,22 @@ Switch between environments easily:
 
 ```bash
 #!/bin/bash
-# env-switch.sh - Switch CLI environment
-
 case $1 in
-  staging)
-    nvm config set activeProfile staging
-    nvm config set environment sandbox
-    echo "Switched to staging environment"
-    ;;
   production)
     nvm config set activeProfile production
-    nvm config set environment live
     echo "Switched to production environment"
     ;;
   sandbox)
-    nvm config set activeProfile sandbox
-    nvm config set environment sandbox
+    nvm config set activeProfile default
     echo "Switched to sandbox environment"
     ;;
   *)
-    echo "Usage: $0 {staging|production|sandbox}"
+    echo "Usage: $0 {production|sandbox}"
     exit 1
     ;;
 esac
 
 nvm config show
-```
-
-Usage:
-
-```bash
-./env-switch.sh staging
-./env-switch.sh production
-```
-
-### Backup Configuration
-
-Backup your CLI configuration:
-
-```bash
-#!/bin/bash
-# backup-config.sh
-
-CONFIG_FILE=~/.config/nvm/config.json
-BACKUP_DIR=~/.config/nvm/backups
-BACKUP_FILE=$BACKUP_DIR/config-$(date +%Y%m%d-%H%M%S).json
-
-mkdir -p $BACKUP_DIR
-cp $CONFIG_FILE $BACKUP_FILE
-
-echo "Configuration backed up to: $BACKUP_FILE"
-```
-
-### Restore Configuration
-
-Restore from backup:
-
-```bash
-#!/bin/bash
-# restore-config.sh
-
-BACKUP_DIR=~/.config/nvm/backups
-CONFIG_FILE=~/.config/nvm/config.json
-
-# List available backups
-echo "Available backups:"
-ls -1 $BACKUP_DIR
-
-# Prompt for backup to restore
-read -p "Enter backup filename: " BACKUP_NAME
-
-if [ -f "$BACKUP_DIR/$BACKUP_NAME" ]; then
-  cp "$BACKUP_DIR/$BACKUP_NAME" $CONFIG_FILE
-  echo "Configuration restored from: $BACKUP_NAME"
-  nvm config show
-else
-  echo "Backup file not found"
-  exit 1
-fi
 ```
 
 ### Multi-Profile Operations
@@ -504,18 +355,13 @@ Run commands across multiple profiles:
 
 ```bash
 #!/bin/bash
-# multi-profile.sh - Run command across all profiles
-
-PROFILES=("staging" "production" "sandbox")
+PROFILES=("default" "production")
 COMMAND="$@"
 
 for PROFILE in "${PROFILES[@]}"; do
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "Profile: $PROFILE"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
   nvm --profile $PROFILE $COMMAND
-  echo "
+  echo ""
 done
 ```
 
@@ -523,7 +369,6 @@ Usage:
 
 ```bash
 ./multi-profile.sh plans get-plans
-./multi-profile.sh agents list
 ```
 
 ## Integration Examples
@@ -559,95 +404,8 @@ jobs:
         run: |
           nvm agents register-agent \
             --agent-metadata agent.json \
-            --agent-api https://api.example.com \
-            --payment-plans ${{ secrets.PLAN_ID }}
-
-      - name: Verify Agent
-        run: |
-          AGENT_ID=$(cat agent-id.txt)
-          nvm agents get-agent $AGENT_ID
-```
-
-### Monitoring Script
-
-Monitor your resources:
-
-```bash
-#!/bin/bash
-# monitor.sh - Monitor plans, agents, and balances
-
-echo "Nevermined Resources Monitor"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-# Configuration
-echo "Current Configuration:"
-nvm config show
-echo "
-
-# Plans
-echo "Active Plans:"
-nvm plans get-plans
-echo "
-
-# Agents
-echo "Registered Agents:"
-nvm agents list
-echo "
-
-# Balances
-echo "Plan Balances:"
-PLANS=$(nvm plans get-plans --format json | jq -r '.[].id')
-for PLAN in $PLANS; do
-  echo "  $PLAN:"
-  nvm plans get-plan-balance $PLAN | grep "Credits"
-done
-```
-
-## Best Practices
-
-### 1. Use Profiles for Environments
-
-Separate configurations for different environments:
-
-```bash
-# Development
-nvm --profile dev plans get-plans
-
-# Production
-nvm --profile prod plans get-plans
-```
-
-### 2. Secure Your API Keys
-
-Never commit API keys to version control:
-
-```bash
-# Use environment variables
-export NVM_API_KEY=sandbox:eyJxxxxaaaa...bbbbbbbb
-
-# Or secure config files
-chmod 600 ~/.config/nvm/config.json
-```
-
-### 3. Automate Repetitive Tasks
-
-Create scripts for common operations:
-
-```bash
-# Daily backup
-0 0 * * * /path/to/backup-config.sh
-
-# Weekly report
-0 9 * * 1 /path/to/monitor.sh | mail -s "Weekly Report" you@example.com
-```
-
-### 4. Use JSON Output for Scripting
-
-Always use `--format json` in scripts:
-
-```bash
-PLAN_DATA=$(nvm plans get-plan "123456789012345678" --format json)
-PLAN_NAME=$(echo $PLAN_DATA | jq -r '.name')
+            --agent-api "https://api.example.com" \
+            --payment-plans "${{ secrets.PLAN_ID }}"
 ```
 
 ## Common Issues
@@ -657,6 +415,8 @@ PLAN_NAME=$(echo $PLAN_DATA | jq -r '.name')
 Initialize configuration:
 
 ```bash
+nvm login
+# or
 nvm config init
 ```
 
@@ -665,7 +425,7 @@ nvm config init
 Check available profiles:
 
 ```bash
-cat ~/.config/nvm/config.json | jq '.profiles | keys'
+nvm config show --all
 ```
 
 ### "Permission denied"
