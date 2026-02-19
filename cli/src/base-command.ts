@@ -61,7 +61,7 @@ export abstract class BaseCommand extends Command {
 
     if (!nvmApiKey) {
       this.error(
-        'NVM API Key not found. Set NVM_API_KEY environment variable or run: nvm config init',
+        'NVM API Key not found. Set NVM_API_KEY environment variable, run: nvm login, or run: nvm config init',
         { exit: 1 }
       )
     }
@@ -96,7 +96,7 @@ export abstract class BaseCommand extends Command {
     if (errorMessage.includes('API Key') || errorMessage.includes('apiKey')) {
       this.formatter.error('API Key Error: ' + errorMessage)
       this.formatter.info('\n💡 Helpful tip:')
-      this.formatter.info('   Run: nvm config init')
+      this.formatter.info('   Run: nvm login (or nvm config init)')
       this.formatter.info('   Or set: export NVM_API_KEY=your-key-here')
     } else if (errorMessage.includes('network') || errorMessage.includes('ECONNREFUSED')) {
       this.formatter.error('Network Error: ' + errorMessage)
@@ -112,7 +112,7 @@ export abstract class BaseCommand extends Command {
       this.formatter.error('Authentication Error: ' + errorMessage)
       this.formatter.info('\n💡 Helpful tip:')
       this.formatter.info('   Your API key may be invalid or expired')
-      this.formatter.info('   Run: nvm config init')
+      this.formatter.info('   Run: nvm login (or nvm config init)')
     } else if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
       this.formatter.error('Invalid JSON: ' + errorMessage)
       this.formatter.info('\n💡 Helpful tip:')

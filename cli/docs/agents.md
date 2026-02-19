@@ -16,28 +16,18 @@ AI agents are services that users can access by purchasing payment plans. Agents
 - **Data pipelines**: Processing services with usage tracking
 - **Tools**: Utility services with pay-per-use billing
 
-## Listing Agents
+## Listing Agent Plans
 
-View all registered agents:
+Get the list of plans that can be ordered to access an agent:
 
 ```bash
-# Table output (default)
-nvm agents list
+nvm agents get-agent-plans <agent-id>
 
-# JSON output for scripting
-nvm agents list --format json
-```
+# With pagination
+nvm agents get-agent-plans <agent-id> --pagination '{"page": 1, "offset": 10}'
 
-Example output:
-
-```
-AI Agents
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Agent ID                 Name                    Plans
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-"987654321098765432"          GPT-4 Assistant         3
-"876543210987654321"          Code Helper             2
-"765432109876543210"          Data Analyzer           1
+# JSON output
+nvm agents get-agent-plans <agent-id> --format json
 ```
 
 ## Getting Agent Details
@@ -51,27 +41,25 @@ nvm agents get-agent <agent-id>
 Example:
 
 ```bash
-nvm agents get-agent "987654321098765432"23
+nvm agents get-agent "did:nvm:abc123"
 ```
 
 Output includes:
 - Agent metadata (name, description, creator)
 - API endpoint configuration
 - Associated payment plans
-- Access control settings
-- Authentication requirements
 
 ## Registering Agents
 
-### Basic Agent Registration
+### Register Agent with Existing Plans
 
-Register a new AI agent with payment plans:
+Register a new AI agent and associate it with one or more existing payment plans:
 
 ```bash
 nvm agents register-agent \
   --agent-metadata agent-metadata.json \
   --agent-api "https://api.example.com/v1/agent" \
-  --payment-plans ""111111111111111111","222222222222222222"
+  --payment-plans "plan-id-1,plan-id-2"
 ```
 
 **agent-metadata.json**:
@@ -91,36 +79,50 @@ nvm agents register-agent \
 }
 ```
 
-### Agent with Service Configuration
+### Register Agent and Plan Together
 
-Register an agent with detailed service configuration:
+Register a new AI agent and create a payment plan for it in a single command:
 
 ```bash
-nvm agents register-agent \
-  --agent-metadata metadata.json \
-  --agent-api "https://api.example.com" \
-  --payment-plans ""111111111111111111"" \
-  --service-config service-config.json
+nvm agents register-agent-and-plan \
+  --agent-metadata agent-metadata.json \
+  --agent-api "https://api.example.com/v1/agent" \
+  --plan-metadata plan-metadata.json \
+  --price-config price-config.json \
+  --credits-config credits-config.json
 ```
 
-**service-config.json**:
+Optional flags:
+- `--access-limit` — Limit the number of times the plan can be ordered
+
+**plan-metadata.json**:
 
 ```json
 {
-  "endpoints": {
-    "chat": "/v1/chat",
-    "completion": "/v1/completion",
-    "embedding": "/v1/embedding"
-  },
-  "authentication": {
-    "type": "bearer",
-    "headerName": "Authorization"
-  },
-  "rateLimit": {
-    "maxRequests": 100,
-    "windowMs": 60000
-  },
-  "timeout": 30000
+  "name": "My Agent - Basic Plan",
+  "description": "100 credits for API access",
+  "tags": ["ai", "assistant", "basic"]
+}
+```
+
+**price-config.json**:
+
+```json
+{
+  "tokenAddress": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+  "price": 1000000,
+  "amountOfCredits": 100
+}
+```
+
+**credits-config.json**:
+
+```json
+{
+  "subscriptionType": "credits",
+  "accessType": "credits",
+  "minCreditsToCharge": 1,
+  "maxCreditsToCharge": 10
 }
 ```
 
@@ -128,12 +130,15 @@ nvm agents register-agent \
 
 ### Update Agent Metadata
 
-Modify agent name, description, or other metadata:
+Modify agent name, description, API endpoint, or other metadata:
 
 ```bash
 nvm agents update-agent-metadata <agent-id> \
-  --agent-metadata updated-metadata.json
+  --agent-metadata updated-metadata.json \
+  --agent-api "https://api-v2.example.com/agent"
 ```
+
+Both `--agent-metadata` and `--agent-api` are required.
 
 **updated-metadata.json**:
 
@@ -146,130 +151,42 @@ nvm agents update-agent-metadata <agent-id> \
 }
 ```
 
-### Update Agent API Endpoint
+## Managing Payment Plans
 
-Change the agent's API endpoint:
+### Add Payment Plan to Agent
 
-```bash
-nvm agents update-agent-endpoint <agent-id> \
-  --agent-api "https://api-v2.example.com/agent"
-```
-
-### Add Payment Plans
-
-Associate additional payment plans with an agent:
+Associate an existing payment plan with an agent:
 
 ```bash
-nvm agents add-agent-plan <agent-id> \
-  --plan-id "444444444444444444"
+nvm agents add-plan-to-agent <plan-id> --agent-id <agent-id>
 ```
 
-### Remove Payment Plans
+Example:
+
+```bash
+nvm agents add-plan-to-agent "did:nvm:plan123" --agent-id "did:nvm:agent456"
+```
+
+### Remove Payment Plan from Agent
 
 Disassociate a payment plan from an agent:
 
 ```bash
-nvm agents remove-agent-plan <agent-id> \
-  --plan-id "555555555555555555"
+nvm agents remove-plan-from-agent <plan-id> --agent-id <agent-id>
 ```
 
-## Agent Files and Resources
-
-### Upload Agent Files
-
-Upload files associated with your agent (models, configs, etc.):
+Example:
 
 ```bash
-nvm agents upload-agent-files <agent-id> \
-  --files "./model.bin,./config.json"
+nvm agents remove-plan-from-agent "did:nvm:plan123" --agent-id "did:nvm:agent456"
 ```
 
-### Download Agent Files
+### List Plans Associated with Agent
 
-Download files from an agent:
+See which plans give access to an agent:
 
 ```bash
-nvm agents download-agent-files <agent-id> \
-  --destination ./downloads
-```
-
-## Advanced Agent Operations
-
-### Create Agent Execution
-
-Create a new agent execution/session:
-
-```bash
-nvm agents create-agent-execution <agent-id> \
-  --execution-config execution.json
-```
-
-**execution.json**:
-
-```json
-{
-  "sessionId": "unique-session-id",
-  "parameters": {
-    "temperature": 0.7,
-    "maxTokens": 2000
-  },
-  "context": {
-    "userId": "user123",
-    "conversationId": "conv456"
-  }
-}
-```
-
-### Get Agent Execution Status
-
-Check the status of an agent execution:
-
-```bash
-nvm agents get-agent-execution-status <agent-id> <execution-id>
-```
-
-### List Agent Executions
-
-View all executions for an agent:
-
-```bash
-nvm agents list-agent-executions <agent-id>
-```
-
-## Agent Access Control
-
-### Get Agent Access Config
-
-View who can access your agent:
-
-```bash
-nvm agents get-agent-access-config <agent-id>
-```
-
-### Update Agent Access Config
-
-Modify access control settings:
-
-```bash
-nvm agents update-agent-access-config <agent-id> \
-  --access-config access.json
-```
-
-**access.json**:
-
-```json
-{
-  "public": false,
-  "allowedAddresses": [
-    "0x123...",
-    "0x456..."
-  ],
-  "requiresPayment": true,
-  "allowedPlans": [
-    ""111111111111111111"",
-    ""222222222222222222"
-  ]
-}
+nvm agents get-agent-plans <agent-id>
 ```
 
 ## Integration Examples
@@ -302,7 +219,8 @@ echo "Registered agent: $AGENT_ID"
 
 # 3. Update agent metadata if needed
 nvm agents update-agent-metadata $AGENT_ID \
-  --agent-metadata updated-agent.json
+  --agent-metadata updated-agent.json \
+  --agent-api "https://api.example.com/agent"
 
 # 4. Verify agent is accessible
 nvm agents get-agent $AGENT_ID
@@ -310,7 +228,20 @@ nvm agents get-agent $AGENT_ID
 echo "Agent setup complete!"
 ```
 
-### Example 2: Multi-Plan Agent
+### Example 2: One-Step Agent and Plan Registration
+
+Register an agent and its payment plan in a single command:
+
+```bash
+nvm agents register-agent-and-plan \
+  --agent-metadata agent.json \
+  --agent-api "https://api.example.com/agent" \
+  --plan-metadata plan.json \
+  --price-config price.json \
+  --credits-config credits.json
+```
+
+### Example 3: Multi-Plan Agent
 
 Register an agent with multiple pricing tiers:
 
@@ -336,53 +267,17 @@ nvm agents register-agent \
   --payment-plans "$BASIC_PLAN,$PREMIUM_PLAN"
 ```
 
-### Example 3: Agent Monitoring
-
-Monitor agent usage and executions:
-
-```bash
-#!/bin/bash
-# Agent monitoring script
-
-AGENT_ID="987654321098765432"23"
-
-# Get agent details
-echo "Agent Details:"
-nvm agents get-agent $AGENT_ID
-
-# List recent executions
-echo -e "\nRecent Executions:"
-nvm agents list-agent-executions $AGENT_ID
-
-# Check access configuration
-echo -e "\nAccess Configuration:"
-nvm agents get-agent-access-config $AGENT_ID
-```
-
 ## JSON Output for Automation
 
 Use `--format json` to integrate with other tools:
 
 ```bash
 # Get agent data
-AGENT=$(nvm agents get-agent "987654321098765432"23 --format json)
+AGENT=$(nvm agents get-agent "did:nvm:agent123" --format json)
 
 # Extract fields
 NAME=$(echo $AGENT | jq -r '.name')
-API=$(echo $AGENT | jq -r '.apiEndpoint')
-PLANS=$(echo $AGENT | jq -r '.plans | join(",")')
-
 echo "Agent: $NAME"
-echo "API: $API"
-echo "Plans: $PLANS"
-
-# Check if agent has specific plan
-HAS_PLAN=$(echo $AGENT | jq --arg pid ""111111111111111111"" \
-  '.plans | contains([$pid])')
-
-if [ "$HAS_PLAN" = "true" ]; then
-  echo "Agent has the required plan"
-fi
 ```
 
 ## Best Practices
@@ -394,16 +289,10 @@ Provide comprehensive information about your agent:
 ```json
 {
   "name": "GPT-4 Code Assistant",
-  "description": "AI-powered code generation and debugging assistant with support for 20+ programming languages",
+  "description": "AI-powered code generation and debugging assistant",
   "version": "1.2.0",
   "author": "YourCompany",
-  "tags": ["code", "ai", "programming", "debugging"],
-  "customData": {
-    "supportedLanguages": ["python", "javascript", "typescript", "go", "rust"],
-    "features": ["code-generation", "debugging", "refactoring", "documentation"],
-    "model": "gpt-4-turbo",
-    "maxContextLength": 128000
-  }
+  "tags": ["code", "ai", "programming", "debugging"]
 }
 ```
 
@@ -415,37 +304,20 @@ Ensure your agent API follows best practices:
 - Implement rate limiting
 - Return proper HTTP status codes
 - Include error handling
-- Log requests for debugging
 
-### 3. Version Your Agents
+### 3. Test Before Production
 
-Update version numbers when making changes:
-
-```bash
-# Update agent with new version
-nvm agents update-agent-metadata $AGENT_ID \
-  --agent-metadata updated-metadata.json
-
-# Create new payment plan for new version if needed
-nvm plans register-credits-plan \
-  --plan-metadata v2-plan.json \
-  --price-config v2-price.json \
-  --credits-config v2-credits.json
-```
-
-### 4. Test Before Production
-
-Always test agents in staging environment:
+Always test agents in sandbox environment:
 
 ```bash
-# Register in staging
-nvm --profile staging agents register-agent \
+# Register in sandbox
+nvm --profile sandbox agents register-agent \
   --agent-metadata agent.json \
   --agent-api "https://staging-api.example.com" \
   --payment-plans "$STAGING_PLAN_ID"
 
 # Test the agent
-nvm --profile staging agents get-agent $STAGING_AGENT_ID
+nvm --profile sandbox agents get-agent $STAGING_AGENT_ID
 
 # Once verified, deploy to production
 nvm --profile production agents register-agent \
@@ -454,38 +326,7 @@ nvm --profile production agents register-agent \
   --payment-plans "$PROD_PLAN_ID"
 ```
 
-### 5. Organize Multiple Agents
-
-Keep agent configurations organized:
-
-```
-agents/
-├── code-assistant/
-│   ├── metadata.json
-│   ├── service-config.json
-│   └── plans/
-│       ├── basic-plan.json
-│       └── premium-plan.json
-├── data-analyzer/
-│   ├── metadata.json
-│   ├── service-config.json
-│   └── plans/
-│       └── enterprise-plan.json
-└── chat-bot/
-    ├── metadata.json
-    └── plans/
-        └── starter-plan.json
-```
-
 ## Common Issues
-
-### "Agent endpoint not reachable"
-
-Ensure your agent API endpoint is:
-- Publicly accessible
-- Using HTTPS
-- Responding to health checks
-- Not blocking Nevermined's IP ranges
 
 ### "Payment plan not found"
 

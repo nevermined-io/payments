@@ -13,7 +13,7 @@ Complete guide to creating and managing payment plans with the Nevermined CLI.
 Payment plans define how users can access your AI agents and services. Plans can be:
 - **Credits-based**: Pay per API call or credit consumed
 - **Time-based**: Subscription access for a duration
-- **Service-based**: Access to specific services
+- **Trial plans**: One-time-use plans for testing (credits or time limited)
 
 ## Listing Plans
 
@@ -26,20 +26,8 @@ nvm plans get-plans
 # JSON output for scripting
 nvm plans get-plans --format json
 
-# Quiet output (IDs only)
-nvm plans get-plans --format quiet
-```
-
-Example output:
-
-```
-Payment Plans
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Plan ID                  Name              Type      Price
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-"123456789012345678"          Basic Plan        Credits   $10.00
-"234567890123456789"          Pro Plan          Credits   $50.00
-"345678901234567890"          Enterprise        Time      $100.00
+# With pagination and sorting
+nvm plans get-plans --page 1 --offset 10 --sort-by name --sort-order asc
 ```
 
 ## Getting Plan Details
@@ -53,14 +41,13 @@ nvm plans get-plan <plan-id>
 Example:
 
 ```bash
-nvm plans get-plan "123456789012345678"
+nvm plans get-plan "did:nvm:abc123"
 ```
 
 Output includes:
 - Plan metadata (name, description, creator)
 - Pricing configuration
 - Credits configuration
-- Service details
 - Payment token information
 
 ## Checking Plan Balance
@@ -72,26 +59,36 @@ Check your credit balance for a plan:
 nvm plans get-plan-balance <plan-id>
 
 # Check balance for specific address
-nvm plans get-plan-balance <plan-id> --account-address 0x1234...
+nvm plans get-plan-balance <plan-id> --account-address "0x1234..."
 ```
 
-Example:
+## Getting Agents for a Plan
+
+List all agents accessible through a specific plan:
 
 ```bash
-nvm plans get-plan-balance "123456789012345678"
-```
+nvm plans get-agents-associated-to-a-plan <plan-id>
 
-Output:
-
-```
-Plan Balance
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Credits Remaining: 1000
-Plan ID: "123456789012345678"
-Account: 0xYourAddress...
+# With pagination
+nvm plans get-agents-associated-to-a-plan <plan-id> --pagination '{"page": 1, "offset": 10}'
 ```
 
 ## Creating Plans
+
+### Flexible Plan Registration
+
+Register a plan with full control over price and credits/duration configuration:
+
+```bash
+nvm plans register-plan \
+  --plan-metadata plan-metadata.json \
+  --price-config price-config.json \
+  --credits-config credits-config.json
+```
+
+Optional flags:
+- `--nonce` — Custom nonce value
+- `--access-limit` — Maximum number of times the plan can be ordered
 
 ### Credits Plan
 
@@ -133,8 +130,6 @@ nvm plans register-credits-plan \
 {
   "subscriptionType": "credits",
   "accessType": "credits",
-  "creditType": "api_calls",
-  "minCreditsRequired": 1,
   "minCreditsToCharge": 1,
   "maxCreditsToCharge": 10
 }
@@ -148,10 +143,10 @@ Create a subscription plan with time-limited access:
 nvm plans register-time-plan \
   --plan-metadata plan-metadata.json \
   --price-config price-config.json \
-  --time-config time-config.json
+  --credits-config credits-config.json
 ```
 
-**time-config.json**:
+**credits-config.json** (for time plan):
 
 ```json
 {
@@ -163,126 +158,151 @@ nvm plans register-time-plan \
 
 Duration is in seconds (2592000 = 30 days).
 
-### Service Plan
+### Trial Plans
 
-Create a plan for accessing specific AI services:
+Trial plans can only be purchased once per user and are useful for letting users test your agents.
+
+**Credits trial** (limited by credits):
 
 ```bash
-nvm plans register-service-plan \
+nvm plans register-credits-trial-plan \
   --plan-metadata plan-metadata.json \
   --price-config price-config.json \
-  --service-config service-config.json
+  --credits-config credits-config.json
 ```
 
-**service-config.json**:
-
-```json
-{
-  "subscriptionType": "service",
-  "accessType": "service",
-  "serviceHost": "https://api.example.com",
-  "nftTransfer": false,
-  "nftHolder": false
-}
-```
-
-## Updating Plans
-
-### Update Plan Metadata
-
-Modify plan name, description, or tags:
+**Time trial** (limited by duration):
 
 ```bash
-nvm plans update-plan-metadata <plan-id> \
-  --plan-metadata updated-metadata.json
+nvm plans register-time-trial-plan \
+  --plan-metadata plan-metadata.json \
+  --price-config price-config.json \
+  --credits-config credits-config.json
 ```
 
-**updated-metadata.json**:
+## Ordering Plans
 
-```json
-{
-  "name": "My AI Agent - Premium Plan",
-  "description": "Upgraded with more features",
-  "tags": ["ai", "assistant", "premium"]
-}
-```
+### Crypto Payment
 
-### Update Plan Price
-
-Change plan pricing:
+Purchase a plan with cryptocurrency:
 
 ```bash
-nvm plans update-plan-price <plan-id> \
-  --price-config new-price.json
+nvm plans order-plan <plan-id>
 ```
 
-**new-price.json**:
+### Fiat Payment
 
-```json
-{
-  "tokenAddress": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-  "price": 2000000,
-  "amountOfCredits": 200
-}
-```
-
-## Plan Files and Transfers
-
-### Download Plan Files
-
-Download files associated with a plan (if it includes static resources):
+Initiate a plan purchase with fiat payment. Returns a URL where the user can complete the payment:
 
 ```bash
-nvm plans download-plan-files <plan-id> --destination ./downloads
+nvm plans order-fiat-plan <plan-id>
 ```
 
-### Transfer Plan Ownership
-
-Transfer plan ownership to another address:
-
-```bash
-nvm plans transfer-plan-ownership <plan-id> \
-  --new-owner 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-```
-
-## Advanced Plan Operations
-
-### Get Plan Dependencies
-
-List other plans or services this plan depends on:
-
-```bash
-nvm plans get-plan-dependencies <plan-id>
-```
-
-### Register File Plan
-
-Create a plan with downloadable files:
-
-```bash
-nvm plans register-file-plan \
-  --plan-metadata metadata.json \
-  --price-config price.json \
-  --file-urls "https://example.com/file1.pdf,https://example.com/file2.zip"
-```
+## Minting Credits
 
 ### Mint Credits
 
-Add credits to an existing plan (plan owner only):
+Add credits to a plan and transfer them to a receiver (plan owner only):
 
 ```bash
-nvm plans mint-credits <plan-id> \
-  --receiver-address 0x123... \
-  --amount 1000
+nvm plans mint-plan-credits <plan-id> \
+  --credits-amount 1000 \
+  --credits-receiver "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
 ```
 
-### Burn Credits
+### Mint Expirable Credits
 
-Remove credits from a plan:
+Add time-limited credits:
 
 ```bash
-nvm plans burn-credits <plan-id> \
-  --amount 100
+nvm plans mint-plan-expirable <plan-id> \
+  --credits-amount 1000 \
+  --credits-receiver "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb" \
+  --credits-duration 2592000
+```
+
+The `--credits-duration` flag is optional and specifies duration in seconds.
+
+## Redeeming Credits
+
+Burn/redeem credits for a given payment plan:
+
+```bash
+nvm plans redeem-credits <agent-request-id> \
+  --plan-id <plan-id> \
+  --credits-amount-to-redeem 5 \
+  --redeem-from "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+```
+
+## Price Configuration Helpers
+
+The CLI provides helper commands to build price configuration objects:
+
+```bash
+# Free (no payment required)
+nvm plans get-free-price-config
+
+# Fiat price
+nvm plans get-fiat-price-config --amount 1000 --receiver "0x123..."
+
+# Crypto price
+nvm plans get-crypto-price-config --amount 1000 --receiver "0x123..."
+
+# Crypto with specific token
+nvm plans get-crypto-price-config --amount 1000 --receiver "0x123..." --token-address "0xToken..."
+
+# Native token price
+nvm plans get-native-token-price-config --amount 1000 --receiver "0x123..."
+
+# ERC20 token price
+nvm plans get-erc20-price-config --amount 1000 --receiver "0x123..." --token-address "0xToken..."
+
+# Pay-as-you-go price
+nvm plans get-pay-as-you-go-price-config --amount 1000 --receiver "0x123..."
+```
+
+## Credits Configuration Helpers
+
+Helper commands to build credits configuration objects:
+
+```bash
+# Fixed credits (same amount per request)
+nvm plans get-fixed-credits-config --credits-granted 100 --credits-per-request 1
+
+# Dynamic credits (range per request)
+nvm plans get-dynamic-credits-config --credits-granted 100 \
+  --min-credits-per-request 1 --max-credits-per-request 10
+
+# Pay-as-you-go credits
+nvm plans get-pay-as-you-go-credits-config
+
+# Expirable duration
+nvm plans get-expirable-duration-config --duration-of-plan 2592000
+
+# Non-expirable
+nvm plans get-non-expirable-duration-config
+```
+
+## Advanced Operations
+
+### Set Proof Required
+
+Mark whether proof is required in a credits configuration:
+
+```bash
+nvm plans set-proof-required \
+  --credits-config credits-config.json \
+  --proof-required
+```
+
+### Set Redemption Type
+
+Set the redemption type in a credits configuration:
+
+```bash
+nvm plans set-redemption-type \
+  --credits-config credits-config.json \
+  --redemption-type "fixed"
 ```
 
 ## JSON Output for Scripting
@@ -291,13 +311,12 @@ Use `--format json` for machine-readable output:
 
 ```bash
 # Get plan details as JSON
-PLAN_DATA=$(nvm plans get-plan "123456789012345678" --format json)
+PLAN_DATA=$(nvm plans get-plan "did:nvm:abc123" --format json)
 
 # Extract specific field with jq
 PLAN_NAME=$(echo $PLAN_DATA | jq -r '.name')
-PLAN_PRICE=$(echo $PLAN_DATA | jq -r '.price')
 
-echo "Plan: $PLAN_NAME costs $PLAN_PRICE"
+echo "Plan: $PLAN_NAME"
 ```
 
 ## Examples
@@ -328,8 +347,6 @@ cat > credits.json << EOF
 {
   "subscriptionType": "credits",
   "accessType": "credits",
-  "creditType": "api_calls",
-  "minCreditsRequired": 1,
   "minCreditsToCharge": 1,
   "maxCreditsToCharge": 5
 }
@@ -342,35 +359,19 @@ nvm plans register-credits-plan \
   --credits-config credits.json
 ```
 
-### Example 2: List All Plans and Get First Plan Details
-
-```bash
-# Get all plans as JSON
-PLANS=$(nvm plans get-plans --format json)
-
-# Extract first plan ID
-FIRST_PLAN=$(echo $PLANS | jq -r '.[0].id')
-
-# Get detailed info
-nvm plans get-plan $FIRST_PLAN
-```
-
-### Example 3: Monitor Plan Balance
+### Example 2: Monitor Plan Balance
 
 ```bash
 #!/bin/bash
-# Script to monitor plan balance
-
-PLAN_ID="123456789012345678"
+PLAN_ID="did:nvm:abc123"
 MIN_CREDITS=10
 
 BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 
 if [ "$BALANCE" -lt "$MIN_CREDITS" ]; then
-  echo "⚠️  Low balance: $BALANCE credits remaining"
-  echo "Consider ordering more credits"
+  echo "Low balance: $BALANCE credits remaining"
 else
-  echo "✅ Balance healthy: $BALANCE credits"
+  echo "Balance healthy: $BALANCE credits"
 fi
 ```
 
@@ -394,33 +395,12 @@ Configure min/max credits to prevent abuse:
 
 ```json
 {
-  "minCreditsRequired": 1,
   "minCreditsToCharge": 1,
   "maxCreditsToCharge": 10
 }
 ```
 
-### 3. Store Configuration Files
-
-Keep plan configurations in version control:
-
-```
-plans/
-├── basic-plan/
-│   ├── metadata.json
-│   ├── price.json
-│   └── credits.json
-├── pro-plan/
-│   ├── metadata.json
-│   ├── price.json
-│   └── credits.json
-└── enterprise-plan/
-    ├── metadata.json
-    ├── price.json
-    └── time.json
-```
-
-### 4. Test in Staging First
+### 3. Test in Sandbox First
 
 Always test new plans in sandbox before going live:
 
@@ -433,12 +413,6 @@ nvm --profile sandbox plans register-credits-plan \
 
 # Verify it works
 nvm --profile sandbox plans get-plan <plan-id>
-
-# Then deploy to live
-nvm --profile live plans register-credits-plan \
-  --plan-metadata metadata.json \
-  --price-config price.json \
-  --credits-config credits.json
 ```
 
 ## Common Issues
@@ -446,12 +420,6 @@ nvm --profile live plans register-credits-plan \
 ### "Insufficient balance"
 
 When registering plans, ensure you have enough credits or tokens in your account.
-
-### "Invalid token address"
-
-Verify the payment token address matches your environment:
-- Staging: Use test token addresses
-- Production: Use mainnet token addresses
 
 ### "Plan not found"
 
@@ -462,7 +430,7 @@ Ensure you're using the correct environment and plan ID:
 nvm config show
 
 # Try the correct profile
-nvm --profile staging plans get-plan <plan-id>
+nvm --profile sandbox plans get-plan <plan-id>
 ```
 
 ## Next Steps
