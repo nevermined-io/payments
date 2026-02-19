@@ -32,7 +32,8 @@ export default class Login extends BaseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Login)
-    const profileName = flags.profile || 'default'
+    const activeProfile = await this.configManager.getActiveProfile()
+    const profileName = flags.profile || activeProfile || 'default'
 
     // Resolve environment: flag > existing config > default
     let environment = flags.environment as EnvironmentName | undefined
