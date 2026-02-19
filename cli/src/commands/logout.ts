@@ -18,32 +18,36 @@ export default class Logout extends BaseCommand {
   }
 
   async run(): Promise<void> {
-    const { flags } = await this.parse(Logout)
-    const profileName = flags.profile || await this.configManager.getActiveProfile()
+    try {
+      const { flags } = await this.parse(Logout)
+      const profileName = flags.profile || await this.configManager.getActiveProfile()
 
-    if (flags['all-profiles']) {
-      const profiles = await this.configManager.listProfiles()
-      for (const name of profiles) {
-        await this.configManager.remove('nvmApiKey', name)
-      }
-      this.formatter.success(
-        `Logged out of all profiles (${profiles.join(', ')})\n` +
-          `  Config file: ${this.configManager.getDefaultConfigPath()}`
-      )
-    } else {
-      const existing = await this.configManager.get('nvmApiKey', profileName)
-      if (!existing) {
-        this.formatter.warning(`Profile "${profileName}" has no API key configured.`)
-        return
+      if (flags['all-profiles']) {
+        const profiles = await this.configManager.listProfiles()
+        for (const name of profiles) {
+          await this.configManager.remove('nvmApiKey', name)
+        }
+        this.formatter.success(
+          `Logged out of all profiles (${profiles.join(', ')})\n` +
+            `  Config file: ${this.configManager.getDefaultConfigPath()}`
+        )
+      } else {
+        const existing = await this.configManager.get('nvmApiKey', profileName)
+        if (!existing) {
+          this.formatter.warning(`Profile "${profileName}" has no API key configured.`)
+          return
+        }
+
+        await this.configManager.remove('nvmApiKey', profileName)
+        this.formatter.success(
+          `Logged out of profile "${profileName}"\n` +
+            `  Config file: ${this.configManager.getDefaultConfigPath()}`
+        )
       }
 
-      await this.configManager.remove('nvmApiKey', profileName)
-      this.formatter.success(
-        `Logged out of profile "${profileName}"\n` +
-          `  Config file: ${this.configManager.getDefaultConfigPath()}`
-      )
+      this.formatter.info('\nTo authenticate again, run: nvm login')
+    } catch (error) {
+      this.handleError(error)
     }
-
-    this.formatter.info('\nTo authenticate again, run: nvm login')
   }
 }
