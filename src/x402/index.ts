@@ -17,3 +17,15 @@ export type {
   SettlePermissionsParams,
   SettlePermissionsResult,
 } from './facilitator-api.js'
+
+// Visa x402 exports
+export { VisaFacilitatorAPI, buildVisaPaymentRequired, VISA_X402_HEADERS } from './visa-facilitator-api.js'
+export type {
+  VisaPaymentExtra,
+  VisaPaymentRequirements,
+  VisaPaymentRequired,
+  VisaVerifyResponse,
+  VisaSettlementResponse,
+} from './visa-facilitator-api.js'
+export { VisaTokenAPI } from './visa-token-api.js'
+export type { VisaPaymentPayloadResponse } from './visa-token-api.js'

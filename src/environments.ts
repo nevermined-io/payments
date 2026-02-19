@@ -12,6 +12,20 @@ export type EnvironmentName = 'staging_sandbox' | 'staging_live' | 'sandbox' | '
 /**
  * Represents the different environments and their corresponding URLs.
  */
+/**
+ * Visa backend URLs mapped by environment name.
+ * When scheme is 'visa', the facilitator and token APIs use these URLs
+ * for verify, settle, and access-token operations while the main NVM
+ * backend (from Environments) is still used for plans, agents, etc.
+ */
+export const VisaBackendUrls: Record<EnvironmentName, string> = {
+  staging_sandbox: process.env.VISA_STAGING_SANDBOX_URL || 'https://visa.nevermined.dev/api/',
+  staging_live: process.env.VISA_STAGING_LIVE_URL || 'https://visa.nevermined.dev/api/',
+  sandbox: process.env.VISA_SANDBOX_URL || 'https://visa.nevermined.dev/api/',
+  live: process.env.VISA_LIVE_URL || 'https://visa.nevermined.dev/api/',
+  custom: process.env.VISA_BACKEND_URL || 'http://localhost:3000/api/',
+}
+
 export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
   /**
    * The staging environment URLs.

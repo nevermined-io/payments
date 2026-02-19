@@ -22,6 +22,16 @@ export type {
   SettlePermissionsParams,
   SettlePermissionsResult,
 } from './x402/facilitator-api.js'
+// Visa x402 utilities and types
+export { buildVisaPaymentRequired, VISA_X402_HEADERS } from './x402/visa-facilitator-api.js'
+export type {
+  VisaPaymentExtra,
+  VisaPaymentRequirements,
+  VisaPaymentRequired,
+  VisaVerifyResponse,
+  VisaSettlementResponse,
+} from './x402/visa-facilitator-api.js'
+export type { VisaPaymentPayloadResponse } from './x402/visa-token-api.js'
 // MCP public types
 export type {
   CreditsContext,
