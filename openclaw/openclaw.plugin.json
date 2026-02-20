@@ -1,0 +1,63 @@
+{
+  "name": "@nevermined-io/openclaw-plugin",
+  "version": "0.1.0",
+  "description": "Nevermined plugin for OpenClaw — AI agent payments and access control",
+  "configSchema": {
+    "nvmApiKey": {
+      "type": "string",
+      "required": true,
+      "description": "Your Nevermined API key"
+    },
+    "environment": {
+      "type": "string",
+      "enum": ["sandbox", "live"],
+      "default": "sandbox",
+      "description": "Nevermined environment to connect to"
+    },
+    "planId": {
+      "type": "string",
+      "required": false,
+      "description": "Default payment plan ID (required for subscriber tools)"
+    },
+    "agentId": {
+      "type": "string",
+      "required": false,
+      "description": "Default agent ID (required for multi-agent plans)"
+    },
+    "creditsPerRequest": {
+      "type": "number",
+      "default": 1,
+      "description": "Number of credits consumed per request"
+    }
+  },
+  "uiHints": {
+    "nvmApiKey": {
+      "sensitive": true,
+      "label": "Nevermined API Key",
+      "placeholder": "sandbox:eyJhbG..."
+    },
+    "environment": {
+      "label": "Environment"
+    },
+    "planId": {
+      "label": "Plan ID",
+      "placeholder": "did:nv:..."
+    },
+    "agentId": {
+      "label": "Agent ID",
+      "placeholder": "did:nv:..."
+    }
+  },
+  "skills": ["skills/nevermined/SKILL.md"],
+  "gateway": {
+    "methods": [
+      "nevermined.checkBalance",
+      "nevermined.getAccessToken",
+      "nevermined.orderPlan",
+      "nevermined.queryAgent",
+      "nevermined.registerAgent",
+      "nevermined.createPlan",
+      "nevermined.listPlans"
+    ]
+  }
+}
