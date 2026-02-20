@@ -397,6 +397,12 @@ jobs:
           cp -r payments/cli/docs/* docs_mintlify/docs/api-reference/cli/ || echo "CLI docs not found, skipping"
           cp payments/cli/README.md docs_mintlify/docs/api-reference/cli/index.md || echo "CLI README not found"
 
+      - name: Update OpenClaw Plugin documentation
+        run: |
+          mkdir -p docs_mintlify/docs/api-reference/openclaw-plugin
+          cp -r payments/openclaw/docs/* docs_mintlify/docs/api-reference/openclaw-plugin/ || echo "OpenClaw docs not found, skipping"
+          cp payments/openclaw/README.md docs_mintlify/docs/api-reference/openclaw-plugin/index.md || echo "OpenClaw README not found"
+
       - name: Create documentation PR
         working-directory: docs_mintlify
         env:
@@ -408,13 +414,14 @@ jobs:
           BRANCH_NAME="docs/payments-v${{ steps.version.outputs.version }}"
           git checkout -b "$BRANCH_NAME"
 
-          git add docs/api-reference/typescript docs/api-reference/cli
+          git add docs/api-reference/typescript docs/api-reference/cli docs/api-reference/openclaw-plugin
 
           git commit -m "$(cat <<'EOF'
-          docs: update Payments SDK and CLI documentation for v${{ steps.version.outputs.version }}
+          docs: update Payments SDK, CLI and OpenClaw Plugin documentation for v${{ steps.version.outputs.version }}
 
           - Updated SDK documentation in docs/api-reference/typescript/
           - Updated CLI documentation in docs/api-reference/cli/
+          - Updated OpenClaw Plugin documentation in docs/api-reference/openclaw-plugin/
           - Version: ${{ steps.version.outputs.version }}
           - Auto-generated from nevermined-io/payments@${{ github.sha }}
 
@@ -425,15 +432,16 @@ jobs:
           git push origin "$BRANCH_NAME"
 
           gh pr create \
-            --title "docs: Payments SDK & CLI v${{ steps.version.outputs.version }}" \
+            --title "docs: Payments SDK, CLI & OpenClaw Plugin v${{ steps.version.outputs.version }}" \
             --body "$(cat <<'EOF'
           ## Documentation Update
 
-          This PR updates the documentation for Nevermined Payments SDK and CLI to version **v${{ steps.version.outputs.version }}**.
+          This PR updates the documentation for Nevermined Payments SDK, CLI and OpenClaw Plugin to version **v${{ steps.version.outputs.version }}**.
 
           ### Changes
           - SDK documentation in `docs/api-reference/typescript/`
           - CLI documentation in `docs/api-reference/cli/`
+          - OpenClaw Plugin documentation in `docs/api-reference/openclaw-plugin/`
           - Version metadata added to all files
 
           ### Source
@@ -444,6 +452,7 @@ jobs:
           ### Links
           - [CLI on npm](https://www.npmjs.com/package/@nevermined-io/cli)
           - [SDK on npm](https://www.npmjs.com/package/@nevermined-io/payments)
+          - [OpenClaw Plugin on npm](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin)
           - [GitHub Release](https://github.com/nevermined-io/payments/releases/tag/v${{ steps.version.outputs.version }})
 
           ---
@@ -464,3 +473,4 @@ jobs:
           echo "- **Target Repository**: nevermined-io/docs_mintlify" >> $GITHUB_STEP_SUMMARY
           echo "- **SDK Docs**: docs/api-reference/typescript/" >> $GITHUB_STEP_SUMMARY
           echo "- **CLI Docs**: docs/api-reference/cli/" >> $GITHUB_STEP_SUMMARY
+          echo "- **OpenClaw Plugin Docs**: docs/api-reference/openclaw-plugin/" >> $GITHUB_STEP_SUMMARY
