@@ -2,12 +2,28 @@
 metadata:
   openclaw:
     requires:
-      config: ["plugins.nevermined.nvmApiKey"]
+      config: ["plugins.nevermined"]
 ---
 
 # Nevermined Tools
 
 This plugin provides gateway tools for interacting with Nevermined AI agent payments.
+
+## Authentication
+
+### `/nvm-login [environment]`
+Authenticate with Nevermined via browser login. Opens a browser window to obtain an API key.
+- `environment` (optional) — `sandbox` or `live` (default: from config)
+
+### `/nvm-logout`
+Log out from Nevermined and remove the stored API key.
+
+### `nevermined.login`
+Gateway method equivalent of `/nvm-login`.
+- `environment` (optional)
+
+### `nevermined.logout`
+Gateway method equivalent of `/nvm-logout`.
 
 ## Subscriber Tools
 

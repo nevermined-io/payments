@@ -1,6 +1,6 @@
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals'
 import { register, allTools, validateConfig } from '../src/index.js'
-import type { OpenClawPluginAPI } from '../src/index.js'
+import type { OpenClawPluginAPI, CommandContext } from '../src/index.js'
 import type { NeverminedPluginConfig } from '../src/config.js'
 import type { Payments } from '@nevermined-io/payments'
 
@@ -45,25 +45,36 @@ const validConfig: NeverminedPluginConfig = {
 }
 
 function createMockAPI(
-  config: Partial<NeverminedPluginConfig> & Pick<NeverminedPluginConfig, 'nvmApiKey'> = validConfig,
+  config: Partial<NeverminedPluginConfig> = validConfig,
 ) {
   const mockPayments = createMockPayments()
   const registered = new Map<
     string,
     { description: string; handler: (params: Record<string, unknown>) => Promise<unknown> }
   >()
+  const commands = new Map<
+    string,
+    { description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }
+  >()
+  const configStore = new Map<string, unknown>()
 
   const api: OpenClawPluginAPI = {
     getConfig: jest.fn(() => config),
+    setConfig: jest.fn((namespace: string, key: string, value: unknown) => {
+      configStore.set(`${namespace}.${key}`, value)
+    }),
     registerGatewayMethod: jest.fn((name: string, options: { description: string; handler: (params: Record<string, unknown>) => Promise<unknown> }) => {
       registered.set(name, { description: options.description, handler: options.handler })
     }),
+    registerCommand: jest.fn((options: { name: string; description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }) => {
+      commands.set(options.name, { description: options.description, handler: options.handler })
+    }),
   }
 
-  return { api, registered, mockPayments }
+  return { api, registered, commands, configStore, mockPayments }
 }
 
-function registerWithMock(config?: Partial<NeverminedPluginConfig> & Pick<NeverminedPluginConfig, 'nvmApiKey'>) {
+function registerWithMock(config?: Partial<NeverminedPluginConfig>) {
   const ctx = createMockAPI(config)
   register(ctx.api, { paymentsFactory: () => ctx.mockPayments })
   return ctx
@@ -77,13 +88,15 @@ describe('OpenClaw Nevermined Plugin', () => {
   })
 
   describe('register()', () => {
-    test('should register all 7 tools', () => {
+    test('should register all 9 gateway methods (7 tools + login + logout)', () => {
       const { api, registered } = registerWithMock()
 
       expect(api.getConfig).toHaveBeenCalledWith('nevermined')
-      expect(registered.size).toBe(7)
+      expect(registered.size).toBe(9)
 
       const expectedNames = [
+        'nevermined.login',
+        'nevermined.logout',
         'nevermined.checkBalance',
         'nevermined.getAccessToken',
         'nevermined.orderPlan',
@@ -97,15 +110,26 @@ describe('OpenClaw Nevermined Plugin', () => {
       }
     })
 
-    test('should throw on missing nvmApiKey', () => {
-      const { api } = createMockAPI({ nvmApiKey: '', environment: 'sandbox', creditsPerRequest: 1 })
-      expect(() => register(api, { paymentsFactory: () => createMockPayments() })).toThrow()
+    test('should register 2 slash commands', () => {
+      const { commands } = registerWithMock()
+
+      expect(commands.size).toBe(2)
+      expect(commands.has('nvm-login')).toBe(true)
+      expect(commands.has('nvm-logout')).toBe(true)
     })
 
-    test('should apply default environment', () => {
-      const { api } = createMockAPI({ nvmApiKey: 'key' })
-      register(api, { paymentsFactory: () => createMockPayments() })
-      // If it doesn't throw, defaults were applied
+    test('should start without nvmApiKey (login-first flow)', () => {
+      const { registered } = registerWithMock({ environment: 'sandbox' })
+
+      // Plugin registers successfully without nvmApiKey
+      expect(registered.size).toBe(9)
+    })
+
+    test('should throw when calling payment tools without nvmApiKey', async () => {
+      const { registered } = registerWithMock({ environment: 'sandbox' })
+
+      const handler = registered.get('nevermined.checkBalance')!.handler
+      await expect(handler({})).rejects.toThrow('Not authenticated')
     })
   })
 
@@ -123,12 +147,9 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(config.creditsPerRequest).toBe(5)
     })
 
-    test('should reject missing nvmApiKey', () => {
-      expect(() => validateConfig({ environment: 'sandbox' })).toThrow()
-    })
-
-    test('should reject empty nvmApiKey', () => {
-      expect(() => validateConfig({ nvmApiKey: '' })).toThrow()
+    test('should accept missing nvmApiKey', () => {
+      const config = validateConfig({ environment: 'sandbox' })
+      expect(config.nvmApiKey).toBeUndefined()
     })
 
     test('should reject invalid environment', () => {
@@ -143,6 +164,48 @@ describe('OpenClaw Nevermined Plugin', () => {
     test('should default creditsPerRequest to 1', () => {
       const config = validateConfig({ nvmApiKey: 'key' })
       expect(config.creditsPerRequest).toBe(1)
+    })
+  })
+
+  describe('nevermined.logout', () => {
+    test('clears nvmApiKey via setConfig', async () => {
+      const { registered, api, configStore } = registerWithMock()
+
+      const handler = registered.get('nevermined.logout')!.handler
+      const result = (await handler({})) as { authenticated: boolean }
+
+      expect(result.authenticated).toBe(false)
+      expect(api.setConfig).toHaveBeenCalledWith('nevermined', 'nvmApiKey', '')
+      expect(configStore.get('nevermined.nvmApiKey')).toBe('')
+    })
+
+    test('payment tools fail after logout', async () => {
+      const { registered } = registerWithMock()
+
+      // Logout
+      await registered.get('nevermined.logout')!.handler({})
+
+      // Payment tools should fail
+      const handler = registered.get('nevermined.checkBalance')!.handler
+      await expect(handler({})).rejects.toThrow('Not authenticated')
+    })
+  })
+
+  describe('/nvm-logout command', () => {
+    test('returns confirmation message', async () => {
+      const { commands } = registerWithMock()
+
+      const handler = commands.get('nvm-logout')!.handler
+      const result = await handler({
+        senderId: 'user-1',
+        channel: 'telegram',
+        isAuthorizedSender: true,
+        args: '',
+        commandBody: '',
+        config: {},
+      })
+
+      expect(result.text).toContain('Logged out')
     })
   })
 

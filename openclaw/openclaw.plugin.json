@@ -5,8 +5,8 @@
   "configSchema": {
     "nvmApiKey": {
       "type": "string",
-      "required": true,
-      "description": "Your Nevermined API key"
+      "required": false,
+      "description": "Your Nevermined API key (optional — use /nvm-login to authenticate via browser)"
     },
     "environment": {
       "type": "string",
@@ -34,7 +34,7 @@
     "nvmApiKey": {
       "sensitive": true,
       "label": "Nevermined API Key",
-      "placeholder": "sandbox:eyJhbG..."
+      "placeholder": "sandbox:eyJhbG... (or use /nvm-login)"
     },
     "environment": {
       "label": "Environment"
@@ -48,9 +48,21 @@
       "placeholder": "did:nv:..."
     }
   },
+  "commands": [
+    {
+      "name": "nvm-login",
+      "description": "Authenticate with Nevermined via browser login"
+    },
+    {
+      "name": "nvm-logout",
+      "description": "Log out from Nevermined"
+    }
+  ],
   "skills": ["skills/nevermined/SKILL.md"],
   "gateway": {
     "methods": [
+      "nevermined.login",
+      "nevermined.logout",
       "nevermined.checkBalance",
       "nevermined.getAccessToken",
       "nevermined.orderPlan",
