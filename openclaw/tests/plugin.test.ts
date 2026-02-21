@@ -522,7 +522,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(priceConfig.isCrypto).toBe(true)
     })
 
-    test('nevermined_registerAgent — omits tokenAddress when not provided', async () => {
+    test('nevermined_registerAgent — defaults tokenAddress to ZeroAddress when not provided', async () => {
       const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_registerAgent')!
@@ -537,7 +537,7 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       const call = (mockPayments.agents.registerAgentAndPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
       const priceConfig = call[3] as { tokenAddress?: string }
-      expect(priceConfig.tokenAddress).toBeUndefined()
+      expect(priceConfig.tokenAddress).toBe('0x0000000000000000000000000000000000000000')
     })
 
     test('nevermined_createPlan — calls registerPlan', async () => {

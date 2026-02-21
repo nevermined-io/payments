@@ -1,6 +1,8 @@
 import type { Payments } from '@nevermined-io/payments'
 import type { NeverminedPluginConfig } from './config.js'
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
+
 /**
  * Creates all Nevermined payment tools for the OpenClaw plugin.
  * Each tool is an object with { name, description, parameters, execute }
@@ -168,7 +170,11 @@ export function createTools(
           amounts: priceAmounts,
           receivers: priceReceivers,
           isCrypto: true,
-          ...(tokenAddress ? { tokenAddress } : {}),
+          tokenAddress: tokenAddress ?? ZERO_ADDRESS,
+          contractAddress: ZERO_ADDRESS,
+          feeController: ZERO_ADDRESS,
+          externalPriceAddress: ZERO_ADDRESS,
+          templateAddress: ZERO_ADDRESS,
         }
 
         const res = await getPayments().agents.registerAgentAndPlan(
@@ -225,7 +231,11 @@ export function createTools(
           amounts: priceAmounts,
           receivers: priceReceivers,
           isCrypto: true,
-          ...(tokenAddress ? { tokenAddress } : {}),
+          tokenAddress: tokenAddress ?? ZERO_ADDRESS,
+          contractAddress: ZERO_ADDRESS,
+          feeController: ZERO_ADDRESS,
+          externalPriceAddress: ZERO_ADDRESS,
+          templateAddress: ZERO_ADDRESS,
         }
 
         const res = await getPayments().plans.registerPlan(
