@@ -6,7 +6,7 @@ icon: "book-open"
 
 # Building a Paid AI Agent with OpenClaw and Nevermined
 
-The Nevermined OpenClaw plugin lets you monetize AI agents directly from chat channels. Subscribers pay per-request using the [x402 payment protocol](https://docs.nevermined.app/docs/api-reference/typescript/x402-protocol), and builders collect revenue automatically through on-chain payment plans.
+The Nevermined OpenClaw plugin lets you monetize AI agents directly from chat channels. Subscribers pay per-request using the [x402 payment protocol](https://nevermined.ai/docs/api-reference/typescript/x402-protocol), and builders collect revenue automatically through on-chain payment plans.
 
 This guide walks through building a **Weather Oracle** — a paid agent that serves weather forecasts and charges 1 credit per request.
 
@@ -216,7 +216,7 @@ The balance is cached for 60 seconds to avoid excessive API calls.
 
 ## How It Works
 
-The plugin implements the [x402 payment protocol](https://docs.nevermined.app/docs/api-reference/typescript/x402-protocol) for agent-to-agent payments:
+The plugin implements the [x402 payment protocol](https://nevermined.ai/docs/api-reference/typescript/x402-protocol) for agent-to-agent payments:
 
 ```
 Subscriber Claw                    Builder Claw (Gateway)
@@ -242,6 +242,6 @@ Credits are managed on-chain through the Nevermined Protocol. The `verifyPermiss
 
 - [Commands Reference](./commands.md) — full parameter documentation for all tools
 - [Setup Reference](./setup.md) — detailed configuration options
-- [Nevermined Docs](https://docs.nevermined.app) — platform documentation
-- [x402 Protocol](https://docs.nevermined.app/docs/api-reference/typescript/x402-protocol) — payment protocol specification
+- [Nevermined Docs](https://nevermined.ai/docs) — platform documentation
+- [x402 Protocol](https://nevermined.ai/docs/api-reference/typescript/x402-protocol) — payment protocol specification
 - [OpenClaw Plugin Development](https://docs.openclaw.ai/tools/plugin) — building OpenClaw plugins
