@@ -146,6 +146,7 @@ export function createTools(
           priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei' },
           priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
+          tokenAddress: { type: 'string', description: 'ERC20 token address (e.g. USDC). Omit for native token.' },
         },
         required: ['name', 'agentUrl', 'planName', 'priceAmounts', 'priceReceivers', 'creditsAmount'],
       },
@@ -161,12 +162,20 @@ export function createTools(
           .split(',')
           .map((s) => s.trim())
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
+        const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
+
+        const priceConfig = {
+          amounts: priceAmounts,
+          receivers: priceReceivers,
+          isCrypto: true,
+          ...(tokenAddress ? { tokenAddress } : {}),
+        }
 
         const res = await getPayments().agents.registerAgentAndPlan(
           { name, description },
           { endpoints: [{ POST: agentUrl }], agentDefinitionUrl: agentUrl },
           { name: planName },
-          { amounts: priceAmounts, receivers: priceReceivers, isCrypto: true },
+          priceConfig,
           {
             isRedemptionAmountFixed: true,
             redemptionType: 4,
@@ -195,6 +204,7 @@ export function createTools(
           priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
           accessLimit: { type: 'string', description: '"credits" or "time" (default: credits)' },
+          tokenAddress: { type: 'string', description: 'ERC20 token address (e.g. USDC). Omit for native token.' },
         },
         required: ['name', 'priceAmounts', 'priceReceivers', 'creditsAmount'],
       },
@@ -209,10 +219,18 @@ export function createTools(
           .map((s) => s.trim())
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
         const accessLimit = (str(params, 'accessLimit') ?? 'credits') as 'credits' | 'time'
+        const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
+
+        const priceConfig = {
+          amounts: priceAmounts,
+          receivers: priceReceivers,
+          isCrypto: true,
+          ...(tokenAddress ? { tokenAddress } : {}),
+        }
 
         const res = await getPayments().plans.registerPlan(
           { name, description, accessLimit },
-          { amounts: priceAmounts, receivers: priceReceivers, isCrypto: true },
+          priceConfig,
           {
             isRedemptionAmountFixed: true,
             redemptionType: 4,

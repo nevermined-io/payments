@@ -1,13 +1,35 @@
 import { validateConfig, createPaymentsFromConfig, requireApiKey } from './config.js'
 import { createTools } from './tools.js'
 import { startLoginFlow, looksLikeApiKey, getLoginUrl, getApiKeyUrl } from './auth.js'
+import { registerPaidEndpoint } from './paid-endpoint.js'
 import { Payments } from '@nevermined-io/payments'
 import type { EnvironmentName } from '@nevermined-io/payments'
 import type { NeverminedPluginConfig } from './config.js'
+import type { AgentHandler } from './paid-endpoint.js'
 
 export type { NeverminedPluginConfig }
+export type { AgentHandler }
 export { validateConfig, createPaymentsFromConfig, requireApiKey }
 export { startLoginFlow, openBrowser } from './auth.js'
+export { registerPaidEndpoint, mockWeatherHandler } from './paid-endpoint.js'
+
+/**
+ * HTTP route handler signature used by OpenClaw's registerHttpRoute.
+ */
+export type HttpRouteHandler = (
+  req: HttpIncomingMessage,
+  res: HttpServerResponse,
+) => void | Promise<void>
+
+export interface HttpIncomingMessage {
+  headers: Record<string, string | string[] | undefined>
+  on(event: string, cb: (data?: unknown) => void): void
+}
+
+export interface HttpServerResponse {
+  writeHead(statusCode: number, headers?: Record<string, string>): void
+  end(body?: string): void
+}
 
 /**
  * Minimal subset of the OpenClaw Plugin API used by this plugin.
@@ -30,6 +52,8 @@ export interface OpenClawPluginAPI {
     handler: (ctx: CommandContext) => Promise<CommandResult> | CommandResult
   }): void
   registerGatewayMethod(method: string, handler: unknown): void
+  registerHttpRoute?(route: { path: string; handler: HttpRouteHandler }): void
+  on?(hookName: string, handler: (...args: unknown[]) => unknown): void
 }
 
 export interface CommandContext {
@@ -47,6 +71,7 @@ export interface CommandResult {
 
 export interface RegisterOptions {
   paymentsFactory?: (config: NeverminedPluginConfig) => Payments
+  agentHandler?: AgentHandler
 }
 
 export interface ToolContext {
@@ -101,6 +126,40 @@ const neverminedPlugin = {
     )
 
     api.logger.info(`Registered ${toolNames.length} Nevermined payment tools`)
+
+    // --- Paid HTTP endpoint ---
+
+    if (config.enablePaidEndpoint && api.registerHttpRoute) {
+      registerPaidEndpoint(api, getPayments, config, options?.agentHandler)
+    }
+
+    // --- Credit balance injection into agent context ---
+
+    if (api.on) {
+      let cachedBalance: { balance: string; planName: string; fetchedAt: number } | null = null
+      const CACHE_TTL_MS = 60_000
+
+      api.on('before_prompt_build', async () => {
+        if (!config.nvmApiKey || !config.planId) return undefined
+
+        const now = Date.now()
+        if (cachedBalance && now - cachedBalance.fetchedAt < CACHE_TTL_MS) {
+          return { prependContext: formatBalanceContext(cachedBalance.balance, cachedBalance.planName) }
+        }
+
+        try {
+          const result = await getPayments().plans.getPlanBalance(config.planId)
+          cachedBalance = {
+            balance: result.balance.toString(),
+            planName: result.planName ?? config.planId,
+            fetchedAt: now,
+          }
+          return { prependContext: formatBalanceContext(cachedBalance.balance, cachedBalance.planName) }
+        } catch {
+          return undefined
+        }
+      })
+    }
 
     // --- Slash commands for chat channels ---
 
@@ -169,6 +228,12 @@ const neverminedPlugin = {
       },
     })
   },
+}
+
+function formatBalanceContext(balance: string, planName: string): string {
+  const num = Number(balance)
+  const warning = num > 0 && num <= 5 ? ' (LOW — consider ordering more credits)' : ''
+  return `[Nevermined] Credits remaining: ${balance} (plan: ${planName})${warning}`
 }
 
 export default neverminedPlugin

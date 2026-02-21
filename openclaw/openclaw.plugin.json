@@ -28,6 +28,16 @@
         "type": "number",
         "default": 1,
         "description": "Number of credits consumed per request"
+      },
+      "enablePaidEndpoint": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable the paid HTTP endpoint on the gateway for receiving paid queries"
+      },
+      "agentEndpointPath": {
+        "type": "string",
+        "default": "/nevermined/agent",
+        "description": "HTTP path for the paid agent endpoint"
       }
     }
   }

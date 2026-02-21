@@ -1,7 +1,8 @@
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals'
 import neverminedPlugin, { validateConfig } from '../src/index.js'
 import { looksLikeApiKey } from '../src/auth.js'
-import type { OpenClawPluginAPI, CommandContext } from '../src/index.js'
+import { mockWeatherHandler } from '../src/paid-endpoint.js'
+import type { OpenClawPluginAPI, CommandContext, HttpRouteHandler } from '../src/index.js'
 import type { NeverminedPluginConfig } from '../src/config.js'
 import type { Payments } from '@nevermined-io/payments'
 
@@ -34,6 +35,10 @@ function createMockPayments() {
         txHash: '0xabc',
       }),
     },
+    facilitator: {
+      verifyPermissions: jest.fn<() => Promise<unknown>>().mockResolvedValue({ isValid: true }),
+      settlePermissions: jest.fn<() => Promise<unknown>>().mockResolvedValue({ txHash: '0xsettle', success: true }),
+    },
   } as unknown as Payments
 }
 
@@ -43,6 +48,8 @@ const validConfig: NeverminedPluginConfig = {
   planId: 'plan-default',
   agentId: 'agent-default',
   creditsPerRequest: 1,
+  enablePaidEndpoint: false,
+  agentEndpointPath: '/nevermined/agent',
 }
 
 interface ToolObject {
@@ -57,6 +64,8 @@ function createMockAPI(config: Partial<NeverminedPluginConfig> = validConfig) {
   const tools = new Map<string, ToolObject>()
   let toolFactory: ((ctx: unknown) => ToolObject[]) | null = null
   const commands = new Map<string, { description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }>()
+  const httpRoutes = new Map<string, HttpRouteHandler>()
+  const hooks = new Map<string, ((...args: unknown[]) => unknown)[]>()
 
   const api: OpenClawPluginAPI = {
     id: 'nevermined',
@@ -84,9 +93,17 @@ function createMockAPI(config: Partial<NeverminedPluginConfig> = validConfig) {
       commands.set(cmd.name, { description: cmd.description, handler: cmd.handler })
     }),
     registerGatewayMethod: jest.fn(),
+    registerHttpRoute: jest.fn((route: { path: string; handler: HttpRouteHandler }) => {
+      httpRoutes.set(route.path, route.handler)
+    }),
+    on: jest.fn((hookName: string, handler: (...args: unknown[]) => unknown) => {
+      const existing = hooks.get(hookName) ?? []
+      existing.push(handler)
+      hooks.set(hookName, existing)
+    }),
   }
 
-  return { api, tools, commands, mockPayments, getToolFactory: () => toolFactory }
+  return { api, tools, commands, mockPayments, httpRoutes, hooks, getToolFactory: () => toolFactory }
 }
 
 function registerWithMock(config?: Partial<NeverminedPluginConfig>) {
@@ -98,6 +115,40 @@ function registerWithMock(config?: Partial<NeverminedPluginConfig>) {
 function parseResult(result: unknown): unknown {
   const r = result as { content: Array<{ text: string }> }
   return JSON.parse(r.content[0].text)
+}
+
+// --- HTTP mock helpers ---
+
+function createMockRequest(headers: Record<string, string>, body: string): { headers: Record<string, string>; on: jest.Mock } {
+  const listeners: Record<string, ((...args: unknown[]) => void)[]> = {}
+  const req = {
+    headers,
+    on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
+      listeners[event] = listeners[event] ?? []
+      listeners[event].push(cb)
+      // Simulate data+end immediately
+      if (event === 'data') {
+        setTimeout(() => cb(Buffer.from(body)), 0)
+      }
+      if (event === 'end') {
+        setTimeout(() => cb(), 1)
+      }
+    }),
+  }
+  return req
+}
+
+function createMockResponse(): { writeHead: jest.Mock; end: jest.Mock; statusCode?: number; body?: string; headers?: Record<string, string> } {
+  const res = {
+    writeHead: jest.fn((code: number, headers?: Record<string, string>) => {
+      res.statusCode = code
+      res.headers = headers
+    }),
+    end: jest.fn((body?: string) => {
+      res.body = body
+    }),
+  }
+  return res
 }
 
 // --- Tests ---
@@ -146,6 +197,21 @@ describe('OpenClaw Nevermined Plugin', () => {
       const tool = tools.get('nevermined_checkBalance')!
       await expect(tool.execute('call-1', { planId: 'plan-1' })).rejects.toThrow('Not authenticated')
     })
+
+    test('should register paid endpoint when enablePaidEndpoint is true', () => {
+      const { httpRoutes } = registerWithMock({ ...validConfig, enablePaidEndpoint: true })
+      expect(httpRoutes.has('/nevermined/agent')).toBe(true)
+    })
+
+    test('should not register paid endpoint when enablePaidEndpoint is false', () => {
+      const { httpRoutes } = registerWithMock({ ...validConfig, enablePaidEndpoint: false })
+      expect(httpRoutes.size).toBe(0)
+    })
+
+    test('should register before_prompt_build hook', () => {
+      const { hooks } = registerWithMock()
+      expect(hooks.has('before_prompt_build')).toBe(true)
+    })
   })
 
   describe('config validation', () => {
@@ -179,6 +245,21 @@ describe('OpenClaw Nevermined Plugin', () => {
     test('should default creditsPerRequest to 1', () => {
       const config = validateConfig({ nvmApiKey: 'key' })
       expect(config.creditsPerRequest).toBe(1)
+    })
+
+    test('should default enablePaidEndpoint to false', () => {
+      const config = validateConfig({})
+      expect(config.enablePaidEndpoint).toBe(false)
+    })
+
+    test('should default agentEndpointPath to /nevermined/agent', () => {
+      const config = validateConfig({})
+      expect(config.agentEndpointPath).toBe('/nevermined/agent')
+    })
+
+    test('should accept custom agentEndpointPath', () => {
+      const config = validateConfig({ agentEndpointPath: '/custom/path' })
+      expect(config.agentEndpointPath).toBe('/custom/path')
     })
   })
 
@@ -421,6 +502,44 @@ describe('OpenClaw Nevermined Plugin', () => {
       })
     })
 
+    test('nevermined_registerAgent — passes tokenAddress when provided', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_registerAgent')!
+      await tool.execute('call-1', {
+        name: 'USDC Agent',
+        agentUrl: 'https://agent.example.com',
+        planName: 'USDC Plan',
+        priceAmounts: '1000000',
+        priceReceivers: '0x1234567890abcdef1234567890abcdef12345678',
+        creditsAmount: 5,
+        tokenAddress: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+      })
+
+      const call = (mockPayments.agents.registerAgentAndPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
+      const priceConfig = call[3] as { tokenAddress?: string; isCrypto: boolean }
+      expect(priceConfig.tokenAddress).toBe('0x036CbD53842c5426634e7929541eC2318f3dCF7e')
+      expect(priceConfig.isCrypto).toBe(true)
+    })
+
+    test('nevermined_registerAgent — omits tokenAddress when not provided', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_registerAgent')!
+      await tool.execute('call-1', {
+        name: 'ETH Agent',
+        agentUrl: 'https://agent.example.com',
+        planName: 'ETH Plan',
+        priceAmounts: '1000000000000000000',
+        priceReceivers: '0x1234567890abcdef1234567890abcdef12345678',
+        creditsAmount: 10,
+      })
+
+      const call = (mockPayments.agents.registerAgentAndPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
+      const priceConfig = call[3] as { tokenAddress?: string }
+      expect(priceConfig.tokenAddress).toBeUndefined()
+    })
+
     test('nevermined_createPlan — calls registerPlan', async () => {
       const { tools, mockPayments } = registerWithMock()
 
@@ -436,6 +555,23 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(result).toEqual({ planId: 'plan-new' })
     })
 
+    test('nevermined_createPlan — passes tokenAddress when provided', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_createPlan')!
+      await tool.execute('call-1', {
+        name: 'USDC Plan',
+        priceAmounts: '1000000',
+        priceReceivers: '0xabc',
+        creditsAmount: 5,
+        tokenAddress: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+      })
+
+      const call = (mockPayments.plans.registerPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
+      const priceConfig = call[1] as { tokenAddress?: string }
+      expect(priceConfig.tokenAddress).toBe('0x036CbD53842c5426634e7929541eC2318f3dCF7e')
+    })
+
     test('nevermined_listPlans — returns plans', async () => {
       const { tools, mockPayments } = registerWithMock()
 
@@ -444,6 +580,144 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       expect(mockPayments.plans.getPlans).toHaveBeenCalled()
       expect(result).toEqual([{ planId: 'plan-1' }, { planId: 'plan-2' }])
+    })
+  })
+
+  describe('paid HTTP endpoint', () => {
+    test('returns 402 when payment-signature header is missing', async () => {
+      const { httpRoutes } = registerWithMock({ ...validConfig, enablePaidEndpoint: true })
+
+      const handler = httpRoutes.get('/nevermined/agent')!
+      const req = createMockRequest({}, '{"prompt":"hello"}')
+      const res = createMockResponse()
+
+      await handler(req as never, res as never)
+
+      expect(res.statusCode).toBe(402)
+      expect(res.body).toContain('missing payment-signature')
+    })
+
+    test('calls verifyPermissions and settlePermissions on valid request', async () => {
+      const { httpRoutes, mockPayments } = registerWithMock({ ...validConfig, enablePaidEndpoint: true })
+
+      const handler = httpRoutes.get('/nevermined/agent')!
+      const req = createMockRequest(
+        { 'payment-signature': 'tok_valid_123' },
+        '{"prompt":"Weather in Barcelona"}',
+      )
+      const res = createMockResponse()
+
+      await handler(req as never, res as never)
+
+      expect(mockPayments.facilitator.verifyPermissions).toHaveBeenCalled()
+      expect(mockPayments.facilitator.settlePermissions).toHaveBeenCalled()
+      expect(res.statusCode).toBe(200)
+
+      const body = JSON.parse(res.body!)
+      expect(body.city).toBe('Barcelona')
+      expect(body.source).toBe('Weather Oracle (Nevermined demo)')
+    })
+
+    test('returns 402 when verifyPermissions says isValid=false', async () => {
+      const { httpRoutes, mockPayments } = registerWithMock({ ...validConfig, enablePaidEndpoint: true })
+
+      ;(mockPayments.facilitator.verifyPermissions as jest.Mock<() => Promise<unknown>>)
+        .mockResolvedValueOnce({ isValid: false })
+
+      const handler = httpRoutes.get('/nevermined/agent')!
+      const req = createMockRequest(
+        { 'payment-signature': 'tok_invalid' },
+        '{"prompt":"hello"}',
+      )
+      const res = createMockResponse()
+
+      await handler(req as never, res as never)
+
+      expect(res.statusCode).toBe(402)
+      expect(res.body).toContain('Insufficient credits')
+    })
+
+    test('includes payment-response header on success', async () => {
+      const { httpRoutes } = registerWithMock({ ...validConfig, enablePaidEndpoint: true })
+
+      const handler = httpRoutes.get('/nevermined/agent')!
+      const req = createMockRequest(
+        { 'payment-signature': 'tok_valid_123' },
+        '{"prompt":"Weather in Madrid"}',
+      )
+      const res = createMockResponse()
+
+      await handler(req as never, res as never)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.headers).toBeDefined()
+      expect(res.headers!['payment-response']).toBeDefined()
+
+      // Decode the base64 payment-response header
+      const decoded = JSON.parse(Buffer.from(res.headers!['payment-response'], 'base64').toString())
+      expect(decoded.txHash).toBe('0xsettle')
+    })
+
+    test('uses custom agentEndpointPath', () => {
+      const { httpRoutes } = registerWithMock({
+        ...validConfig,
+        enablePaidEndpoint: true,
+        agentEndpointPath: '/custom/weather',
+      })
+
+      expect(httpRoutes.has('/custom/weather')).toBe(true)
+      expect(httpRoutes.has('/nevermined/agent')).toBe(false)
+    })
+  })
+
+  describe('mockWeatherHandler', () => {
+    test('extracts city from prompt', async () => {
+      const result = await mockWeatherHandler({ prompt: 'What is the weather in Barcelona?' }) as Record<string, unknown>
+      expect(result.city).toBe('Barcelona')
+      expect(result.source).toBe('Weather Oracle (Nevermined demo)')
+      expect(result.unit).toBe('celsius')
+      expect(typeof result.temperature).toBe('number')
+      expect(typeof result.humidity).toBe('number')
+    })
+
+    test('handles prompt without city', async () => {
+      const result = await mockWeatherHandler({ prompt: 'give me weather' }) as Record<string, unknown>
+      expect(result.city).toBe('Unknown')
+    })
+
+    test('extracts city with "for" pattern', async () => {
+      const result = await mockWeatherHandler({ prompt: 'forecast for Madrid' }) as Record<string, unknown>
+      expect(result.city).toBe('Madrid')
+    })
+  })
+
+  describe('before_prompt_build hook', () => {
+    test('returns credit balance context when authenticated', async () => {
+      const { hooks } = registerWithMock()
+
+      const hookHandlers = hooks.get('before_prompt_build')!
+      expect(hookHandlers.length).toBe(1)
+
+      const result = await hookHandlers[0]() as { prependContext: string } | undefined
+      expect(result).toBeDefined()
+      expect(result!.prependContext).toContain('Credits remaining: 100')
+      expect(result!.prependContext).toContain('Test Plan')
+    })
+
+    test('returns undefined when not authenticated', async () => {
+      const { hooks } = registerWithMock({ environment: 'sandbox' })
+
+      const hookHandlers = hooks.get('before_prompt_build')!
+      const result = await hookHandlers[0]()
+      expect(result).toBeUndefined()
+    })
+
+    test('returns undefined when no planId configured', async () => {
+      const { hooks } = registerWithMock({ ...validConfig, planId: undefined })
+
+      const hookHandlers = hooks.get('before_prompt_build')!
+      const result = await hookHandlers[0]()
+      expect(result).toBeUndefined()
     })
   })
 })

@@ -8,6 +8,8 @@ export const NeverminedPluginConfigSchema = z.object({
   planId: z.string().optional(),
   agentId: z.string().optional(),
   creditsPerRequest: z.number().int().positive().default(1),
+  enablePaidEndpoint: z.boolean().default(false),
+  agentEndpointPath: z.string().default('/nevermined/agent'),
 })
 
 export type NeverminedPluginConfig = z.infer<typeof NeverminedPluginConfigSchema>
