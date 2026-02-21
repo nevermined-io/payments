@@ -240,8 +240,8 @@ Credits are managed on-chain through the Nevermined Protocol. The `verifyPermiss
 
 ## Next Steps
 
-- [Commands Reference](./commands) — full parameter documentation for all tools
-- [Setup Reference](./setup) — detailed configuration options
+- [Commands Reference](./commands.md) — full parameter documentation for all tools
+- [Setup Reference](./setup.md) — detailed configuration options
 - [Nevermined Docs](https://docs.nevermined.app) — platform documentation
 - [x402 Protocol](https://docs.nevermined.app/docs/api-reference/typescript/x402-protocol) — payment protocol specification
 - [OpenClaw Plugin Development](https://docs.openclaw.ai/tools/plugin) — building OpenClaw plugins
