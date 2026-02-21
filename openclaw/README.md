@@ -90,9 +90,9 @@ Add your API key directly to `openclaw.json`:
 
 ## Documentation
 
-- [User Guide](./docs/guide.md) — step-by-step tutorial building a paid Weather Oracle agent
-- [Commands Reference](./docs/commands.md) — full parameter documentation for all tools
-- [Setup Reference](./docs/setup.md) — detailed configuration options
+- [User Guide](./guide.md) — step-by-step tutorial building a paid Weather Oracle agent
+- [Commands Reference](./commands.md) — full parameter documentation for all tools
+- [Setup Reference](./setup.md) — detailed configuration options
 - [Nevermined Docs](https://docs.nevermined.app)
 - [Payments SDK](https://github.com/nevermined-io/payments)
 
