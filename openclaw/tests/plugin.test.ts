@@ -1,5 +1,5 @@
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals'
-import { register, allTools, validateConfig } from '../src/index.js'
+import register, { validateConfig } from '../src/index.js'
 import type { OpenClawPluginAPI, CommandContext } from '../src/index.js'
 import type { NeverminedPluginConfig } from '../src/config.js'
 import type { Payments } from '@nevermined-io/payments'
@@ -44,40 +44,48 @@ const validConfig: NeverminedPluginConfig = {
   creditsPerRequest: 1,
 }
 
-function createMockAPI(
-  config: Partial<NeverminedPluginConfig> = validConfig,
-) {
+interface ToolObject {
+  name: string
+  label: string
+  description: string
+  execute: (_id: string, params: Record<string, unknown>) => Promise<unknown>
+}
+
+function createMockAPI(config: Partial<NeverminedPluginConfig> = validConfig) {
   const mockPayments = createMockPayments()
-  const registered = new Map<
-    string,
-    { description: string; handler: (params: Record<string, unknown>) => Promise<unknown> }
-  >()
-  const commands = new Map<
-    string,
-    { description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }
-  >()
-  const configStore = new Map<string, unknown>()
+  const tools = new Map<string, ToolObject>()
+  const commands = new Map<string, { description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }>()
 
   const api: OpenClawPluginAPI = {
-    getConfig: jest.fn(() => config),
-    setConfig: jest.fn((namespace: string, key: string, value: unknown) => {
-      configStore.set(`${namespace}.${key}`, value)
+    id: 'nevermined',
+    pluginConfig: config as Record<string, unknown>,
+    config: {},
+    logger: {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    },
+    registerTool: jest.fn((tool: ToolObject) => {
+      tools.set(tool.name, tool)
     }),
-    registerGatewayMethod: jest.fn((name: string, options: { description: string; handler: (params: Record<string, unknown>) => Promise<unknown> }) => {
-      registered.set(name, { description: options.description, handler: options.handler })
+    registerCommand: jest.fn((cmd: { name: string; description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }) => {
+      commands.set(cmd.name, { description: cmd.description, handler: cmd.handler })
     }),
-    registerCommand: jest.fn((options: { name: string; description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }) => {
-      commands.set(options.name, { description: options.description, handler: options.handler })
-    }),
+    registerGatewayMethod: jest.fn(),
   }
 
-  return { api, registered, commands, configStore, mockPayments }
+  return { api, tools, commands, mockPayments }
 }
 
 function registerWithMock(config?: Partial<NeverminedPluginConfig>) {
   const ctx = createMockAPI(config)
   register(ctx.api, { paymentsFactory: () => ctx.mockPayments })
   return ctx
+}
+
+function parseResult(result: unknown): unknown {
+  const r = result as { content: Array<{ text: string }> }
+  return JSON.parse(r.content[0].text)
 }
 
 // --- Tests ---
@@ -88,25 +96,22 @@ describe('OpenClaw Nevermined Plugin', () => {
   })
 
   describe('register()', () => {
-    test('should register all 9 gateway methods (7 tools + login + logout)', () => {
-      const { api, registered } = registerWithMock()
+    test('should register all 7 tools', () => {
+      const { tools } = registerWithMock()
 
-      expect(api.getConfig).toHaveBeenCalledWith('nevermined')
-      expect(registered.size).toBe(9)
+      expect(tools.size).toBe(7)
 
       const expectedNames = [
-        'nevermined.login',
-        'nevermined.logout',
-        'nevermined.checkBalance',
-        'nevermined.getAccessToken',
-        'nevermined.orderPlan',
-        'nevermined.queryAgent',
-        'nevermined.registerAgent',
-        'nevermined.createPlan',
-        'nevermined.listPlans',
+        'nevermined_checkBalance',
+        'nevermined_getAccessToken',
+        'nevermined_orderPlan',
+        'nevermined_queryAgent',
+        'nevermined_registerAgent',
+        'nevermined_createPlan',
+        'nevermined_listPlans',
       ]
       for (const name of expectedNames) {
-        expect(registered.has(name)).toBe(true)
+        expect(tools.has(name)).toBe(true)
       }
     })
 
@@ -119,17 +124,15 @@ describe('OpenClaw Nevermined Plugin', () => {
     })
 
     test('should start without nvmApiKey (login-first flow)', () => {
-      const { registered } = registerWithMock({ environment: 'sandbox' })
-
-      // Plugin registers successfully without nvmApiKey
-      expect(registered.size).toBe(9)
+      const { tools } = registerWithMock({ environment: 'sandbox' })
+      expect(tools.size).toBe(7)
     })
 
     test('should throw when calling payment tools without nvmApiKey', async () => {
-      const { registered } = registerWithMock({ environment: 'sandbox' })
+      const { tools } = registerWithMock({ environment: 'sandbox' })
 
-      const handler = registered.get('nevermined.checkBalance')!.handler
-      await expect(handler({})).rejects.toThrow('Not authenticated')
+      const tool = tools.get('nevermined_checkBalance')!
+      await expect(tool.execute('call-1', { planId: 'plan-1' })).rejects.toThrow('Not authenticated')
     })
   })
 
@@ -167,30 +170,6 @@ describe('OpenClaw Nevermined Plugin', () => {
     })
   })
 
-  describe('nevermined.logout', () => {
-    test('clears nvmApiKey via setConfig', async () => {
-      const { registered, api, configStore } = registerWithMock()
-
-      const handler = registered.get('nevermined.logout')!.handler
-      const result = (await handler({})) as { authenticated: boolean }
-
-      expect(result.authenticated).toBe(false)
-      expect(api.setConfig).toHaveBeenCalledWith('nevermined', 'nvmApiKey', '')
-      expect(configStore.get('nevermined.nvmApiKey')).toBe('')
-    })
-
-    test('payment tools fail after logout', async () => {
-      const { registered } = registerWithMock()
-
-      // Logout
-      await registered.get('nevermined.logout')!.handler({})
-
-      // Payment tools should fail
-      const handler = registered.get('nevermined.checkBalance')!.handler
-      await expect(handler({})).rejects.toThrow('Not authenticated')
-    })
-  })
-
   describe('/nvm-logout command', () => {
     test('returns confirmation message', async () => {
       const { commands } = registerWithMock()
@@ -207,14 +186,32 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       expect(result.text).toContain('Logged out')
     })
+
+    test('payment tools fail after logout', async () => {
+      const { commands, tools } = registerWithMock()
+
+      // Logout via command
+      await commands.get('nvm-logout')!.handler({
+        senderId: 'user-1',
+        channel: 'telegram',
+        isAuthorizedSender: true,
+        args: '',
+        commandBody: '',
+        config: {},
+      })
+
+      // Payment tools should fail
+      const tool = tools.get('nevermined_checkBalance')!
+      await expect(tool.execute('call-1', {})).rejects.toThrow('Not authenticated')
+    })
   })
 
   describe('subscriber tools', () => {
-    test('nevermined.checkBalance — uses config planId', async () => {
-      const { registered, mockPayments } = registerWithMock()
+    test('nevermined_checkBalance — uses config planId', async () => {
+      const { tools, mockPayments } = registerWithMock()
 
-      const handler = registered.get('nevermined.checkBalance')!.handler
-      const result = await handler({})
+      const tool = tools.get('nevermined_checkBalance')!
+      const result = parseResult(await tool.execute('call-1', {}))
 
       expect(mockPayments.plans.getPlanBalance).toHaveBeenCalledWith('plan-default')
       expect(result).toEqual({
@@ -225,47 +222,47 @@ describe('OpenClaw Nevermined Plugin', () => {
       })
     })
 
-    test('nevermined.checkBalance — param overrides config', async () => {
-      const { registered, mockPayments } = registerWithMock()
+    test('nevermined_checkBalance — param overrides config', async () => {
+      const { tools, mockPayments } = registerWithMock()
 
-      const handler = registered.get('nevermined.checkBalance')!.handler
-      await handler({ planId: 'plan-override' })
+      const tool = tools.get('nevermined_checkBalance')!
+      await tool.execute('call-1', { planId: 'plan-override' })
 
       expect(mockPayments.plans.getPlanBalance).toHaveBeenCalledWith('plan-override')
     })
 
-    test('nevermined.checkBalance — throws if no planId', async () => {
-      const { registered } = registerWithMock({
+    test('nevermined_checkBalance — throws if no planId', async () => {
+      const { tools } = registerWithMock({
         ...validConfig,
         planId: undefined,
       })
 
-      const handler = registered.get('nevermined.checkBalance')!.handler
-      await expect(handler({})).rejects.toThrow('planId is required')
+      const tool = tools.get('nevermined_checkBalance')!
+      await expect(tool.execute('call-1', {})).rejects.toThrow('planId is required')
     })
 
-    test('nevermined.getAccessToken — returns token', async () => {
-      const { registered, mockPayments } = registerWithMock()
+    test('nevermined_getAccessToken — returns token', async () => {
+      const { tools, mockPayments } = registerWithMock()
 
-      const handler = registered.get('nevermined.getAccessToken')!.handler
-      const result = await handler({})
+      const tool = tools.get('nevermined_getAccessToken')!
+      const result = parseResult(await tool.execute('call-1', {}))
 
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith('plan-default', 'agent-default')
       expect(result).toEqual({ accessToken: 'tok_test_123' })
     })
 
-    test('nevermined.orderPlan — returns order result', async () => {
-      const { registered, mockPayments } = registerWithMock()
+    test('nevermined_orderPlan — returns order result', async () => {
+      const { tools, mockPayments } = registerWithMock()
 
-      const handler = registered.get('nevermined.orderPlan')!.handler
-      const result = await handler({})
+      const tool = tools.get('nevermined_orderPlan')!
+      const result = parseResult(await tool.execute('call-1', {}))
 
       expect(mockPayments.plans.orderPlan).toHaveBeenCalledWith('plan-default')
       expect(result).toEqual({ txHash: '0xdeadbeef', success: true })
     })
   })
 
-  describe('nevermined.queryAgent', () => {
+  describe('nevermined_queryAgent', () => {
     const originalFetch = globalThis.fetch
 
     beforeEach(() => {
@@ -284,13 +281,13 @@ describe('OpenClaw Nevermined Plugin', () => {
         json: () => Promise.resolve({ answer: 'hello' }),
       } as Response)
 
-      const { registered, mockPayments } = registerWithMock()
+      const { tools, mockPayments } = registerWithMock()
 
-      const handler = registered.get('nevermined.queryAgent')!.handler
-      const result = await handler({
+      const tool = tools.get('nevermined_queryAgent')!
+      const result = parseResult(await tool.execute('call-1', {
         agentUrl: 'https://agent.example.com/tasks',
         prompt: 'What is AI?',
-      })
+      }))
 
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith('plan-default', 'agent-default')
 
@@ -312,10 +309,10 @@ describe('OpenClaw Nevermined Plugin', () => {
         statusText: 'Payment Required',
       } as Response)
 
-      const { registered } = registerWithMock()
+      const { tools } = registerWithMock()
 
-      const handler = registered.get('nevermined.queryAgent')!.handler
-      const result = (await handler({
+      const tool = tools.get('nevermined_queryAgent')!
+      const result = parseResult(await tool.execute('call-1', {
         agentUrl: 'https://agent.example.com/tasks',
         prompt: 'test',
       })) as { error: string; status: number }
@@ -325,33 +322,33 @@ describe('OpenClaw Nevermined Plugin', () => {
     })
 
     test('requires agentUrl', async () => {
-      const { registered } = registerWithMock()
+      const { tools } = registerWithMock()
 
-      const handler = registered.get('nevermined.queryAgent')!.handler
-      await expect(handler({ prompt: 'test' })).rejects.toThrow('agentUrl')
+      const tool = tools.get('nevermined_queryAgent')!
+      await expect(tool.execute('call-1', { prompt: 'test' })).rejects.toThrow('agentUrl')
     })
 
     test('requires prompt', async () => {
-      const { registered } = registerWithMock()
+      const { tools } = registerWithMock()
 
-      const handler = registered.get('nevermined.queryAgent')!.handler
-      await expect(handler({ agentUrl: 'https://example.com' })).rejects.toThrow('prompt')
+      const tool = tools.get('nevermined_queryAgent')!
+      await expect(tool.execute('call-1', { agentUrl: 'https://example.com' })).rejects.toThrow('prompt')
     })
   })
 
   describe('builder tools', () => {
-    test('nevermined.registerAgent — calls registerAgentAndPlan', async () => {
-      const { registered, mockPayments } = registerWithMock()
+    test('nevermined_registerAgent — calls registerAgentAndPlan', async () => {
+      const { tools, mockPayments } = registerWithMock()
 
-      const handler = registered.get('nevermined.registerAgent')!.handler
-      const result = await handler({
+      const tool = tools.get('nevermined_registerAgent')!
+      const result = parseResult(await tool.execute('call-1', {
         name: 'My Agent',
         agentUrl: 'https://agent.example.com',
         planName: 'Basic Plan',
         priceAmounts: '1000000000000000000',
         priceReceivers: '0x1234567890abcdef1234567890abcdef12345678',
         creditsAmount: 100,
-      })
+      }))
 
       expect(mockPayments.agents.registerAgentAndPlan).toHaveBeenCalled()
       const call = (mockPayments.agents.registerAgentAndPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
@@ -369,59 +366,29 @@ describe('OpenClaw Nevermined Plugin', () => {
       })
     })
 
-    test('nevermined.createPlan — calls registerPlan', async () => {
-      const { registered, mockPayments } = registerWithMock()
+    test('nevermined_createPlan — calls registerPlan', async () => {
+      const { tools, mockPayments } = registerWithMock()
 
-      const handler = registered.get('nevermined.createPlan')!.handler
-      const result = await handler({
+      const tool = tools.get('nevermined_createPlan')!
+      const result = parseResult(await tool.execute('call-1', {
         name: 'My Plan',
         priceAmounts: '500',
         priceReceivers: '0xabc',
         creditsAmount: 50,
-      })
+      }))
 
       expect(mockPayments.plans.registerPlan).toHaveBeenCalled()
       expect(result).toEqual({ planId: 'plan-new' })
     })
 
-    test('nevermined.listPlans — returns plans', async () => {
-      const { registered, mockPayments } = registerWithMock()
+    test('nevermined_listPlans — returns plans', async () => {
+      const { tools, mockPayments } = registerWithMock()
 
-      const handler = registered.get('nevermined.listPlans')!.handler
-      const result = await handler({})
+      const tool = tools.get('nevermined_listPlans')!
+      const result = parseResult(await tool.execute('call-1', {}))
 
       expect(mockPayments.plans.getPlans).toHaveBeenCalled()
       expect(result).toEqual([{ planId: 'plan-1' }, { planId: 'plan-2' }])
-    })
-  })
-
-  describe('error handling', () => {
-    test('wraps SDK errors with plugin context', async () => {
-      const { registered, mockPayments } = registerWithMock()
-
-      ;(mockPayments.plans.getPlanBalance as jest.Mock<() => Promise<unknown>>).mockRejectedValueOnce(
-        new Error('Network timeout'),
-      )
-
-      const handler = registered.get('nevermined.checkBalance')!.handler
-      await expect(handler({})).rejects.toThrow(
-        '[nevermined] nevermined.checkBalance failed: Network timeout',
-      )
-    })
-  })
-
-  describe('allTools export', () => {
-    test('exports exactly 7 tool definitions', () => {
-      expect(allTools).toHaveLength(7)
-    })
-
-    test('all tools have required fields', () => {
-      for (const tool of allTools) {
-        expect(tool.name).toBeDefined()
-        expect(tool.description).toBeDefined()
-        expect(tool.params).toBeDefined()
-        expect(typeof tool.handler).toBe('function')
-      }
     })
   })
 })

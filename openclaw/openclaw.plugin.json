@@ -1,75 +1,34 @@
 {
+  "id": "nevermined",
   "name": "@nevermined-io/openclaw-plugin",
-  "version": "0.1.0",
   "description": "Nevermined plugin for OpenClaw — AI agent payments and access control",
   "configSchema": {
-    "nvmApiKey": {
-      "type": "string",
-      "required": false,
-      "description": "Your Nevermined API key (optional — use /nvm-login to authenticate via browser)"
-    },
-    "environment": {
-      "type": "string",
-      "enum": ["sandbox", "live"],
-      "default": "sandbox",
-      "description": "Nevermined environment to connect to"
-    },
-    "planId": {
-      "type": "string",
-      "required": false,
-      "description": "Default payment plan ID (required for subscriber tools)"
-    },
-    "agentId": {
-      "type": "string",
-      "required": false,
-      "description": "Default agent ID (required for multi-agent plans)"
-    },
-    "creditsPerRequest": {
-      "type": "number",
-      "default": 1,
-      "description": "Number of credits consumed per request"
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "nvmApiKey": {
+        "type": "string",
+        "description": "Your Nevermined API key (optional — use /nvm-login to authenticate via browser)"
+      },
+      "environment": {
+        "type": "string",
+        "enum": ["sandbox", "live"],
+        "default": "sandbox",
+        "description": "Nevermined environment to connect to"
+      },
+      "planId": {
+        "type": "string",
+        "description": "Default payment plan ID (required for subscriber tools)"
+      },
+      "agentId": {
+        "type": "string",
+        "description": "Default agent ID (required for multi-agent plans)"
+      },
+      "creditsPerRequest": {
+        "type": "number",
+        "default": 1,
+        "description": "Number of credits consumed per request"
+      }
     }
-  },
-  "uiHints": {
-    "nvmApiKey": {
-      "sensitive": true,
-      "label": "Nevermined API Key",
-      "placeholder": "sandbox:eyJhbG... (or use /nvm-login)"
-    },
-    "environment": {
-      "label": "Environment"
-    },
-    "planId": {
-      "label": "Plan ID",
-      "placeholder": "did:nv:..."
-    },
-    "agentId": {
-      "label": "Agent ID",
-      "placeholder": "did:nv:..."
-    }
-  },
-  "commands": [
-    {
-      "name": "nvm-login",
-      "description": "Authenticate with Nevermined via browser login"
-    },
-    {
-      "name": "nvm-logout",
-      "description": "Log out from Nevermined"
-    }
-  ],
-  "skills": ["skills/nevermined/SKILL.md"],
-  "gateway": {
-    "methods": [
-      "nevermined.login",
-      "nevermined.logout",
-      "nevermined.checkBalance",
-      "nevermined.getAccessToken",
-      "nevermined.orderPlan",
-      "nevermined.queryAgent",
-      "nevermined.registerAgent",
-      "nevermined.createPlan",
-      "nevermined.listPlans"
-    ]
   }
 }

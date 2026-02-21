@@ -1,275 +1,279 @@
 import type { Payments } from '@nevermined-io/payments'
 import type { NeverminedPluginConfig } from './config.js'
 
-export interface ToolParam {
+/**
+ * Creates all Nevermined payment tools for the OpenClaw plugin.
+ * Each tool is an object with { name, description, parameters, execute }
+ * compatible with the OpenClaw AnyAgentTool interface.
+ */
+export function createTools(
+  getPayments: () => Payments,
+  config: NeverminedPluginConfig,
+): ToolObject[] {
+  return [
+    // --- Subscriber tools ---
+    {
+      name: 'nevermined_checkBalance',
+      label: 'Nevermined Check Balance',
+      description: 'Check the credit balance for a Nevermined payment plan',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          planId: { type: 'string', description: 'The payment plan ID (uses config default if omitted)' },
+        },
+      },
+      async execute(_id: string, params: Record<string, unknown>) {
+        const planId = str(params, 'planId') ?? config.planId
+        if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
+
+        const balance = await getPayments().plans.getPlanBalance(planId)
+        return result({
+          planId: balance.planId,
+          planName: balance.planName,
+          balance: balance.balance.toString(),
+          isSubscriber: balance.isSubscriber,
+        })
+      },
+    },
+
+    {
+      name: 'nevermined_getAccessToken',
+      label: 'Nevermined Get Access Token',
+      description: 'Get an x402 access token for authenticating requests to a Nevermined agent',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          planId: { type: 'string', description: 'The payment plan ID' },
+          agentId: { type: 'string', description: 'The agent ID' },
+        },
+      },
+      async execute(_id: string, params: Record<string, unknown>) {
+        const planId = str(params, 'planId') ?? config.planId
+        if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
+        const agentId = str(params, 'agentId') ?? config.agentId
+
+        const token = await getPayments().x402.getX402AccessToken(planId, agentId)
+        return result({ accessToken: token.accessToken })
+      },
+    },
+
+    {
+      name: 'nevermined_orderPlan',
+      label: 'Nevermined Order Plan',
+      description: 'Order (purchase) a Nevermined payment plan',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          planId: { type: 'string', description: 'The payment plan ID to order' },
+        },
+      },
+      async execute(_id: string, params: Record<string, unknown>) {
+        const planId = str(params, 'planId') ?? config.planId
+        if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
+
+        const res = await getPayments().plans.orderPlan(planId)
+        return result(res)
+      },
+    },
+
+    {
+      name: 'nevermined_queryAgent',
+      label: 'Nevermined Query Agent',
+      description:
+        'Query a Nevermined AI agent end-to-end: acquires an x402 access token, sends the prompt to the agent, and returns the response',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          agentUrl: { type: 'string', description: 'The URL of the agent to query' },
+          prompt: { type: 'string', description: 'The prompt to send to the agent' },
+          planId: { type: 'string', description: 'The payment plan ID' },
+          agentId: { type: 'string', description: 'The agent ID' },
+          method: { type: 'string', description: 'HTTP method (default: POST)' },
+        },
+        required: ['agentUrl', 'prompt'],
+      },
+      async execute(_id: string, params: Record<string, unknown>) {
+        const agentUrl = requireStr(params, 'agentUrl')
+        const prompt = requireStr(params, 'prompt')
+        const planId = str(params, 'planId') ?? config.planId
+        if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
+        const agentId = str(params, 'agentId') ?? config.agentId
+        const method = str(params, 'method') ?? 'POST'
+
+        const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId)
+
+        const response = await fetch(agentUrl, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'PAYMENT-SIGNATURE': accessToken,
+          },
+          body: method !== 'GET' ? JSON.stringify({ prompt }) : undefined,
+        })
+
+        if (response.status === 402) {
+          return result({
+            error: 'Payment required — insufficient credits. Order the plan first using nevermined_orderPlan.',
+            status: 402,
+          })
+        }
+
+        if (!response.ok) {
+          return result({
+            error: `Agent returned HTTP ${response.status}: ${response.statusText}`,
+            status: response.status,
+          })
+        }
+
+        const body = await response.json()
+        return result(body)
+      },
+    },
+
+    // --- Builder tools ---
+
+    {
+      name: 'nevermined_registerAgent',
+      label: 'Nevermined Register Agent',
+      description: 'Register a new AI agent with an associated payment plan on Nevermined',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          name: { type: 'string', description: 'Agent name' },
+          description: { type: 'string', description: 'Agent description' },
+          agentUrl: { type: 'string', description: 'The endpoint URL for the agent' },
+          planName: { type: 'string', description: 'Name for the payment plan' },
+          priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei' },
+          priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses' },
+          creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
+        },
+        required: ['name', 'agentUrl', 'planName', 'priceAmounts', 'priceReceivers', 'creditsAmount'],
+      },
+      async execute(_id: string, params: Record<string, unknown>) {
+        const name = requireStr(params, 'name')
+        const description = str(params, 'description') ?? ''
+        const agentUrl = requireStr(params, 'agentUrl')
+        const planName = requireStr(params, 'planName')
+        const priceAmounts = requireStr(params, 'priceAmounts')
+          .split(',')
+          .map((s) => BigInt(s.trim()))
+        const priceReceivers = requireStr(params, 'priceReceivers')
+          .split(',')
+          .map((s) => s.trim())
+        const creditsAmount = Number(requireStr(params, 'creditsAmount'))
+
+        const res = await getPayments().agents.registerAgentAndPlan(
+          { name, description },
+          { endpoints: [{ POST: agentUrl }], agentDefinitionUrl: agentUrl },
+          { name: planName },
+          { amounts: priceAmounts, receivers: priceReceivers, isCrypto: true },
+          {
+            isRedemptionAmountFixed: true,
+            redemptionType: 4,
+            proofRequired: false,
+            durationSecs: 0n,
+            amount: BigInt(creditsAmount),
+            minAmount: 1n,
+            maxAmount: BigInt(creditsAmount),
+          },
+        )
+
+        return result({ agentId: res.agentId, planId: res.planId, txHash: res.txHash })
+      },
+    },
+
+    {
+      name: 'nevermined_createPlan',
+      label: 'Nevermined Create Plan',
+      description: 'Create a new payment plan on Nevermined',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          name: { type: 'string', description: 'Plan name' },
+          description: { type: 'string', description: 'Plan description' },
+          priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei' },
+          priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses' },
+          creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
+          accessLimit: { type: 'string', description: '"credits" or "time" (default: credits)' },
+        },
+        required: ['name', 'priceAmounts', 'priceReceivers', 'creditsAmount'],
+      },
+      async execute(_id: string, params: Record<string, unknown>) {
+        const name = requireStr(params, 'name')
+        const description = str(params, 'description') ?? ''
+        const priceAmounts = requireStr(params, 'priceAmounts')
+          .split(',')
+          .map((s) => BigInt(s.trim()))
+        const priceReceivers = requireStr(params, 'priceReceivers')
+          .split(',')
+          .map((s) => s.trim())
+        const creditsAmount = Number(requireStr(params, 'creditsAmount'))
+        const accessLimit = (str(params, 'accessLimit') ?? 'credits') as 'credits' | 'time'
+
+        const res = await getPayments().plans.registerPlan(
+          { name, description, accessLimit },
+          { amounts: priceAmounts, receivers: priceReceivers, isCrypto: true },
+          {
+            isRedemptionAmountFixed: true,
+            redemptionType: 4,
+            proofRequired: false,
+            durationSecs: 0n,
+            amount: BigInt(creditsAmount),
+            minAmount: 1n,
+            maxAmount: BigInt(creditsAmount),
+          },
+          undefined,
+          accessLimit,
+        )
+
+        return result({ planId: res.planId })
+      },
+    },
+
+    {
+      name: 'nevermined_listPlans',
+      label: 'Nevermined List Plans',
+      description: "List the builder's payment plans on Nevermined",
+      parameters: {
+        type: 'object' as const,
+        properties: {},
+      },
+      async execute() {
+        const res = await getPayments().plans.getPlans()
+        return result(res)
+      },
+    },
+  ]
+}
+
+// --- Helpers ---
+
+interface ToolObject {
   name: string
-  type: string
+  label: string
   description: string
-  required: boolean
+  parameters: Record<string, unknown>
+  execute: (_id: string, params: Record<string, unknown>) => Promise<ToolResult>
 }
 
-export interface ToolDefinition {
-  name: string
-  description: string
-  params: ToolParam[]
-  handler: (
-    payments: Payments,
-    config: NeverminedPluginConfig,
-    params: Record<string, unknown>,
-  ) => Promise<unknown>
+interface ToolResult {
+  content: Array<{ type: string; text: string }>
 }
 
-function requireParam(params: Record<string, unknown>, name: string): string {
-  const value = params[name]
-  if (value === undefined || value === null || value === '') {
-    throw new Error(`Missing required parameter: ${name}`)
+function result(payload: unknown): ToolResult {
+  return {
+    content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
   }
-  return String(value)
 }
 
-function optionalParam(
-  params: Record<string, unknown>,
-  name: string,
-  fallback?: string,
-): string | undefined {
-  const value = params[name]
-  if (value === undefined || value === null || value === '') {
-    return fallback
-  }
-  return String(value)
+function str(params: Record<string, unknown>, key: string): string | undefined {
+  const v = params[key]
+  if (v === undefined || v === null || v === '') return undefined
+  return String(v)
 }
 
-// --- Subscriber tools ---
-
-const checkBalance: ToolDefinition = {
-  name: 'nevermined.checkBalance',
-  description: 'Check the credit balance for a Nevermined payment plan',
-  params: [
-    { name: 'planId', type: 'string', description: 'The payment plan ID', required: false },
-  ],
-  handler: async (payments, config, params) => {
-    const planId = optionalParam(params, 'planId', config.planId)
-    if (!planId) {
-      throw new Error('planId is required — provide it as a parameter or in the plugin config')
-    }
-    const balance = await payments.plans.getPlanBalance(planId)
-    return {
-      planId: balance.planId,
-      planName: balance.planName,
-      balance: balance.balance.toString(),
-      isSubscriber: balance.isSubscriber,
-    }
-  },
+function requireStr(params: Record<string, unknown>, key: string): string {
+  const v = str(params, key)
+  if (!v) throw new Error(`Missing required parameter: ${key}`)
+  return v
 }
-
-const getAccessToken: ToolDefinition = {
-  name: 'nevermined.getAccessToken',
-  description: 'Get an x402 access token for authenticating requests to a Nevermined agent',
-  params: [
-    { name: 'planId', type: 'string', description: 'The payment plan ID', required: false },
-    { name: 'agentId', type: 'string', description: 'The agent ID', required: false },
-  ],
-  handler: async (payments, config, params) => {
-    const planId = optionalParam(params, 'planId', config.planId)
-    if (!planId) {
-      throw new Error('planId is required — provide it as a parameter or in the plugin config')
-    }
-    const agentId = optionalParam(params, 'agentId', config.agentId)
-    const result = await payments.x402.getX402AccessToken(planId, agentId)
-    return { accessToken: result.accessToken }
-  },
-}
-
-const orderPlan: ToolDefinition = {
-  name: 'nevermined.orderPlan',
-  description: 'Order (purchase) a Nevermined payment plan',
-  params: [
-    { name: 'planId', type: 'string', description: 'The payment plan ID to order', required: false },
-  ],
-  handler: async (payments, config, params) => {
-    const planId = optionalParam(params, 'planId', config.planId)
-    if (!planId) {
-      throw new Error('planId is required — provide it as a parameter or in the plugin config')
-    }
-    const result = await payments.plans.orderPlan(planId)
-    return result
-  },
-}
-
-const queryAgent: ToolDefinition = {
-  name: 'nevermined.queryAgent',
-  description:
-    'Query a Nevermined AI agent end-to-end: acquires an x402 access token, sends the prompt to the agent, and returns the response',
-  params: [
-    { name: 'agentUrl', type: 'string', description: 'The URL of the agent to query', required: true },
-    { name: 'prompt', type: 'string', description: 'The prompt to send to the agent', required: true },
-    { name: 'planId', type: 'string', description: 'The payment plan ID', required: false },
-    { name: 'agentId', type: 'string', description: 'The agent ID', required: false },
-    { name: 'method', type: 'string', description: 'HTTP method (default: POST)', required: false },
-  ],
-  handler: async (payments, config, params) => {
-    const agentUrl = requireParam(params, 'agentUrl')
-    const prompt = requireParam(params, 'prompt')
-    const planId = optionalParam(params, 'planId', config.planId)
-    if (!planId) {
-      throw new Error('planId is required — provide it as a parameter or in the plugin config')
-    }
-    const agentId = optionalParam(params, 'agentId', config.agentId)
-    const method = optionalParam(params, 'method', 'POST') ?? 'POST'
-
-    const { accessToken } = await payments.x402.getX402AccessToken(planId, agentId)
-
-    const response = await fetch(agentUrl, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'PAYMENT-SIGNATURE': accessToken,
-      },
-      body: method !== 'GET' ? JSON.stringify({ prompt }) : undefined,
-    })
-
-    if (response.status === 402) {
-      return {
-        error: 'Payment required — insufficient credits. Order the plan first using nevermined.orderPlan.',
-        status: 402,
-      }
-    }
-
-    if (!response.ok) {
-      return {
-        error: `Agent returned HTTP ${response.status}: ${response.statusText}`,
-        status: response.status,
-      }
-    }
-
-    const body = await response.json()
-    return body
-  },
-}
-
-// --- Builder tools ---
-
-const registerAgent: ToolDefinition = {
-  name: 'nevermined.registerAgent',
-  description: 'Register a new AI agent with an associated payment plan on Nevermined',
-  params: [
-    { name: 'name', type: 'string', description: 'Agent name', required: true },
-    { name: 'description', type: 'string', description: 'Agent description', required: false },
-    { name: 'agentUrl', type: 'string', description: 'The endpoint URL for the agent', required: true },
-    { name: 'planName', type: 'string', description: 'Name for the payment plan', required: true },
-    { name: 'priceAmounts', type: 'string', description: 'Comma-separated price amounts in wei', required: true },
-    { name: 'priceReceivers', type: 'string', description: 'Comma-separated receiver addresses', required: true },
-    { name: 'creditsAmount', type: 'number', description: 'Number of credits in the plan', required: true },
-  ],
-  handler: async (payments, _config, params) => {
-    const name = requireParam(params, 'name')
-    const description = optionalParam(params, 'description', '')
-    const agentUrl = requireParam(params, 'agentUrl')
-    const planName = requireParam(params, 'planName')
-    const priceAmounts = requireParam(params, 'priceAmounts')
-      .split(',')
-      .map((s) => BigInt(s.trim()))
-    const priceReceivers = requireParam(params, 'priceReceivers')
-      .split(',')
-      .map((s) => s.trim())
-    const creditsAmount = Number(requireParam(params, 'creditsAmount'))
-
-    const result = await payments.agents.registerAgentAndPlan(
-      { name, description },
-      {
-        endpoints: [{ POST: agentUrl }],
-        agentDefinitionUrl: agentUrl,
-      },
-      { name: planName },
-      {
-        amounts: priceAmounts,
-        receivers: priceReceivers,
-        isCrypto: true,
-      },
-      {
-        isRedemptionAmountFixed: true,
-        redemptionType: 4, // ONLY_SUBSCRIBER
-        proofRequired: false,
-        durationSecs: 0n,
-        amount: BigInt(creditsAmount),
-        minAmount: 1n,
-        maxAmount: BigInt(creditsAmount),
-      },
-    )
-
-    return {
-      agentId: result.agentId,
-      planId: result.planId,
-      txHash: result.txHash,
-    }
-  },
-}
-
-const createPlan: ToolDefinition = {
-  name: 'nevermined.createPlan',
-  description: 'Create a new payment plan on Nevermined',
-  params: [
-    { name: 'name', type: 'string', description: 'Plan name', required: true },
-    { name: 'description', type: 'string', description: 'Plan description', required: false },
-    { name: 'priceAmounts', type: 'string', description: 'Comma-separated price amounts in wei', required: true },
-    { name: 'priceReceivers', type: 'string', description: 'Comma-separated receiver addresses', required: true },
-    { name: 'creditsAmount', type: 'number', description: 'Number of credits in the plan', required: true },
-    { name: 'accessLimit', type: 'string', description: '"credits" or "time" (default: credits)', required: false },
-  ],
-  handler: async (payments, _config, params) => {
-    const name = requireParam(params, 'name')
-    const description = optionalParam(params, 'description', '')
-    const priceAmounts = requireParam(params, 'priceAmounts')
-      .split(',')
-      .map((s) => BigInt(s.trim()))
-    const priceReceivers = requireParam(params, 'priceReceivers')
-      .split(',')
-      .map((s) => s.trim())
-    const creditsAmount = Number(requireParam(params, 'creditsAmount'))
-    const accessLimit = optionalParam(params, 'accessLimit', 'credits') as 'credits' | 'time'
-
-    const result = await payments.plans.registerPlan(
-      { name, description, accessLimit },
-      {
-        amounts: priceAmounts,
-        receivers: priceReceivers,
-        isCrypto: true,
-      },
-      {
-        isRedemptionAmountFixed: true,
-        redemptionType: 4,
-        proofRequired: false,
-        durationSecs: 0n,
-        amount: BigInt(creditsAmount),
-        minAmount: 1n,
-        maxAmount: BigInt(creditsAmount),
-      },
-      undefined,
-      accessLimit,
-    )
-
-    return { planId: result.planId }
-  },
-}
-
-const listPlans: ToolDefinition = {
-  name: 'nevermined.listPlans',
-  description: "List the builder's payment plans on Nevermined",
-  params: [],
-  handler: async (payments) => {
-    const result = await payments.plans.getPlans()
-    return result
-  },
-}
-
-export const allTools: ToolDefinition[] = [
-  // Subscriber
-  checkBalance,
-  getAccessToken,
-  orderPlan,
-  queryAgent,
-  // Builder
-  registerAgent,
-  createPlan,
-  listPlans,
-]
