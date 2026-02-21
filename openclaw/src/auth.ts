@@ -29,7 +29,7 @@ export function getLoginUrl(environment: EnvironmentName): string {
   if (!envInfo?.frontend) {
     throw new Error(`Unknown environment: ${environment}`)
   }
-  return `${envInfo.frontend}/en/login`
+  return `${envInfo.frontend}/login`
 }
 
 /**
@@ -40,7 +40,7 @@ export function getApiKeyUrl(environment: EnvironmentName): string {
   if (!envInfo?.frontend) {
     throw new Error(`Unknown environment: ${environment}`)
   }
-  return `${envInfo.frontend}/en/settings`
+  return `${envInfo.frontend}/permissions/global-permissions`
 }
 
 /**
@@ -108,7 +108,9 @@ export async function startLoginFlow(
       const loginUrl = `${frontendUrl}/auth/cli?callback_url=${callbackUrl}`
 
       openBrowserFn(loginUrl).catch(() => {
-        // Browser open failed — the caller should provide the URL to the user
+        clearTimeout(timeout)
+        server.close()
+        reject(new Error('Could not open browser'))
       })
     })
 

@@ -131,8 +131,8 @@ describe('OpenClaw Nevermined Plugin', () => {
       const { commands } = registerWithMock()
 
       expect(commands.size).toBe(2)
-      expect(commands.has('nvm-login')).toBe(true)
-      expect(commands.has('nvm-logout')).toBe(true)
+      expect(commands.has('nvm_login')).toBe(true)
+      expect(commands.has('nvm_logout')).toBe(true)
     })
 
     test('should start without nvmApiKey (login-first flow)', () => {
@@ -182,20 +182,20 @@ describe('OpenClaw Nevermined Plugin', () => {
     })
   })
 
-  describe('/nvm-login command', () => {
+  describe('/nvm_login command', () => {
     const cmdCtx = (args: string) => ({
       senderId: 'user-1',
       channel: 'telegram',
       isAuthorizedSender: true,
       args,
-      commandBody: `/nvm-login ${args}`,
+      commandBody: `/nvm_login ${args}`,
       config: {},
     })
 
     test('accepts API key directly', async () => {
       const { commands, tools } = registerWithMock({ environment: 'sandbox' })
 
-      const handler = commands.get('nvm-login')!.handler
+      const handler = commands.get('nvm_login')!.handler
       const result = await handler(cmdCtx('sandbox:eyJhbGciOiJSUzI1NiJ9.test'))
 
       expect(result.text).toContain('Authenticated')
@@ -209,7 +209,7 @@ describe('OpenClaw Nevermined Plugin', () => {
     test('detects live API key environment', async () => {
       const { commands } = registerWithMock({ environment: 'sandbox' })
 
-      const handler = commands.get('nvm-login')!.handler
+      const handler = commands.get('nvm_login')!.handler
       const result = await handler(cmdCtx('live:eyJhbGciOiJSUzI1NiJ9.test'))
 
       expect(result.text).toContain('live')
@@ -225,11 +225,11 @@ describe('OpenClaw Nevermined Plugin', () => {
     })
   })
 
-  describe('/nvm-logout command', () => {
+  describe('/nvm_logout command', () => {
     test('returns confirmation message', async () => {
       const { commands } = registerWithMock()
 
-      const handler = commands.get('nvm-logout')!.handler
+      const handler = commands.get('nvm_logout')!.handler
       const result = await handler({
         senderId: 'user-1',
         channel: 'telegram',
@@ -246,7 +246,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       const { commands, tools } = registerWithMock()
 
       // Logout via command
-      await commands.get('nvm-logout')!.handler({
+      await commands.get('nvm_logout')!.handler({
         senderId: 'user-1',
         channel: 'telegram',
         isAuthorizedSender: true,

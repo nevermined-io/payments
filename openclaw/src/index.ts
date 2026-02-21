@@ -105,8 +105,8 @@ const neverminedPlugin = {
     // --- Slash commands for chat channels ---
 
     api.registerCommand({
-      name: 'nvm-login',
-      description: 'Authenticate with Nevermined. Usage: /nvm-login [environment] or /nvm-login <api-key>',
+      name: 'nvm_login',
+      description: 'Authenticate with Nevermined. Usage: /nvm_login [environment] or /nvm_login <api-key>',
       acceptsArgs: true,
       requireAuth: true,
       handler: async (ctx) => {
@@ -147,9 +147,9 @@ const neverminedPlugin = {
               `I couldn't open a browser for automatic login. Here's how to authenticate manually:`,
               ``,
               `1. Open this URL and log in: ${loginUrl}`,
-              `2. Go to Settings to get your API key: ${apiKeyUrl}`,
+              `2. Go to API Keys to get your API key: ${apiKeyUrl}`,
               `3. Copy the API key and send it here:`,
-              `   /nvm-login <your-api-key>`,
+              `   /nvm_login <your-api-key>`,
               ``,
               `API keys look like: ${env}:eyJhbG...`,
             ].join('\n'),
@@ -159,7 +159,7 @@ const neverminedPlugin = {
     })
 
     api.registerCommand({
-      name: 'nvm-logout',
+      name: 'nvm_logout',
       description: 'Log out from Nevermined',
       requireAuth: true,
       handler: async () => {
