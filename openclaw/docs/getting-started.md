@@ -26,10 +26,10 @@ openclaw plugin install @nevermined-io/openclaw-plugin
 
 ### Option A: Browser login (recommended)
 
-Use the `/nvm-login` command from any connected chat channel:
+Use the `/nvm_login` command from any connected chat channel:
 
 ```
-/nvm-login
+/nvm_login
 ```
 
 This opens a browser window where you authenticate with Nevermined. The API key is captured automatically and stored in your gateway config.
@@ -37,7 +37,7 @@ This opens a browser window where you authenticate with Nevermined. The API key 
 To target the live environment:
 
 ```
-/nvm-login live
+/nvm_login live
 ```
 
 ### Option B: Manual configuration
@@ -66,9 +66,9 @@ You can obtain an API key from the [Nevermined App](https://nevermined.app) unde
 
 After authenticating, verify the plugin is working:
 
-1. **Check your balance** — from any chat channel, the agent can call `nevermined.checkBalance` to verify connectivity.
+1. **Check your balance** — from any chat channel, the agent can call `nevermined_checkBalance` to verify connectivity.
 
-2. **List plans** — call `nevermined.listPlans` to see available payment plans.
+2. **List plans** — call `nevermined_listPlans` to see available payment plans.
 
 ## Next Steps
 

@@ -20,7 +20,7 @@ export function validateConfig(raw: unknown): NeverminedPluginConfig {
 
 export function requireApiKey(config: NeverminedPluginConfig): string {
   if (!config.nvmApiKey) {
-    throw new Error('Not authenticated. Run nevermined.login or /nvm-login first.')
+    throw new Error('Not authenticated. Run /nvm_login first.')
   }
   return config.nvmApiKey
 }

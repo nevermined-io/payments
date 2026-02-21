@@ -20,18 +20,7 @@ export function registerPaidEndpoint(
   const handler = agentHandler ?? mockWeatherHandler
 
   const routeHandler: HttpRouteHandler = async (req, res) => {
-    // 1. Extract payment signature
-    const accessToken =
-      getHeader(req.headers, 'payment-signature') ??
-      getHeader(req.headers, 'PAYMENT-SIGNATURE')
-
-    if (!accessToken) {
-      res.writeHead(402, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Payment required — missing payment-signature header' }))
-      return
-    }
-
-    // 2. Build payment required descriptor
+    // 1. Build payment required descriptor
     const planId = config.planId
     if (!planId) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
@@ -45,7 +34,22 @@ export function registerPaidEndpoint(
       httpVerb: 'POST',
     })
 
+    const paymentRequiredHeader = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
     const maxAmount = BigInt(config.creditsPerRequest ?? 1)
+
+    // 2. Extract payment signature
+    const accessToken =
+      getHeader(req.headers, 'payment-signature') ??
+      getHeader(req.headers, 'PAYMENT-SIGNATURE')
+
+    if (!accessToken) {
+      res.writeHead(402, {
+        'Content-Type': 'application/json',
+        'payment-required': paymentRequiredHeader,
+      })
+      res.end(JSON.stringify({ error: 'Payment required — missing payment-signature header' }))
+      return
+    }
 
     // 3. Verify permissions (check credits without burning)
     try {
@@ -56,7 +60,10 @@ export function registerPaidEndpoint(
       })
 
       if (!verification.isValid) {
-        res.writeHead(402, { 'Content-Type': 'application/json' })
+        res.writeHead(402, {
+          'Content-Type': 'application/json',
+          'payment-required': paymentRequiredHeader,
+        })
         res.end(JSON.stringify({
           error: 'Insufficient credits — order the plan first',
           details: verification,
@@ -64,7 +71,10 @@ export function registerPaidEndpoint(
         return
       }
     } catch (err) {
-      res.writeHead(402, { 'Content-Type': 'application/json' })
+      res.writeHead(402, {
+        'Content-Type': 'application/json',
+        'payment-required': paymentRequiredHeader,
+      })
       res.end(JSON.stringify({
         error: 'Payment verification failed',
         message: err instanceof Error ? err.message : String(err),

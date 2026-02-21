@@ -48,7 +48,7 @@ export function getApiKeyUrl(environment: EnvironmentName): string {
  * API keys have the format "environment:base64token".
  */
 export function looksLikeApiKey(value: string): boolean {
-  return /^(sandbox|live|staging_sandbox|staging_live):/.test(value.trim())
+  return /^(sandbox|live):/.test(value.trim())
 }
 
 /**

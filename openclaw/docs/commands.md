@@ -10,7 +10,7 @@ The plugin provides slash commands for chat channels and gateway methods for pro
 
 ## Authentication
 
-### `/nvm-login [environment]`
+### `/nvm_login [environment]`
 
 Authenticate with Nevermined via browser login.
 
@@ -18,21 +18,18 @@ Authenticate with Nevermined via browser login.
 |-----------|------|----------|---------|-------------|
 | `environment` | string | No | `sandbox` | `sandbox` or `live` |
 
-**Gateway method:** `nevermined.login`
-
 **Example:**
 ```
-/nvm-login
-/nvm-login live
+/nvm_login
+/nvm_login live
+/nvm_login sandbox:eyJhbG...
 ```
 
 ---
 
-### `/nvm-logout`
+### `/nvm_logout`
 
 Log out from Nevermined and remove the stored API key.
-
-**Gateway method:** `nevermined.logout`
 
 ---
 
@@ -40,7 +37,7 @@ Log out from Nevermined and remove the stored API key.
 
 These tools are for users who want to subscribe to plans, check balances, and query agents.
 
-### `nevermined.checkBalance`
+### `nevermined_checkBalance`
 
 Check the credit balance for a payment plan.
 
@@ -60,7 +57,7 @@ Check the credit balance for a payment plan.
 
 ---
 
-### `nevermined.getAccessToken`
+### `nevermined_getAccessToken`
 
 Get an x402 access token for authenticating requests to a Nevermined agent.
 
@@ -78,7 +75,7 @@ Get an x402 access token for authenticating requests to a Nevermined agent.
 
 ---
 
-### `nevermined.orderPlan`
+### `nevermined_orderPlan`
 
 Purchase (order) a Nevermined payment plan.
 
@@ -90,7 +87,7 @@ Purchase (order) a Nevermined payment plan.
 
 ---
 
-### `nevermined.queryAgent`
+### `nevermined_queryAgent`
 
 End-to-end agent query: acquires an x402 access token, sends the prompt to the agent URL with the `PAYMENT-SIGNATURE` header, and returns the response.
 
@@ -110,7 +107,7 @@ If the agent returns a 402 (Payment Required) response, the tool returns an erro
 
 These tools are for agent builders who want to register agents and create payment plans.
 
-### `nevermined.registerAgent`
+### `nevermined_registerAgent`
 
 Register a new AI agent with an associated payment plan.
 
@@ -136,7 +133,7 @@ Register a new AI agent with an associated payment plan.
 
 ---
 
-### `nevermined.createPlan`
+### `nevermined_createPlan`
 
 Create a standalone payment plan (without an agent).
 
@@ -159,7 +156,7 @@ Create a standalone payment plan (without an agent).
 
 ---
 
-### `nevermined.listPlans`
+### `nevermined_listPlans`
 
 List the builder's payment plans. No parameters required.
 

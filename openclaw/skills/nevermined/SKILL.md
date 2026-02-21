@@ -11,36 +11,29 @@ This plugin provides gateway tools for interacting with Nevermined AI agent paym
 
 ## Authentication
 
-### `/nvm-login [environment]`
-Authenticate with Nevermined via browser login. Opens a browser window to obtain an API key.
+### `/nvm_login [environment]`
+Authenticate with Nevermined via browser login. Opens a browser window to obtain an API key. You can also paste an API key directly: `/nvm_login <api-key>`.
 - `environment` (optional) — `sandbox` or `live` (default: from config)
 
-### `/nvm-logout`
+### `/nvm_logout`
 Log out from Nevermined and remove the stored API key.
-
-### `nevermined.login`
-Gateway method equivalent of `/nvm-login`.
-- `environment` (optional)
-
-### `nevermined.logout`
-Gateway method equivalent of `/nvm-logout`.
 
 ## Subscriber Tools
 
-### `nevermined.checkBalance`
+### `nevermined_checkBalance`
 Check credit balance for a payment plan.
 - `planId` (optional if set in config) — the plan to check
 
-### `nevermined.getAccessToken`
+### `nevermined_getAccessToken`
 Get an x402 access token for authenticating agent requests.
 - `planId` (optional if set in config)
 - `agentId` (optional if set in config)
 
-### `nevermined.orderPlan`
+### `nevermined_orderPlan`
 Purchase a payment plan.
 - `planId` (optional if set in config)
 
-### `nevermined.queryAgent`
+### `nevermined_queryAgent`
 End-to-end agent query — acquires a token, calls the agent, returns the response.
 - `agentUrl` (required) — the agent endpoint URL
 - `prompt` (required) — the prompt to send
@@ -50,7 +43,7 @@ End-to-end agent query — acquires a token, calls the agent, returns the respon
 
 ## Builder Tools
 
-### `nevermined.registerAgent`
+### `nevermined_registerAgent`
 Register a new AI agent with a payment plan.
 - `name` (required) — agent name
 - `agentUrl` (required) — agent endpoint
@@ -58,14 +51,16 @@ Register a new AI agent with a payment plan.
 - `priceAmounts` (required) — comma-separated prices in wei
 - `priceReceivers` (required) — comma-separated receiver addresses
 - `creditsAmount` (required) — number of credits
+- `tokenAddress` (optional) — ERC20 token address (e.g. USDC). Omit for native token.
 
-### `nevermined.createPlan`
+### `nevermined_createPlan`
 Create a standalone payment plan.
 - `name` (required) — plan name
 - `priceAmounts` (required) — comma-separated prices in wei
 - `priceReceivers` (required) — comma-separated receiver addresses
 - `creditsAmount` (required) — number of credits
 - `accessLimit` (optional) — `"credits"` or `"time"`
+- `tokenAddress` (optional) — ERC20 token address (e.g. USDC). Omit for native token.
 
-### `nevermined.listPlans`
+### `nevermined_listPlans`
 List your payment plans. No parameters.
