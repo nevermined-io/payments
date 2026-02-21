@@ -22,6 +22,36 @@ export interface LoginResult {
 }
 
 /**
+ * Returns the Nevermined login URL for a given environment.
+ */
+export function getLoginUrl(environment: EnvironmentName): string {
+  const envInfo = Environments[environment]
+  if (!envInfo?.frontend) {
+    throw new Error(`Unknown environment: ${environment}`)
+  }
+  return `${envInfo.frontend}/en/login`
+}
+
+/**
+ * Returns the API key settings URL for a given environment.
+ */
+export function getApiKeyUrl(environment: EnvironmentName): string {
+  const envInfo = Environments[environment]
+  if (!envInfo?.frontend) {
+    throw new Error(`Unknown environment: ${environment}`)
+  }
+  return `${envInfo.frontend}/en/settings`
+}
+
+/**
+ * Checks whether a string looks like a Nevermined API key.
+ * API keys have the format "environment:base64token".
+ */
+export function looksLikeApiKey(value: string): boolean {
+  return /^(sandbox|live|staging_sandbox|staging_live):/.test(value.trim())
+}
+
+/**
  * Starts a one-shot HTTP server, opens the Nevermined login page in the browser,
  * and resolves with the API key once the callback is received.
  */

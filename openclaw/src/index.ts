@@ -1,6 +1,6 @@
 import { validateConfig, createPaymentsFromConfig, requireApiKey } from './config.js'
 import { createTools } from './tools.js'
-import { startLoginFlow } from './auth.js'
+import { startLoginFlow, looksLikeApiKey, getLoginUrl, getApiKeyUrl } from './auth.js'
 import { Payments } from '@nevermined-io/payments'
 import type { EnvironmentName } from '@nevermined-io/payments'
 import type { NeverminedPluginConfig } from './config.js'
@@ -106,12 +106,29 @@ const neverminedPlugin = {
 
     api.registerCommand({
       name: 'nvm-login',
-      description: 'Authenticate with Nevermined via browser login',
+      description: 'Authenticate with Nevermined. Usage: /nvm-login [environment] or /nvm-login <api-key>',
       acceptsArgs: true,
       requireAuth: true,
       handler: async (ctx) => {
+        const input = ctx.args?.trim() || ''
+
+        // --- Flow 1: User pasted an API key directly ---
+        if (looksLikeApiKey(input)) {
+          const apiKey = input
+          const keyEnv = apiKey.split(':')[0] as 'sandbox' | 'live'
+
+          config.nvmApiKey = apiKey
+          config.environment = keyEnv
+          payments = null
+
+          api.logger.info(`Nevermined: authenticated via API key (${keyEnv})`)
+          return { text: `Authenticated with Nevermined (${keyEnv}). You can now use payment tools.` }
+        }
+
+        // --- Flow 2: Try browser login, fall back to manual instructions ---
+        const env = (input || config.environment || 'sandbox') as EnvironmentName
+
         try {
-          const env = (ctx.args?.trim() || config.environment || 'sandbox') as EnvironmentName
           const result = await startLoginFlow(env)
 
           config.nvmApiKey = result.nvmApiKey
@@ -119,9 +136,24 @@ const neverminedPlugin = {
           payments = null
 
           return { text: `Authenticated with Nevermined (${result.environment}). You can now use payment tools.` }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          return { text: `Login failed: ${message}` }
+        } catch (_err) {
+          // Browser login failed (headless server, timeout, etc.)
+          // Provide manual instructions
+          const loginUrl = getLoginUrl(env)
+          const apiKeyUrl = getApiKeyUrl(env)
+
+          return {
+            text: [
+              `I couldn't open a browser for automatic login. Here's how to authenticate manually:`,
+              ``,
+              `1. Open this URL and log in: ${loginUrl}`,
+              `2. Go to Settings to get your API key: ${apiKeyUrl}`,
+              `3. Copy the API key and send it here:`,
+              `   /nvm-login <your-api-key>`,
+              ``,
+              `API keys look like: ${env}:eyJhbG...`,
+            ].join('\n'),
+          }
         }
       },
     })

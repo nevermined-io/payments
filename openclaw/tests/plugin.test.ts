@@ -1,5 +1,6 @@
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals'
 import neverminedPlugin, { validateConfig } from '../src/index.js'
+import { looksLikeApiKey } from '../src/auth.js'
 import type { OpenClawPluginAPI, CommandContext } from '../src/index.js'
 import type { NeverminedPluginConfig } from '../src/config.js'
 import type { Payments } from '@nevermined-io/payments'
@@ -178,6 +179,49 @@ describe('OpenClaw Nevermined Plugin', () => {
     test('should default creditsPerRequest to 1', () => {
       const config = validateConfig({ nvmApiKey: 'key' })
       expect(config.creditsPerRequest).toBe(1)
+    })
+  })
+
+  describe('/nvm-login command', () => {
+    const cmdCtx = (args: string) => ({
+      senderId: 'user-1',
+      channel: 'telegram',
+      isAuthorizedSender: true,
+      args,
+      commandBody: `/nvm-login ${args}`,
+      config: {},
+    })
+
+    test('accepts API key directly', async () => {
+      const { commands, tools } = registerWithMock({ environment: 'sandbox' })
+
+      const handler = commands.get('nvm-login')!.handler
+      const result = await handler(cmdCtx('sandbox:eyJhbGciOiJSUzI1NiJ9.test'))
+
+      expect(result.text).toContain('Authenticated')
+      expect(result.text).toContain('sandbox')
+
+      // Tools should now work (mock factory ignores the key)
+      const tool = tools.get('nevermined_listPlans')!
+      await expect(tool.execute('call-1', {})).resolves.toBeDefined()
+    })
+
+    test('detects live API key environment', async () => {
+      const { commands } = registerWithMock({ environment: 'sandbox' })
+
+      const handler = commands.get('nvm-login')!.handler
+      const result = await handler(cmdCtx('live:eyJhbGciOiJSUzI1NiJ9.test'))
+
+      expect(result.text).toContain('live')
+    })
+
+    test('looksLikeApiKey correctly identifies API keys', () => {
+      expect(looksLikeApiKey('sandbox:eyJhbGciOiJSUzI1NiJ9.test')).toBe(true)
+      expect(looksLikeApiKey('live:eyJhbGciOiJSUzI1NiJ9.test')).toBe(true)
+      expect(looksLikeApiKey('sandbox')).toBe(false)
+      expect(looksLikeApiKey('live')).toBe(false)
+      expect(looksLikeApiKey('my-random-string')).toBe(false)
+      expect(looksLikeApiKey('')).toBe(false)
     })
   })
 
