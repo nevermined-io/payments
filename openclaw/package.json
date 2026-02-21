@@ -15,6 +15,7 @@
     "dist/",
     "openclaw.plugin.json",
     "skills/",
+    "docs/",
     "README.md"
   ],
   "scripts": {
@@ -44,6 +45,11 @@
     "type": "git",
     "url": "https://github.com/nevermined-io/payments.git",
     "directory": "openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
   },
   "keywords": [
     "nevermined",
