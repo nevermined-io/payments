@@ -1,5 +1,5 @@
 import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals'
-import register, { validateConfig } from '../src/index.js'
+import neverminedPlugin, { validateConfig } from '../src/index.js'
 import type { OpenClawPluginAPI, CommandContext } from '../src/index.js'
 import type { NeverminedPluginConfig } from '../src/config.js'
 import type { Payments } from '@nevermined-io/payments'
@@ -54,6 +54,7 @@ interface ToolObject {
 function createMockAPI(config: Partial<NeverminedPluginConfig> = validConfig) {
   const mockPayments = createMockPayments()
   const tools = new Map<string, ToolObject>()
+  let toolFactory: ((ctx: unknown) => ToolObject[]) | null = null
   const commands = new Map<string, { description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }>()
 
   const api: OpenClawPluginAPI = {
@@ -65,8 +66,18 @@ function createMockAPI(config: Partial<NeverminedPluginConfig> = validConfig) {
       warn: jest.fn(),
       error: jest.fn(),
     },
-    registerTool: jest.fn((tool: ToolObject) => {
-      tools.set(tool.name, tool)
+    registerTool: jest.fn((factoryOrTool: unknown) => {
+      if (typeof factoryOrTool === 'function') {
+        toolFactory = factoryOrTool as (ctx: unknown) => ToolObject[]
+        // Invoke the factory to get tools for testing
+        const created = toolFactory({})
+        for (const tool of created) {
+          tools.set(tool.name, tool)
+        }
+      } else {
+        const tool = factoryOrTool as ToolObject
+        tools.set(tool.name, tool)
+      }
     }),
     registerCommand: jest.fn((cmd: { name: string; description: string; handler: (ctx: CommandContext) => Promise<{ text: string }> }) => {
       commands.set(cmd.name, { description: cmd.description, handler: cmd.handler })
@@ -74,12 +85,12 @@ function createMockAPI(config: Partial<NeverminedPluginConfig> = validConfig) {
     registerGatewayMethod: jest.fn(),
   }
 
-  return { api, tools, commands, mockPayments }
+  return { api, tools, commands, mockPayments, getToolFactory: () => toolFactory }
 }
 
 function registerWithMock(config?: Partial<NeverminedPluginConfig>) {
   const ctx = createMockAPI(config)
-  register(ctx.api, { paymentsFactory: () => ctx.mockPayments })
+  neverminedPlugin.register(ctx.api, { paymentsFactory: () => ctx.mockPayments })
   return ctx
 }
 

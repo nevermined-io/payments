@@ -11,7 +11,6 @@ export { startLoginFlow, openBrowser } from './auth.js'
 
 /**
  * Minimal subset of the OpenClaw Plugin API used by this plugin.
- * The full type is OpenClawPluginApi from openclaw/src/plugins/types.
  */
 export interface OpenClawPluginAPI {
   id: string
@@ -22,7 +21,7 @@ export interface OpenClawPluginAPI {
     warn: (msg: string) => void
     error: (msg: string) => void
   }
-  registerTool(tool: unknown, opts?: { optional?: boolean }): void
+  registerTool(tool: unknown, opts?: { optional?: boolean; names?: string[] }): void
   registerCommand(command: {
     name: string
     description: string
@@ -50,62 +49,94 @@ export interface RegisterOptions {
   paymentsFactory?: (config: NeverminedPluginConfig) => Payments
 }
 
-export default function register(api: OpenClawPluginAPI, options?: RegisterOptions): void {
-  const config = validateConfig(api.pluginConfig ?? {})
-
-  // Lazy Payments instance — created on first use after authentication
-  let payments: Payments | null = null
-  const factory = options?.paymentsFactory ?? createPaymentsFromConfig
-
-  function getPayments(): Payments {
-    if (!payments) {
-      requireApiKey(config)
-      payments = factory(config)
-    }
-    return payments
-  }
-
-  // --- Register all payment tools ---
-
-  const tools = createTools(getPayments, config)
-  for (const tool of tools) {
-    api.registerTool(tool, { optional: true })
-  }
-
-  api.logger.info(`Registered ${tools.length} Nevermined payment tools`)
-
-  // --- Slash commands for chat channels ---
-
-  api.registerCommand({
-    name: 'nvm-login',
-    description: 'Authenticate with Nevermined via browser login',
-    acceptsArgs: true,
-    requireAuth: true,
-    handler: async (ctx) => {
-      try {
-        const env = (ctx.args?.trim() || config.environment || 'sandbox') as EnvironmentName
-        const result = await startLoginFlow(env)
-
-        config.nvmApiKey = result.nvmApiKey
-        config.environment = result.environment as 'sandbox' | 'live'
-        payments = null
-
-        return { text: `Authenticated with Nevermined (${result.environment}). You can now use payment tools.` }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        return { text: `Login failed: ${message}` }
-      }
-    },
-  })
-
-  api.registerCommand({
-    name: 'nvm-logout',
-    description: 'Log out from Nevermined',
-    requireAuth: true,
-    handler: async () => {
-      config.nvmApiKey = undefined
-      payments = null
-      return { text: 'Logged out from Nevermined. API key has been removed.' }
-    },
-  })
+export interface ToolContext {
+  config?: Record<string, unknown>
+  workspaceDir?: string
+  agentDir?: string
+  agentId?: string
+  sessionKey?: string
 }
+
+/**
+ * OpenClaw plugin definition object.
+ * Exports id, name, description, and a register function.
+ */
+const neverminedPlugin = {
+  id: 'nevermined',
+  name: '@nevermined-io/openclaw-plugin',
+  description: 'Nevermined plugin for OpenClaw — AI agent payments and access control',
+
+  register(api: OpenClawPluginAPI, options?: RegisterOptions): void {
+    const config = validateConfig(api.pluginConfig ?? {})
+
+    // Lazy Payments instance — created on first use after authentication
+    let payments: Payments | null = null
+    const factory = options?.paymentsFactory ?? createPaymentsFromConfig
+
+    function getPayments(): Payments {
+      if (!payments) {
+        requireApiKey(config)
+        payments = factory(config)
+      }
+      return payments
+    }
+
+    // --- Register tools via factory function ---
+    // OpenClaw calls the factory per agent session, providing context.
+    // We return the full tool array each time.
+
+    const toolNames = [
+      'nevermined_checkBalance',
+      'nevermined_getAccessToken',
+      'nevermined_orderPlan',
+      'nevermined_queryAgent',
+      'nevermined_registerAgent',
+      'nevermined_createPlan',
+      'nevermined_listPlans',
+    ]
+
+    api.registerTool(
+      (_ctx: ToolContext) => createTools(getPayments, config),
+      { names: toolNames },
+    )
+
+    api.logger.info(`Registered ${toolNames.length} Nevermined payment tools`)
+
+    // --- Slash commands for chat channels ---
+
+    api.registerCommand({
+      name: 'nvm-login',
+      description: 'Authenticate with Nevermined via browser login',
+      acceptsArgs: true,
+      requireAuth: true,
+      handler: async (ctx) => {
+        try {
+          const env = (ctx.args?.trim() || config.environment || 'sandbox') as EnvironmentName
+          const result = await startLoginFlow(env)
+
+          config.nvmApiKey = result.nvmApiKey
+          config.environment = result.environment as 'sandbox' | 'live'
+          payments = null
+
+          return { text: `Authenticated with Nevermined (${result.environment}). You can now use payment tools.` }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          return { text: `Login failed: ${message}` }
+        }
+      },
+    })
+
+    api.registerCommand({
+      name: 'nvm-logout',
+      description: 'Log out from Nevermined',
+      requireAuth: true,
+      handler: async () => {
+        config.nvmApiKey = undefined
+        payments = null
+        return { text: 'Logged out from Nevermined. API key has been removed.' }
+      },
+    })
+  },
+}
+
+export default neverminedPlugin
