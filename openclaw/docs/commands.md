@@ -123,6 +123,7 @@ Register a new AI agent with an associated payment plan.
 | `priceAmounts` | string | **Yes** | Comma-separated price amounts in wei |
 | `priceReceivers` | string | **Yes** | Comma-separated receiver addresses |
 | `creditsAmount` | number | **Yes** | Number of credits in the plan |
+| `tokenAddress` | string | No | ERC20 token address (e.g. USDC). Omit for native token. |
 
 **Returns:**
 ```json
@@ -147,6 +148,7 @@ Create a standalone payment plan (without an agent).
 | `priceReceivers` | string | **Yes** | Comma-separated receiver addresses |
 | `creditsAmount` | number | **Yes** | Number of credits in the plan |
 | `accessLimit` | string | No | `"credits"` (default) or `"time"` |
+| `tokenAddress` | string | No | ERC20 token address (e.g. USDC). Omit for native token. |
 
 **Returns:**
 ```json

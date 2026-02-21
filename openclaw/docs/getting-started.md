@@ -47,9 +47,14 @@ Add your API key directly to `openclaw.json`:
 ```json
 {
   "plugins": {
-    "nevermined": {
-      "nvmApiKey": "sandbox:eyJhbG...",
-      "environment": "sandbox"
+    "entries": {
+      "nevermined": {
+        "enabled": true,
+        "config": {
+          "nvmApiKey": "sandbox:eyJhbG...",
+          "environment": "sandbox"
+        }
+      }
     }
   }
 }

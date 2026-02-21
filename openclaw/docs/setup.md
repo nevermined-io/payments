@@ -13,12 +13,19 @@ The plugin reads its configuration from the `plugins.nevermined` section of your
 ```json
 {
   "plugins": {
-    "nevermined": {
-      "nvmApiKey": "sandbox:eyJhbG...",
-      "environment": "sandbox",
-      "planId": "did:nv:abc123...",
-      "agentId": "did:nv:def456...",
-      "creditsPerRequest": 1
+    "entries": {
+      "nevermined": {
+        "enabled": true,
+        "config": {
+          "nvmApiKey": "sandbox:eyJhbG...",
+          "environment": "sandbox",
+          "planId": "did:nv:abc123...",
+          "agentId": "did:nv:def456...",
+          "creditsPerRequest": 1,
+          "enablePaidEndpoint": false,
+          "agentEndpointPath": "/nevermined/agent"
+        }
+      }
     }
   }
 }
@@ -28,11 +35,13 @@ The plugin reads its configuration from the `plugins.nevermined` section of your
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `nvmApiKey` | No | — | Your Nevermined API key. Can be set via `/nvm-login` instead. |
+| `nvmApiKey` | No | — | Your Nevermined API key. Can be set via `/nvm_login` instead. |
 | `environment` | No | `sandbox` | Target environment: `sandbox` for testing, `live` for production. |
 | `planId` | No | — | Default payment plan ID. When set, subscriber tools use this plan automatically. |
 | `agentId` | No | — | Default agent ID. Required for plans with multiple agents. |
 | `creditsPerRequest` | No | `1` | Number of credits consumed per request. |
+| `enablePaidEndpoint` | No | `false` | Enable the x402 paid HTTP endpoint on the gateway. |
+| `agentEndpointPath` | No | `/nevermined/agent` | HTTP path for the paid agent endpoint. |
 
 ### Environment Details
 
