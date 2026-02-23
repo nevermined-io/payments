@@ -94,7 +94,10 @@ npx @nevermined-io/cli --help
 ### First Steps
 
 ```bash
-# Initialize configuration
+# Authenticate via browser (recommended)
+nvm login
+
+# Or initialize configuration manually
 nvm config init
 
 # List available plans
@@ -113,6 +116,10 @@ nvm x402token get-x402-access-token <plan-id>
 ### Common Commands
 
 ```bash
+# Authentication
+nvm login                    # Authenticate via browser
+nvm logout                   # Remove API key from config
+
 # Configuration
 nvm config init              # Initialize configuration
 nvm config show              # Display current config
@@ -125,8 +132,8 @@ nvm plans get-plan-balance <plan-id>    # Check balance
 nvm plans order-plan <plan-id>          # Purchase plan
 
 # Agents
-nvm agents list                         # List agents
 nvm agents get-agent <agent-id>         # Get agent details
+nvm agents get-agent-plans <agent-id>   # List agent's plans
 nvm agents register-agent \             # Register new agent
   --agent-metadata metadata.json \
   --agent-api "https://api.example.com" \
@@ -136,9 +143,12 @@ nvm agents register-agent \             # Register new agent
 nvm x402token get-x402-access-token <plan-id>  # Get access token
 
 # Organizations
-nvm organizations get-members                    # List members
-nvm organizations create-member \                # Add member
-  --member-data member.json
+nvm organizations get-members                          # List members
+nvm organizations create-member <user-id>              # Add member
+nvm organizations connect-stripe-account \             # Connect Stripe
+  --user-email "user@example.com" \
+  --user-country-code "US" \
+  --return-url "https://yourapp.com/callback"
 ```
 
 ## Global Flags
@@ -341,7 +351,10 @@ npm install -g @nevermined-io/cli
 ### API Key Errors
 
 ```bash
-# Initialize configuration
+# Browser login (recommended)
+nvm login
+
+# Or initialize configuration manually
 nvm config init
 
 # Or set environment variable

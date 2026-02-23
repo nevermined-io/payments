@@ -25,18 +25,30 @@ nvm x402token get-x402-access-token <plan-id>
 Example:
 
 ```bash
-nvm x402token get-x402-access-token "123456789012345678"
+nvm x402token get-x402-access-token "did:nvm:abc123"
+```
+
+Optional flags:
+- `--agent-id` — Target agent ID
+- `--redemption-limit` — Maximum credits that can be redeemed
+- `--order-limit` — Maximum number of orders
+- `--expiration` — Token expiration time
+
+Example with options:
+
+```bash
+nvm x402token get-x402-access-token "did:nvm:abc123" \
+  --agent-id "did:nvm:agent456" \
+  --redemption-limit 100 \
+  --expiration 3600
 ```
 
 Output:
 
 ```
 X402 Access Token
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Plan ID: "123456789012345678"
-Expires: 2024-03-15 10:30:00 UTC
-Credits: 100
+Plan ID: did:nvm:abc123
 
 Use this token in the payment-signature header:
   curl -H "payment-signature: eyJhbGci..." https://agent-api.example.com
@@ -56,7 +68,7 @@ Store the token for multiple requests:
 
 ```bash
 # Get token and save to file
-TOKEN=$(nvm x402token get-x402-access-token "123456789012345678" --format json | jq -r '.token')
+TOKEN=$(nvm x402token get-x402-access-token "did:nvm:abc123" --format json | jq -r '.token')
 echo $TOKEN > ~/.nvm-token
 
 # Use token from file
@@ -71,7 +83,7 @@ Query an agent using curl:
 
 ```bash
 # Get access token
-TOKEN=$(nvm x402token get-x402-access-token "123456789012345678" --format json | jq -r '.token')
+TOKEN=$(nvm x402token get-x402-access-token "did:nvm:abc123" --format json | jq -r '.token')
 
 # Make request with payment-signature header
 curl -X POST https://agent-api.example.com/v1/chat \
@@ -89,7 +101,7 @@ curl -X POST https://agent-api.example.com/v1/chat \
 // Get token from CLI
 const { execSync } = require('child_process')
 
-const planId = '"123456789012345678"'
+const planId = 'did:nvm:abc123'
 const tokenCmd = `nvm x402token get-x402-access-token ${planId} --format json`
 const result = JSON.parse(execSync(tokenCmd).toString())
 const token = result.token
@@ -119,7 +131,7 @@ import json
 import requests
 
 # Get token from CLI
-plan_id = '"123456789012345678"'
+plan_id = 'did:nvm:abc123'
 cmd = f'nvm x402token get-x402-access-token {plan_id} --format json'
 result = subprocess.run(cmd.split(), capture_output=True, text=True)
 token_data = json.loads(result.stdout)
@@ -156,23 +168,10 @@ nvm facilitator verify-permissions \
 
 ```json
 {
-  "paymentRequired": "eyJhbGci...(base64-encoded payment requirements)...",
+  "paymentRequired": "eyJhbGci...",
   "x402AccessToken": "eyJhbGci...",
   "maxAmount": "5"
 }
-```
-
-Output:
-
-```
-Permission Verification
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Status: Valid
-Plan ID: "123456789012345678"
-Subscriber: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-Credits Available: 100
-Credits Required: 5
-Can Proceed: true
 ```
 
 ### Automatic Verification (SDK)
@@ -189,7 +188,7 @@ const payments = Payments.getInstance({
 
 // Build payment requirements for your plan/agent
 const paymentRequired = buildPaymentRequired({
-  planId: '"123456789012345678"',
+  planId: 'did:nvm:abc123',
   endpoint: '/v1/chat',
   agentId: process.env.NVM_AGENT_ID!,
   httpVerb: 'POST'
@@ -222,22 +221,10 @@ nvm facilitator settle-permissions \
 
 ```json
 {
-  "paymentRequired": "eyJhbGci...(base64-encoded payment requirements)...",
+  "paymentRequired": "eyJhbGci...",
   "x402AccessToken": "eyJhbGci...",
   "maxAmount": "5"
 }
-```
-
-Output:
-
-```
-Credits Settled
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Plan ID: "123456789012345678"
-Credits Burned: 5
-Remaining Balance: 95
-Transaction Hash: 0x1234567890abcdef...
-Status: Confirmed
 ```
 
 ### Automatic Settlement (SDK)
@@ -263,7 +250,7 @@ Complete flow from purchase to query:
 #!/bin/bash
 # Complete agent query workflow
 
-PLAN_ID="123456789012345678"
+PLAN_ID="did:nvm:abc123"
 AGENT_API="https://agent-api.example.com/v1/chat"
 
 # 1. Purchase plan if needed
@@ -307,7 +294,7 @@ Process multiple queries efficiently:
 #!/bin/bash
 # Batch query script
 
-PLAN_ID="123456789012345678"
+PLAN_ID="did:nvm:abc123"
 AGENT_API="https://agent-api.example.com/v1/chat"
 
 # Get token once
@@ -346,7 +333,7 @@ Respect rate limits:
 #!/bin/bash
 # Rate-limited query script
 
-PLAN_ID="123456789012345678"
+PLAN_ID="did:nvm:abc123"
 AGENT_API="https://agent-api.example.com/v1/chat"
 RATE_LIMIT=10  # requests per minute
 DELAY=$(echo "60 / $RATE_LIMIT" | bc -l)
@@ -428,7 +415,7 @@ query_agent() {
 }
 
 # Usage
-query_agent ""123456789012345678"" "Hello, agent!"
+query_agent ""did:nvm:abc123"" "Hello, agent!"
 ```
 
 ## Monitoring Usage
@@ -441,7 +428,7 @@ Monitor how credits are used per query:
 #!/bin/bash
 # Credit usage tracking
 
-PLAN_ID="123456789012345678"
+PLAN_ID="did:nvm:abc123"
 LOG_FILE="credit-usage.log"
 
 # Get initial balance

@@ -101,6 +101,17 @@ export class ConfigManager {
     await this.save(config)
   }
 
+  async remove(key: string, profile?: string): Promise<void> {
+    const config = this.configCache || (await this.load())
+    if (!config) return
+
+    const profileName = profile || config.activeProfile
+    if (config.profiles[profileName]) {
+      delete config.profiles[profileName][key as keyof ProfileConfig]
+      await this.save(config)
+    }
+  }
+
   async getActiveProfile(): Promise<string> {
     const config = this.configCache || (await this.load())
     return config?.activeProfile || 'default'

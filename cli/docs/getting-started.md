@@ -18,12 +18,7 @@ Before installing the CLI, ensure you have:
 
 ## Getting Your API Key
 
-1. Visit [nevermined.app](https://nevermined.app) and sign in
-2. Navigate to your account settings
-3. Generate a new API key from the "API Keys" section
-4. Save your API key securely - you'll need it for CLI configuration
-
-The API key format is: `live:eyJxxxxaaaa`
+To interact with the Nevermined API, you need an API key. Follow the [Get Your API Key](/docs/getting-started/get-your-api-key) guide to create one.
 
 ## Installation
 
@@ -68,6 +63,42 @@ yarn build:manifest
 
 # Run the CLI
 ./bin/run.js --help
+```
+
+## Authentication
+
+### Browser Login (Recommended)
+
+The quickest way to authenticate:
+
+```bash
+nvm login
+```
+
+This opens your browser to sign in with Google, X, or email. After login,
+your API key is automatically captured and saved to your CLI config.
+
+Options:
+- `--environment <env>` — Target environment (default: sandbox)
+- `--profile <name>` — Config profile to save to (default: default)
+- `--no-browser` — Print the login URL instead of opening the browser
+
+Examples:
+
+```bash
+nvm login --environment live
+nvm login --profile production --environment live
+nvm login --no-browser
+```
+
+### Logout
+
+Remove your API key from the CLI config:
+
+```bash
+nvm logout
+nvm logout --profile production
+nvm logout --all-profiles
 ```
 
 ## Configuration
@@ -210,7 +241,10 @@ After global installation, if `nvm` command is not found:
 If you get an API key error:
 
 ```bash
-# Initialize configuration
+# Browser login (recommended)
+nvm login
+
+# Or initialize configuration manually
 nvm config init
 
 # Or set environment variable
