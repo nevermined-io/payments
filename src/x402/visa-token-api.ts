@@ -40,46 +40,59 @@ export class VisaTokenAPI extends X402TokenAPI {
   /**
    * Generate a Visa x402 payment payload.
    *
-   * Calls the Visa backend's POST /access-token endpoint with the consumer's
-   * Visa credentials (vProvisionedTokenID + instructionId) and the required amount.
+   * When called with only `amount`, the Visa backend resolves the user's Visa
+   * credentials from the NVM API key sent in the Authorization header.
    *
-   * @param vProvisionedTokenID - The Visa Token Service provisioned token ID
-   * @param instructionId - The VIC mandate instruction ID
-   * @param amount - The payment amount (e.g. "2.00")
+   * When called with explicit Visa credentials (`vProvisionedTokenID` and
+   * `instructionId`), those are sent directly to the Visa backend.
+   *
+   * @param amount - The payment amount (e.g. "1.00")
+   * @param vProvisionedTokenID - The Visa Token Service provisioned token ID (optional)
+   * @param instructionId - The VIC mandate instruction ID (optional)
    * @returns A promise resolving to an object with `accessToken` (the base64-encoded PaymentPayload)
    *
    * @example
    * ```typescript
+   * // Using NVM API key (credentials resolved by backend)
+   * const result = await payments.x402.getVisaAccessToken('1.00')
+   *
+   * // Using explicit Visa credentials
    * const result = await payments.x402.getVisaAccessToken(
+   *   '2.00',
    *   'token-id-from-visa',
    *   'instruction-id-from-mandate',
-   *   '2.00'
    * )
    * // Use result.accessToken as the PAYMENT-SIGNATURE header value
    * ```
    */
   async getVisaAccessToken(
-    vProvisionedTokenID: string,
-    instructionId: string,
     amount: string,
+    vProvisionedTokenID?: string,
+    instructionId?: string,
   ): Promise<{ accessToken: string; [key: string]: any }> {
-    const url = new URL('access-token', this.visaBackendUrl)
+    const hasExplicitCredentials = vProvisionedTokenID && instructionId
 
-    const body = {
-      vProvisionedTokenID,
-      instructionId,
-      amount,
-    }
+    const url = hasExplicitCredentials
+      ? new URL('access-token', this.visaBackendUrl)
+      : new URL('access-token/from-nvm-key', this.visaBackendUrl)
+
+    const body = hasExplicitCredentials
+      ? { vProvisionedTokenID, instructionId, amount }
+      : { amount }
+
+    const fetchOptions = hasExplicitCredentials
+      ? {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        }
+      : this.getBackendHTTPOptions('POST', body)
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      })
+      const response = await fetch(url, fetchOptions)
 
       if (!response.ok) {
         let errorMessage = 'Failed to generate Visa payment payload'
