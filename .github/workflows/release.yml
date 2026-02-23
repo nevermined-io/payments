@@ -44,6 +44,18 @@ jobs:
           yarn test:unit
           yarn test:integration
 
+      - name: Install OpenClaw Plugin dependencies
+        working-directory: openclaw
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build OpenClaw Plugin
+        working-directory: openclaw
+        run: yarn build
+
+      - name: Run OpenClaw Plugin tests
+        working-directory: openclaw
+        run: yarn test
+
   publish-sdk:
     name: Publish SDK to npm
     needs: build
@@ -154,9 +166,85 @@ jobs:
           git diff --cached --quiet || git commit -m "chore(cli): bump version to ${{ steps.version.outputs.version }}"
           git push origin HEAD:main || echo "Could not push to main (protected branch)"
 
+  publish-openclaw:
+    name: Publish OpenClaw Plugin to npm
+    needs: publish-sdk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'yarn'
+          cache-dependency-path: yarn.lock
+          registry-url: https://registry.npmjs.org/
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Publishing version: $VERSION"
+
+      - name: Install SDK dependencies
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build SDK
+        run: yarn build
+
+      - name: Install OpenClaw Plugin dependencies
+        working-directory: openclaw
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Update OpenClaw Plugin version
+        working-directory: openclaw
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "${{ steps.version.outputs.version }}" ]; then
+            npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          fi
+          echo "OpenClaw Plugin version is ${{ steps.version.outputs.version }}"
+
+      - name: Build OpenClaw Plugin
+        working-directory: openclaw
+        run: yarn build
+
+      - name: Run OpenClaw Plugin tests
+        working-directory: openclaw
+        run: yarn test
+
+      - name: Publish OpenClaw Plugin package
+        working-directory: openclaw
+        run: npm publish --access public || echo "Version may already exist on npm, continuing"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Pack OpenClaw Plugin tarball
+        working-directory: openclaw
+        run: npm pack
+
+      - name: Upload OpenClaw Plugin tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-tarball
+          path: openclaw/*.tgz
+
+      - name: Commit OpenClaw Plugin version update
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add openclaw/package.json
+          git diff --cached --quiet || git commit -m "chore(openclaw): bump version to ${{ steps.version.outputs.version }}"
+          git push origin HEAD:main || echo "Could not push to main (protected branch)"
+
   github-release:
     name: Create GitHub Release
-    needs: publish-cli
+    needs: [publish-cli, publish-openclaw]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -182,6 +270,12 @@ jobs:
         with:
           name: cli-tarballs
           path: cli-tarballs
+
+      - name: Download OpenClaw Plugin tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: openclaw-tarball
+          path: openclaw-tarball
 
       - name: Extract changelog
         id: changelog
@@ -220,13 +314,13 @@ jobs:
               --title "Nevermined Payments $TAG" \
               --generate-notes \
               $PRERELEASE_FLAG \
-              sdk-tarball/*.tgz cli-tarballs/*.tar.gz
+              sdk-tarball/*.tgz cli-tarballs/*.tar.gz openclaw-tarball/*.tgz
           else
             gh release create "$TAG" \
               --title "Nevermined Payments $TAG" \
               --notes-file /tmp/release_notes.md \
               $PRERELEASE_FLAG \
-              sdk-tarball/*.tgz cli-tarballs/*.tar.gz
+              sdk-tarball/*.tgz cli-tarballs/*.tar.gz openclaw-tarball/*.tgz
           fi
 
       - name: Summary
@@ -242,6 +336,7 @@ jobs:
           | **Version** | TAG_PLACEHOLDER |
           | **SDK tarball** | Attached |
           | **CLI tarballs** | Attached |
+          | **OpenClaw Plugin tarball** | Attached |
           | **Release URL** | RELEASE_URL_PLACEHOLDER |
           SUMMARY
           sed -i "s|TAG_PLACEHOLDER|$TAG|g" $GITHUB_STEP_SUMMARY
@@ -302,6 +397,12 @@ jobs:
           cp -r payments/cli/docs/* docs_mintlify/docs/api-reference/cli/ || echo "CLI docs not found, skipping"
           cp payments/cli/README.md docs_mintlify/docs/api-reference/cli/index.md || echo "CLI README not found"
 
+      - name: Update OpenClaw Plugin documentation
+        run: |
+          mkdir -p docs_mintlify/docs/api-reference/openclaw-plugin
+          cp -r payments/openclaw/docs/* docs_mintlify/docs/api-reference/openclaw-plugin/ || echo "OpenClaw docs not found, skipping"
+          cp payments/openclaw/README.md docs_mintlify/docs/api-reference/openclaw-plugin/index.md || echo "OpenClaw README not found"
+
       - name: Create documentation PR
         working-directory: docs_mintlify
         env:
@@ -313,13 +414,14 @@ jobs:
           BRANCH_NAME="docs/payments-v${{ steps.version.outputs.version }}"
           git checkout -b "$BRANCH_NAME"
 
-          git add docs/api-reference/typescript docs/api-reference/cli
+          git add docs/api-reference/typescript docs/api-reference/cli docs/api-reference/openclaw-plugin
 
           git commit -m "$(cat <<'EOF'
-          docs: update Payments SDK and CLI documentation for v${{ steps.version.outputs.version }}
+          docs: update Payments SDK, CLI and OpenClaw Plugin documentation for v${{ steps.version.outputs.version }}
 
           - Updated SDK documentation in docs/api-reference/typescript/
           - Updated CLI documentation in docs/api-reference/cli/
+          - Updated OpenClaw Plugin documentation in docs/api-reference/openclaw-plugin/
           - Version: ${{ steps.version.outputs.version }}
           - Auto-generated from nevermined-io/payments@${{ github.sha }}
 
@@ -330,15 +432,16 @@ jobs:
           git push origin "$BRANCH_NAME"
 
           gh pr create \
-            --title "docs: Payments SDK & CLI v${{ steps.version.outputs.version }}" \
+            --title "docs: Payments SDK, CLI & OpenClaw Plugin v${{ steps.version.outputs.version }}" \
             --body "$(cat <<'EOF'
           ## Documentation Update
 
-          This PR updates the documentation for Nevermined Payments SDK and CLI to version **v${{ steps.version.outputs.version }}**.
+          This PR updates the documentation for Nevermined Payments SDK, CLI and OpenClaw Plugin to version **v${{ steps.version.outputs.version }}**.
 
           ### Changes
           - SDK documentation in `docs/api-reference/typescript/`
           - CLI documentation in `docs/api-reference/cli/`
+          - OpenClaw Plugin documentation in `docs/api-reference/openclaw-plugin/`
           - Version metadata added to all files
 
           ### Source
@@ -349,6 +452,7 @@ jobs:
           ### Links
           - [CLI on npm](https://www.npmjs.com/package/@nevermined-io/cli)
           - [SDK on npm](https://www.npmjs.com/package/@nevermined-io/payments)
+          - [OpenClaw Plugin on npm](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin)
           - [GitHub Release](https://github.com/nevermined-io/payments/releases/tag/v${{ steps.version.outputs.version }})
 
           ---
@@ -369,3 +473,4 @@ jobs:
           echo "- **Target Repository**: nevermined-io/docs_mintlify" >> $GITHUB_STEP_SUMMARY
           echo "- **SDK Docs**: docs/api-reference/typescript/" >> $GITHUB_STEP_SUMMARY
           echo "- **CLI Docs**: docs/api-reference/cli/" >> $GITHUB_STEP_SUMMARY
+          echo "- **OpenClaw Plugin Docs**: docs/api-reference/openclaw-plugin/" >> $GITHUB_STEP_SUMMARY

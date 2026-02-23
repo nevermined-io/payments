@@ -1,0 +1,44 @@
+{
+  "id": "nevermined",
+  "name": "@nevermined-io/openclaw-plugin",
+  "description": "Nevermined plugin for OpenClaw — AI agent payments and access control",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "nvmApiKey": {
+        "type": "string",
+        "description": "Your Nevermined API key (optional — use /nvm-login to authenticate via browser)"
+      },
+      "environment": {
+        "type": "string",
+        "enum": ["sandbox", "live"],
+        "default": "sandbox",
+        "description": "Nevermined environment to connect to"
+      },
+      "planId": {
+        "type": "string",
+        "description": "Default payment plan ID (required for subscriber tools)"
+      },
+      "agentId": {
+        "type": "string",
+        "description": "Default agent ID (required for multi-agent plans)"
+      },
+      "creditsPerRequest": {
+        "type": "number",
+        "default": 1,
+        "description": "Number of credits consumed per request"
+      },
+      "enablePaidEndpoint": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable the paid HTTP endpoint on the gateway for receiving paid queries"
+      },
+      "agentEndpointPath": {
+        "type": "string",
+        "default": "/nevermined/agent",
+        "description": "HTTP path for the paid agent endpoint"
+      }
+    }
+  }
+}
