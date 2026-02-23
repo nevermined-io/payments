@@ -6,7 +6,7 @@ import { decodeAccessToken } from '../../utils.js'
 import { getCurrentRequestContext } from '../http/mcp-handler.js'
 import { AuthResult } from '../types/paywall.types.js'
 import { ERROR_CODES, createRpcError } from '../utils/errors.js'
-import { Address } from '../../common/types.js'
+import { Address, isValidScheme } from '../../common/types.js'
 import { buildLogicalMetaUrl, buildLogicalUrl } from '../utils/logical-url.js'
 import { extractAuthHeader, stripBearer } from '../utils/request.js'
 import { buildPaymentRequired, type X402PaymentRequired } from '../../x402/facilitator-api.js'
@@ -185,10 +185,12 @@ export class PaywallAuthenticator {
       )
     }
 
+    const scheme = isValidScheme(decodedAccessToken?.accepted?.scheme) ? decodedAccessToken.accepted.scheme : 'nvm:erc4337'
     const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
       endpoint,
       agentId,
       httpVerb: 'POST',
+      scheme,
     })
 
     const result = await this.payments.facilitator.verifyPermissions({

@@ -20,7 +20,7 @@ import {
 } from '@a2a-js/sdk/server'
 import { v4 as uuidv4 } from 'uuid'
 import { PaymentsError } from '../common/payments.error.js'
-import { StartAgentRequest } from '../common/types.js'
+import { StartAgentRequest, isValidScheme } from '../common/types.js'
 import { Payments } from '../payments.js'
 import { decodeAccessToken } from '../utils.js'
 import { buildPaymentRequired, type X402PaymentRequired } from '../x402/facilitator-api.js'
@@ -184,11 +184,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     }
 
     const agentId = paymentExtension?.params?.agentId as string | undefined
+    const scheme = isValidScheme(decodedAccessToken.accepted?.scheme) ? decodedAccessToken.accepted.scheme : 'nvm:erc4337'
 
     const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
       endpoint: endpoint || '',
       agentId,
-      httpVerb: httpVerb,
+      httpVerb,
+      scheme,
     })
 
     const result = await this.paymentsService.facilitator.verifyPermissions({
@@ -201,8 +203,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     }
     return {
       success: true,
-      planId: planId,
-      subscriberAddress: subscriberAddress,
+      planId,
+      subscriberAddress,
       balance: { isSubscriber: true },
     }
   }
@@ -262,11 +264,14 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
 
+    const scheme = isValidScheme(decodedAccessToken.accepted?.scheme) ? decodedAccessToken.accepted.scheme : 'nvm:erc4337'
+
     // Build paymentRequired using the helper
     const paymentRequired = buildPaymentRequired(planId, {
       endpoint: httpContext?.urlRequested,
       agentId,
       httpVerb: httpContext?.httpMethodRequested,
+      scheme,
     })
 
     return await this.paymentsService.facilitator.settlePermissions({

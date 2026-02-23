@@ -13,10 +13,7 @@ export default class GetPlanBalance extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    'account-address': Flags.string({
-      description: "accountAddress as JSON string",
-      required: false
-    }),
+    'account-address': Flags.string({ required: false }),
   }
 
   static override args = {
@@ -33,7 +30,7 @@ export default class GetPlanBalance extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getPlanBalance(args.plan, await this.parseJsonInput(flags['account-address']))
+      const result = await payments.plans.getPlanBalance(args.plan, flags['account-address'])
 
       this.formatter.output(result)
     } catch (error) {

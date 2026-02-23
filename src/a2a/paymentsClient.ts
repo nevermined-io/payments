@@ -1,5 +1,7 @@
 import { Payments } from '../index.js'
 import { PaymentsError } from '../common/payments.error.js'
+import { resolveScheme } from '../x402/facilitator-api.js'
+import type { X402TokenOptions, CardDelegationConfig } from '../common/types.js'
 import {
   MessageSendParams,
   SendMessageResponse,
@@ -24,6 +26,7 @@ export class PaymentsClient extends A2AClient {
   public payments: Payments
   private readonly agentId: string
   private readonly planId: string
+  private readonly delegationConfig?: CardDelegationConfig
   private accessToken: string | null
 
   /**
@@ -34,11 +37,18 @@ export class PaymentsClient extends A2AClient {
    * @param planId - The ID of the plan.
    * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent.json').
    */
-  private constructor(agentCard: AgentCard, payments: Payments, agentId: string, planId: string) {
+  private constructor(
+    agentCard: AgentCard,
+    payments: Payments,
+    agentId: string,
+    planId: string,
+    delegationConfig?: CardDelegationConfig,
+  ) {
     super(agentCard)
     this.payments = payments
     this.agentId = agentId
     this.planId = planId
+    this.delegationConfig = delegationConfig
     this.accessToken = null
   }
 
@@ -52,11 +62,12 @@ export class PaymentsClient extends A2AClient {
     agentId: string,
     planId: string,
     agentCardPath = '.well-known/agent.json',
+    delegationConfig?: CardDelegationConfig,
   ): Promise<PaymentsClient> {
     const agentCardUrl = new URL(agentCardPath, agentBaseUrl).toString()
     const a2a = await A2AClient.fromCardUrl(agentCardUrl)
     const agentCard = await (a2a as any).getAgentCard()
-    return new PaymentsClient(agentCard as AgentCard, payments, agentId, planId)
+    return new PaymentsClient(agentCard as AgentCard, payments, agentId, planId, delegationConfig)
   }
 
   /**
@@ -67,7 +78,24 @@ export class PaymentsClient extends A2AClient {
     if (this.accessToken) {
       return this.accessToken
     }
-    const accessParams = await this.payments.x402.getX402AccessToken(this.planId, this.agentId)
+    const scheme = await resolveScheme(this.payments, this.planId)
+    if (scheme === 'nvm:card-delegation' && !this.delegationConfig) {
+      throw PaymentsError.internal(
+        'Card delegation scheme requires delegationConfig. Pass it to PaymentsClient.create().',
+      )
+    }
+    const tokenOptions: X402TokenOptions | undefined =
+      scheme !== 'nvm:erc4337'
+        ? { scheme, delegationConfig: this.delegationConfig }
+        : undefined
+    const accessParams = await this.payments.x402.getX402AccessToken(
+      this.planId,
+      this.agentId,
+      undefined,
+      undefined,
+      undefined,
+      tokenOptions,
+    )
     this.accessToken = accessParams.accessToken
     return this.accessToken
   }
