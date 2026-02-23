@@ -348,7 +348,8 @@ ${runMethod}
     const baseType = type.replace(/\s*\|\s*undefined$/, '').trim()
 
     // Complex objects have literal braces or are explicitly 'object'
-    if (baseType.includes('{') || baseType === 'object') {
+    // Exclude template literal types like `0x${string}` which are just strings
+    if ((baseType.includes('{') && !baseType.startsWith('`')) || baseType === 'object') {
       return true
     }
 

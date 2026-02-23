@@ -14,10 +14,8 @@ export default class GetCryptoPriceConfig extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     'amount': Flags.string({ required: true }),
-    'receiver': Flags.string({
-      description: "receiver as JSON string",
-      required: true
-    }),
+    'receiver': Flags.string({ required: true }),
+    'token-address': Flags.string({ required: false }),
   }
 
 
@@ -28,7 +26,7 @@ export default class GetCryptoPriceConfig extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getCryptoPriceConfig(flags['amount'], await this.parseJsonInput(flags['receiver']))
+      const result = await payments.plans.getCryptoPriceConfig(flags['amount'], flags['receiver'], flags['token-address'])
 
       this.formatter.output(result)
     } catch (error) {
