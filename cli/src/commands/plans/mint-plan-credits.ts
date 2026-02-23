@@ -14,10 +14,7 @@ export default class MintPlanCredits extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     'credits-amount': Flags.string({ required: true }),
-    'credits-receiver': Flags.string({
-      description: "creditsReceiver as JSON string",
-      required: true
-    }),
+    'credits-receiver': Flags.string({ required: true }),
   }
 
   static override args = {
@@ -34,7 +31,7 @@ export default class MintPlanCredits extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.mintPlanCredits(args.plan, flags['credits-amount'], await this.parseJsonInput(flags['credits-receiver']))
+      const result = await payments.plans.mintPlanCredits(args.plan, flags['credits-amount'], flags['credits-receiver'])
 
       this.formatter.output(result)
     } catch (error) {

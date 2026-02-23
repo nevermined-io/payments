@@ -14,10 +14,7 @@ export default class RedeemCredits extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     'plan-id': Flags.string({ required: true }),
-    'redeem-from': Flags.string({
-      description: "redeemFrom as JSON string",
-      required: true
-    }),
+    'redeem-from': Flags.string({ required: true }),
     'credits-amount-to-redeem': Flags.string({ required: true }),
   }
 
@@ -35,7 +32,7 @@ export default class RedeemCredits extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.redeemCredits(args.agentRequest, flags['plan-id'], await this.parseJsonInput(flags['redeem-from']), flags['credits-amount-to-redeem'])
+      const result = await payments.plans.redeemCredits(args.agentRequest, flags['plan-id'], flags['redeem-from'], flags['credits-amount-to-redeem'])
 
       this.formatter.output(result)
     } catch (error) {

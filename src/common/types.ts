@@ -1,9 +1,6 @@
 import { EnvironmentName } from '../environments.js'
 
 /**
- * Options to initialize the Payments class.
- */
-/**
  * The payment scheme to use.
  * - 'nvm' (default): Nevermined credit-based payments via ERC-4337 smart accounts.
  * - 'visa': Visa Token Service fiat payments via x402 HTTP transport.
@@ -443,4 +440,56 @@ export type SimulationRequestOptions = {
   planName?: string
   batch?: boolean
   pricePerCredit?: number
+}
+
+/**
+ * x402 payment scheme type.
+ * - 'nvm:erc4337': Crypto payments via ERC-4337 smart accounts
+ * - 'nvm:card-delegation': Fiat/Stripe card delegation payments
+ */
+export type X402SchemeType = 'nvm:erc4337' | 'nvm:card-delegation'
+
+/**
+ * Default network for each x402 scheme.
+ */
+export const X402_SCHEME_NETWORKS: Record<X402SchemeType, string> = {
+  'nvm:erc4337': 'eip155:84532',
+  'nvm:card-delegation': 'stripe',
+}
+
+/**
+ * Type guard to check if a value is a valid x402 scheme type.
+ */
+export function isValidScheme(s: unknown): s is X402SchemeType {
+  return s === 'nvm:erc4337' || s === 'nvm:card-delegation'
+}
+
+/**
+ * Configuration for card delegation (fiat/Stripe) payments.
+ */
+export interface CardDelegationConfig {
+  /** Stripe payment method ID (e.g., 'pm_...') */
+  providerPaymentMethodId: string
+  /** Maximum spending limit in cents */
+  spendingLimitCents: number
+  /** Duration of the delegation in seconds */
+  durationSecs: number
+  /** Currency code (default: 'usd') */
+  currency?: string
+  /** Stripe Connect merchant account ID */
+  merchantAccountId?: string
+  /** Maximum number of transactions allowed */
+  maxTransactions?: number
+}
+
+/**
+ * Options for x402 token generation that control scheme and delegation behavior.
+ */
+export interface X402TokenOptions {
+  /** The x402 scheme to use (defaults to 'nvm:erc4337') */
+  scheme?: X402SchemeType
+  /** Network identifier (auto-derived from scheme if omitted) */
+  network?: string
+  /** Card delegation configuration (only for 'nvm:card-delegation' scheme) */
+  delegationConfig?: CardDelegationConfig
 }

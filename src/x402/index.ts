@@ -3,7 +3,7 @@
  */
 
 export { X402TokenAPI } from './token.js'
-export { FacilitatorAPI, buildPaymentRequired } from './facilitator-api.js'
+export { FacilitatorAPI, buildPaymentRequired, resolveScheme } from './facilitator-api.js'
 export type {
   // x402 types
   X402Resource,
@@ -17,6 +17,14 @@ export type {
   SettlePermissionsParams,
   SettlePermissionsResult,
 } from './facilitator-api.js'
+
+// Card delegation exports
+export { DelegationAPI } from './delegation-api.js'
+export type { PaymentMethodSummary } from './delegation-api.js'
+
+// Scheme types
+export type { X402SchemeType, CardDelegationConfig, X402TokenOptions } from '../common/types.js'
+export { X402_SCHEME_NETWORKS, isValidScheme } from '../common/types.js'
 
 // Visa x402 exports
 export { VisaFacilitatorAPI, buildVisaPaymentRequired, VISA_X402_HEADERS } from './visa-facilitator-api.js'
