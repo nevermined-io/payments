@@ -200,42 +200,69 @@ export function createTools(
     {
       name: 'nevermined_createPlan',
       label: 'Nevermined Create Plan',
-      description: 'Create a new payment plan on Nevermined',
+      description: 'Create a new payment plan on Nevermined. Supports fiat (Stripe), ERC20 tokens (USDC), and native crypto pricing.',
       parameters: {
         type: 'object' as const,
         properties: {
           name: { type: 'string', description: 'Plan name' },
           description: { type: 'string', description: 'Plan description' },
-          priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei' },
-          priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses' },
+          priceAmount: { type: 'string', description: 'Price amount — in cents for fiat (e.g. "100" = $1.00), in token smallest unit for crypto (e.g. "1000000" = 1 USDC)' },
+          receiver: { type: 'string', description: 'Receiver wallet address (0x...)' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
+          pricingType: { type: 'string', description: '"fiat" for Stripe/USD, "erc20" for ERC20 tokens like USDC, "crypto" for native token (default: crypto)' },
           accessLimit: { type: 'string', description: '"credits" or "time" (default: credits)' },
-          tokenAddress: { type: 'string', description: 'ERC20 token address (e.g. USDC). Omit for native token.' },
+          tokenAddress: { type: 'string', description: 'ERC20 token contract address. Required when pricingType is "erc20".' },
         },
-        required: ['name', 'priceAmounts', 'priceReceivers', 'creditsAmount'],
+        required: ['name', 'priceAmount', 'receiver', 'creditsAmount'],
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const name = requireStr(params, 'name')
         const description = str(params, 'description') ?? ''
-        const priceAmounts = requireStr(params, 'priceAmounts')
-          .split(',')
-          .map((s) => BigInt(s.trim()))
-        const priceReceivers = requireStr(params, 'priceReceivers')
-          .split(',')
-          .map((s) => s.trim())
+        const priceAmount = BigInt(requireStr(params, 'priceAmount'))
+        const receiver = requireStr(params, 'receiver')
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
+        const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
         const accessLimit = (str(params, 'accessLimit') ?? 'credits') as 'credits' | 'time'
         const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
 
-        const priceConfig = {
-          amounts: priceAmounts,
-          receivers: priceReceivers,
-          isCrypto: true,
-          tokenAddress: tokenAddress ?? ZERO_ADDRESS,
-          contractAddress: ZERO_ADDRESS,
-          feeController: ZERO_ADDRESS,
-          externalPriceAddress: ZERO_ADDRESS,
-          templateAddress: ZERO_ADDRESS,
+        let priceConfig
+        switch (pricingType) {
+          case 'fiat':
+            priceConfig = {
+              amounts: [priceAmount],
+              receivers: [receiver],
+              isCrypto: false,
+              tokenAddress: ZERO_ADDRESS,
+              contractAddress: ZERO_ADDRESS,
+              feeController: ZERO_ADDRESS,
+              externalPriceAddress: ZERO_ADDRESS,
+              templateAddress: ZERO_ADDRESS,
+            }
+            break
+          case 'erc20':
+            if (!tokenAddress) throw new Error('tokenAddress is required when pricingType is "erc20"')
+            priceConfig = {
+              amounts: [priceAmount],
+              receivers: [receiver],
+              isCrypto: true,
+              tokenAddress,
+              contractAddress: ZERO_ADDRESS,
+              feeController: ZERO_ADDRESS,
+              externalPriceAddress: ZERO_ADDRESS,
+              templateAddress: ZERO_ADDRESS,
+            }
+            break
+          default:
+            priceConfig = {
+              amounts: [priceAmount],
+              receivers: [receiver],
+              isCrypto: true,
+              tokenAddress: tokenAddress ?? ZERO_ADDRESS,
+              contractAddress: ZERO_ADDRESS,
+              feeController: ZERO_ADDRESS,
+              externalPriceAddress: ZERO_ADDRESS,
+              templateAddress: ZERO_ADDRESS,
+            }
         }
 
         const res = await getPayments().plans.registerPlan(

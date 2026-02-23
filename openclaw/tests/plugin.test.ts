@@ -540,36 +540,72 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(priceConfig.tokenAddress).toBe('0x0000000000000000000000000000000000000000')
     })
 
-    test('nevermined_createPlan — calls registerPlan', async () => {
+    test('nevermined_createPlan — calls registerPlan with crypto pricing by default', async () => {
       const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_createPlan')!
       const result = parseResult(await tool.execute('call-1', {
         name: 'My Plan',
-        priceAmounts: '500',
-        priceReceivers: '0xabc',
+        priceAmount: '500',
+        receiver: '0xabc',
         creditsAmount: 50,
       }))
 
       expect(mockPayments.plans.registerPlan).toHaveBeenCalled()
+      const call = (mockPayments.plans.registerPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
+      const priceConfig = call[1] as { isCrypto: boolean }
+      expect(priceConfig.isCrypto).toBe(true)
       expect(result).toEqual({ planId: 'plan-new' })
     })
 
-    test('nevermined_createPlan — passes tokenAddress when provided', async () => {
+    test('nevermined_createPlan — fiat pricing sets isCrypto to false', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_createPlan')!
+      await tool.execute('call-1', {
+        name: 'Fiat Plan',
+        priceAmount: '100',
+        receiver: '0xabc',
+        creditsAmount: 30,
+        pricingType: 'fiat',
+      })
+
+      const call = (mockPayments.plans.registerPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
+      const priceConfig = call[1] as { isCrypto: boolean; tokenAddress: string }
+      expect(priceConfig.isCrypto).toBe(false)
+      expect(priceConfig.tokenAddress).toBe('0x0000000000000000000000000000000000000000')
+    })
+
+    test('nevermined_createPlan — erc20 pricing passes tokenAddress', async () => {
       const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_createPlan')!
       await tool.execute('call-1', {
         name: 'USDC Plan',
-        priceAmounts: '1000000',
-        priceReceivers: '0xabc',
+        priceAmount: '1000000',
+        receiver: '0xabc',
         creditsAmount: 5,
+        pricingType: 'erc20',
         tokenAddress: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
       })
 
       const call = (mockPayments.plans.registerPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
-      const priceConfig = call[1] as { tokenAddress?: string }
+      const priceConfig = call[1] as { isCrypto: boolean; tokenAddress: string }
+      expect(priceConfig.isCrypto).toBe(true)
       expect(priceConfig.tokenAddress).toBe('0x036CbD53842c5426634e7929541eC2318f3dCF7e')
+    })
+
+    test('nevermined_createPlan — erc20 pricing requires tokenAddress', async () => {
+      const { tools } = registerWithMock()
+
+      const tool = tools.get('nevermined_createPlan')!
+      await expect(tool.execute('call-1', {
+        name: 'USDC Plan',
+        priceAmount: '1000000',
+        receiver: '0xabc',
+        creditsAmount: 5,
+        pricingType: 'erc20',
+      })).rejects.toThrow('tokenAddress is required')
     })
 
     test('nevermined_listPlans — returns plans', async () => {

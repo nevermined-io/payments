@@ -54,13 +54,14 @@ Register a new AI agent with a payment plan.
 - `tokenAddress` (optional) — ERC20 token address (e.g. USDC). Omit for native token.
 
 ### `nevermined_createPlan`
-Create a standalone payment plan.
+Create a standalone payment plan. Supports fiat (Stripe), ERC20 tokens (USDC), and native crypto pricing.
 - `name` (required) — plan name
-- `priceAmounts` (required) — comma-separated prices in wei
-- `priceReceivers` (required) — comma-separated receiver addresses
+- `priceAmount` (required) — price in cents for fiat (e.g. "100" = $1.00), in token smallest unit for crypto (e.g. "1000000" = 1 USDC)
+- `receiver` (required) — receiver wallet address (0x...)
 - `creditsAmount` (required) — number of credits
+- `pricingType` (optional) — `"fiat"` for Stripe/USD, `"erc20"` for ERC20 tokens like USDC, `"crypto"` for native token (default: crypto)
 - `accessLimit` (optional) — `"credits"` or `"time"`
-- `tokenAddress` (optional) — ERC20 token address (e.g. USDC). Omit for native token.
+- `tokenAddress` (optional) — ERC20 token contract address. Required when pricingType is "erc20".
 
 ### `nevermined_listPlans`
 List your payment plans. No parameters.
