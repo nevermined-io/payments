@@ -13,10 +13,7 @@ export default class GetAgentPlans extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    'pagination': Flags.string({
-      description: "pagination as JSON string",
-      required: false
-    }),
+
   }
 
   static override args = {
@@ -33,7 +30,7 @@ export default class GetAgentPlans extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.agents.getAgentPlans(args.agent, await this.parseJsonInput(flags['pagination']))
+      const result = await payments.agents.getAgentPlans(args.agent)
 
       this.formatter.output(result)
     } catch (error) {

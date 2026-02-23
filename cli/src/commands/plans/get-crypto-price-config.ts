@@ -18,10 +18,6 @@ export default class GetCryptoPriceConfig extends BaseCommand {
       description: "receiver as JSON string",
       required: true
     }),
-    'token-address': Flags.string({
-      description: "tokenAddress as JSON string",
-      required: false
-    }),
   }
 
 
@@ -32,7 +28,7 @@ export default class GetCryptoPriceConfig extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getCryptoPriceConfig(flags['amount'], await this.parseJsonInput(flags['receiver']), await this.parseJsonInput(flags['token-address']))
+      const result = await payments.plans.getCryptoPriceConfig(flags['amount'], await this.parseJsonInput(flags['receiver']))
 
       this.formatter.output(result)
     } catch (error) {
