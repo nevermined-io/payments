@@ -1,24 +1,27 @@
 ---
-title: "Commands"
+title: "API Reference"
 description: "All available tools and slash commands in the Nevermined OpenClaw plugin"
 icon: "terminal"
 ---
 
-# Commands
+# API Reference
 
-The plugin provides slash commands for chat channels and gateway methods for programmatic access. Each command is available in both forms.
+The plugin provides slash commands for chat channels and tools for programmatic access. Each command is available in both forms.
 
 ## Authentication
 
-### `/nvm_login [environment]`
+### Login
 
-Authenticate with Nevermined via browser login.
+Authenticate with Nevermined via browser login. Once authenticated, your API key is stored locally for subsequent requests.
+
+**Slash command:** `/nvm_login [environment]`
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `environment` | string | No | `sandbox` | `sandbox` or `live` |
 
-**Example:**
+> **Example prompt:** "Log me in to Nevermined"
+
 ```
 /nvm_login
 /nvm_login live
@@ -27,23 +30,31 @@ Authenticate with Nevermined via browser login.
 
 ---
 
-### `/nvm_logout`
+### Logout
 
-Log out from Nevermined and remove the stored API key.
+Log out from Nevermined and remove the stored API key from the local session.
+
+**Slash command:** `/nvm_logout`
+
+> **Example prompt:** "Log me out of Nevermined"
 
 ---
 
 ## Subscriber Tools
 
-These tools are for users who want to subscribe to plans, check balances, and query agents.
+Tools for users who want to discover plans, subscribe, check balances, and query AI agents.
 
-### `nevermined_checkBalance`
+### Check Credit Balance
 
-Check the credit balance for a payment plan.
+Retrieve the current credit balance for a payment plan. Useful for checking how many credits remain before querying an agent or deciding whether to top up.
+
+**Tool name:** `nevermined_checkBalance`
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `planId` | string | No | Config `planId` | The payment plan ID to check |
+
+> **Example prompt:** "How many credits do I have left on my plan?"
 
 **Returns:**
 ```json
@@ -57,14 +68,18 @@ Check the credit balance for a payment plan.
 
 ---
 
-### `nevermined_getAccessToken`
+### Get Access Token
 
-Get an x402 access token for authenticating requests to a Nevermined agent.
+Generate an x402 access token for authenticating requests to a Nevermined agent. The token is included in the `PAYMENT-SIGNATURE` header when calling an agent endpoint directly.
+
+**Tool name:** `nevermined_getAccessToken`
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `planId` | string | No | Config `planId` | The payment plan ID |
 | `agentId` | string | No | Config `agentId` | The agent ID |
+
+> **Example prompt:** "Get me an access token for the translation agent"
 
 **Returns:**
 ```json
@@ -75,21 +90,27 @@ Get an x402 access token for authenticating requests to a Nevermined agent.
 
 ---
 
-### `nevermined_orderPlan`
+### Order a Plan
 
-Purchase (order) a Nevermined payment plan.
+Purchase a Nevermined payment plan. This subscribes you to the plan and grants the associated credits, enabling you to query any agent linked to it.
+
+**Tool name:** `nevermined_orderPlan`
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `planId` | string | No | Config `planId` | The plan ID to purchase |
 
+> **Example prompt:** "Subscribe me to the AI Assistant plan"
+
 **Returns:** Order confirmation with transaction hash.
 
 ---
 
-### `nevermined_queryAgent`
+### Query an Agent
 
-End-to-end agent query: acquires an x402 access token, sends the prompt to the agent URL with the `PAYMENT-SIGNATURE` header, and returns the response.
+Send a prompt to a Nevermined AI agent end-to-end. This tool handles the full flow automatically: acquires an x402 access token, sends the prompt to the agent URL with the `PAYMENT-SIGNATURE` header, and returns the agent's response.
+
+**Tool name:** `nevermined_queryAgent`
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
@@ -99,17 +120,21 @@ End-to-end agent query: acquires an x402 access token, sends the prompt to the a
 | `agentId` | string | No | Config `agentId` | The agent ID |
 | `method` | string | No | `POST` | HTTP method |
 
+> **Example prompt:** "Ask the translation agent at https://agent.example.com to translate 'hello' to French"
+
 If the agent returns a 402 (Payment Required) response, the tool returns an error indicating insufficient credits.
 
 ---
 
 ## Builder Tools
 
-These tools are for agent builders who want to register agents and create payment plans.
+Tools for agent builders who want to register agents and create payment plans on Nevermined.
 
-### `nevermined_registerAgent`
+### Register an Agent
 
-Register a new AI agent with an associated payment plan.
+Register a new AI agent on Nevermined with an associated payment plan in a single step. This creates both the agent entry and its payment plan, making the agent discoverable and monetizable.
+
+**Tool name:** `nevermined_registerAgent`
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -122,6 +147,8 @@ Register a new AI agent with an associated payment plan.
 | `creditsAmount` | number | **Yes** | Number of credits in the plan |
 | `tokenAddress` | string | No | ERC20 token address (e.g. USDC). Omit for native token. |
 
+> **Example prompt:** "Register my translation agent hosted at https://agent.example.com with a plan named 'Translation Plan' that costs 1000000 wei (1 USDC) sent to address 0x123... for 100 credits"
+
 **Returns:**
 ```json
 {
@@ -133,19 +160,24 @@ Register a new AI agent with an associated payment plan.
 
 ---
 
-### `nevermined_createPlan`
+### Create a Payment Plan
 
-Create a standalone payment plan (without an agent).
+Create a standalone payment plan without associating it to an agent. Supports fiat pricing (via Stripe), ERC20 tokens (e.g. USDC), and native cryptocurrency. Plans created separately can be linked to agents later.
+
+**Tool name:** `nevermined_createPlan`
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `name` | string | **Yes** | Plan name |
 | `description` | string | No | Plan description |
-| `priceAmounts` | string | **Yes** | Comma-separated price amounts in wei |
-| `priceReceivers` | string | **Yes** | Comma-separated receiver addresses |
+| `priceAmount` | string | **Yes** | Price amount — in cents for fiat (e.g. "100" = $1.00), in token smallest unit for crypto (e.g. "1000000" = 1 USDC) |
+| `receiver` | string | **Yes** | Receiver wallet address (0x...) |
 | `creditsAmount` | number | **Yes** | Number of credits in the plan |
+| `pricingType` | string | No | `"fiat"` for Stripe/USD, `"erc20"` for ERC20 tokens, `"crypto"` for native token (default) |
 | `accessLimit` | string | No | `"credits"` (default) or `"time"` |
-| `tokenAddress` | string | No | ERC20 token address (e.g. USDC). Omit for native token. |
+| `tokenAddress` | string | No | ERC20 token contract address. Required when pricingType is `"erc20"`. |
+
+> **Example prompt:** "Create a payment plan called 'Pro Tier' that costs $5 for 500 credits"
 
 **Returns:**
 ```json
@@ -156,8 +188,14 @@ Create a standalone payment plan (without an agent).
 
 ---
 
-### `nevermined_listPlans`
+### List Payment Plans
 
-List the builder's payment plans. No parameters required.
+List all payment plans owned by the authenticated builder. Useful for reviewing existing plans before creating new ones or linking them to agents.
+
+**Tool name:** `nevermined_listPlans`
+
+No parameters required.
+
+> **Example prompt:** "Show me all my payment plans"
 
 **Returns:** Array of plan objects.
