@@ -147,7 +147,7 @@ Register a new AI agent on Nevermined with an associated payment plan in a singl
 | `creditsAmount` | number | **Yes** | Number of credits in the plan |
 | `tokenAddress` | string | No | ERC20 token address (e.g. USDC). Omit for native token. |
 
-> **Example prompt:** "Register my translation agent hosted at https://agent.example.com with a plan that costs 1 USDC for 100 credits"
+> **Example prompt:** "Register my translation agent hosted at https://agent.example.com with a plan named 'Translation Plan' that costs 1000000 wei (1 USDC) sent to address 0x123... for 100 credits"
 
 **Returns:**
 ```json
