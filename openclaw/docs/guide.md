@@ -12,22 +12,24 @@ This guide walks through building a **Weather Oracle** — a paid agent that ser
 
 ## What You Get
 
-The plugin adds 7 payment tools and 2 slash commands to your OpenClaw gateway:
+The plugin adds 9 payment tools and 2 slash commands to your OpenClaw gateway:
 
 **Subscriber tools** — for users who consume paid services:
 
 | Tool | Purpose |
 |------|---------|
 | `nevermined_checkBalance` | Check remaining credits on a plan |
-| `nevermined_getAccessToken` | Get an x402 token for authenticating requests |
-| `nevermined_orderPlan` | Purchase a payment plan |
-| `nevermined_queryAgent` | Send a paid query to an agent (end-to-end) |
+| `nevermined_getAccessToken` | Get an x402 token for authenticating requests (crypto or fiat) |
+| `nevermined_orderPlan` | Purchase a crypto payment plan |
+| `nevermined_orderFiatPlan` | Purchase a fiat payment plan (returns Stripe checkout URL) |
+| `nevermined_listPaymentMethods` | List enrolled credit cards for fiat payments |
+| `nevermined_queryAgent` | Send a paid query to an agent (crypto or fiat) |
 
 **Builder tools** — for developers who create paid services:
 
 | Tool | Purpose |
 |------|---------|
-| `nevermined_registerAgent` | Register an agent with a payment plan |
+| `nevermined_registerAgent` | Register an agent with a payment plan (crypto or fiat) |
 | `nevermined_createPlan` | Create a standalone payment plan |
 | `nevermined_listPlans` | List your payment plans |
 
@@ -60,7 +62,7 @@ openclaw gateway restart
 You should see in the logs:
 
 ```
-Registered 7 Nevermined payment tools
+Registered 9 Nevermined payment tools
 ```
 
 ## Step 2: Authenticate
@@ -133,7 +135,7 @@ Add the returned IDs and enable the paid endpoint in your gateway config (`~/.op
 Restart the gateway. You should see:
 
 ```
-Registered 7 Nevermined payment tools
+Registered 9 Nevermined payment tools
 Registered paid endpoint at /nevermined/agent
 ```
 
@@ -189,6 +191,38 @@ The Claw calls `nevermined_queryAgent`, which:
 
 Should show 4 credits — one was consumed.
 
+## Fiat Payments (Credit Card)
+
+The plugin supports fiat payments via credit card delegation, allowing users who have enrolled a card through the [Nevermined App](https://nevermined.app) to pay for agent queries without cryptocurrency.
+
+### 1. Enroll a card
+
+Users enroll a credit card via the Nevermined App under Settings > Payment Methods.
+
+### 2. List enrolled cards
+
+> List my payment methods
+
+The Claw calls `nevermined_listPaymentMethods` and returns the enrolled cards with brand, last 4 digits, and expiration.
+
+### 3. Order a fiat plan
+
+> Order the fiat plan `<plan-id>`
+
+The Claw calls `nevermined_orderFiatPlan`, which returns a Stripe checkout URL. The user completes payment in a browser.
+
+### 4. Query an agent with fiat
+
+> Ask the Weather Oracle at `http://localhost:18789/nevermined/agent` about the weather in Paris, pay with my credit card
+
+The Claw calls `nevermined_queryAgent` with `paymentType: fiat`. The plugin:
+1. Looks up enrolled payment methods (or uses the specified `paymentMethodId`)
+2. Gets an x402 access token using the `nvm:card-delegation` scheme
+3. Sends the request with the `PAYMENT-SIGNATURE` header
+4. The agent verifies and settles as usual
+
+You can also set `paymentType: fiat` in the plugin config to make fiat the default for all calls.
+
 ## Custom Agent Handlers
 
 The plugin includes a mock weather handler for demonstration. To use your own logic, pass a custom `agentHandler` when registering the plugin:
@@ -216,12 +250,18 @@ The balance is cached for 60 seconds to avoid excessive API calls.
 
 ## How It Works
 
-The plugin implements the [x402 payment protocol](https://nevermined.ai/docs/api-reference/typescript/x402-protocol) for agent-to-agent payments:
+The plugin implements the [x402 payment protocol](https://nevermined.ai/docs/api-reference/typescript/x402-protocol) for agent-to-agent payments. It supports two payment schemes:
+
+- **Crypto** (`nvm:erc4337`) — on-chain payments using session keys and smart accounts
+- **Fiat** (`nvm:card-delegation`) — credit card payments via Stripe delegation
+
+Both schemes follow the same token flow:
 
 ```
 Subscriber Claw                    Builder Claw (Gateway)
       │                                     │
-      │  1. getX402AccessToken(planId)       │
+      │  1. getX402AccessToken(planId,       │
+      │     tokenOptions)                    │
       │─────────────────────────────────────>│  Nevermined API
       │<─────────────────────────────────────│  returns token
       │                                     │
@@ -236,7 +276,7 @@ Subscriber Claw                    Builder Claw (Gateway)
       │<─────────────────────────────────────│
 ```
 
-Credits are managed on-chain through the Nevermined Protocol. The `verifyPermissions` step checks the subscriber's balance without burning credits, and `settlePermissions` burns them only after successful processing.
+For crypto, credits are managed on-chain through the Nevermined Protocol. For fiat, credits are charged against the delegated card via Stripe. In both cases, `verifyPermissions` checks the subscriber's balance without consuming credits, and `settlePermissions` consumes them only after successful processing.
 
 ## Next Steps
 

@@ -18,7 +18,31 @@
       },
       "planId": {
         "type": "string",
-        "description": "Default payment plan ID (required for subscriber tools)"
+        "description": "(Deprecated) Single default plan ID. Use 'plans' array instead."
+      },
+      "fiatPlanId": {
+        "type": "string",
+        "description": "(Deprecated) Single fiat plan ID. Use 'plans' array instead."
+      },
+      "plans": {
+        "type": "array",
+        "description": "Available payment plans. Each entry has a planId, optional name, and paymentType (crypto or fiat).",
+        "items": {
+          "type": "object",
+          "properties": {
+            "planId": { "type": "string", "description": "The Nevermined plan ID" },
+            "name": { "type": "string", "description": "Human-readable plan name" },
+            "paymentType": {
+              "type": "string",
+              "enum": ["crypto", "fiat"],
+              "default": "crypto",
+              "description": "crypto (nvm:erc4337) or fiat (nvm:card-delegation)"
+            },
+            "credits": { "type": "number", "description": "Number of credits this plan grants" },
+            "price": { "type": "string", "description": "Human-readable price (e.g. '$1', '2 USDC')" }
+          },
+          "required": ["planId"]
+        }
       },
       "agentId": {
         "type": "string",
@@ -27,7 +51,12 @@
       "creditsPerRequest": {
         "type": "number",
         "default": 1,
-        "description": "Number of credits consumed per request"
+        "description": "Number of credits consumed per non-calendar tool request"
+      },
+      "creditsPerMinute": {
+        "type": "number",
+        "default": 1,
+        "description": "Credits consumed per minute of calendar meeting duration"
       },
       "enablePaidEndpoint": {
         "type": "boolean",
@@ -38,6 +67,22 @@
         "type": "string",
         "default": "/nevermined/agent",
         "description": "HTTP path for the paid agent endpoint"
+      },
+      "paymentType": {
+        "type": "string",
+        "enum": ["crypto", "fiat"],
+        "default": "crypto",
+        "description": "Default payment type for tools: crypto (nvm:erc4337) or fiat (nvm:card-delegation)"
+      },
+      "defaultSpendingLimitCents": {
+        "type": "number",
+        "default": 1000,
+        "description": "Default max spend in cents ($10) for fiat payments"
+      },
+      "defaultDelegationDurationSecs": {
+        "type": "number",
+        "default": 3600,
+        "description": "Default delegation duration in seconds (1 hour) for fiat payments"
       }
     }
   }
