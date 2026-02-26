@@ -95,8 +95,25 @@ if (orderResult.success) {
 
 ### Fiat Payment (Stripe)
 
-Stripe checkout integration for fiat-priced plans is available through the Nevermined App dashboard.
-Visit [nevermined.app](https://nevermined.app) to configure Stripe payments for your plans.
+For plans priced in fiat currency, use `orderFiatPlan` to get a Stripe checkout URL:
+
+```typescript
+const fiatResult = await subscriberPayments.plans.orderFiatPlan(planId)
+
+if (fiatResult.checkoutUrl) {
+  console.log(`Complete payment at: ${fiatResult.checkoutUrl}`)
+  // Redirect the user to the Stripe checkout page
+}
+```
+
+#### CLI
+
+```bash
+# Order a fiat plan (returns a Stripe checkout URL)
+nvm plans order-fiat-plan <plan-id>
+```
+
+> **Note**: When using X402 card-delegation tokens (`nvm:card-delegation` scheme), the payment is handled automatically through the delegated card — no separate checkout URL is needed. See [Querying an Agent](./querying-an-agent) for details on card-delegation tokens.
 
 ### Complete Purchase Flow
 

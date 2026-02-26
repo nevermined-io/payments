@@ -159,8 +159,27 @@ nvm agents update-agent-metadata <agent-id> \
 ### X402 Commands
 
 ```bash
-# Get X402 access token
+# Get X402 access token (crypto, default)
 nvm x402token get-x402-access-token <plan-id>
+
+# Get X402 access token (fiat/card-delegation, auto-selects first enrolled card)
+nvm x402token get-x402-access-token <plan-id> --payment-type fiat
+
+# Get X402 access token (fiat with specific card and limits)
+nvm x402token get-x402-access-token <plan-id> --payment-type fiat \
+    --payment-method-id pm_1AbCdEfGhIjKlM \
+    --spending-limit-cents 5000 \
+    --delegation-duration-secs 7200
+
+# Auto-detect crypto vs fiat from plan metadata
+nvm x402token get-x402-access-token <plan-id> --auto-resolve-scheme
+```
+
+### Delegation Commands
+
+```bash
+# List enrolled payment methods (credit/debit cards)
+nvm delegation list-payment-methods
 ```
 
 ### Facilitator Commands
@@ -229,6 +248,7 @@ cli/
 │   │   ├── plans/        # Plans commands (generated)
 │   │   ├── agents/       # Agents commands (generated)
 │   │   ├── x402token/    # X402 commands (generated)
+│   │   ├── delegation/   # Card delegation commands
 │   │   ├── facilitator/  # Facilitator commands (generated)
 │   │   └── organizations/ # Org commands (generated)
 │   ├── generator/        # Command generation system

@@ -88,6 +88,9 @@
       },
       "organizations": {
         "description": "Manage organizations"
+      },
+      "delegation": {
+        "description": "Card delegation and payment method management"
       }
     },
     "additionalHelpFlags": [
