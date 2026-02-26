@@ -2,7 +2,7 @@
 metadata:
   openclaw:
     requires:
-      config: ["plugins.nevermined"]
+      config: ["plugins.openclaw-plugin"]
 ---
 
 # Nevermined Tools

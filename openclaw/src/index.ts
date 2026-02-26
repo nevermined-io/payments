@@ -87,7 +87,7 @@ export interface ToolContext {
  * Exports id, name, description, and a register function.
  */
 const neverminedPlugin = {
-  id: 'nevermined',
+  id: 'openclaw-plugin',
   name: '@nevermined-io/openclaw-plugin',
   description: 'Nevermined plugin for OpenClaw — AI agent payments and access control',
 
