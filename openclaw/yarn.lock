@@ -631,10 +631,10 @@
     zod "^3.25.32"
     zod-to-json-schema "^3.22.3"
 
-"@nevermined-io/payments@^1.0.10":
-  version "1.0.10"
-  resolved "https://registry.yarnpkg.com/@nevermined-io/payments/-/payments-1.0.10.tgz#32fc7df36342f7b7c5ab044d07fe3c6e3a4298ab"
-  integrity sha512-AbwwuX3LCtCV4389dH+Anqg4wgYgv6HpMg1qAkhzuLCpx2QYf7ogTx1EX9gbkIzij7Wdkw46Cd/atwOsg/ZuXA==
+"@nevermined-io/payments@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@nevermined-io/payments/-/payments-1.1.0.tgz#5257c4c870a77915ecef7f7687955177298bcd21"
+  integrity sha512-grRz660Ds15n9+hamI6ZfvOp3CvLXrUBRdc0kSa9XuZiFCwmDQcErXGvrvyB0UUtAVJ51I7sKpBgS3Heq88CLw==
   dependencies:
     "@a2a-js/sdk" "^0.3.4"
     "@helicone/helpers" "^1.6.0"
