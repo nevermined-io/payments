@@ -896,24 +896,24 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       const result = await hookHandlers[0]() as { prependContext: string } | undefined
       expect(result).toBeDefined()
-      expect(result!.prependContext).toContain('Credits remaining: 100')
+      expect(result!.prependContext).toContain('balance: 100 credits')
       expect(result!.prependContext).toContain('Test Plan')
     })
 
     test('returns undefined when not authenticated', async () => {
       const { hooks } = registerWithMock({ environment: 'sandbox' })
 
-      const hookHandlers = hooks.get('before_prompt_build')!
-      const result = await hookHandlers[0]()
-      expect(result).toBeUndefined()
+      // No planId means no plans → hook is not registered
+      const hookHandlers = hooks.get('before_prompt_build')
+      expect(hookHandlers).toBeUndefined()
     })
 
     test('returns undefined when no planId configured', async () => {
       const { hooks } = registerWithMock({ ...validConfig, planId: undefined })
 
-      const hookHandlers = hooks.get('before_prompt_build')!
-      const result = await hookHandlers[0]()
-      expect(result).toBeUndefined()
+      // No planId means no plans → hook is not registered
+      const hookHandlers = hooks.get('before_prompt_build')
+      expect(hookHandlers).toBeUndefined()
     })
   })
 })
