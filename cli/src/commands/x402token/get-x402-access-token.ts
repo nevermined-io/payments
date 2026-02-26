@@ -98,7 +98,7 @@ export default class GetX402AccessToken extends BaseCommand {
         this.error('No enrolled payment methods found. Please add a card at nevermined.app first.', { exit: 1 })
       }
       paymentMethodId = methods[0].id
-      this.formatter.info(`Auto-selected payment method: ${methods[0].brand} ****${methods[0].last4}`)
+      console.error(`Auto-selected payment method: ${methods[0].brand} ****${methods[0].last4}`)
     }
 
     return {

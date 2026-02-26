@@ -184,8 +184,11 @@ const neverminedPlugin = {
         creditsUsed: bigint
       }>()
 
+      let invocationCounter = 0
+
       api.on('before_tool_call', async (event: unknown) => {
-        const { toolName, params } = event as { toolName: string; params: Record<string, unknown> }
+        const { toolName, params, callId: eventCallId } = event as { toolName: string; params: Record<string, unknown>; callId?: string }
+        const callId = eventCallId ?? `${toolName}-${++invocationCounter}`
 
         // Skip nevermined tools — they handle their own payments
         if (toolName.startsWith('nevermined_')) return undefined
@@ -195,7 +198,7 @@ const neverminedPlugin = {
         }
 
         // Calculate credits needed based on meeting duration (for calendar tools)
-        const creditsNeeded = calculateCreditsNeeded(toolName, params, config.creditsPerMinute)
+        const creditsNeeded = calculateCreditsNeeded(toolName, params, config.creditsPerMinute, config.creditsPerRequest)
 
         try {
           const p = getPayments()
@@ -246,8 +249,8 @@ const neverminedPlugin = {
               api.logger.info(`x402: verify result for ${plan.name ?? plan.planId}: ${JSON.stringify(verification)}`)
 
               if (verification.isValid) {
-                pendingSettlements.set(toolName, { paymentRequired, accessToken, creditsUsed: creditsNeeded })
-                api.logger.info(`x402: verified ${creditsNeeded} credits on plan ${plan.name ?? plan.planId} for ${toolName}`)
+                pendingSettlements.set(callId, { paymentRequired, accessToken, creditsUsed: creditsNeeded })
+                api.logger.info(`x402: verified ${creditsNeeded} credits on plan ${plan.name ?? plan.planId} for ${toolName} (${callId})`)
                 return undefined // allow
               }
             } catch (planErr) {
@@ -282,16 +285,19 @@ const neverminedPlugin = {
       })
 
       api.on('after_tool_call', async (event: unknown) => {
-        const { toolName, error } = event as { toolName: string; error?: string }
+        const { toolName, error, callId: eventCallId } = event as { toolName: string; error?: string; callId?: string }
+        const callId = eventCallId ?? toolName
 
         if (toolName.startsWith('nevermined_')) return
         if (error) {
-          pendingSettlements.delete(toolName)
+          pendingSettlements.delete(callId)
           return
         }
 
-        const pending = pendingSettlements.get(toolName)
+        // Try callId first, then fall back to toolName for backwards compat
+        const pending = pendingSettlements.get(callId) ?? pendingSettlements.get(toolName)
         if (!pending) return
+        pendingSettlements.delete(callId)
         pendingSettlements.delete(toolName)
 
         try {
@@ -300,9 +306,9 @@ const neverminedPlugin = {
             x402AccessToken: pending.accessToken,
             maxAmount: pending.creditsUsed,
           })
-          api.logger.info(`x402: settled ${pending.creditsUsed} credits for ${toolName} — result: ${JSON.stringify(settlement)}`)
+          api.logger.info(`x402: settled ${pending.creditsUsed} credits for ${toolName} (${callId}) — result: ${JSON.stringify(settlement)}`)
         } catch (err) {
-          api.logger.warn(`Credit settlement failed for ${toolName}: ${err instanceof Error ? err.message : String(err)}`)
+          api.logger.warn(`Credit settlement failed for ${toolName} (${callId}): ${err instanceof Error ? err.message : String(err)}`)
         }
       })
 
@@ -434,6 +440,7 @@ function calculateCreditsNeeded(
   toolName: string,
   params: Record<string, unknown>,
   creditsPerMinute: number,
+  creditsPerRequest: number,
 ): bigint {
   if (toolName === 'calendar_createevent' || toolName === 'calendar_createEvent') {
     const start = params.startDateTime as string | undefined
@@ -445,8 +452,8 @@ function calculateCreditsNeeded(
     }
   }
 
-  // Default: 1 credit for non-calendar tools
-  return BigInt(Math.ceil(creditsPerMinute))
+  // Default: flat per-request cost for non-calendar tools
+  return BigInt(creditsPerRequest)
 }
 
 export default neverminedPlugin

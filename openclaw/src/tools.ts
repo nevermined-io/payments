@@ -1,7 +1,21 @@
 import type { Payments, X402TokenOptions } from '@nevermined-io/payments'
 import type { NeverminedPluginConfig } from './config.js'
+import { getEffectivePlans } from './config.js'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
+
+/**
+ * Resolve the default planId for the given payment type using the
+ * config.plans array (preferred) or legacy planId/fiatPlanId fields.
+ */
+function resolveDefaultPlanId(config: NeverminedPluginConfig, paymentType: string): string | undefined {
+  const plans = getEffectivePlans(config)
+  const match = plans.find((p) => p.paymentType === paymentType)
+  if (match) return match.planId
+  // Fallback: return first plan regardless of type
+  if (plans.length > 0) return plans[0].planId
+  return undefined
+}
 
 /**
  * Creates all Nevermined payment tools for the OpenClaw plugin.
@@ -25,7 +39,7 @@ export function createTools(
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
-        const planId = str(params, 'planId') ?? config.planId
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, 'crypto')
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
 
         const balance = await getPayments().plans.getPlanBalance(planId)
@@ -55,7 +69,7 @@ export function createTools(
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const paymentType = str(params, 'paymentType') ?? config.paymentType ?? 'crypto'
-        const planId = str(params, 'planId') ?? (paymentType === 'fiat' ? config.fiatPlanId : undefined) ?? config.planId
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, paymentType)
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
         const agentId = str(params, 'agentId') ?? config.agentId
 
@@ -76,7 +90,7 @@ export function createTools(
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
-        const planId = str(params, 'planId') ?? config.planId
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, 'crypto')
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
 
         const res = await getPayments().plans.orderPlan(planId)
@@ -95,7 +109,7 @@ export function createTools(
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
-        const planId = str(params, 'planId') ?? config.fiatPlanId ?? config.planId
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, 'fiat')
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
 
         const res = await getPayments().plans.orderFiatPlan(planId)
@@ -141,7 +155,7 @@ export function createTools(
         const agentUrl = requireStr(params, 'agentUrl')
         const prompt = requireStr(params, 'prompt')
         const paymentType = str(params, 'paymentType') ?? config.paymentType ?? 'crypto'
-        const planId = str(params, 'planId') ?? (paymentType === 'fiat' ? config.fiatPlanId : undefined) ?? config.planId
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, paymentType)
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
         const agentId = str(params, 'agentId') ?? config.agentId
         const method = str(params, 'method') ?? 'POST'
@@ -159,8 +173,11 @@ export function createTools(
         })
 
         if (response.status === 402) {
+          const guidance = paymentType === 'fiat'
+            ? 'Order a fiat plan using nevermined_orderFiatPlan, or enroll a card at nevermined.app.'
+            : 'Order the plan first using nevermined_orderPlan, or try paymentType "fiat" if the plan supports card payments.'
           return result({
-            error: 'Payment required — insufficient credits. Order the plan first using nevermined_orderPlan.',
+            error: `Payment required — insufficient credits. ${guidance}`,
             status: 402,
           })
         }

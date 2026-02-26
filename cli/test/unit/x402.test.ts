@@ -54,13 +54,12 @@ describe('x402 commands', () => {
         '--format', 'json',
       ])
 
-      const logs = output.getLogs()
-      // First log line is the auto-select info message
-      expect(logs.some(l => l.includes('Auto-selected payment method'))).toBe(true)
-      // Find the JSON output line
-      const jsonLine = logs.find(l => l.startsWith('{'))
-      expect(jsonLine).toBeDefined()
-      const parsed = JSON.parse(jsonLine!)
+      // Auto-select info goes to stderr, JSON output to stdout
+      const errors = output.getErrorOutput()
+      expect(errors).toContain('Auto-selected payment method')
+
+      const logs = output.getOutput()
+      const parsed = JSON.parse(logs)
       expect(parsed.accessToken).toBe('mock-token-for-did:nvm:test-plan-1-fiat')
     })
 
