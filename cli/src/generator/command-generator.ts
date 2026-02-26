@@ -19,6 +19,14 @@ export interface CommandMetadata {
   }
 }
 
+/**
+ * Commands that are manually maintained and should not be overwritten by the generator.
+ * Key format: "topic/command-name" (matches the file path under commands/).
+ */
+const MANUALLY_MAINTAINED_COMMANDS = new Set([
+  'x402token/get-x402-access-token',
+])
+
 export class CommandGenerator {
   private outputDir: string
   private metadataPath: string
@@ -85,6 +93,15 @@ export class CommandGenerator {
   private async generateCommand(api: APIClassInfo, method: MethodInfo): Promise<void> {
     const commandPath = this.getCommandPath(api.name, method.name)
     const metadataKey = `${api.name}.${method.name}`
+
+    // Skip manually maintained commands
+    const topic = api.name.replace('API', '').toLowerCase()
+    const commandName = this.camelToKebab(method.name)
+    const commandKey = `${topic}/${commandName}`
+    if (MANUALLY_MAINTAINED_COMMANDS.has(commandKey)) {
+      console.log(`Skipped (manually maintained): ${commandPath}`)
+      return
+    }
 
     // Check if command already exists and has customizations
     const existingMetadata = this.metadata.get(metadataKey)
