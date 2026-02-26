@@ -1,10 +1,10 @@
 ---
-title: "Commands"
+title: "API Reference"
 description: "All available tools and slash commands in the Nevermined OpenClaw plugin"
 icon: "terminal"
 ---
 
-# Commands
+# API Reference
 
 The plugin provides slash commands for chat channels and tools that agents can invoke on behalf of users. Slash commands are triggered directly by users with the `/` prefix, while tools are called by the AI agent in response to natural language requests.
 
@@ -20,7 +20,8 @@ When using browser login, the plugin starts a temporary local server, opens your
 |-----------|------|----------|---------|-------------|
 | `environment` | string | No | `sandbox` | `sandbox` or `live` |
 
-**Example:**
+> **Example prompt:** "Log me in to Nevermined"
+
 ```
 /nvm_login
 /nvm_login live
@@ -83,6 +84,8 @@ Most users will not need to call this tool directly — `nevermined_queryAgent` 
 
 **Example prompt:**
 > Get me an access token for the Weather Oracle agent so I can call it from my script.
+
+> **Example prompt:** "Get me an access token for the translation agent"
 
 **Returns:**
 ```json
@@ -217,6 +220,8 @@ After registration, the returned `agentId` and `planId` should be saved in your 
 
 **Example prompt:**
 > Register a new agent called "Code Review Bot" at https://my-server.com/nevermined/agent with a plan named "Code Review" priced at 1000000 (1 USDC) to address 0xABC... with token 0x036CbD...  granting 10 credits.
+
+> **Example prompt:** "Register my translation agent hosted at https://agent.example.com with a plan named 'Translation Plan' that costs 1000000 wei (1 USDC) sent to address 0x123... for 100 credits"
 
 **Returns:**
 ```json
