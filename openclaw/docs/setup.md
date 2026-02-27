@@ -8,13 +8,13 @@ icon: "gear"
 
 ## Configuration
 
-The plugin reads its configuration from the `plugins.nevermined` section of your `openclaw.json`:
+The plugin reads its configuration from the `plugins.openclaw-plugin` section of your `openclaw.json`:
 
 ```json
 {
   "plugins": {
     "entries": {
-      "nevermined": {
+      "openclaw-plugin": {
         "enabled": true,
         "config": {
           "nvmApiKey": "sandbox:eyJhbG...",

@@ -1,5 +1,5 @@
 {
-  "id": "nevermined",
+  "id": "openclaw-plugin",
   "name": "@nevermined-io/openclaw-plugin",
   "description": "Nevermined plugin for OpenClaw — AI agent payments and access control",
   "configSchema": {

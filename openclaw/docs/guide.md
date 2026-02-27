@@ -115,7 +115,7 @@ Add the returned IDs and enable the paid endpoint in your gateway config (`~/.op
 {
   "plugins": {
     "entries": {
-      "nevermined": {
+      "openclaw-plugin": {
         "enabled": true,
         "config": {
           "nvmApiKey": "sandbox:eyJhbG...",
