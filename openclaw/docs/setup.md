@@ -23,7 +23,10 @@ The plugin reads its configuration from the `plugins.openclaw-plugin` section of
           "agentId": "did:nv:def456...",
           "creditsPerRequest": 1,
           "enablePaidEndpoint": false,
-          "agentEndpointPath": "/nevermined/agent"
+          "agentEndpointPath": "/nevermined/agent",
+          "paymentType": "crypto",
+          "defaultSpendingLimitCents": 1000,
+          "defaultDelegationDurationSecs": 3600
         }
       }
     }
@@ -42,6 +45,9 @@ The plugin reads its configuration from the `plugins.openclaw-plugin` section of
 | `creditsPerRequest` | No | `1` | Number of credits consumed per request. |
 | `enablePaidEndpoint` | No | `false` | Enable the x402 paid HTTP endpoint on the gateway. |
 | `agentEndpointPath` | No | `/nevermined/agent` | HTTP path for the paid agent endpoint. |
+| `paymentType` | No | `crypto` | Default payment type: `crypto` (nvm:erc4337) or `fiat` (nvm:card-delegation). |
+| `defaultSpendingLimitCents` | No | `1000` | Default max spend in cents ($10) for fiat payments. |
+| `defaultDelegationDurationSecs` | No | `3600` | Default delegation duration in seconds (1 hour) for fiat payments. |
 
 ### Environment Details
 

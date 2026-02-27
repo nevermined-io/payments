@@ -24,6 +24,7 @@ function createMockPayments() {
       orderPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ txHash: '0xdeadbeef', success: true }),
       getPlans: jest.fn<() => Promise<unknown>>().mockResolvedValue([{ planId: 'plan-1' }, { planId: 'plan-2' }]),
       registerPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ planId: 'plan-new' }),
+      orderFiatPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } }),
     },
     x402: {
       getX402AccessToken: jest.fn<() => Promise<unknown>>().mockResolvedValue({ accessToken: 'tok_test_123' }),
@@ -38,6 +39,11 @@ function createMockPayments() {
     facilitator: {
       verifyPermissions: jest.fn<() => Promise<unknown>>().mockResolvedValue({ isValid: true }),
       settlePermissions: jest.fn<() => Promise<unknown>>().mockResolvedValue({ txHash: '0xsettle', success: true }),
+    },
+    delegation: {
+      listPaymentMethods: jest.fn<() => Promise<unknown>>().mockResolvedValue([
+        { id: 'pm_test_1', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2027 },
+      ]),
     },
   } as unknown as Payments
 }
@@ -159,15 +165,17 @@ describe('OpenClaw Nevermined Plugin', () => {
   })
 
   describe('register()', () => {
-    test('should register all 7 tools', () => {
+    test('should register all 9 tools', () => {
       const { tools } = registerWithMock()
 
-      expect(tools.size).toBe(7)
+      expect(tools.size).toBe(9)
 
       const expectedNames = [
         'nevermined_checkBalance',
         'nevermined_getAccessToken',
         'nevermined_orderPlan',
+        'nevermined_orderFiatPlan',
+        'nevermined_listPaymentMethods',
         'nevermined_queryAgent',
         'nevermined_registerAgent',
         'nevermined_createPlan',
@@ -188,7 +196,7 @@ describe('OpenClaw Nevermined Plugin', () => {
 
     test('should start without nvmApiKey (login-first flow)', () => {
       const { tools } = registerWithMock({ environment: 'sandbox' })
-      expect(tools.size).toBe(7)
+      expect(tools.size).toBe(9)
     })
 
     test('should throw when calling payment tools without nvmApiKey', async () => {
@@ -260,6 +268,26 @@ describe('OpenClaw Nevermined Plugin', () => {
     test('should accept custom agentEndpointPath', () => {
       const config = validateConfig({ agentEndpointPath: '/custom/path' })
       expect(config.agentEndpointPath).toBe('/custom/path')
+    })
+
+    test('should default paymentType to crypto', () => {
+      const config = validateConfig({})
+      expect(config.paymentType).toBe('crypto')
+    })
+
+    test('should accept fiat paymentType', () => {
+      const config = validateConfig({ paymentType: 'fiat' })
+      expect(config.paymentType).toBe('fiat')
+    })
+
+    test('should default defaultSpendingLimitCents to 1000', () => {
+      const config = validateConfig({})
+      expect(config.defaultSpendingLimitCents).toBe(1000)
+    })
+
+    test('should default defaultDelegationDurationSecs to 3600', () => {
+      const config = validateConfig({})
+      expect(config.defaultDelegationDurationSecs).toBe(3600)
     })
   })
 
@@ -377,13 +405,15 @@ describe('OpenClaw Nevermined Plugin', () => {
       await expect(tool.execute('call-1', {})).rejects.toThrow('planId is required')
     })
 
-    test('nevermined_getAccessToken — returns token', async () => {
+    test('nevermined_getAccessToken — returns token (crypto default)', async () => {
       const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_getAccessToken')!
       const result = parseResult(await tool.execute('call-1', {}))
 
-      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith('plan-default', 'agent-default')
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default', undefined, undefined, undefined, undefined,
+      )
       expect(result).toEqual({ accessToken: 'tok_test_123' })
     })
 
@@ -395,6 +425,83 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       expect(mockPayments.plans.orderPlan).toHaveBeenCalledWith('plan-default')
       expect(result).toEqual({ txHash: '0xdeadbeef', success: true })
+    })
+
+    test('nevermined_orderFiatPlan — returns Stripe checkout URL', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_orderFiatPlan')!
+      const result = parseResult(await tool.execute('call-1', { planId: 'plan-fiat' }))
+
+      expect(mockPayments.plans.orderFiatPlan).toHaveBeenCalledWith('plan-fiat')
+      expect(result).toEqual({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } })
+    })
+
+    test('nevermined_listPaymentMethods — returns enrolled cards', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_listPaymentMethods')!
+      const result = parseResult(await tool.execute('call-1', {}))
+
+      expect(mockPayments.delegation.listPaymentMethods).toHaveBeenCalled()
+      expect(result).toEqual([
+        { id: 'pm_test_1', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2027 },
+      ])
+    })
+
+    test('nevermined_getAccessToken — fiat with explicit paymentMethodId', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_getAccessToken')!
+      const result = parseResult(await tool.execute('call-1', {
+        paymentType: 'fiat',
+        paymentMethodId: 'pm_explicit_123',
+        spendingLimitCents: 2000,
+        delegationDurationSecs: 7200,
+      }))
+
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default', undefined, undefined, undefined,
+        {
+          scheme: 'nvm:card-delegation',
+          delegationConfig: {
+            providerPaymentMethodId: 'pm_explicit_123',
+            spendingLimitCents: 2000,
+            durationSecs: 7200,
+          },
+        },
+      )
+      expect(result).toEqual({ accessToken: 'tok_test_123' })
+    })
+
+    test('nevermined_getAccessToken — fiat auto-selects first enrolled card', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_getAccessToken')!
+      await tool.execute('call-1', { paymentType: 'fiat' })
+
+      expect(mockPayments.delegation.listPaymentMethods).toHaveBeenCalled()
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default', undefined, undefined, undefined,
+        {
+          scheme: 'nvm:card-delegation',
+          delegationConfig: {
+            providerPaymentMethodId: 'pm_test_1',
+            spendingLimitCents: 1000,
+            durationSecs: 3600,
+          },
+        },
+      )
+    })
+
+    test('nevermined_getAccessToken — fiat throws when no enrolled cards', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      ;(mockPayments.delegation.listPaymentMethods as jest.Mock<() => Promise<unknown>>)
+        .mockResolvedValueOnce([])
+
+      const tool = tools.get('nevermined_getAccessToken')!
+      await expect(tool.execute('call-1', { paymentType: 'fiat' })).rejects.toThrow('No enrolled payment methods')
     })
   })
 
@@ -425,7 +532,9 @@ describe('OpenClaw Nevermined Plugin', () => {
         prompt: 'What is AI?',
       }))
 
-      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith('plan-default', 'agent-default')
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default', undefined, undefined, undefined, undefined,
+      )
 
       const fetchCall = mockFetch.mock.calls[0]
       expect(fetchCall[0]).toBe('https://agent.example.com/tasks')
@@ -469,6 +578,38 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       const tool = tools.get('nevermined_queryAgent')!
       await expect(tool.execute('call-1', { agentUrl: 'https://example.com' })).rejects.toThrow('prompt')
+    })
+
+    test('sends query with fiat payment type', async () => {
+      const mockFetch = globalThis.fetch as jest.Mock<typeof fetch>
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ answer: 'fiat response' }),
+      } as Response)
+
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_queryAgent')!
+      const result = parseResult(await tool.execute('call-1', {
+        agentUrl: 'https://agent.example.com/tasks',
+        prompt: 'test fiat',
+        paymentType: 'fiat',
+        paymentMethodId: 'pm_fiat_456',
+      }))
+
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default', undefined, undefined, undefined,
+        {
+          scheme: 'nvm:card-delegation',
+          delegationConfig: {
+            providerPaymentMethodId: 'pm_fiat_456',
+            spendingLimitCents: 1000,
+            durationSecs: 3600,
+          },
+        },
+      )
+      expect(result).toEqual({ answer: 'fiat response' })
     })
   })
 
@@ -520,6 +661,25 @@ describe('OpenClaw Nevermined Plugin', () => {
       const priceConfig = call[3] as { tokenAddress?: string; isCrypto: boolean }
       expect(priceConfig.tokenAddress).toBe('0x036CbD53842c5426634e7929541eC2318f3dCF7e')
       expect(priceConfig.isCrypto).toBe(true)
+    })
+
+    test('nevermined_registerAgent — fiat pricing sets isCrypto to false', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_registerAgent')!
+      await tool.execute('call-1', {
+        name: 'Fiat Agent',
+        agentUrl: 'https://agent.example.com',
+        planName: 'Fiat Plan',
+        priceAmounts: '100',
+        priceReceivers: '0x1234567890abcdef1234567890abcdef12345678',
+        creditsAmount: 10,
+        pricingType: 'fiat',
+      })
+
+      const call = (mockPayments.agents.registerAgentAndPlan as jest.Mock<() => Promise<unknown>>).mock.calls[0] as unknown[]
+      const priceConfig = call[3] as { isCrypto: boolean }
+      expect(priceConfig.isCrypto).toBe(false)
     })
 
     test('nevermined_registerAgent — defaults tokenAddress to ZeroAddress when not provided', async () => {
@@ -736,24 +896,24 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       const result = await hookHandlers[0]() as { prependContext: string } | undefined
       expect(result).toBeDefined()
-      expect(result!.prependContext).toContain('Credits remaining: 100')
+      expect(result!.prependContext).toContain('balance: 100 credits')
       expect(result!.prependContext).toContain('Test Plan')
     })
 
     test('returns undefined when not authenticated', async () => {
       const { hooks } = registerWithMock({ environment: 'sandbox' })
 
-      const hookHandlers = hooks.get('before_prompt_build')!
-      const result = await hookHandlers[0]()
-      expect(result).toBeUndefined()
+      // No planId means no plans → hook is not registered
+      const hookHandlers = hooks.get('before_prompt_build')
+      expect(hookHandlers).toBeUndefined()
     })
 
     test('returns undefined when no planId configured', async () => {
       const { hooks } = registerWithMock({ ...validConfig, planId: undefined })
 
-      const hookHandlers = hooks.get('before_prompt_build')!
-      const result = await hookHandlers[0]()
-      expect(result).toBeUndefined()
+      // No planId means no plans → hook is not registered
+      const hookHandlers = hooks.get('before_prompt_build')
+      expect(hookHandlers).toBeUndefined()
     })
   })
 })

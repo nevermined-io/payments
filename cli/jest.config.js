@@ -8,10 +8,10 @@ export default {
     '/test/unit/config.test.ts',
     '/test/unit/plans.test.ts',
     '/test/unit/agents.test.ts',
-    '/test/unit/x402.test.ts',
   ],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^chalk$': '<rootDir>/test/__mocks__/chalk.js',
   },
   transform: {
     '^.+\\.tsx?$': [

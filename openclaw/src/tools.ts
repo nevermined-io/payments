@@ -1,7 +1,21 @@
-import type { Payments } from '@nevermined-io/payments'
+import type { Payments, X402TokenOptions } from '@nevermined-io/payments'
 import type { NeverminedPluginConfig } from './config.js'
+import { getEffectivePlans } from './config.js'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
+
+/**
+ * Resolve the default planId for the given payment type using the
+ * config.plans array (preferred) or legacy planId/fiatPlanId fields.
+ */
+function resolveDefaultPlanId(config: NeverminedPluginConfig, paymentType: string): string | undefined {
+  const plans = getEffectivePlans(config)
+  const match = plans.find((p) => p.paymentType === paymentType)
+  if (match) return match.planId
+  // Fallback: return first plan regardless of type
+  if (plans.length > 0) return plans[0].planId
+  return undefined
+}
 
 /**
  * Creates all Nevermined payment tools for the OpenClaw plugin.
@@ -25,7 +39,7 @@ export function createTools(
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
-        const planId = str(params, 'planId') ?? config.planId
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, 'crypto')
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
 
         const balance = await getPayments().plans.getPlanBalance(planId)
@@ -41,20 +55,26 @@ export function createTools(
     {
       name: 'nevermined_getAccessToken',
       label: 'Nevermined Get Access Token',
-      description: 'Get an x402 access token for authenticating requests to a Nevermined agent',
+      description: 'Get an x402 access token for authenticating requests to a Nevermined agent. Supports crypto (default) and fiat (credit card) payment types.',
       parameters: {
         type: 'object' as const,
         properties: {
           planId: { type: 'string', description: 'The payment plan ID' },
           agentId: { type: 'string', description: 'The agent ID' },
+          paymentType: { type: 'string', description: '"crypto" (default, nvm:erc4337 scheme) or "fiat" (nvm:card-delegation scheme)' },
+          paymentMethodId: { type: 'string', description: 'Stripe payment method ID (pm_...). Required for fiat; auto-selects first enrolled card if omitted.' },
+          spendingLimitCents: { type: 'number', description: 'Max spend in cents for fiat (default: 1000 = $10)' },
+          delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
-        const planId = str(params, 'planId') ?? config.planId
+        const paymentType = str(params, 'paymentType') ?? config.paymentType ?? 'crypto'
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, paymentType)
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
         const agentId = str(params, 'agentId') ?? config.agentId
 
-        const token = await getPayments().x402.getX402AccessToken(planId, agentId)
+        const tokenOptions = await buildTokenOptions(getPayments, params, config)
+        const token = await getPayments().x402.getX402AccessToken(planId, agentId, undefined, undefined, undefined, tokenOptions)
         return result({ accessToken: token.accessToken })
       },
     },
@@ -62,7 +82,7 @@ export function createTools(
     {
       name: 'nevermined_orderPlan',
       label: 'Nevermined Order Plan',
-      description: 'Order (purchase) a Nevermined payment plan',
+      description: 'Order (purchase) a Nevermined crypto payment plan',
       parameters: {
         type: 'object' as const,
         properties: {
@@ -70,7 +90,7 @@ export function createTools(
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
-        const planId = str(params, 'planId') ?? config.planId
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, 'crypto')
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
 
         const res = await getPayments().plans.orderPlan(planId)
@@ -79,10 +99,43 @@ export function createTools(
     },
 
     {
+      name: 'nevermined_orderFiatPlan',
+      label: 'Nevermined Order Fiat Plan',
+      description: 'Order a fiat payment plan — returns a Stripe checkout URL for completing the purchase',
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          planId: { type: 'string', description: 'The payment plan ID to order' },
+        },
+      },
+      async execute(_id: string, params: Record<string, unknown>) {
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, 'fiat')
+        if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
+
+        const res = await getPayments().plans.orderFiatPlan(planId)
+        return result(res)
+      },
+    },
+
+    {
+      name: 'nevermined_listPaymentMethods',
+      label: 'Nevermined List Payment Methods',
+      description: 'List enrolled credit cards available for fiat payments',
+      parameters: {
+        type: 'object' as const,
+        properties: {},
+      },
+      async execute() {
+        const methods = await getPayments().delegation.listPaymentMethods()
+        return result(methods)
+      },
+    },
+
+    {
       name: 'nevermined_queryAgent',
       label: 'Nevermined Query Agent',
       description:
-        'Query a Nevermined AI agent end-to-end: acquires an x402 access token, sends the prompt to the agent, and returns the response',
+        'Query a Nevermined AI agent end-to-end: acquires an x402 access token, sends the prompt to the agent, and returns the response. Supports crypto (default) and fiat (credit card) payment types.',
       parameters: {
         type: 'object' as const,
         properties: {
@@ -91,18 +144,24 @@ export function createTools(
           planId: { type: 'string', description: 'The payment plan ID' },
           agentId: { type: 'string', description: 'The agent ID' },
           method: { type: 'string', description: 'HTTP method (default: POST)' },
+          paymentType: { type: 'string', description: '"crypto" (default, nvm:erc4337 scheme) or "fiat" (nvm:card-delegation scheme)' },
+          paymentMethodId: { type: 'string', description: 'Stripe payment method ID (pm_...). Required for fiat; auto-selects first enrolled card if omitted.' },
+          spendingLimitCents: { type: 'number', description: 'Max spend in cents for fiat (default: 1000 = $10)' },
+          delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
         },
         required: ['agentUrl', 'prompt'],
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const agentUrl = requireStr(params, 'agentUrl')
         const prompt = requireStr(params, 'prompt')
-        const planId = str(params, 'planId') ?? config.planId
+        const paymentType = str(params, 'paymentType') ?? config.paymentType ?? 'crypto'
+        const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, paymentType)
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
         const agentId = str(params, 'agentId') ?? config.agentId
         const method = str(params, 'method') ?? 'POST'
 
-        const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId)
+        const tokenOptions = await buildTokenOptions(getPayments, params, config)
+        const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId, undefined, undefined, undefined, tokenOptions)
 
         const response = await fetch(agentUrl, {
           method,
@@ -114,8 +173,11 @@ export function createTools(
         })
 
         if (response.status === 402) {
+          const guidance = paymentType === 'fiat'
+            ? 'Order a fiat plan using nevermined_orderFiatPlan, or enroll a card at nevermined.app.'
+            : 'Order the plan first using nevermined_orderPlan, or try paymentType "fiat" if the plan supports card payments.'
           return result({
-            error: 'Payment required — insufficient credits. Order the plan first using nevermined_orderPlan.',
+            error: `Payment required — insufficient credits. ${guidance}`,
             status: 402,
           })
         }
@@ -145,10 +207,11 @@ export function createTools(
           description: { type: 'string', description: 'Agent description' },
           agentUrl: { type: 'string', description: 'The endpoint URL for the agent' },
           planName: { type: 'string', description: 'Name for the payment plan' },
-          priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei' },
+          priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei (crypto) or cents (fiat)' },
           priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
           tokenAddress: { type: 'string', description: 'ERC20 token address (e.g. USDC). Omit for native token.' },
+          pricingType: { type: 'string', description: '"crypto" (default), "erc20", or "fiat"' },
         },
         required: ['name', 'agentUrl', 'planName', 'priceAmounts', 'priceReceivers', 'creditsAmount'],
       },
@@ -165,11 +228,14 @@ export function createTools(
           .map((s) => s.trim())
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
         const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
+        const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
+
+        const isCrypto = pricingType !== 'fiat'
 
         const priceConfig = {
           amounts: priceAmounts,
           receivers: priceReceivers,
-          isCrypto: true,
+          isCrypto,
           tokenAddress: tokenAddress ?? ZERO_ADDRESS,
           contractAddress: ZERO_ADDRESS,
           feeController: ZERO_ADDRESS,
@@ -302,6 +368,31 @@ export function createTools(
 }
 
 // --- Helpers ---
+
+async function buildTokenOptions(
+  getPayments: () => Payments,
+  params: Record<string, unknown>,
+  config: NeverminedPluginConfig,
+): Promise<X402TokenOptions | undefined> {
+  const paymentType = str(params, 'paymentType') ?? config.paymentType ?? 'crypto'
+  if (paymentType !== 'fiat') return undefined
+
+  let paymentMethodId = str(params, 'paymentMethodId')
+  if (!paymentMethodId) {
+    const methods = await getPayments().delegation.listPaymentMethods()
+    if (methods.length === 0) throw new Error('No enrolled payment methods found. Enroll a card at https://nevermined.app')
+    paymentMethodId = methods[0].id
+  }
+
+  return {
+    scheme: 'nvm:card-delegation',
+    delegationConfig: {
+      providerPaymentMethodId: paymentMethodId,
+      spendingLimitCents: Number(str(params, 'spendingLimitCents') ?? config.defaultSpendingLimitCents ?? 1000),
+      durationSecs: Number(str(params, 'delegationDurationSecs') ?? config.defaultDelegationDurationSecs ?? 3600),
+    },
+  }
+}
 
 interface ToolObject {
   name: string
