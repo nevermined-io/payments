@@ -4,6 +4,14 @@ import { getEffectivePlans } from './config.js'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
 
+/** Default USDC token addresses per Nevermined environment */
+const DEFAULT_USDC_ADDRESS: Record<string, `0x${string}`> = {
+  sandbox: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',      // Base Sepolia USDC
+  staging_sandbox: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  live: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',          // Base Mainnet USDC
+  staging_live: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+}
+
 /**
  * Resolve the default planId for the given payment type using the
  * config.plans array (preferred) or legacy planId/fiatPlanId fields.
@@ -237,7 +245,7 @@ export function createTools(
           amounts: priceAmounts,
           receivers: priceReceivers,
           isCrypto,
-          tokenAddress: tokenAddress ?? ZERO_ADDRESS,
+          tokenAddress: tokenAddress ?? (pricingType === 'erc20' ? (DEFAULT_USDC_ADDRESS[config.environment ?? 'sandbox'] ?? ZERO_ADDRESS) : ZERO_ADDRESS),
           contractAddress: ZERO_ADDRESS,
           feeController: ZERO_ADDRESS,
           externalPriceAddress: ZERO_ADDRESS,
@@ -306,19 +314,21 @@ export function createTools(
               templateAddress: ZERO_ADDRESS,
             }
             break
-          case 'erc20':
-            if (!tokenAddress) throw new Error('tokenAddress is required when pricingType is "erc20"')
+          case 'erc20': {
+            const resolvedToken = tokenAddress ?? DEFAULT_USDC_ADDRESS[config.environment ?? 'sandbox']
+            if (!resolvedToken) throw new Error('tokenAddress is required when pricingType is "erc20" (no default USDC address for this environment)')
             priceConfig = {
               amounts: [priceAmount],
               receivers: [receiver],
               isCrypto: true,
-              tokenAddress,
+              tokenAddress: resolvedToken,
               contractAddress: ZERO_ADDRESS,
               feeController: ZERO_ADDRESS,
               externalPriceAddress: ZERO_ADDRESS,
               templateAddress: ZERO_ADDRESS,
             }
             break
+          }
           default:
             priceConfig = {
               amounts: [priceAmount],
