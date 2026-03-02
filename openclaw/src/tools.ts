@@ -268,6 +268,10 @@ export function createTools(
           },
         )
 
+        // Auto-store IDs so the paid endpoint works immediately
+        if (res.planId) config.planId = res.planId
+        if (res.agentId) config.agentId = res.agentId
+
         return result({ agentId: res.agentId, planId: res.planId, txHash: res.txHash })
       },
     },
@@ -357,6 +361,9 @@ export function createTools(
           undefined,
           accessLimit,
         )
+
+        // Auto-store planId so the paid endpoint works immediately
+        if (res.planId) config.planId = res.planId
 
         return result({ planId: res.planId })
       },
