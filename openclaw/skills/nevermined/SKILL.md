@@ -64,7 +64,7 @@ Register a new AI agent with a payment plan.
 - `agentUrl` (required) — agent endpoint
 - `planName` (required) — plan name
 - `priceAmounts` (required) — comma-separated prices in wei (crypto) or cents (fiat)
-- `priceReceivers` (required) — comma-separated receiver addresses
+- `priceReceivers` (optional) — comma-separated receiver addresses. Defaults to authenticated user's wallet.
 - `creditsAmount` (required) — number of credits
 - `tokenAddress` (optional) — ERC20 token address (e.g. USDC). Omit for native token.
 - `pricingType` (optional) — `"crypto"` (default), `"erc20"`, or `"fiat"`
@@ -73,7 +73,7 @@ Register a new AI agent with a payment plan.
 Create a standalone payment plan. Supports fiat (Stripe), ERC20 tokens (USDC), and native crypto pricing.
 - `name` (required) — plan name
 - `priceAmount` (required) — price in cents for fiat (e.g. "100" = $1.00), in token smallest unit for crypto (e.g. "1000000" = 1 USDC)
-- `receiver` (required) — receiver wallet address (0x...)
+- `receiver` (optional) — receiver wallet address (0x...). Defaults to authenticated user's wallet.
 - `creditsAmount` (required) — number of credits
 - `pricingType` (optional) — `"fiat"` for Stripe/USD, `"erc20"` for ERC20 tokens like USDC, `"crypto"` for native token (default: crypto)
 - `accessLimit` (optional) — `"credits"` or `"time"`

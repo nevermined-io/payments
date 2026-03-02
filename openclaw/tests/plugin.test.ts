@@ -755,17 +755,20 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(priceConfig.tokenAddress).toBe('0x036CbD53842c5426634e7929541eC2318f3dCF7e')
     })
 
-    test('nevermined_createPlan — erc20 pricing requires tokenAddress', async () => {
-      const { tools } = registerWithMock()
+    test('nevermined_createPlan — erc20 pricing defaults to USDC token address', async () => {
+      const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_createPlan')!
-      await expect(tool.execute('call-1', {
+      await tool.execute('call-1', {
         name: 'USDC Plan',
         priceAmount: '1000000',
         receiver: '0xabc',
         creditsAmount: 5,
         pricingType: 'erc20',
-      })).rejects.toThrow('tokenAddress is required')
+      })
+
+      const call = (mockPayments.plans.registerPlan as jest.Mock).mock.calls[0]
+      expect(call[1].tokenAddress).toBe('0x036CbD53842c5426634e7929541eC2318f3dCF7e')
     })
 
     test('nevermined_listPlans — returns plans', async () => {

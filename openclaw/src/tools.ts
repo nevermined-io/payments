@@ -4,6 +4,14 @@ import { getEffectivePlans } from './config.js'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
 
+/** Default USDC token addresses per Nevermined environment */
+const DEFAULT_USDC_ADDRESS: Record<string, `0x${string}`> = {
+  sandbox: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',      // Base Sepolia USDC
+  staging_sandbox: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  live: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',          // Base Mainnet USDC
+  staging_live: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+}
+
 /**
  * Resolve the default planId for the given payment type using the
  * config.plans array (preferred) or legacy planId/fiatPlanId fields.
@@ -208,12 +216,12 @@ export function createTools(
           agentUrl: { type: 'string', description: 'The endpoint URL for the agent' },
           planName: { type: 'string', description: 'Name for the payment plan' },
           priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei (crypto) or cents (fiat)' },
-          priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses' },
+          priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses. Defaults to the authenticated user wallet.' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
           tokenAddress: { type: 'string', description: 'ERC20 token address (e.g. USDC). Omit for native token.' },
           pricingType: { type: 'string', description: '"crypto" (default), "erc20", or "fiat"' },
         },
-        required: ['name', 'agentUrl', 'planName', 'priceAmounts', 'priceReceivers', 'creditsAmount'],
+        required: ['name', 'agentUrl', 'planName', 'priceAmounts', 'creditsAmount'],
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const name = requireStr(params, 'name')
@@ -223,9 +231,10 @@ export function createTools(
         const priceAmounts = requireStr(params, 'priceAmounts')
           .split(',')
           .map((s) => BigInt(s.trim()))
-        const priceReceivers = requireStr(params, 'priceReceivers')
-          .split(',')
-          .map((s) => s.trim())
+        const priceReceiversRaw = str(params, 'priceReceivers')
+        const priceReceivers = priceReceiversRaw
+          ? priceReceiversRaw.split(',').map((s) => s.trim())
+          : [getPayments().getAccountAddress() ?? (() => { throw new Error('priceReceivers is required — no wallet address found in API key') })()]
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
         const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
         const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
@@ -236,7 +245,7 @@ export function createTools(
           amounts: priceAmounts,
           receivers: priceReceivers,
           isCrypto,
-          tokenAddress: tokenAddress ?? ZERO_ADDRESS,
+          tokenAddress: tokenAddress ?? (pricingType === 'erc20' ? (DEFAULT_USDC_ADDRESS[config.environment ?? 'sandbox'] ?? ZERO_ADDRESS) : ZERO_ADDRESS),
           contractAddress: ZERO_ADDRESS,
           feeController: ZERO_ADDRESS,
           externalPriceAddress: ZERO_ADDRESS,
@@ -259,6 +268,10 @@ export function createTools(
           },
         )
 
+        // Auto-store IDs so the paid endpoint works immediately
+        if (res.planId) config.planId = res.planId
+        if (res.agentId) config.agentId = res.agentId
+
         return result({ agentId: res.agentId, planId: res.planId, txHash: res.txHash })
       },
     },
@@ -273,19 +286,19 @@ export function createTools(
           name: { type: 'string', description: 'Plan name' },
           description: { type: 'string', description: 'Plan description' },
           priceAmount: { type: 'string', description: 'Price amount — in cents for fiat (e.g. "100" = $1.00), in token smallest unit for crypto (e.g. "1000000" = 1 USDC)' },
-          receiver: { type: 'string', description: 'Receiver wallet address (0x...)' },
+          receiver: { type: 'string', description: 'Receiver wallet address (0x...). Defaults to the authenticated user wallet.' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
           pricingType: { type: 'string', description: '"fiat" for Stripe/USD, "erc20" for ERC20 tokens like USDC, "crypto" for native token (default: crypto)' },
           accessLimit: { type: 'string', description: '"credits" or "time" (default: credits)' },
           tokenAddress: { type: 'string', description: 'ERC20 token contract address. Required when pricingType is "erc20".' },
         },
-        required: ['name', 'priceAmount', 'receiver', 'creditsAmount'],
+        required: ['name', 'priceAmount', 'creditsAmount'],
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const name = requireStr(params, 'name')
         const description = str(params, 'description') ?? ''
         const priceAmount = BigInt(requireStr(params, 'priceAmount'))
-        const receiver = requireStr(params, 'receiver')
+        const receiver = str(params, 'receiver') ?? getPayments().getAccountAddress() ?? (() => { throw new Error('receiver is required — no wallet address found in API key') })()
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
         const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
         const accessLimit = (str(params, 'accessLimit') ?? 'credits') as 'credits' | 'time'
@@ -305,19 +318,21 @@ export function createTools(
               templateAddress: ZERO_ADDRESS,
             }
             break
-          case 'erc20':
-            if (!tokenAddress) throw new Error('tokenAddress is required when pricingType is "erc20"')
+          case 'erc20': {
+            const resolvedToken = tokenAddress ?? DEFAULT_USDC_ADDRESS[config.environment ?? 'sandbox']
+            if (!resolvedToken) throw new Error('tokenAddress is required when pricingType is "erc20" (no default USDC address for this environment)')
             priceConfig = {
               amounts: [priceAmount],
               receivers: [receiver],
               isCrypto: true,
-              tokenAddress,
+              tokenAddress: resolvedToken,
               contractAddress: ZERO_ADDRESS,
               feeController: ZERO_ADDRESS,
               externalPriceAddress: ZERO_ADDRESS,
               templateAddress: ZERO_ADDRESS,
             }
             break
+          }
           default:
             priceConfig = {
               amounts: [priceAmount],
@@ -346,6 +361,9 @@ export function createTools(
           undefined,
           accessLimit,
         )
+
+        // Auto-store planId so the paid endpoint works immediately
+        if (res.planId) config.planId = res.planId
 
         return result({ planId: res.planId })
       },
