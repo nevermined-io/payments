@@ -208,12 +208,12 @@ export function createTools(
           agentUrl: { type: 'string', description: 'The endpoint URL for the agent' },
           planName: { type: 'string', description: 'Name for the payment plan' },
           priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei (crypto) or cents (fiat)' },
-          priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses' },
+          priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses. Defaults to the authenticated user wallet.' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
           tokenAddress: { type: 'string', description: 'ERC20 token address (e.g. USDC). Omit for native token.' },
           pricingType: { type: 'string', description: '"crypto" (default), "erc20", or "fiat"' },
         },
-        required: ['name', 'agentUrl', 'planName', 'priceAmounts', 'priceReceivers', 'creditsAmount'],
+        required: ['name', 'agentUrl', 'planName', 'priceAmounts', 'creditsAmount'],
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const name = requireStr(params, 'name')
@@ -223,9 +223,10 @@ export function createTools(
         const priceAmounts = requireStr(params, 'priceAmounts')
           .split(',')
           .map((s) => BigInt(s.trim()))
-        const priceReceivers = requireStr(params, 'priceReceivers')
-          .split(',')
-          .map((s) => s.trim())
+        const priceReceiversRaw = str(params, 'priceReceivers')
+        const priceReceivers = priceReceiversRaw
+          ? priceReceiversRaw.split(',').map((s) => s.trim())
+          : [getPayments().getAccountAddress() ?? (() => { throw new Error('priceReceivers is required — no wallet address found in API key') })()]
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
         const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
         const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
@@ -273,19 +274,19 @@ export function createTools(
           name: { type: 'string', description: 'Plan name' },
           description: { type: 'string', description: 'Plan description' },
           priceAmount: { type: 'string', description: 'Price amount — in cents for fiat (e.g. "100" = $1.00), in token smallest unit for crypto (e.g. "1000000" = 1 USDC)' },
-          receiver: { type: 'string', description: 'Receiver wallet address (0x...)' },
+          receiver: { type: 'string', description: 'Receiver wallet address (0x...). Defaults to the authenticated user wallet.' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
           pricingType: { type: 'string', description: '"fiat" for Stripe/USD, "erc20" for ERC20 tokens like USDC, "crypto" for native token (default: crypto)' },
           accessLimit: { type: 'string', description: '"credits" or "time" (default: credits)' },
           tokenAddress: { type: 'string', description: 'ERC20 token contract address. Required when pricingType is "erc20".' },
         },
-        required: ['name', 'priceAmount', 'receiver', 'creditsAmount'],
+        required: ['name', 'priceAmount', 'creditsAmount'],
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const name = requireStr(params, 'name')
         const description = str(params, 'description') ?? ''
         const priceAmount = BigInt(requireStr(params, 'priceAmount'))
-        const receiver = requireStr(params, 'receiver')
+        const receiver = str(params, 'receiver') ?? getPayments().getAccountAddress() ?? (() => { throw new Error('receiver is required — no wallet address found in API key') })()
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
         const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
         const accessLimit = (str(params, 'accessLimit') ?? 'credits') as 'credits' | 'time'
