@@ -53,8 +53,8 @@ The plugin reads its configuration from the `plugins.openclaw-plugin` section of
 
 | Environment | Description | Use Case |
 |-------------|-------------|----------|
-| `sandbox` | Test environment on Arbitrum Sepolia | Development, testing, integration |
-| `live` | Production environment on Arbitrum One | Live deployments with real payments |
+| `sandbox` | Test environment on Base Sepolia | Development, testing, integration |
+| `live` | Production environment on Base Mainnet | Live deployments with real payments |
 
 ## Authentication Flow
 
