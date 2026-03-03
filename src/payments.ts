@@ -15,6 +15,7 @@ import * as mcpModule from './mcp/index.js'
 import { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
 import { FacilitatorAPI } from './x402/facilitator-api.js'
 import { X402TokenAPI } from './x402/token.js'
+import { DelegationAPI } from './x402/delegation-api.js'
 import { VisaFacilitatorAPI } from './x402/visa-facilitator-api.js'
 import { VisaTokenAPI } from './x402/visa-token-api.js'
 
@@ -42,6 +43,7 @@ export class Payments extends BasePaymentsAPI {
   public facilitator!: FacilitatorAPI
   public x402!: X402TokenAPI
   private _a2aRegistry?: ClientRegistry
+  private _delegation?: DelegationAPI
 
   /**
    * Cached MCP integration to preserve configuration (e.g., agentId, serverName)
@@ -87,6 +89,20 @@ export class Payments extends BasePaymentsAPI {
       this._mcpIntegration = mcpModule.buildMcpIntegration(this)
     }
     return this._mcpIntegration
+  }
+
+  /**
+   * Returns the Delegation API for listing enrolled payment methods.
+   * The instance is lazily initialized on first access.
+   */
+  public get delegation(): DelegationAPI {
+    if (!this._delegation) {
+      this._delegation = DelegationAPI.getInstance({
+        nvmApiKey: this.nvmApiKey,
+        environment: this.environmentName,
+      })
+    }
+    return this._delegation
   }
 
   /**

@@ -44,7 +44,8 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_SETTLE_PERMISSIONS, API_URL_VERIFY_PERMISSIONS } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions, StartAgentRequest } from '../common/types.js'
+import { PaymentOptions, StartAgentRequest, X402SchemeType, X402_SCHEME_NETWORKS } from '../common/types.js'
+import type { Payments } from '../payments.js'
 import type { VisaPaymentRequired } from './visa-facilitator-api.js'
 
 /**
@@ -228,9 +229,18 @@ export function buildPaymentRequired(
     httpVerb?: string
     network?: string
     description?: string
+    scheme?: X402SchemeType
   },
 ): X402PaymentRequired {
-  const { endpoint, agentId, httpVerb, network = 'eip155:84532', description } = options || {}
+  const {
+    endpoint,
+    agentId,
+    httpVerb,
+    scheme = 'nvm:erc4337',
+    network,
+    description,
+  } = options || {}
+  const resolvedNetwork = network ?? X402_SCHEME_NETWORKS[scheme]
 
   // Build extra fields if any are provided
   const extra: X402SchemeExtra | undefined =
@@ -249,14 +259,62 @@ export function buildPaymentRequired(
     },
     accepts: [
       {
-        scheme: 'nvm:erc4337',
-        network,
+        scheme,
+        network: resolvedNetwork,
         planId,
         ...(extra && { extra }),
       },
     ],
     extensions: {},
   }
+}
+
+interface CachedPlanMetadata {
+  scheme: X402SchemeType
+  cachedAt: number
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const planMetadataCache = new Map<string, CachedPlanMetadata>()
+
+async function fetchPlanMetadata(
+  payments: Payments,
+  planId: string,
+): Promise<{ scheme: X402SchemeType }> {
+  const cached = planMetadataCache.get(planId)
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+    return { scheme: cached.scheme }
+  }
+  try {
+    const plan = await payments.plans.getPlan(planId)
+    const isCrypto = plan.registry?.price?.isCrypto
+    const scheme: X402SchemeType =
+      isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
+    planMetadataCache.set(planId, { scheme, cachedAt: Date.now() })
+    return { scheme }
+  } catch {
+    return { scheme: 'nvm:erc4337' }
+  }
+}
+
+/**
+ * Resolve the x402 scheme for a plan by fetching plan metadata (cached).
+ * Used in callsites that don't have a token to extract scheme from
+ * (402 responses and token generation).
+ *
+ * @param payments - The Payments instance for API access
+ * @param planId - The plan identifier
+ * @param explicitScheme - Optional explicit override; returned immediately if provided
+ * @returns The resolved scheme type
+ */
+export async function resolveScheme(
+  payments: Payments,
+  planId: string,
+  explicitScheme?: X402SchemeType,
+): Promise<X402SchemeType> {
+  if (explicitScheme) return explicitScheme
+  const metadata = await fetchPlanMetadata(payments, planId)
+  return metadata.scheme
 }
 
 /**

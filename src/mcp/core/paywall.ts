@@ -1,8 +1,9 @@
 /**
  * Main paywall decorator for MCP handlers (tools, resources, prompts)
  */
-import { Address } from '../../common/types.js'
+import { Address, isValidScheme } from '../../common/types.js'
 import type { Payments } from '../../payments.js'
+import { decodeAccessToken } from '../../utils.js'
 import {
   buildPaymentRequired,
   type SettlePermissionsResult,
@@ -200,12 +201,15 @@ export class PaywallDecorator {
       transaction: '',
       network: '',
     }
+    const decoded = decodeAccessToken(token)
+    const scheme = isValidScheme(decoded?.accepted?.scheme) ? decoded.accepted.scheme : 'nvm:erc4337'
     try {
       if (credits && credits > 0n && subscriberAddress && planId) {
         const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
           endpoint: endpoint || '',
           agentId,
-          httpVerb: httpVerb,
+          httpVerb,
+          scheme,
         })
 
         ret = await this.payments.facilitator.settlePermissions({
@@ -222,7 +226,8 @@ export class PaywallDecorator {
           const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
             endpoint: fallbackEndpoint,
             agentId,
-            httpVerb: httpVerb,
+            httpVerb,
+            scheme,
           })
 
           ret = await this.payments.facilitator.settlePermissions({
@@ -282,8 +287,8 @@ function wrapAsyncIterable<T>(
         ...(creditsResult?.transaction && { txHash: creditsResult.transaction }),
         creditsRedeemed: creditsResult?.success ? (creditsResult.creditsRedeemed ?? credits.toString()) : '0',
         remainingBalance: creditsResult?.remainingBalance,
-        planId: planId,
-        subscriberAddress: subscriberAddress,
+        planId,
+        subscriberAddress,
         success: creditsResult?.success || false,
         ...(creditsResult?.errorReason && { errorReason: creditsResult.errorReason }),
       },

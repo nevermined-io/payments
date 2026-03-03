@@ -1,6 +1,6 @@
 {
   "name": "@nevermined-io/cli",
-  "version": "1.0.9",
+  "version": "1.1.1",
   "description": "CLI for Nevermined Payments SDK",
   "author": "Nevermined AG",
   "license": "Apache-2.0",
@@ -36,7 +36,7 @@
     "version": "oclif readme && git add README.md"
   },
   "dependencies": {
-    "@nevermined-io/payments": "^1.0.2",
+    "@nevermined-io/payments": "^1.1.0",
     "@oclif/core": "^3.26.0",
     "@oclif/plugin-help": "^6.0.21",
     "@oclif/plugin-plugins": "^5.0.11",
@@ -88,6 +88,9 @@
       },
       "organizations": {
         "description": "Manage organizations"
+      },
+      "delegation": {
+        "description": "Card delegation and payment method management"
       }
     },
     "additionalHelpFlags": [

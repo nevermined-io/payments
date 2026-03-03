@@ -15,7 +15,8 @@ import http from 'http'
 import { InMemoryTaskStore, JsonRpcTransportHandler, AgentExecutor } from '@a2a-js/sdk/server'
 import type { AgentCard, HttpRequestContext } from './types.js'
 import { PaymentsRequestHandler } from './paymentsRequestHandler.js'
-import { buildPaymentRequired } from '../x402/facilitator-api.js'
+import type { Payments } from '../payments.js'
+import { buildPaymentRequired, resolveScheme } from '../x402/facilitator-api.js'
 import { X402_HEADERS } from '../x402/express/middleware.js'
 
 /**
@@ -129,6 +130,7 @@ export interface PaymentsA2AServerResult {
  */
 async function bearerTokenMiddleware(
   handler: PaymentsRequestHandler,
+  paymentsService: Payments,
   req: express.Request,
   res: express.Response,
   next: express.NextFunction,
@@ -159,10 +161,12 @@ async function bearerTokenMiddleware(
   // Build paymentRequired for 402 responses
   const planId = (paymentExtension.params?.planId as string) || ''
   const agentId = paymentExtension.params?.agentId as string
+  const scheme = await resolveScheme(paymentsService, planId)
   const paymentRequired = buildPaymentRequired(planId, {
     endpoint: absoluteUrl,
     agentId,
     httpVerb: 'POST',
+    scheme,
   })
   const paymentRequiredHeader = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
 
@@ -326,7 +330,7 @@ export class PaymentsA2AServer {
     if (exposeDefaultRoutes) {
       // Apply bearer token middleware for all requests under basePath
       app.use(basePath, express.json(), (req, res, next) => {
-        bearerTokenMiddleware(handler, req, res, next).catch(next)
+        bearerTokenMiddleware(handler, paymentsService, req, res, next).catch(next)
       })
 
       // Apply hooks middleware after body parsing and validation

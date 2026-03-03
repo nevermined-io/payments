@@ -8,9 +8,7 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_CREATE_PERMISSION } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions } from '../common/types.js'
-
-
+import { PaymentOptions, X402TokenOptions, X402_SCHEME_NETWORKS } from '../common/types.js'
 
 /**
  * X402 Token API for generating access tokens.
@@ -66,35 +64,46 @@ export class X402TokenAPI extends BasePaymentsAPI {
     redemptionLimit?: number,
     orderLimit?: string,
     expiration?: string,
+    tokenOptions?: X402TokenOptions,
   ): Promise<{ accessToken: string;[key: string]: any }> {
     const urlPath = API_URL_CREATE_PERMISSION
     const url = new URL(urlPath, this.environment.backend)
 
+    const scheme = tokenOptions?.scheme ?? 'nvm:erc4337'
+    const network = tokenOptions?.network ?? X402_SCHEME_NETWORKS[scheme]
+
     // Build x402-aligned request body
     const body: Record<string, any> = {
       accepted: {
-        scheme: 'nvm:erc4337',
-        network: 'eip155:84532',
-        planId: planId,
+        scheme,
+        network,
+        planId,
         extra: {
           ...(agentId && { agentId }),
         },
       },
     }
 
-    // Add session key config if any options are provided
-    const sessionKeyConfig: Record<string, any> = {}
-    if (redemptionLimit !== undefined) {
-      sessionKeyConfig.redemptionLimit = redemptionLimit
+    // Add delegation config for card-delegation scheme
+    if (scheme === 'nvm:card-delegation' && tokenOptions?.delegationConfig) {
+      body.delegationConfig = tokenOptions.delegationConfig
     }
-    if (orderLimit !== undefined) {
-      sessionKeyConfig.orderLimit = orderLimit
-    }
-    if (expiration !== undefined) {
-      sessionKeyConfig.expiration = expiration
-    }
-    if (Object.keys(sessionKeyConfig).length > 0) {
-      body.sessionKeyConfig = sessionKeyConfig
+
+    // Add session key config if any options are provided (erc4337 only)
+    if (scheme === 'nvm:erc4337') {
+      const sessionKeyConfig: Record<string, any> = {}
+      if (redemptionLimit !== undefined) {
+        sessionKeyConfig.redemptionLimit = redemptionLimit
+      }
+      if (orderLimit !== undefined) {
+        sessionKeyConfig.orderLimit = orderLimit
+      }
+      if (expiration !== undefined) {
+        sessionKeyConfig.expiration = expiration
+      }
+      if (Object.keys(sessionKeyConfig).length > 0) {
+        body.sessionKeyConfig = sessionKeyConfig
+      }
     }
 
     const options = this.getBackendHTTPOptions('POST', body)

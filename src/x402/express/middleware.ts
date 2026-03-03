@@ -55,9 +55,10 @@ import type { Request, Response, NextFunction } from 'express'
  */
 export type ExpressMiddleware = (req: Request, res: Response, next: NextFunction) => void
 import type { Payments } from '../../payments.js'
-import type { StartAgentRequest } from '../../common/types.js'
+import type { StartAgentRequest, X402SchemeType } from '../../common/types.js'
 import {
   buildPaymentRequired,
+  resolveScheme,
   type X402PaymentRequired,
   type VerifyPermissionsResult,
 } from '../facilitator-api.js'
@@ -72,8 +73,10 @@ export interface RouteConfig {
   credits?: number | ((req: Request, res: Response) => number | Promise<number>)
   /** Optional agent ID */
   agentId?: string
-  /** Network identifier (default: 'eip155:84532' for Base Sepolia) */
+  /** Network identifier (default: auto-derived from scheme) */
   network?: string
+  /** x402 scheme override (auto-detected from plan metadata if omitted) */
+  scheme?: X402SchemeType
 }
 
 /**
@@ -262,7 +265,10 @@ export function paymentMiddleware(
         return
       }
 
-      const { planId, credits = 1, agentId, network } = routeConfig
+      const { planId, credits = 1, agentId, network, scheme: explicitScheme } = routeConfig
+
+      // Resolve scheme from plan metadata (cached) or explicit override
+      const scheme = await resolveScheme(payments, planId, explicitScheme)
 
       // Build payment required object (needed for both error responses and verification)
       const paymentRequired = buildPaymentRequired(planId, {
@@ -270,6 +276,7 @@ export function paymentMiddleware(
         agentId,
         httpVerb: req.method,
         network,
+        scheme,
       })
 
       // Extract token from headers (x402 v2: payment-signature)

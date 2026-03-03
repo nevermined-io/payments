@@ -19,6 +19,14 @@ export interface CommandMetadata {
   }
 }
 
+/**
+ * Commands that are manually maintained and should not be overwritten by the generator.
+ * Key format: "topic/command-name" (matches the file path under commands/).
+ */
+const MANUALLY_MAINTAINED_COMMANDS = new Set([
+  'x402token/get-x402-access-token',
+])
+
 export class CommandGenerator {
   private outputDir: string
   private metadataPath: string
@@ -85,6 +93,15 @@ export class CommandGenerator {
   private async generateCommand(api: APIClassInfo, method: MethodInfo): Promise<void> {
     const commandPath = this.getCommandPath(api.name, method.name)
     const metadataKey = `${api.name}.${method.name}`
+
+    // Skip manually maintained commands
+    const topic = api.name.replace('API', '').toLowerCase()
+    const commandName = this.camelToKebab(method.name)
+    const commandKey = `${topic}/${commandName}`
+    if (MANUALLY_MAINTAINED_COMMANDS.has(commandKey)) {
+      console.log(`Skipped (manually maintained): ${commandPath}`)
+      return
+    }
 
     // Check if command already exists and has customizations
     const existingMetadata = this.metadata.get(metadataKey)
@@ -170,7 +187,12 @@ ${runMethod}
         continue
       }
 
-      // For complex objects, create a string flag for JSON input
+      // Skip optional complex-type parameters (programmatic-only, not suitable for CLI)
+      if (param.optional && this.isComplexType(param.type)) {
+        continue
+      }
+
+      // For required complex objects, create a string flag for JSON input
       if (this.isComplexType(param.type)) {
         const flagName = this.camelToKebab(param.name)
         flags.push(`    '${flagName}': Flags.string({\n      description: ${JSON.stringify(param.description || `${param.name} as JSON string`)},\n      required: ${!param.optional}\n    }),`)
@@ -339,13 +361,17 @@ ${runMethod}
    * Check if type is a complex object that needs JSON parsing
    */
   private isComplexType(type: string): boolean {
+    // Strip '| undefined' suffix from optional types before checking
+    const baseType = type.replace(/\s*\|\s*undefined$/, '').trim()
+
     // Complex objects have literal braces or are explicitly 'object'
-    if (type.includes('{') || type === 'object') {
+    // Exclude template literal types like `0x${string}` which are just strings
+    if ((baseType.includes('{') && !baseType.startsWith('`')) || baseType === 'object') {
       return true
     }
 
     // Types ending with Config, Metadata, Options are likely interfaces
-    if (/(Config|Metadata|Options|Settings|Params)$/.test(type)) {
+    if (/(Config|Metadata|Options|Settings|Params)$/.test(baseType)) {
       return true
     }
 
@@ -367,11 +393,16 @@ ${runMethod}
       const isPositionalArg = param.name.toLowerCase().includes('id') &&
                              method.parameters.indexOf(param) === 0
 
+      // Skip optional complex-type parameters (programmatic-only)
+      if (param.optional && this.isComplexType(param.type)) {
+        continue
+      }
+
       if (isPositionalArg) {
         const argName = param.name.replace(/Id$/, '')
         args.push(`args.${argName}`)
       } else if (this.isComplexType(param.type)) {
-        // Complex object - use JSON input flag with await
+        // Required complex object - use JSON input flag with await
         const flagName = this.camelToKebab(param.name)
         args.push(`await this.parseJsonInput(flags['${flagName}'])`)
       } else {

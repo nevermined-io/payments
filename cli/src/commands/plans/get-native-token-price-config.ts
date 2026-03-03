@@ -14,10 +14,7 @@ export default class GetNativeTokenPriceConfig extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     'amount': Flags.string({ required: true }),
-    'receiver': Flags.string({
-      description: "receiver as JSON string",
-      required: true
-    }),
+    'receiver': Flags.string({ required: true }),
   }
 
 
@@ -28,7 +25,7 @@ export default class GetNativeTokenPriceConfig extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getNativeTokenPriceConfig(flags['amount'], await this.parseJsonInput(flags['receiver']))
+      const result = await payments.plans.getNativeTokenPriceConfig(flags['amount'], flags['receiver'])
 
       this.formatter.output(result)
     } catch (error) {

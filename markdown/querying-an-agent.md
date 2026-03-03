@@ -51,6 +51,92 @@ const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
 )
 ```
 
+### Card-Delegation Tokens (Fiat)
+
+For plans that accept fiat payments, generate tokens using the `nvm:card-delegation` scheme. Pass `X402TokenOptions` with a `CardDelegationConfig` to specify the payment method and spending limits:
+
+```typescript
+import { Payments, EnvironmentName, X402TokenOptions } from '@nevermined-io/payments'
+
+const subscriberPayments = Payments.getInstance({
+  nvmApiKey: process.env.SUBSCRIBER_API_KEY!,
+  environment: 'sandbox' as EnvironmentName,
+})
+
+// List enrolled payment methods
+const methods = await subscriberPayments.delegation.listPaymentMethods()
+console.log(`Found ${methods.length} enrolled card(s)`)
+
+// Build token options for card-delegation
+const tokenOptions: X402TokenOptions = {
+  scheme: 'nvm:card-delegation',
+  delegationConfig: {
+    providerPaymentMethodId: methods[0].id,  // or a specific 'pm_...' ID
+    spendingLimitCents: 1000,                // max $10.00
+    durationSecs: 3600,                      // 1 hour delegation
+  },
+}
+
+// Generate fiat access token
+const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
+  planId,
+  agentId,
+  undefined,  // redemptionLimit
+  undefined,  // orderLimit
+  undefined,  // expiration
+  tokenOptions,
+)
+```
+
+#### Auto-Detecting the Scheme
+
+If you don't know whether a plan uses crypto or fiat, use `resolveScheme()` to auto-detect from plan metadata:
+
+```typescript
+import { Payments, resolveScheme } from '@nevermined-io/payments'
+
+const scheme = await resolveScheme(subscriberPayments, planId)
+
+let tokenOptions: X402TokenOptions | undefined
+if (scheme === 'nvm:card-delegation') {
+  const methods = await subscriberPayments.delegation.listPaymentMethods()
+  tokenOptions = {
+    scheme: 'nvm:card-delegation',
+    delegationConfig: {
+      providerPaymentMethodId: methods[0].id,
+      spendingLimitCents: 1000,
+      durationSecs: 3600,
+    },
+  }
+}
+
+const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
+  planId, agentId, undefined, undefined, undefined, tokenOptions,
+)
+```
+
+#### CLI
+
+```bash
+# Crypto (default)
+nvm x402token get-x402-access-token <planId>
+
+# Fiat with auto-selected card
+nvm x402token get-x402-access-token <planId> --payment-type fiat
+
+# Fiat with specific card and limits
+nvm x402token get-x402-access-token <planId> --payment-type fiat \
+    --payment-method-id pm_1AbCdEfGhIjKlM \
+    --spending-limit-cents 5000 \
+    --delegation-duration-secs 7200
+
+# Auto-detect scheme from plan metadata
+nvm x402token get-x402-access-token <planId> --auto-resolve-scheme
+
+# List enrolled payment methods
+nvm delegation list-payment-methods
+```
+
 ### Basic Example
 
 ```typescript
