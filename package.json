@@ -31,6 +31,10 @@
     "./express": {
       "types": "./dist/x402/express/index.d.ts",
       "import": "./dist/x402/express/index.js"
+    },
+    "./langchain": {
+      "types": "./dist/x402/langchain/index.d.ts",
+      "import": "./dist/x402/langchain/index.js"
     }
   },
   "scripts": {
@@ -89,13 +93,17 @@
   },
   "peerDependencies": {
     "@modelcontextprotocol/sdk": ">=1.25.0",
-    "express": ">=4.0.0"
+    "express": ">=4.0.0",
+    "@langchain/core": ">=0.3.0"
   },
   "peerDependenciesMeta": {
     "@modelcontextprotocol/sdk": {
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "@langchain/core": {
       "optional": true
     }
   },
