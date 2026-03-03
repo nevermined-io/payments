@@ -12,7 +12,7 @@ export { ContractsAPI } from './api/contracts-api.js'
 // x402 utilities and types
 export { buildPaymentRequired, resolveScheme } from './x402/facilitator-api.js'
 export { DelegationAPI } from './x402/delegation-api.js'
-export type { PaymentMethodSummary } from './x402/delegation-api.js'
+export type { PaymentMethodSummary, UpdatePaymentMethodDto } from './x402/delegation-api.js'
 export type {
   X402PaymentRequired,
   X402PaymentAccepted,
