@@ -23,6 +23,13 @@ export interface PaymentMethodSummary {
   expMonth: number
   /** Card expiration year */
   expYear: number
+  /** Human-readable alias for the card, if set */
+  alias?: string | null
+  /**
+   * List of API key IDs allowed to use this card, or null to allow all.
+   * May be omitted if the backend does not enforce API-key restrictions.
+   */
+  allowedApiKeyIds?: string[] | null
 }
 
 /**
