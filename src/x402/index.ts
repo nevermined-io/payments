@@ -20,7 +20,14 @@ export type {
 
 // Card delegation exports
 export { DelegationAPI } from './delegation-api.js'
-export type { PaymentMethodSummary, UpdatePaymentMethodDto } from './delegation-api.js'
+export type {
+  PaymentMethodSummary,
+  UpdatePaymentMethodDto,
+  DelegationSummary,
+  DelegationListResponse,
+  PurchasingPower,
+  ListOptions,
+} from './delegation-api.js'
 
 // Scheme types
 export type { X402SchemeType, CardDelegationConfig, X402TokenOptions } from '../common/types.js'
