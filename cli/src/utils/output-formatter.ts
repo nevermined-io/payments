@@ -22,13 +22,19 @@ export class OutputFormatter {
         // No output in quiet mode
         break
       case 'table':
-      default:
-        if (Array.isArray(data) && options) {
-          this.outputTable(data, options)
+      default: {
+        const tableData = options?.dataKey ? data[options.dataKey] : data
+        if (Array.isArray(tableData) && options) {
+          this.outputTable(tableData, options)
+          if (options.summary) {
+            const { total, page, offset } = options.summary
+            console.log(chalk.gray(`\nShowing page ${page} (${tableData.length} of ${total} results)`))
+          }
         } else {
           this.outputObject(data)
         }
         break
+      }
     }
   }
 
@@ -137,4 +143,6 @@ export interface TableColumn {
 
 export interface TableOptions {
   columns: TableColumn[]
+  dataKey?: string
+  summary?: { total: number; page: number; offset: number }
 }
