@@ -49,6 +49,7 @@ describe('PaymentsRequestHandler', () => {
     jest.clearAllMocks()
 
     mockPayments = {
+      getEnvironmentName: jest.fn().mockReturnValue('sandbox'),
       facilitator: {
         settlePermissions: jest.fn().mockResolvedValue({ txHash: '0xabc', amountOfCredits: 5n }),
       },

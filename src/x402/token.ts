@@ -8,7 +8,7 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_CREATE_PERMISSION } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions, X402TokenOptions, X402_SCHEME_NETWORKS } from '../common/types.js'
+import { PaymentOptions, X402TokenOptions, getDefaultNetwork } from '../common/types.js'
 
 /**
  * X402 Token API for generating access tokens.
@@ -70,7 +70,7 @@ export class X402TokenAPI extends BasePaymentsAPI {
     const url = new URL(urlPath, this.environment.backend)
 
     const scheme = tokenOptions?.scheme ?? 'nvm:erc4337'
-    const network = tokenOptions?.network ?? X402_SCHEME_NETWORKS[scheme]
+    const network = tokenOptions?.network ?? getDefaultNetwork(scheme, this.environmentName)
 
     // Build x402-aligned request body
     const body: Record<string, any> = {

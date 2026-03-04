@@ -44,7 +44,8 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_SETTLE_PERMISSIONS, API_URL_VERIFY_PERMISSIONS } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions, StartAgentRequest, X402SchemeType, X402_SCHEME_NETWORKS } from '../common/types.js'
+import { PaymentOptions, StartAgentRequest, X402SchemeType, getDefaultNetwork } from '../common/types.js'
+import type { EnvironmentName } from '../environments.js'
 import type { Payments } from '../payments.js'
 import type { VisaPaymentRequired } from './visa-facilitator-api.js'
 
@@ -230,6 +231,7 @@ export function buildPaymentRequired(
     network?: string
     description?: string
     scheme?: X402SchemeType
+    environment?: EnvironmentName
   },
 ): X402PaymentRequired {
   const {
@@ -239,8 +241,9 @@ export function buildPaymentRequired(
     scheme = 'nvm:erc4337',
     network,
     description,
+    environment,
   } = options || {}
-  const resolvedNetwork = network ?? X402_SCHEME_NETWORKS[scheme]
+  const resolvedNetwork = network ?? getDefaultNetwork(scheme, environment)
 
   // Build extra fields if any are provided
   const extra: X402SchemeExtra | undefined =

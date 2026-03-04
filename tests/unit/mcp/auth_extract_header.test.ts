@@ -63,6 +63,10 @@ class PaymentsMock {
       }),
     }
   }
+
+  getEnvironmentName() {
+    return 'sandbox'
+  }
 }
 
 describe('PaywallAuthenticator - Header Extraction', () => {

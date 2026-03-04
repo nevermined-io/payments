@@ -210,6 +210,7 @@ export class PaywallDecorator {
           agentId,
           httpVerb,
           scheme,
+          environment: this.payments.getEnvironmentName(),
         })
 
         ret = await this.payments.facilitator.settlePermissions({
@@ -228,6 +229,7 @@ export class PaywallDecorator {
             agentId,
             httpVerb,
             scheme,
+            environment: this.payments.getEnvironmentName(),
           })
 
           ret = await this.payments.facilitator.settlePermissions({

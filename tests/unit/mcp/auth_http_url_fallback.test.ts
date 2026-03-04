@@ -55,6 +55,10 @@ class PaymentsMock {
       }),
     }
   }
+
+  getEnvironmentName() {
+    return 'sandbox'
+  }
 }
 
 describe('PaywallAuthenticator - HTTP URL Fallback', () => {
