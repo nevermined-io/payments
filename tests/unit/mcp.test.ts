@@ -85,6 +85,10 @@ class PaymentsMock {
     this.facilitator = new Facilitator(this, settle_result)
     this.agents = new Agents()
   }
+
+  getEnvironmentName() {
+    return 'sandbox'
+  }
 }
 
 describe('MCP Integration', () => {

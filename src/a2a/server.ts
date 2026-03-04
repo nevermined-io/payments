@@ -167,6 +167,7 @@ async function bearerTokenMiddleware(
     agentId,
     httpVerb: 'POST',
     scheme,
+    environment: paymentsService.getEnvironmentName(),
   })
   const paymentRequiredHeader = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
 

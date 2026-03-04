@@ -62,6 +62,7 @@ describe('PaymentsA2AServer', () => {
     } as unknown as AgentCard
 
     dummyPayments = {
+      getEnvironmentName: jest.fn().mockReturnValue('sandbox'),
       facilitator: {
         verifyPermissions: jest.fn().mockResolvedValue({
           isValid: true,
