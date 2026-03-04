@@ -80,6 +80,10 @@ class PaymentsMockWithFailures {
       }),
     }
   }
+
+  getEnvironmentName() {
+    return 'sandbox'
+  }
 }
 
 describe('MCP Paywall - Invalid Token Flow', () => {
