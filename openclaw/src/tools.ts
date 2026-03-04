@@ -215,7 +215,7 @@ export function createTools(
           description: { type: 'string', description: 'Agent description' },
           agentUrl: { type: 'string', description: 'The endpoint URL for the agent' },
           planName: { type: 'string', description: 'Name for the payment plan' },
-          priceAmounts: { type: 'string', description: 'Comma-separated price amounts in wei (crypto) or cents (fiat)' },
+          priceAmounts: { type: 'string', description: 'Comma-separated price amounts. Supports dollar notation (e.g. "$0.10", "$1.50") which auto-converts based on pricing type, or raw amounts in smallest unit (e.g. "1000000" for 1 USDC)' },
           priceReceivers: { type: 'string', description: 'Comma-separated receiver addresses. Defaults to the authenticated user wallet.' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
           tokenAddress: { type: 'string', description: 'ERC20 token address (e.g. USDC). Omit for native token.' },
@@ -228,16 +228,16 @@ export function createTools(
         const description = str(params, 'description') ?? ''
         const agentUrl = requireStr(params, 'agentUrl')
         const planName = requireStr(params, 'planName')
+        const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
+        const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
         const priceAmounts = requireStr(params, 'priceAmounts')
           .split(',')
-          .map((s) => BigInt(s.trim()))
+          .map((s) => parsePriceToBigInt(s, pricingType))
         const priceReceiversRaw = str(params, 'priceReceivers')
         const priceReceivers = priceReceiversRaw
           ? priceReceiversRaw.split(',').map((s) => s.trim())
           : [getPayments().getAccountAddress() ?? (() => { throw new Error('priceReceivers is required — no wallet address found in API key') })()]
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
-        const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
-        const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
 
         const isCrypto = pricingType !== 'fiat'
 
@@ -285,7 +285,7 @@ export function createTools(
         properties: {
           name: { type: 'string', description: 'Plan name' },
           description: { type: 'string', description: 'Plan description' },
-          priceAmount: { type: 'string', description: 'Price amount — in cents for fiat (e.g. "100" = $1.00), in token smallest unit for crypto (e.g. "1000000" = 1 USDC)' },
+          priceAmount: { type: 'string', description: 'Price amount. Supports dollar notation (e.g. "$0.10", "$1.50") which auto-converts based on pricing type, or raw amounts in smallest unit (e.g. "1000000" for 1 USDC, "100" for $1.00 fiat)' },
           receiver: { type: 'string', description: 'Receiver wallet address (0x...). Defaults to the authenticated user wallet.' },
           creditsAmount: { type: 'number', description: 'Number of credits in the plan' },
           pricingType: { type: 'string', description: '"fiat" for Stripe/USD, "erc20" for ERC20 tokens like USDC, "crypto" for native token (default: crypto)' },
@@ -297,10 +297,10 @@ export function createTools(
       async execute(_id: string, params: Record<string, unknown>) {
         const name = requireStr(params, 'name')
         const description = str(params, 'description') ?? ''
-        const priceAmount = BigInt(requireStr(params, 'priceAmount'))
+        const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
+        const priceAmount = parsePriceToBigInt(requireStr(params, 'priceAmount'), pricingType)
         const receiver = str(params, 'receiver') ?? getPayments().getAccountAddress() ?? (() => { throw new Error('receiver is required — no wallet address found in API key') })()
         const creditsAmount = Number(requireStr(params, 'creditsAmount'))
-        const pricingType = (str(params, 'pricingType') ?? 'crypto') as 'fiat' | 'erc20' | 'crypto'
         const accessLimit = (str(params, 'accessLimit') ?? 'credits') as 'credits' | 'time'
         const tokenAddress = str(params, 'tokenAddress') as `0x${string}` | undefined
 
@@ -440,4 +440,27 @@ function requireStr(params: Record<string, unknown>, key: string): string {
   const v = str(params, key)
   if (!v) throw new Error(`Missing required parameter: ${key}`)
   return v
+}
+
+/** Token decimal places per pricing type */
+const DECIMALS: Record<string, number> = {
+  erc20: 6,   // USDC
+  fiat: 2,    // cents
+  crypto: 18, // native token (ETH)
+}
+
+/**
+ * Parse a price string that may use dollar notation (e.g. "$0.10", "$1.50")
+ * into the token's smallest unit as a bigint.
+ * Plain numeric strings are passed through as-is.
+ */
+function parsePriceToBigInt(priceStr: string, pricingType: string): bigint {
+  const trimmed = priceStr.trim()
+  if (trimmed.startsWith('$')) {
+    const dollars = parseFloat(trimmed.slice(1))
+    if (isNaN(dollars)) throw new Error(`Invalid dollar amount: ${trimmed}`)
+    const decimals = DECIMALS[pricingType] ?? 6
+    return BigInt(Math.round(dollars * 10 ** decimals))
+  }
+  return BigInt(trimmed)
 }
