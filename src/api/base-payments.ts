@@ -59,6 +59,14 @@ export abstract class BasePaymentsAPI {
   }
 
   /**
+   * Returns the environment name used to initialize the Payments instance.
+   * @returns The environment name (e.g. 'sandbox', 'live')
+   */
+  public getEnvironmentName(): EnvironmentName {
+    return this.environmentName
+  }
+
+  /**
    * It returns the account address associated with the NVM API Key used to initialize the Payments Library instance.
    * @returns The account address extracted from the NVM API Key
    */

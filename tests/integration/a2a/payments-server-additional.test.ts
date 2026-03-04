@@ -55,6 +55,7 @@ describe('PaymentsA2AServer Middleware', () => {
     close: () => Promise<void>
   } {
     const paymentsStub = {
+      getEnvironmentName: jest.fn().mockReturnValue('sandbox'),
       facilitator: {
         verifyPermissions:
           verifyPermissions ||

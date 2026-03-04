@@ -69,6 +69,10 @@ class MockPaymentsService {
       getAgentPlans: async () => ({ plans: [] }),
     }
   }
+
+  getEnvironmentName() {
+    return 'sandbox'
+  }
 }
 
 class DummyExecutor implements PaymentsAgentExecutor {

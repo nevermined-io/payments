@@ -61,6 +61,10 @@ class PaymentsMockWithTracking {
       }),
     }
   }
+
+  getEnvironmentName() {
+    return 'sandbox'
+  }
 }
 
 describe('MCP Handler - Auth Header Propagation', () => {
