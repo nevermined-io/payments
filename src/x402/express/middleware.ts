@@ -277,6 +277,7 @@ export function paymentMiddleware(
         httpVerb: req.method,
         network,
         scheme,
+        environment: payments.getEnvironmentName(),
       })
 
       // Extract token from headers (x402 v2: payment-signature)

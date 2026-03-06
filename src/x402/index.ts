@@ -31,7 +31,7 @@ export type {
 
 // Scheme types
 export type { X402SchemeType, CardDelegationConfig, X402TokenOptions } from '../common/types.js'
-export { X402_SCHEME_NETWORKS, isValidScheme } from '../common/types.js'
+export { X402_SCHEME_NETWORKS, getDefaultNetwork, isValidScheme } from '../common/types.js'
 
 // Visa x402 exports
 export { VisaFacilitatorAPI, buildVisaPaymentRequired, VISA_X402_HEADERS } from './visa-facilitator-api.js'

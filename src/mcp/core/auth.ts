@@ -191,6 +191,7 @@ export class PaywallAuthenticator {
       agentId,
       httpVerb: 'POST',
       scheme,
+      environment: this.payments.getEnvironmentName(),
     })
 
     const result = await this.payments.facilitator.verifyPermissions({

@@ -64,6 +64,10 @@ class PaymentsMinimal {
     this.facilitator = new Facilitator(this, subscriber)
     this.agents = new Agents()
   }
+
+  getEnvironmentName() {
+    return 'sandbox'
+  }
 }
 
 describe('MCP Integration', () => {
@@ -145,6 +149,10 @@ describe('MCP Integration', () => {
 
         this.facilitator = new Facilitator(this, subscriber)
         this.agents = new Agents()
+      }
+
+      getEnvironmentName() {
+        return 'sandbox'
       }
     }
 

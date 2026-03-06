@@ -191,6 +191,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       agentId,
       httpVerb,
       scheme,
+      environment: this.paymentsService.getEnvironmentName(),
     })
 
     const result = await this.paymentsService.facilitator.verifyPermissions({
@@ -272,6 +273,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       agentId,
       httpVerb: httpContext?.httpMethodRequested,
       scheme,
+      environment: this.paymentsService.getEnvironmentName(),
     })
 
     return await this.paymentsService.facilitator.settlePermissions({

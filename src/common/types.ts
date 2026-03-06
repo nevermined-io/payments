@@ -450,11 +450,37 @@ export type SimulationRequestOptions = {
 export type X402SchemeType = 'nvm:erc4337' | 'nvm:card-delegation'
 
 /**
- * Default network for each x402 scheme.
+ * Default network for each x402 scheme (backward-compat: defaults to Base Sepolia).
  */
 export const X402_SCHEME_NETWORKS: Record<X402SchemeType, string> = {
   'nvm:erc4337': 'eip155:84532',
   'nvm:card-delegation': 'stripe',
+}
+
+/**
+ * Environment-specific network for the erc4337 scheme.
+ */
+const ERC4337_NETWORK_BY_ENV: Record<string, string> = {
+  sandbox: 'eip155:84532',        // Base Sepolia
+  staging_sandbox: 'eip155:84532', // Base Sepolia
+  live: 'eip155:8453',            // Base Mainnet
+  staging_live: 'eip155:8453',    // Base Mainnet
+}
+
+/**
+ * Return the default network for a scheme, accounting for the environment.
+ *
+ * For `nvm:erc4337`, the network depends on the environment:
+ * - sandbox / staging_sandbox → `eip155:84532` (Base Sepolia)
+ * - live / staging_live → `eip155:8453` (Base Mainnet)
+ *
+ * Falls back to `X402_SCHEME_NETWORKS` when no environment is given.
+ */
+export function getDefaultNetwork(scheme: X402SchemeType, environment?: EnvironmentName): string {
+  if (scheme === 'nvm:erc4337' && environment) {
+    return ERC4337_NETWORK_BY_ENV[environment] ?? 'eip155:84532'
+  }
+  return X402_SCHEME_NETWORKS[scheme]
 }
 
 /**
