@@ -416,6 +416,11 @@ jobs:
 
           git add docs/api-reference/typescript docs/api-reference/cli docs/api-reference/openclaw-plugin
 
+          if git diff --cached --quiet; then
+            echo "No documentation changes to publish for v${{ steps.version.outputs.version }}"
+            exit 0
+          fi
+
           git commit -m "$(cat <<'EOF'
           docs: update Payments SDK, CLI and OpenClaw Plugin documentation for v${{ steps.version.outputs.version }}
 
