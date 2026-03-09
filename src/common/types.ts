@@ -492,14 +492,23 @@ export function isValidScheme(s: unknown): s is X402SchemeType {
 
 /**
  * Configuration for card delegation (fiat/Stripe) payments.
+ *
+ * To reuse an existing delegation supply `delegationId`.
+ * To reuse an existing card (PaymentMethod entity) supply `cardId`.
+ * When creating a brand-new delegation provide `providerPaymentMethodId`,
+ * `spendingLimitCents`, and `durationSecs`.
  */
 export interface CardDelegationConfig {
-  /** Stripe payment method ID (e.g., 'pm_...') */
-  providerPaymentMethodId: string
-  /** Maximum spending limit in cents */
-  spendingLimitCents: number
-  /** Duration of the delegation in seconds */
-  durationSecs: number
+  /** PaymentMethod entity UUID — preferred way to reference an enrolled card */
+  cardId?: string
+  /** Existing delegation UUID to reuse instead of creating a new one */
+  delegationId?: string
+  /** Stripe payment method ID (e.g., 'pm_...'). Required only for new delegations. */
+  providerPaymentMethodId?: string
+  /** Maximum spending limit in cents. Required only for new delegations. */
+  spendingLimitCents?: number
+  /** Duration of the delegation in seconds. Required only for new delegations. */
+  durationSecs?: number
   /** Currency code (default: 'usd') */
   currency?: string
   /** Stripe Connect merchant account ID */
