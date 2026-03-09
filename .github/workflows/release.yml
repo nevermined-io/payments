@@ -374,11 +374,19 @@ jobs:
             exit 1
           fi
 
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: nevermined-io
+
       - name: Checkout docs_mintlify repository
         uses: actions/checkout@v4
         with:
           repository: nevermined-io/docs_mintlify
-          token: ${{ secrets.API_TOKEN_GITHUB }}
+          token: ${{ steps.app-token.outputs.token }}
           path: docs_mintlify
 
       - name: Update SDK documentation
@@ -406,7 +414,7 @@ jobs:
       - name: Create documentation PR
         working-directory: docs_mintlify
         env:
-          GH_TOKEN: ${{ secrets.API_TOKEN_GITHUB }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -415,6 +423,11 @@ jobs:
           git checkout -b "$BRANCH_NAME"
 
           git add docs/api-reference/typescript docs/api-reference/cli docs/api-reference/openclaw-plugin
+
+          if git diff --cached --quiet; then
+            echo "No documentation changes to publish for v${{ steps.version.outputs.version }}"
+            exit 0
+          fi
 
           git commit -m "$(cat <<'EOF'
           docs: update Payments SDK, CLI and OpenClaw Plugin documentation for v${{ steps.version.outputs.version }}
