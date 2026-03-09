@@ -237,7 +237,6 @@ export class McpServerManager {
         prompts: Array.from(this.prompts.keys()),
         enableOAuthDiscovery: config.enableOAuthDiscovery ?? true,
         enableClientRegistration: config.enableClientRegistration ?? true,
-        enableHealthCheck: config.enableHealthCheck ?? true,
         enableServerInfo: config.enableServerInfo ?? true,
         version: config.version || '1.0.0',
         description: config.description,
@@ -522,7 +521,6 @@ export class McpServerManager {
 
     this.log(`MCP Server Started!
   MCP Endpoint: ${info.baseUrl}/mcp
-  Health Check: ${info.baseUrl}/health
   Server Info:  ${info.baseUrl}/
   OAuth Discovery: ${info.baseUrl}/.well-known/oauth-authorization-server
   Tools: ${toolsList}
