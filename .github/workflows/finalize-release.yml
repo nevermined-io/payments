@@ -27,11 +27,18 @@ jobs:
     needs: check-pr
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.API_TOKEN_GITHUB }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure Git user
         run: |
