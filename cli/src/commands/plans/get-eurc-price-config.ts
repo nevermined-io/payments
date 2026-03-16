@@ -2,20 +2,20 @@ import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Price helpers
+ * Builds an EURC (Euro stablecoin) price configuration for a plan.
  */
-export default class GetFiatPriceConfig extends BaseCommand {
-  static override description = "Price helpers"
+export default class GetEURCPriceConfig extends BaseCommand {
+  static override description = "Builds an EURC (Euro stablecoin) price configuration for a plan."
 
   static override examples = [
-    '$ nvm plans get-fiat-price-config'
+    '$ nvm plans get-eurc-price-config'
   ]
 
   static override flags = {
     ...BaseCommand.baseFlags,
     'amount': Flags.string({ required: true }),
     'receiver': Flags.string({ required: true }),
-    'currency': Flags.string({ required: false }),
+    'eurc-address': Flags.string({ required: false }),
   }
 
 
@@ -26,7 +26,7 @@ export default class GetFiatPriceConfig extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getFiatPriceConfig(flags['amount'], flags['receiver'], flags['currency'])
+      const result = await payments.plans.getEURCPriceConfig(flags['amount'], flags['receiver'], flags['eurc-address'])
 
       this.formatter.output(result)
     } catch (error) {
