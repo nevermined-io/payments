@@ -30,6 +30,9 @@ jobs:
         working-directory: cli
         run: yarn install --frozen-lockfile --ignore-engines
 
+      - name: Link local SDK into CLI
+        run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
+
       - name: Generate CLI commands
         working-directory: cli
         run: yarn generate || echo "Generation completed"
@@ -122,6 +125,9 @@ jobs:
       - name: Install CLI dependencies
         working-directory: cli
         run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Link local SDK into CLI
+        run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
 
       - name: Update CLI version
         working-directory: cli
