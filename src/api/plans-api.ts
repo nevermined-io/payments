@@ -1,6 +1,8 @@
 import { PaymentsError } from '../common/payments.error.js'
 import {
   Address,
+  Currency,
+  EURC_TOKEN_ADDRESS,
   NvmAPIResult,
   PaginationOptions,
   PaymentOptions,
@@ -45,10 +47,15 @@ export class PlansAPI extends BasePaymentsAPI {
    *
    * @param amount - Amount to charge in minor units (e.g., cents) as bigint.
    * @param receiver - Wallet address that will receive the payment.
+   * @param currency - Fiat currency code (default: 'USD'). Supports 'USD' and 'EUR'.
    * @returns The PlanPriceConfig representing a fiat price.
    */
-  public getFiatPriceConfig(amount: bigint, receiver: Address): PlanPriceConfig {
-    return Plans.getFiatPriceConfig(amount, receiver)
+  public getFiatPriceConfig(
+    amount: bigint,
+    receiver: Address,
+    currency: Currency | string = Currency.USD,
+  ): PlanPriceConfig {
+    return Plans.getFiatPriceConfig(amount, receiver, currency)
   }
 
   /**
@@ -100,6 +107,22 @@ export class PlansAPI extends BasePaymentsAPI {
     receiver: Address,
   ): PlanPriceConfig {
     return Plans.getERC20PriceConfig(amount, tokenAddress, receiver)
+  }
+
+  /**
+   * Builds an EURC (Euro stablecoin) price configuration for a plan.
+   *
+   * @param amount - Amount to charge in EURC minor units (6 decimals) as bigint.
+   * @param receiver - Wallet address that will receive the payment.
+   * @param eurcAddress - Optional EURC token address. Defaults to Base Mainnet EURC.
+   * @returns The PlanPriceConfig representing an EURC price.
+   */
+  public getEURCPriceConfig(
+    amount: bigint,
+    receiver: Address,
+    eurcAddress: Address = EURC_TOKEN_ADDRESS,
+  ): PlanPriceConfig {
+    return Plans.getEURCPriceConfig(amount, receiver, eurcAddress)
   }
 
   /**
@@ -258,6 +281,7 @@ export class PlansAPI extends BasePaymentsAPI {
       nonce,
       isTrialPlan: planMetadata.isTrialPlan || false,
       accessLimit,
+      ...(priceConfig.currency && { currency: priceConfig.currency }),
     }
     const options = this.getBackendHTTPOptions('POST', body)
     const url = new URL(API_URL_REGISTER_PLAN, this.environment.backend)

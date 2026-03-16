@@ -15,6 +15,7 @@ export default class GetFiatPriceConfig extends BaseCommand {
     ...BaseCommand.baseFlags,
     'amount': Flags.string({ required: true }),
     'receiver': Flags.string({ required: true }),
+    'currency': Flags.string({ description: 'Currency code (USD, EUR)', default: 'USD' }),
   }
 
 
@@ -25,7 +26,7 @@ export default class GetFiatPriceConfig extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getFiatPriceConfig(flags['amount'], flags['receiver'])
+      const result = await payments.plans.getFiatPriceConfig(flags['amount'], flags['receiver'], flags['currency'])
 
       this.formatter.output(result)
     } catch (error) {
