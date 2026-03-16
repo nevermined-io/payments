@@ -68,22 +68,50 @@ const priceConfig = payments.plans.getCryptoPriceConfig(
 
 ```typescript
 // ERC20 token pricing (USDC, DAI, etc.)
-const ERC20_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // USDC on Base
+const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // USDC on Base Sepolia
 
 const priceConfig = payments.plans.getERC20PriceConfig(
   20n,            // Amount in token's smallest unit
-  ERC20_ADDRESS,  // Token contract address
+  USDC_ADDRESS,   // Token contract address
   builderAddress  // Receiver address
+)
+```
+
+### EURC Token Payment (Euro Stablecoin)
+
+```typescript
+// EURC pricing (Euro stablecoin on Base, 6 decimals)
+const eurcPriceConfig = payments.plans.getEURCPriceConfig(
+  29_000_000n,    // €29.00 in smallest unit (6 decimals)
+  builderAddress  // Receiver address
+)
+
+// Or use a custom EURC address (e.g., testnet)
+import { EURC_TOKEN_ADDRESS_TESTNET } from '@nevermined-io/payments'
+
+const testnetEurcConfig = payments.plans.getEURCPriceConfig(
+  29_000_000n,
+  builderAddress,
+  EURC_TOKEN_ADDRESS_TESTNET
 )
 ```
 
 ### Fiat Payment (Stripe)
 
 ```typescript
-// Fiat pricing (USD via Stripe)
+// Fiat pricing in USD (default)
 const priceConfig = payments.plans.getFiatPriceConfig(
   1000n,          // Amount in cents ($10.00)
   builderAddress
+)
+
+// Fiat pricing in EUR
+import { Currency } from '@nevermined-io/payments'
+
+const eurPriceConfig = payments.plans.getFiatPriceConfig(
+  2900n,          // Amount in euro cents (€29.00)
+  builderAddress,
+  Currency.EUR
 )
 ```
 

@@ -1,4 +1,11 @@
-import { Address, PlanCreditsConfig, PlanPriceConfig, PlanRedemptionType } from './common/types.js'
+import {
+  Address,
+  Currency,
+  EURC_TOKEN_ADDRESS,
+  PlanCreditsConfig,
+  PlanPriceConfig,
+  PlanRedemptionType,
+} from './common/types.js'
 import { ZeroAddress } from './environments.js'
 import { isEthereumAddress } from './utils.js'
 
@@ -7,7 +14,11 @@ export const ONE_WEEK_DURATION = 604_800n // 7 * 24 * 60 * 60 seconds
 export const ONE_MONTH_DURATION = 2_629_746n // (365.25 days/year ÷ 12 months/year) × 24 × 60 × 60 ≈ 2,629,746 seconds
 export const ONE_YEAR_DURATION = 31_557_600n // 365.25 * 24 * 60 * 60 seconds
 
-export const getFiatPriceConfig = (amount: bigint, receiver: Address): PlanPriceConfig => {
+export const getFiatPriceConfig = (
+  amount: bigint,
+  receiver: Address,
+  currency: Currency | string = Currency.USD,
+): PlanPriceConfig => {
   if (!isEthereumAddress(receiver))
     throw new Error(`Receiver address ${receiver} is not a valid Ethereum address`)
   return {
@@ -19,6 +30,7 @@ export const getFiatPriceConfig = (amount: bigint, receiver: Address): PlanPrice
     externalPriceAddress: ZeroAddress,
     templateAddress: ZeroAddress,
     isCrypto: false,
+    currency,
   }
 }
 
@@ -47,6 +59,27 @@ export const getERC20PriceConfig = (
   receiver: Address,
 ): PlanPriceConfig => {
   return getCryptoPriceConfig(amount, receiver, tokenAddress)
+}
+
+/**
+ * Builds a price configuration for EURC (Euro stablecoin) payments.
+ *
+ * EURC uses 6 decimal places. To charge €29.00, pass `29_000_000n`.
+ *
+ * @param amount - Amount in the token's smallest unit (6 decimals for EURC).
+ * @param receiver - Wallet address that will receive the payment.
+ * @param eurcAddress - Optional EURC token address. Defaults to Base Mainnet EURC.
+ * @returns The PlanPriceConfig representing an EURC price.
+ */
+export const getEURCPriceConfig = (
+  amount: bigint,
+  receiver: Address,
+  eurcAddress: Address = EURC_TOKEN_ADDRESS,
+): PlanPriceConfig => {
+  return {
+    ...getERC20PriceConfig(amount, eurcAddress, receiver),
+    currency: Currency.EURC,
+  }
 }
 
 export const getFreePriceConfig = (): PlanPriceConfig => {

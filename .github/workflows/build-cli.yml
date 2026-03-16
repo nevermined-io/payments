@@ -33,6 +33,9 @@ jobs:
         working-directory: cli
         run: yarn install --frozen-lockfile
 
+      - name: Link local SDK into CLI
+        run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
+
       - name: Build CLI
         working-directory: cli
         run: yarn build

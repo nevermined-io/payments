@@ -95,6 +95,11 @@ export interface PlanPriceConfig {
    * Whether this is a crypto payment (true) or fiat payment (false)
    */
   isCrypto: boolean
+  /**
+   * Optional currency for the plan (e.g., 'USD', 'EUR', 'USDC', 'EURC').
+   * When omitted, the backend determines the default based on the payment type.
+   */
+  currency?: Currency | string
 }
 
 /**
@@ -148,6 +153,23 @@ export enum PlanPriceType {
   FIXED_FIAT_PRICE,
   SMART_CONTRACT_PRICE,
 }
+
+/**
+ * Supported currencies for payment plans.
+ * - Fiat: USD, EUR (processed via Stripe)
+ * - Crypto: USDC, EURC (ERC20 stablecoins on Base)
+ */
+export enum Currency {
+  USD = 'USD',
+  EUR = 'EUR',
+  USDC = 'USDC',
+  EURC = 'EURC',
+}
+
+/** EURC token address on Base Mainnet (chain 8453) */
+export const EURC_TOKEN_ADDRESS: Address = '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42'
+/** EURC token address on Base Sepolia testnet (chain 84532) */
+export const EURC_TOKEN_ADDRESS_TESTNET: Address = '0x808456652fdb597867f38412077A9182bf77359F'
 
 /**
  * Different types of credits that can be obtained when purchasing a plan
@@ -461,10 +483,10 @@ export const X402_SCHEME_NETWORKS: Record<X402SchemeType, string> = {
  * Environment-specific network for the erc4337 scheme.
  */
 const ERC4337_NETWORK_BY_ENV: Record<string, string> = {
-  sandbox: 'eip155:84532',        // Base Sepolia
+  sandbox: 'eip155:84532', // Base Sepolia
   staging_sandbox: 'eip155:84532', // Base Sepolia
-  live: 'eip155:8453',            // Base Mainnet
-  staging_live: 'eip155:8453',    // Base Mainnet
+  live: 'eip155:8453', // Base Mainnet
+  staging_live: 'eip155:8453', // Base Mainnet
 }
 
 /**
