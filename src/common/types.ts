@@ -97,7 +97,7 @@ export interface PlanPriceConfig {
   isCrypto: boolean
   /**
    * Optional currency for the plan (e.g., 'USD', 'EUR', 'USDC', 'EURC').
-   * Defaults to USD for fiat and USDC for crypto when not specified.
+   * When omitted, the backend determines the default based on the payment type.
    */
   currency?: Currency | string
 }

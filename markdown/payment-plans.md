@@ -80,9 +80,9 @@ const priceConfig = payments.plans.getERC20PriceConfig(
 ### EURC Token Payment (Euro Stablecoin)
 
 ```typescript
-// EURC pricing (Euro stablecoin on Base)
+// EURC pricing (Euro stablecoin on Base, 6 decimals)
 const eurcPriceConfig = payments.plans.getEURCPriceConfig(
-  2900n,          // Amount in EURC minor units (€29.00, 6 decimals)
+  29_000_000n,    // €29.00 in smallest unit (6 decimals)
   builderAddress  // Receiver address
 )
 
@@ -90,7 +90,7 @@ const eurcPriceConfig = payments.plans.getEURCPriceConfig(
 import { EURC_TOKEN_ADDRESS_TESTNET } from '@nevermined-io/payments'
 
 const testnetEurcConfig = payments.plans.getEURCPriceConfig(
-  2900n,
+  29_000_000n,
   builderAddress,
   EURC_TOKEN_ADDRESS_TESTNET
 )

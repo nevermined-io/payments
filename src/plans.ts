@@ -64,7 +64,9 @@ export const getERC20PriceConfig = (
 /**
  * Builds a price configuration for EURC (Euro stablecoin) payments.
  *
- * @param amount - Amount to charge in EURC minor units (6 decimals) as bigint.
+ * EURC uses 6 decimal places. To charge €29.00, pass `29_000_000n`.
+ *
+ * @param amount - Amount in the token's smallest unit (6 decimals for EURC).
  * @param receiver - Wallet address that will receive the payment.
  * @param eurcAddress - Optional EURC token address. Defaults to Base Mainnet EURC.
  * @returns The PlanPriceConfig representing an EURC price.

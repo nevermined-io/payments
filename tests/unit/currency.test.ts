@@ -4,11 +4,7 @@ import {
   EURC_TOKEN_ADDRESS_TESTNET,
   Address,
 } from '../../src/common/types.js'
-import {
-  getFiatPriceConfig,
-  getEURCPriceConfig,
-  getERC20PriceConfig,
-} from '../../src/plans.js'
+import { getFiatPriceConfig, getEURCPriceConfig, getERC20PriceConfig } from '../../src/plans.js'
 import { ZeroAddress } from '../../src/environments.js'
 
 const receiver: Address = '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d'
@@ -31,7 +27,7 @@ describe('Currency support', () => {
       expect(config.amounts).toEqual([2900n])
     })
 
-    test('accepts a string currency code', () => {
+    test('accepts any ISO 4217 currency code as string', () => {
       const config = getFiatPriceConfig(500n, receiver, 'GBP')
       expect(config.currency).toBe('GBP')
     })
@@ -39,16 +35,16 @@ describe('Currency support', () => {
 
   describe('getEURCPriceConfig', () => {
     test('returns correct EURC config with default mainnet address', () => {
-      const config = getEURCPriceConfig(2900n, receiver)
+      const config = getEURCPriceConfig(29_000_000n, receiver) // €29.00 (6 decimals)
       expect(config.isCrypto).toBe(true)
       expect(config.currency).toBe(Currency.EURC)
       expect(config.tokenAddress).toBe(EURC_TOKEN_ADDRESS)
-      expect(config.amounts).toEqual([2900n])
+      expect(config.amounts).toEqual([29_000_000n])
       expect(config.receivers).toEqual([receiver])
     })
 
     test('accepts custom EURC address (testnet)', () => {
-      const config = getEURCPriceConfig(100n, receiver, EURC_TOKEN_ADDRESS_TESTNET)
+      const config = getEURCPriceConfig(1_000_000n, receiver, EURC_TOKEN_ADDRESS_TESTNET) // €1.00
       expect(config.tokenAddress).toBe(EURC_TOKEN_ADDRESS_TESTNET)
       expect(config.currency).toBe(Currency.EURC)
     })

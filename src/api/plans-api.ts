@@ -47,7 +47,7 @@ export class PlansAPI extends BasePaymentsAPI {
    *
    * @param amount - Amount to charge in minor units (e.g., cents) as bigint.
    * @param receiver - Wallet address that will receive the payment.
-   * @param currency - Fiat currency code (default: 'USD'). Supports 'USD' and 'EUR'.
+   * @param currency - Fiat currency code (default: 'USD'). Any ISO 4217 code accepted by Stripe.
    * @returns The PlanPriceConfig representing a fiat price.
    */
   public getFiatPriceConfig(
