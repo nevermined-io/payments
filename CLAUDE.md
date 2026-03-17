@@ -187,6 +187,24 @@ E2E tests run directly against the **staging environment**. When making changes:
 2. If E2E tests fail after backend API changes (in `nvm-monorepo`), the staging environment may need to be redeployed with those changes before the SDK E2E tests will pass
 3. E2E test failures due to pending backend deployments are expected - coordinate with the team to deploy backend changes to staging first
 
+## In-Tree Consumers: OpenClaw Plugin and CLI
+
+This repo contains two in-tree consumers of the SDK that import directly from `src/`:
+
+- **`openclaw/`** — OpenClaw plugin for LLM tool-use (tools, auto-pay, MCP bridge). CI: `.github/workflows/openclaw-sync-and-test.yml`
+- **`cli/`** — CLI tool (`nvm` command). CI: `.github/workflows/cli-sync-and-test.yml`
+
+**CRITICAL:** When changing public SDK interfaces (function signatures, types, options), you MUST also update `openclaw/` and `cli/` source files, tests, and mocks. The openclaw and CLI CI workflows build and test independently — they will fail if call sites don't match the new signatures.
+
+Key files to check:
+- `openclaw/src/tools.ts` — `getX402AccessToken()` calls, `buildTokenOptions()`
+- `openclaw/src/index.ts` — auto-pay flow, `getX402AccessToken()` calls
+- `openclaw/tests/plugin.test.ts` — mock assertions for `getX402AccessToken`
+- `cli/src/commands/x402token/get-x402-access-token.ts` — CLI command flags and call
+- `cli/test/helpers/mock-payments.ts` — mock `getX402AccessToken` signature
+
+Note: The openclaw CI installs the SDK from **published npm**, not from local `src/`. So openclaw CI will fail until the SDK is published with the new signatures — this is expected.
+
 ## Running Agents
 
 See [RUN.md](./RUN.md) for complete examples:

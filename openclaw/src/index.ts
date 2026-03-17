@@ -219,11 +219,12 @@ const neverminedPlugin = {
                     cachedPaymentMethods = []
                   }
                 }
-                if (cachedPaymentMethods.length === 0) continue // no cards enrolled, skip fiat plan
+                const card = cachedPaymentMethods.find((m) => m.type === 'card')
+                if (!card) continue // no cards enrolled, skip fiat plan
                 tokenOptions = {
                   scheme: 'nvm:card-delegation',
                   delegationConfig: {
-                    providerPaymentMethodId: cachedPaymentMethods[0].id,
+                    providerPaymentMethodId: card.id,
                     spendingLimitCents: config.defaultSpendingLimitCents ?? 1000,
                     durationSecs: config.defaultDelegationDurationSecs ?? 3600,
                   },
