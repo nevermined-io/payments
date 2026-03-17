@@ -18,7 +18,7 @@ export type {
   SettlePermissionsResult,
 } from './facilitator-api.js'
 
-// Card delegation exports
+// Delegation exports
 export { DelegationAPI } from './delegation-api.js'
 export type {
   PaymentMethodSummary,
@@ -29,8 +29,15 @@ export type {
   ListOptions,
 } from './delegation-api.js'
 
-// Scheme types
-export type { X402SchemeType, CardDelegationConfig, X402TokenOptions } from '../common/types.js'
+// Scheme and delegation types
+export type {
+  X402SchemeType,
+  DelegationConfig,
+  CardDelegationConfig,
+  CreateDelegationPayload,
+  CreateDelegationResponse,
+  X402TokenOptions,
+} from '../common/types.js'
 export { X402_SCHEME_NETWORKS, getDefaultNetwork, isValidScheme } from '../common/types.js'
 
 // Visa x402 exports

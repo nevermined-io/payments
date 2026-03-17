@@ -1,7 +1,7 @@
 import { Payments } from '../index.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { resolveScheme } from '../x402/facilitator-api.js'
-import type { X402TokenOptions, CardDelegationConfig } from '../common/types.js'
+import type { X402TokenOptions, DelegationConfig } from '../common/types.js'
 import {
   MessageSendParams,
   SendMessageResponse,
@@ -26,7 +26,7 @@ export class PaymentsClient extends A2AClient {
   public payments: Payments
   private readonly agentId: string
   private readonly planId: string
-  private readonly delegationConfig?: CardDelegationConfig
+  private readonly delegationConfig?: DelegationConfig
   private accessToken: string | null
 
   /**
@@ -42,7 +42,7 @@ export class PaymentsClient extends A2AClient {
     payments: Payments,
     agentId: string,
     planId: string,
-    delegationConfig?: CardDelegationConfig,
+    delegationConfig?: DelegationConfig,
   ) {
     super(agentCard)
     this.payments = payments
@@ -62,7 +62,7 @@ export class PaymentsClient extends A2AClient {
     agentId: string,
     planId: string,
     agentCardPath = '.well-known/agent.json',
-    delegationConfig?: CardDelegationConfig,
+    delegationConfig?: DelegationConfig,
   ): Promise<PaymentsClient> {
     const agentCardUrl = new URL(agentCardPath, agentBaseUrl).toString()
     const a2a = await A2AClient.fromCardUrl(agentCardUrl)
@@ -84,16 +84,15 @@ export class PaymentsClient extends A2AClient {
         'Card delegation scheme requires delegationConfig. Pass it to PaymentsClient.create().',
       )
     }
-    const tokenOptions: X402TokenOptions | undefined =
-      scheme !== 'nvm:erc4337'
-        ? { scheme, delegationConfig: this.delegationConfig }
-        : undefined
+    let tokenOptions: X402TokenOptions | undefined
+    if (scheme !== 'nvm:erc4337') {
+      tokenOptions = { scheme, delegationConfig: this.delegationConfig }
+    } else if (this.delegationConfig) {
+      tokenOptions = { delegationConfig: this.delegationConfig }
+    }
     const accessParams = await this.payments.x402.getX402AccessToken(
       this.planId,
       this.agentId,
-      undefined,
-      undefined,
-      undefined,
       tokenOptions,
     )
     this.accessToken = accessParams.accessToken

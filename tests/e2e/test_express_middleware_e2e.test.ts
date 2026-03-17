@@ -203,11 +203,33 @@ describe('Express Payment Middleware E2E', () => {
     expect(body.error).toBe('Payment Required')
   })
 
-  test('should generate x402 access token', async () => {
+  test('should generate x402 access token with delegation', async () => {
     expect(planId).not.toBeNull()
 
+    // Create delegation first
+    const delegation = await retryWithBackoff(
+      () =>
+        paymentsSubscriber.delegation.createDelegation({
+          provider: 'erc4337',
+          spendingLimitCents: 100000,
+          durationSecs: 604800,
+        }),
+      {
+        label: 'Delegation Creation',
+        attempts: 3,
+      },
+    )
+
+    expect(delegation).toBeDefined()
+    expect(delegation.delegationId).toBeDefined()
+    console.log(`Created delegation: ${delegation.delegationId}`)
+
+    // Then generate token with delegationId
     const response = await retryWithBackoff(
-      () => paymentsSubscriber.x402.getX402AccessToken(planId, agentId),
+      () =>
+        paymentsSubscriber.x402.getX402AccessToken(planId, agentId, {
+          delegationConfig: { delegationId: delegation.delegationId },
+        }),
       {
         label: 'X402 Access Token Generation',
         attempts: 3,
