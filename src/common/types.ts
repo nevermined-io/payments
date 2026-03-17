@@ -541,9 +541,6 @@ export interface DelegationConfig {
   apiKeyId?: string
 }
 
-/** Backward-compatible alias for DelegationConfig */
-export type CardDelegationConfig = DelegationConfig
-
 /**
  * Payload for creating a new delegation via POST /api/v1/delegation/create.
  */

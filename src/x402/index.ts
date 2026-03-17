@@ -33,7 +33,6 @@ export type {
 export type {
   X402SchemeType,
   DelegationConfig,
-  CardDelegationConfig,
   CreateDelegationPayload,
   CreateDelegationResponse,
   X402TokenOptions,
