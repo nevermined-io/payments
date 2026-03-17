@@ -44,17 +44,25 @@ jobs:
 
       - name: Update files
         run: |
-          # Update version in package.json without creating a tag
-          npm version ${{ steps.info.outputs.version }} --no-git-tag-version
+          VERSION="${{ steps.info.outputs.version }}"
+
+          # Update version in root package.json without creating a tag
+          npm version "$VERSION" --no-git-tag-version
+
+          # Update @nevermined-io/payments dependency version in CLI and OpenClaw
+          # so published packages reference the exact SDK version they were built with
+          cd cli && npm pkg set "dependencies.@nevermined-io/payments=$VERSION" && cd ..
+          cd openclaw && npm pkg set "devDependencies.@nevermined-io/payments=$VERSION" && npm pkg set "peerDependencies.@nevermined-io/payments=>= $VERSION" && cd ..
+
           yarn install
           yarn run doc
-          npx auto-changelog --latest-version "v${{ steps.info.outputs.version }}"
+          npx auto-changelog --latest-version "v$VERSION"
 
       - name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json CHANGELOG.md docs/
+          git add package.json cli/package.json openclaw/package.json CHANGELOG.md docs/
           git commit -m "chore: release v${{ steps.info.outputs.version }}"
           git push -u origin ${{ steps.info.outputs.branch }}
 
