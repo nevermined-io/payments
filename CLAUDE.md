@@ -112,7 +112,8 @@ You MUST:
 1. Run `yarn build` to verify TypeScript compilation
 2. Run `yarn test:unit` to verify unit tests pass
 3. If modifying E2E-related code, run `yarn test:e2e`
-4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. These are manually maintained guides — not auto-generated. Validate with `./scripts/generate-docs.sh`
+4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. Validate with `./scripts/generate-docs.sh`. On merge to main, the `update-docs.yml` workflow runs `generate-docs.sh` and auto-creates a PR with any changes. On tag push, `publish-docs.yml` publishes to docs_mintlify. However, `generate-docs.sh` only validates structure — it does NOT auto-update code examples, so those must be updated manually.
+5. When modifying `openclaw/` or `cli/` source files, check that they use the same function signatures as the core SDK (`src/`). The openclaw plugin and CLI are in-tree consumers that can silently break if signatures change.
 
 ### Updating Mock Tokens in Tests
 
