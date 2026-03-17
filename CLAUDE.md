@@ -203,7 +203,7 @@ Key files to check:
 - `cli/src/commands/x402token/get-x402-access-token.ts` — CLI command flags and call
 - `cli/test/helpers/mock-payments.ts` — mock `getX402AccessToken` signature
 
-Note: The openclaw CI installs the SDK from **published npm**, not from local `src/`. So openclaw CI will fail until the SDK is published with the new signatures — this is expected.
+Both CI workflows build the root SDK first, then symlink it into the consumer's `node_modules/` so they compile against the local source (not the published npm package).
 
 ## Running Agents
 
