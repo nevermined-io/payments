@@ -259,6 +259,29 @@ describe('X402 Delegation Flow', () => {
     console.log('Successfully reused delegation for another token generation')
   })
 
+  test('should generate X402 access token with auto-created delegation (Pattern A)', async () => {
+    expect(planId).not.toBeNull()
+
+    const response = await retryWithBackoff(
+      () =>
+        paymentsSubscriber.x402.getX402AccessToken(planId, agentId, {
+          delegationConfig: {
+            spendingLimitCents: 50000,
+            durationSecs: 3600,
+          },
+        }),
+      {
+        label: 'X402 Access Token Auto-Delegation',
+        attempts: 3,
+      },
+    )
+
+    expect(response).toBeDefined()
+    expect(response.accessToken).not.toBeNull()
+    expect(response.accessToken.length).toBeGreaterThan(0)
+    console.log('Successfully generated token with auto-created delegation')
+  })
+
   test('should settle the remaining credits in smaller amounts', async () => {
     expect(planId).not.toBeNull()
     expect(x402AccessToken).not.toBeNull()
