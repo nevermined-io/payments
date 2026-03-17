@@ -42,7 +42,7 @@ function createMockPayments() {
     },
     delegation: {
       listPaymentMethods: jest.fn<() => Promise<unknown>>().mockResolvedValue([
-        { id: 'pm_test_1', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2027 },
+        { id: 'pm_test_1', type: 'card', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2027 },
       ]),
     },
   } as unknown as Payments
@@ -445,7 +445,7 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       expect(mockPayments.delegation.listPaymentMethods).toHaveBeenCalled()
       expect(result).toEqual([
-        { id: 'pm_test_1', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2027 },
+        { id: 'pm_test_1', type: 'card', brand: 'visa', last4: '4242', expMonth: 12, expYear: 2027 },
       ])
     })
 
