@@ -412,7 +412,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       const result = parseResult(await tool.execute('call-1', {}))
 
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
-        'plan-default', 'agent-default', undefined, undefined, undefined, undefined,
+        'plan-default', 'agent-default', undefined,
       )
       expect(result).toEqual({ accessToken: 'tok_test_123' })
     })
@@ -461,7 +461,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       }))
 
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
-        'plan-default', 'agent-default', undefined, undefined, undefined,
+        'plan-default', 'agent-default',
         {
           scheme: 'nvm:card-delegation',
           delegationConfig: {
@@ -482,7 +482,7 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       expect(mockPayments.delegation.listPaymentMethods).toHaveBeenCalled()
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
-        'plan-default', 'agent-default', undefined, undefined, undefined,
+        'plan-default', 'agent-default',
         {
           scheme: 'nvm:card-delegation',
           delegationConfig: {
@@ -533,7 +533,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       }))
 
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
-        'plan-default', 'agent-default', undefined, undefined, undefined, undefined,
+        'plan-default', 'agent-default', undefined,
       )
 
       const fetchCall = mockFetch.mock.calls[0]
@@ -599,7 +599,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       }))
 
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
-        'plan-default', 'agent-default', undefined, undefined, undefined,
+        'plan-default', 'agent-default',
         {
           scheme: 'nvm:card-delegation',
           delegationConfig: {

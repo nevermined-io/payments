@@ -77,9 +77,6 @@ export default class GetX402AccessToken extends BaseCommand {
       const result = await payments.x402.getX402AccessToken(
         args.plan,
         flags['agent-id'],
-        flags['redemption-limit'],
-        flags['order-limit'],
-        flags['expiration'],
         tokenOptions,
       )
 

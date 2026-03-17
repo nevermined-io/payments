@@ -82,7 +82,7 @@ export function createTools(
         const agentId = str(params, 'agentId') ?? config.agentId
 
         const tokenOptions = await buildTokenOptions(getPayments, params, config)
-        const token = await getPayments().x402.getX402AccessToken(planId, agentId, undefined, undefined, undefined, tokenOptions)
+        const token = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
         return result({ accessToken: token.accessToken })
       },
     },
@@ -169,7 +169,7 @@ export function createTools(
         const method = str(params, 'method') ?? 'POST'
 
         const tokenOptions = await buildTokenOptions(getPayments, params, config)
-        const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId, undefined, undefined, undefined, tokenOptions)
+        const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
 
         const response = await fetch(agentUrl, {
           method,

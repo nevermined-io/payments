@@ -231,7 +231,7 @@ const neverminedPlugin = {
               }
 
               const { accessToken } = await p.x402.getX402AccessToken(
-                plan.planId, config.agentId, undefined, undefined, undefined, tokenOptions,
+                plan.planId, config.agentId, tokenOptions,
               )
 
               const paymentRequired = buildPaymentRequired(plan.planId, {
