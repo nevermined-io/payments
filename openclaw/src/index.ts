@@ -3,7 +3,7 @@ import { createTools } from './tools.js'
 import { startLoginFlow, looksLikeApiKey, getLoginUrl, getApiKeyUrl } from './auth.js'
 import { registerPaidEndpoint } from './paid-endpoint.js'
 import { Payments, buildPaymentRequired } from '@nevermined-io/payments'
-import type { EnvironmentName, X402PaymentRequired, X402TokenOptions } from '@nevermined-io/payments'
+import type { EnvironmentName, PaymentMethodSummary, X402PaymentRequired, X402TokenOptions } from '@nevermined-io/payments'
 import type { NeverminedPluginConfig, PlanEntry } from './config.js'
 import type { AgentHandler } from './paid-endpoint.js'
 
@@ -204,7 +204,7 @@ const neverminedPlugin = {
           const p = getPayments()
 
           // Cache payment methods for fiat plans (fetched once per hook call)
-          let cachedPaymentMethods: { id: string }[] | null = null
+          let cachedPaymentMethods: PaymentMethodSummary[] | null = null
 
           // Try each plan until one verifies successfully
           for (const plan of plans) {
