@@ -501,7 +501,7 @@ describe('OpenClaw Nevermined Plugin', () => {
         .mockResolvedValueOnce([])
 
       const tool = tools.get('nevermined_getAccessToken')!
-      await expect(tool.execute('call-1', { paymentType: 'fiat' })).rejects.toThrow('No enrolled payment methods')
+      await expect(tool.execute('call-1', { paymentType: 'fiat' })).rejects.toThrow('No enrolled card found')
     })
   })
 
