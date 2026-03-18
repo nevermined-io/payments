@@ -577,9 +577,15 @@ describe('Payments E2E Tests', () => {
         expect(creditsPlanId).not.toBeNull()
         expect(agentId).not.toBeNull()
 
+        const delegation = await paymentsSubscriber.delegation.createDelegation({
+          provider: 'erc4337',
+          spendingLimitCents: 100000,
+          durationSecs: 604800,
+        })
         agentAccessParams = await paymentsSubscriber.x402.getX402AccessToken(
           creditsPlanId!,
           agentId!,
+          { delegationConfig: { delegationId: delegation.delegationId } },
         )
         expect(agentAccessParams).toBeDefined()
         console.log('Agent Access Params', agentAccessParams)

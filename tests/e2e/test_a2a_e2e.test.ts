@@ -216,6 +216,7 @@ describe('A2A E2E Flow', () => {
   let paymentsPublisher: Payments
   let paymentsSubscriber: Payments
   let accessToken: string | undefined
+  let delegationId: string | undefined
   let AGENT_ID: string
   let PLAN_ID: string
 
@@ -301,9 +302,17 @@ describe('A2A E2E Flow', () => {
 
   test('should get agent access token', async () => {
     try {
+      const delegation = await paymentsSubscriber.delegation.createDelegation({
+        provider: 'erc4337',
+        spendingLimitCents: 100000,
+        durationSecs: 604800,
+      })
+      delegationId = delegation.delegationId
+
       const agentAccessParams = await paymentsSubscriber.x402.getX402AccessToken(
         PLAN_ID,
         AGENT_ID,
+        { delegationConfig: { delegationId } },
       )
       expect(agentAccessParams).toBeDefined()
       expect(agentAccessParams.accessToken?.length).toBeGreaterThan(0)
@@ -323,6 +332,7 @@ describe('A2A E2E Flow', () => {
       const agentAccessParams = await paymentsSubscriber.x402.getX402AccessToken(
         PLAN_ID,
         AGENT_ID,
+        { delegationConfig: { delegationId: delegationId! } },
       )
       accessToken = agentAccessParams.accessToken
     }

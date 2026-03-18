@@ -277,11 +277,19 @@ describe('A2A Client E2E Tests', () => {
     a2aServer = new A2ATestServer(PORT)
     const serverUrl = await a2aServer.start(paymentsPublisher, paymentAgentCard, executor)
 
-    // Get client
+    // Create delegation for erc4337 token generation
+    const delegation = await paymentsSubscriber.delegation.createDelegation({
+      provider: 'erc4337',
+      spendingLimitCents: 100000,
+      durationSecs: 604800,
+    })
+
+    // Get client with delegation config
     const client = await paymentsSubscriber.a2a.getClient({
       agentBaseUrl: serverUrl,
       agentId: AGENT_ID,
       planId: PLAN_ID,
+      delegationConfig: { delegationId: delegation.delegationId },
     })
 
     // Start streaming but stop early to simulate disconnect
