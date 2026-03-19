@@ -49,10 +49,10 @@ jobs:
           # Update version in root package.json without creating a tag
           npm version "$VERSION" --no-git-tag-version
 
-          # Update @nevermined-io/payments dependency version in CLI and OpenClaw
-          # so published packages reference the exact SDK version they were built with
-          cd cli && npm pkg set "dependencies.@nevermined-io/payments=$VERSION" && cd ..
-          cd openclaw && npm pkg set "devDependencies.@nevermined-io/payments=$VERSION" && npm pkg set "peerDependencies.@nevermined-io/payments=>= $VERSION" && cd ..
+          # Note: CLI and OpenClaw dependency versions are NOT updated here.
+          # They use semver ranges (e.g., ^1.1.0) that resolve at install time.
+          # The release.yml workflow updates their versions at publish time,
+          # after the SDK is already published to npm.
 
           yarn install
           yarn run doc
@@ -62,7 +62,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json cli/package.json openclaw/package.json CHANGELOG.md docs/
+          git add package.json CHANGELOG.md docs/
           git commit -m "chore: release v${{ steps.info.outputs.version }}"
           git push -u origin ${{ steps.info.outputs.branch }}
 

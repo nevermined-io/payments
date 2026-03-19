@@ -171,9 +171,9 @@ Additionally, `openclaw-sync-and-test.yml` and `cli-sync-and-test.yml` run on PR
 
 ### Release Flow
 
-1. **`prepare-release.yml`** (manual dispatch) — bumps version in root `package.json`, `cli/package.json`, `openclaw/package.json` (including their `@nevermined-io/payments` dependency), generates changelog, opens PR to main
+1. **`prepare-release.yml`** (manual dispatch) — bumps version in root `package.json` only, generates changelog, opens PR to main. Does NOT update CLI/OpenClaw dependency versions (they use semver ranges that resolve at install time).
 2. **`finalize-release.yml`** (auto on `release/*` PR merge) — creates and pushes git tag
-3. **`release.yml`** (auto on tag push) — publishes in order: SDK → CLI + OpenClaw (parallel) → GitHub Release → docs. CLI and OpenClaw versions are bumped to match the tag. All three use local SDK symlinks during build.
+3. **`release.yml`** (auto on tag push) — publishes in order: SDK → CLI + OpenClaw (parallel) → GitHub Release → docs. CLI and OpenClaw versions and their `@nevermined-io/payments` dependency are bumped to match the tag at publish time (after the SDK is already on npm). All three use local SDK symlinks during build.
 
 **Required secrets:**
 - `TEST_SUBSCRIBER_API_KEY` - API key for subscriber account
