@@ -546,7 +546,7 @@ export interface DelegationConfig {
  */
 export interface CreateDelegationPayload {
   /** Delegation provider: 'stripe' for card, 'erc4337' for crypto */
-  provider?: 'stripe' | 'erc4337'
+  provider: 'stripe' | 'erc4337'
   /** Stripe payment method ID (e.g., 'pm_...'). Required for stripe provider. */
   providerPaymentMethodId?: string
   /** Maximum spending limit in cents */

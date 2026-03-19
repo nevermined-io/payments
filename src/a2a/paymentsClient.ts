@@ -79,15 +79,15 @@ export class PaymentsClient extends A2AClient {
       return this.accessToken
     }
     const scheme = await resolveScheme(this.payments, this.planId)
-    if (scheme === 'nvm:card-delegation' && !this.delegationConfig) {
+    if (!this.delegationConfig) {
       throw PaymentsError.internal(
-        'Card delegation scheme requires delegationConfig. Pass it to PaymentsClient.create().',
+        `${scheme} scheme requires delegationConfig. Pass it to PaymentsClient.create().`,
       )
     }
     let tokenOptions: X402TokenOptions | undefined
     if (scheme !== 'nvm:erc4337') {
       tokenOptions = { scheme, delegationConfig: this.delegationConfig }
-    } else if (this.delegationConfig) {
+    } else {
       tokenOptions = { delegationConfig: this.delegationConfig }
     }
     const accessParams = await this.payments.x402.getX402AccessToken(

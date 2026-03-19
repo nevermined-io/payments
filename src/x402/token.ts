@@ -69,6 +69,15 @@ export class X402TokenAPI extends BasePaymentsAPI {
     const scheme = tokenOptions?.scheme ?? 'nvm:erc4337'
     const network = tokenOptions?.network ?? getDefaultNetwork(scheme, this.environmentName)
 
+    // Validate delegationConfig is provided — the backend requires it for token generation
+    if (!tokenOptions?.delegationConfig) {
+      throw PaymentsError.validation(
+        `delegationConfig is required for ${scheme} token generation. ` +
+          'Provide delegationConfig.delegationId to reuse an existing delegation, ' +
+          'or delegationConfig.spendingLimitCents + durationSecs to auto-create one.',
+      )
+    }
+
     // Build x402-aligned request body
     const body: Record<string, any> = {
       accepted: {
