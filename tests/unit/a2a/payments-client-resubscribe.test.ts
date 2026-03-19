@@ -45,6 +45,8 @@ describe('PaymentsClient resubscribeTask', () => {
       dummyPayments as any as Payments,
       'aid',
       'pid',
+      undefined,
+      { delegationId: 'test-delegation' },
     )
 
     // Mock the internal _parseA2AStream method

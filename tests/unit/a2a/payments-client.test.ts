@@ -52,6 +52,8 @@ describe('PaymentsClient', () => {
       dummyPayments as any as Payments,
       'agent1',
       '1',
+      undefined,
+      { delegationId: 'test-delegation' },
     )
 
       // Mock internal _getClient to avoid ClientFactory path
