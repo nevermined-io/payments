@@ -148,6 +148,7 @@ export interface ClientRegistryOptions {
   agentId: string
   planId: string
   agentCardPath?: string
+  delegationConfig?: import('../common/types.js').DelegationConfig
 }
 
 /**

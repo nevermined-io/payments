@@ -513,14 +513,14 @@ export function isValidScheme(s: unknown): s is X402SchemeType {
 }
 
 /**
- * Configuration for card delegation (fiat/Stripe) payments.
+ * Configuration for delegation-based payments (both crypto and card schemes).
  *
  * To reuse an existing delegation supply `delegationId`.
  * To reuse an existing card (PaymentMethod entity) supply `cardId`.
  * When creating a brand-new delegation provide `providerPaymentMethodId`,
  * `spendingLimitCents`, and `durationSecs`.
  */
-export interface CardDelegationConfig {
+export interface DelegationConfig {
   /** PaymentMethod entity UUID — preferred way to reference an enrolled card */
   cardId?: string
   /** Existing delegation UUID to reuse instead of creating a new one */
@@ -537,6 +537,42 @@ export interface CardDelegationConfig {
   merchantAccountId?: string
   /** Maximum number of transactions allowed */
   maxTransactions?: number
+  /** NVM API Key ID to scope the delegation to */
+  apiKeyId?: string
+}
+
+/**
+ * Payload for creating a new delegation via POST /api/v1/delegation/create.
+ */
+export interface CreateDelegationPayload {
+  /** Delegation provider: 'stripe' for card, 'erc4337' for crypto */
+  provider?: 'stripe' | 'erc4337'
+  /** Stripe payment method ID (e.g., 'pm_...'). Required for stripe provider. */
+  providerPaymentMethodId?: string
+  /** Maximum spending limit in cents */
+  spendingLimitCents: number
+  /** Duration of the delegation in seconds */
+  durationSecs: number
+  /** Currency code (default: 'usd') */
+  currency?: string
+  /** Plan ID to scope the delegation to */
+  planId?: string
+  /** Stripe Connect merchant account ID */
+  merchantAccountId?: string
+  /** Maximum number of transactions allowed */
+  maxTransactions?: number
+  /** NVM API Key ID to scope the delegation to */
+  apiKeyId?: string
+}
+
+/**
+ * Response from creating a delegation.
+ */
+export interface CreateDelegationResponse {
+  /** Delegation token (for card delegations) */
+  delegationToken?: string
+  /** Delegation UUID */
+  delegationId: string
 }
 
 /**
@@ -547,6 +583,6 @@ export interface X402TokenOptions {
   scheme?: X402SchemeType
   /** Network identifier (auto-derived from scheme if omitted) */
   network?: string
-  /** Card delegation configuration (only for 'nvm:card-delegation' scheme) */
-  delegationConfig?: CardDelegationConfig
+  /** Delegation configuration for both erc4337 and card-delegation schemes */
+  delegationConfig?: DelegationConfig
 }

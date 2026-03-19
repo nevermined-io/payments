@@ -112,7 +112,8 @@ You MUST:
 1. Run `yarn build` to verify TypeScript compilation
 2. Run `yarn test:unit` to verify unit tests pass
 3. If modifying E2E-related code, run `yarn test:e2e`
-4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. These are manually maintained guides — not auto-generated. Validate with `./scripts/generate-docs.sh`
+4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. Validate with `./scripts/generate-docs.sh`. On merge to main, the `update-docs.yml` workflow runs `generate-docs.sh` and auto-creates a PR with any changes. On tag push, `publish-docs.yml` publishes to docs_mintlify. However, `generate-docs.sh` only validates structure — it does NOT auto-update code examples, so those must be updated manually.
+5. When modifying `openclaw/` or `cli/` source files, check that they use the same function signatures as the core SDK (`src/`). The openclaw plugin and CLI are in-tree consumers that can silently break if signatures change.
 
 ### Updating Mock Tokens in Tests
 
@@ -161,8 +162,18 @@ CI is configured in `.github/workflows/testing.yml` and runs on every push:
 | Job | Description | Depends On |
 |-----|-------------|------------|
 | `lint_build` | Install, build, lint | - |
+| `cli_sync_check` | Build + test CLI against local SDK | lint_build |
+| `openclaw_check` | Build + test OpenClaw against local SDK | lint_build |
 | `unit_integration` | Unit + integration tests | lint_build |
 | `e2e` | End-to-end tests | unit_integration |
+
+Additionally, `openclaw-sync-and-test.yml` and `cli-sync-and-test.yml` run on PRs when `src/` changes. All three workflows use a symlink to compile against the local SDK build.
+
+### Release Flow
+
+1. **`prepare-release.yml`** (manual dispatch) — bumps version in root `package.json`, `cli/package.json`, `openclaw/package.json` (including their `@nevermined-io/payments` dependency), generates changelog, opens PR to main
+2. **`finalize-release.yml`** (auto on `release/*` PR merge) — creates and pushes git tag
+3. **`release.yml`** (auto on tag push) — publishes in order: SDK → CLI + OpenClaw (parallel) → GitHub Release → docs. CLI and OpenClaw versions are bumped to match the tag. All three use local SDK symlinks during build.
 
 **Required secrets:**
 - `TEST_SUBSCRIBER_API_KEY` - API key for subscriber account
@@ -185,6 +196,24 @@ E2E tests run directly against the **staging environment**. When making changes:
 1. Ensure E2E tests pass after code changes: `yarn test:e2e`
 2. If E2E tests fail after backend API changes (in `nvm-monorepo`), the staging environment may need to be redeployed with those changes before the SDK E2E tests will pass
 3. E2E test failures due to pending backend deployments are expected - coordinate with the team to deploy backend changes to staging first
+
+## In-Tree Consumers: OpenClaw Plugin and CLI
+
+This repo contains two in-tree consumers of the SDK that import directly from `src/`:
+
+- **`openclaw/`** — OpenClaw plugin for LLM tool-use (tools, auto-pay, MCP bridge). CI: `.github/workflows/openclaw-sync-and-test.yml`
+- **`cli/`** — CLI tool (`nvm` command). CI: `.github/workflows/cli-sync-and-test.yml`
+
+**CRITICAL:** When changing public SDK interfaces (function signatures, types, options), you MUST also update `openclaw/` and `cli/` source files, tests, and mocks. The openclaw and CLI CI workflows build and test independently — they will fail if call sites don't match the new signatures.
+
+Key files to check:
+- `openclaw/src/tools.ts` — `getX402AccessToken()` calls, `buildTokenOptions()`
+- `openclaw/src/index.ts` — auto-pay flow, `getX402AccessToken()` calls
+- `openclaw/tests/plugin.test.ts` — mock assertions for `getX402AccessToken`
+- `cli/src/commands/x402token/get-x402-access-token.ts` — CLI command flags and call
+- `cli/test/helpers/mock-payments.ts` — mock `getX402AccessToken` signature
+
+Both CI workflows build the root SDK first, then symlink it into the consumer's `node_modules/` so they compile against the local source (not the published npm package).
 
 ## Running Agents
 

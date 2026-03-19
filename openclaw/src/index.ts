@@ -3,7 +3,7 @@ import { createTools } from './tools.js'
 import { startLoginFlow, looksLikeApiKey, getLoginUrl, getApiKeyUrl } from './auth.js'
 import { registerPaidEndpoint } from './paid-endpoint.js'
 import { Payments, buildPaymentRequired } from '@nevermined-io/payments'
-import type { EnvironmentName, X402PaymentRequired, X402TokenOptions } from '@nevermined-io/payments'
+import type { EnvironmentName, PaymentMethodSummary, X402PaymentRequired, X402TokenOptions } from '@nevermined-io/payments'
 import type { NeverminedPluginConfig, PlanEntry } from './config.js'
 import type { AgentHandler } from './paid-endpoint.js'
 
@@ -204,7 +204,7 @@ const neverminedPlugin = {
           const p = getPayments()
 
           // Cache payment methods for fiat plans (fetched once per hook call)
-          let cachedPaymentMethods: { id: string }[] | null = null
+          let cachedPaymentMethods: PaymentMethodSummary[] | null = null
 
           // Try each plan until one verifies successfully
           for (const plan of plans) {
@@ -219,11 +219,12 @@ const neverminedPlugin = {
                     cachedPaymentMethods = []
                   }
                 }
-                if (cachedPaymentMethods.length === 0) continue // no cards enrolled, skip fiat plan
+                const card = cachedPaymentMethods.find((m) => m.type === 'card')
+                if (!card) continue // no cards enrolled, skip fiat plan
                 tokenOptions = {
                   scheme: 'nvm:card-delegation',
                   delegationConfig: {
-                    providerPaymentMethodId: cachedPaymentMethods[0].id,
+                    providerPaymentMethodId: card.id,
                     spendingLimitCents: config.defaultSpendingLimitCents ?? 1000,
                     durationSecs: config.defaultDelegationDurationSecs ?? 3600,
                   },
@@ -231,7 +232,7 @@ const neverminedPlugin = {
               }
 
               const { accessToken } = await p.x402.getX402AccessToken(
-                plan.planId, config.agentId, undefined, undefined, undefined, tokenOptions,
+                plan.planId, config.agentId, tokenOptions,
               )
 
               const paymentRequired = buildPaymentRequired(plan.planId, {

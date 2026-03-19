@@ -28,44 +28,41 @@ export class X402TokenAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Create a permission and get an X402 access token for the given plan.
+   * Create a delegation and get an X402 access token for the given plan.
    *
-   * This token allows the agent to verify and settle permissions on behalf
-   * of the subscriber. The token contains cryptographically signed session keys
-   * that delegate specific permissions (order, burn) to the agent.
+   * This token allows the agent to verify and settle delegations on behalf
+   * of the subscriber.
+   *
+   * For erc4337 scheme, you must pass `tokenOptions.delegationConfig` with either:
+   * - `delegationId` to reuse an existing delegation, or
+   * - `spendingLimitCents` + `durationSecs` to auto-create a new one.
    *
    * @param planId - The unique identifier of the payment plan
-   * @param agentId - The unique identifier of the AI agent (optional). If provided, permissions are restricted to that specific agent.
-   * @param redemptionLimit - Maximum number of interactions/redemptions allowed (optional)
-   * @param orderLimit - Maximum spend limit in token units (wei) for ordering (optional)
-   * @param expiration - Expiration date in ISO 8601 format, e.g. "2025-02-01T10:00:00Z" (optional)
+   * @param agentId - The unique identifier of the AI agent (optional)
+   * @param tokenOptions - Options controlling scheme and delegation behavior (optional)
    * @returns A promise that resolves to an object containing:
    *   - accessToken: The X402 access token string
-   *   - Additional metadata about the token
    *
    * @throws PaymentsError if the request fails
    *
    * @example
    * ```typescript
-   * import { Payments } from '@nevermined-io/payments'
-   *
-   * const payments = Payments.getInstance({
-   *   nvmApiKey: 'nvm:subscriber-key',
-   *   environment: 'sandbox'
+   * // Pattern A — auto-create delegation
+   * const result = await payments.x402.getX402AccessToken(planId, agentId, {
+   *   delegationConfig: { spendingLimitCents: 10000, durationSecs: 604800 }
    * })
    *
-   * const result = await payments.x402.getX402AccessToken(planId, agentId)
-   * const token = result.accessToken
+   * // Pattern B — reuse existing delegation
+   * const result = await payments.x402.getX402AccessToken(planId, agentId, {
+   *   delegationConfig: { delegationId: 'existing-delegation-uuid' }
+   * })
    * ```
    */
   async getX402AccessToken(
     planId: string,
     agentId?: string,
-    redemptionLimit?: number,
-    orderLimit?: string,
-    expiration?: string,
     tokenOptions?: X402TokenOptions,
-  ): Promise<{ accessToken: string;[key: string]: any }> {
+  ): Promise<{ accessToken: string; [key: string]: any }> {
     const urlPath = API_URL_CREATE_PERMISSION
     const url = new URL(urlPath, this.environment.backend)
 
@@ -84,26 +81,9 @@ export class X402TokenAPI extends BasePaymentsAPI {
       },
     }
 
-    // Add delegation config for card-delegation scheme
-    if (scheme === 'nvm:card-delegation' && tokenOptions?.delegationConfig) {
+    // Add delegation config for both erc4337 and card-delegation schemes
+    if (tokenOptions?.delegationConfig) {
       body.delegationConfig = tokenOptions.delegationConfig
-    }
-
-    // Add session key config if any options are provided (erc4337 only)
-    if (scheme === 'nvm:erc4337') {
-      const sessionKeyConfig: Record<string, any> = {}
-      if (redemptionLimit !== undefined) {
-        sessionKeyConfig.redemptionLimit = redemptionLimit
-      }
-      if (orderLimit !== undefined) {
-        sessionKeyConfig.orderLimit = orderLimit
-      }
-      if (expiration !== undefined) {
-        sessionKeyConfig.expiration = expiration
-      }
-      if (Object.keys(sessionKeyConfig).length > 0) {
-        body.sessionKeyConfig = sessionKeyConfig
-      }
     }
 
     const options = this.getBackendHTTPOptions('POST', body)
@@ -111,7 +91,7 @@ export class X402TokenAPI extends BasePaymentsAPI {
     try {
       const response = await fetch(url, options)
       if (!response.ok) {
-        let errorMessage = 'Failed to create X402 permission'
+        let errorMessage = 'Failed to create X402 delegation token'
         try {
           const errorData = await response.json()
           errorMessage = errorData.message || errorMessage
@@ -126,7 +106,7 @@ export class X402TokenAPI extends BasePaymentsAPI {
         throw error
       }
       throw PaymentsError.internal(
-        `Network error while creating X402 permission: ${error instanceof Error ? error.message : String(error)}`,
+        `Network error while creating X402 delegation token: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }

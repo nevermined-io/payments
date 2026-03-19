@@ -1,8 +1,12 @@
 /**
- * End-to-end tests for X402 Access Token functionality.
+ * End-to-end tests for X402 Access Token functionality with delegation flow.
  *
- * This test suite validates the X402 access token flow which allows AI agents
- * to verify and settle permissions on behalf of subscribers using delegated session keys.
+ * This test suite validates the X402 access token flow using delegations:
+ * 1. Create plan + agent
+ * 2. Create a crypto delegation
+ * 3. Generate token with delegationId
+ * 4. Verify + settle
+ * 5. Reuse delegation for another token generation
  */
 
 import type {
@@ -23,13 +27,14 @@ const TEST_TIMEOUT = 60_000
 // Set global timeout for all tests in this file
 jest.setTimeout(TEST_TIMEOUT)
 
-describe('X402 Access Token Flow', () => {
+describe('X402 Delegation Flow', () => {
   let paymentsSubscriber: Payments
   let paymentsAgent: Payments
   let subscriberAddress: Address
   let agentAddress: Address
   let planId: string
   let agentId: string
+  let delegationId: string
   let x402AccessToken: string
 
   beforeAll(() => {
@@ -47,7 +52,7 @@ describe('X402 Access Token Flow', () => {
     const timestamp = new Date().toISOString()
     const planMetadata: PlanMetadata = {
       name: `E2E X402 Credits Plan TYPESCRIPT ${timestamp}`,
-      description: 'Test plan for X402 Access Token integration',
+      description: 'Test plan for X402 Delegation integration',
     }
 
     // Create a free crypto plan (amount = 0) for testing
@@ -77,8 +82,8 @@ describe('X402 Access Token Flow', () => {
     const timestamp = new Date().toISOString()
     const agentMetadata: AgentMetadata = {
       name: `E2E X402 Agent TYPESCRIPT ${timestamp}`,
-      description: 'Test agent for X402 Access Token integration',
-      tags: ['x402', 'test'],
+      description: 'Test agent for X402 Delegation integration',
+      tags: ['x402', 'delegation', 'test'],
     }
 
     const agentApi: AgentAPIAttributes = {
@@ -111,14 +116,38 @@ describe('X402 Access Token Flow', () => {
     await waitForAgent(agentId, 20_000, 1_000)
   })
 
-  test('should generate X402 access token for the subscriber', async () => {
+  test('should create a crypto delegation', async () => {
+    const delegation = await retryWithBackoff(
+      () =>
+        paymentsSubscriber.delegation.createDelegation({
+          provider: 'erc4337',
+          spendingLimitCents: 100000, // $1000 USDC
+          durationSecs: 604800, // 1 week
+        }),
+      {
+        label: 'Crypto Delegation Creation',
+        attempts: 3,
+      },
+    )
+
+    expect(delegation).toBeDefined()
+    expect(delegation.delegationId).toBeDefined()
+    delegationId = delegation.delegationId
+    console.log(`Created crypto delegation with ID: ${delegationId}`)
+  })
+
+  test('should generate X402 access token using delegationId', async () => {
     expect(planId).not.toBeNull()
     expect(agentId).not.toBeNull()
+    expect(delegationId).not.toBeNull()
 
     console.log(`Generating X402 Access Token for plan: ${planId}, agent: ${agentId}`)
 
     const response = await retryWithBackoff(
-      () => paymentsSubscriber.x402.getX402AccessToken(planId, agentId),
+      () =>
+        paymentsSubscriber.x402.getX402AccessToken(planId, agentId, {
+          delegationConfig: { delegationId },
+        }),
       {
         label: 'X402 Access Token Generation',
         attempts: 3,
@@ -138,7 +167,6 @@ describe('X402 Access Token Flow', () => {
 
     console.log(`Verifying permissions for plan: ${planId}, max_amount: 2`)
 
-    // Note: planId and subscriberAddress are extracted from the token
     const paymentRequired = {
       x402Version: 2,
       resource: { url: '/test/endpoint' },
@@ -162,7 +190,6 @@ describe('X402 Access Token Flow', () => {
 
     console.log(`Settling permissions for plan: ${planId}, max_amount: 2`)
 
-    // Note: planId and subscriberAddress are extracted from the token
     const paymentRequired = {
       x402Version: 2,
       resource: { url: '/test/endpoint' },
@@ -210,13 +237,57 @@ describe('X402 Access Token Flow', () => {
     )
   })
 
+  test('should reuse delegation for another token generation', async () => {
+    expect(planId).not.toBeNull()
+    expect(delegationId).not.toBeNull()
+
+    // Generate a second token using the same delegation (demonstrates plan-agnostic reuse)
+    const response = await retryWithBackoff(
+      () =>
+        paymentsSubscriber.x402.getX402AccessToken(planId, agentId, {
+          delegationConfig: { delegationId },
+        }),
+      {
+        label: 'X402 Access Token Reuse Delegation',
+        attempts: 3,
+      },
+    )
+
+    expect(response).toBeDefined()
+    expect(response.accessToken).not.toBeNull()
+    expect(response.accessToken.length).toBeGreaterThan(0)
+    console.log('Successfully reused delegation for another token generation')
+  })
+
+  test('should generate X402 access token with auto-created delegation (Pattern A)', async () => {
+    expect(planId).not.toBeNull()
+
+    const response = await retryWithBackoff(
+      () =>
+        paymentsSubscriber.x402.getX402AccessToken(planId, agentId, {
+          delegationConfig: {
+            spendingLimitCents: 50000,
+            durationSecs: 3600,
+          },
+        }),
+      {
+        label: 'X402 Access Token Auto-Delegation',
+        attempts: 3,
+      },
+    )
+
+    expect(response).toBeDefined()
+    expect(response.accessToken).not.toBeNull()
+    expect(response.accessToken.length).toBeGreaterThan(0)
+    console.log('Successfully generated token with auto-created delegation')
+  })
+
   test('should settle the remaining credits in smaller amounts', async () => {
     expect(planId).not.toBeNull()
     expect(x402AccessToken).not.toBeNull()
 
     // Settle 2 more credits (should have 6 remaining after previous settlement)
     console.log('Settling 2 more credits...')
-    // Note: planId and subscriberAddress are extracted from the token
     const paymentRequired = {
       x402Version: 2,
       resource: { url: '/test/endpoint' },

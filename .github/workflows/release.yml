@@ -51,6 +51,9 @@ jobs:
         working-directory: openclaw
         run: yarn install --frozen-lockfile --ignore-engines
 
+      - name: Link local SDK into OpenClaw Plugin
+        run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
+
       - name: Build OpenClaw Plugin
         working-directory: openclaw
         run: yarn build
@@ -206,6 +209,9 @@ jobs:
       - name: Install OpenClaw Plugin dependencies
         working-directory: openclaw
         run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Link local SDK into OpenClaw Plugin
+        run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
 
       - name: Update OpenClaw Plugin version
         working-directory: openclaw

@@ -1,13 +1,13 @@
 /**
- * Delegation API for managing card-delegation payment methods.
+ * Delegation API for managing payment delegations (crypto and card schemes).
  *
- * Provides access to the user's enrolled Stripe payment methods
- * for use with the nvm:card-delegation x402 scheme.
+ * Provides access to the user's enrolled payment methods and delegations
+ * for use with the nvm:erc4337 and nvm:card-delegation x402 schemes.
  */
 
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions } from '../common/types.js'
+import { CreateDelegationPayload, CreateDelegationResponse, PaymentOptions } from '../common/types.js'
 
 /**
  * Summary of a user's enrolled payment method.
@@ -34,7 +34,7 @@ export interface PaymentMethodSummary {
 }
 
 /**
- * Summary of a delegation for card-based spending.
+ * Summary of a delegation (card or crypto spending).
  */
 export interface DelegationSummary {
   delegationId: string
@@ -88,7 +88,7 @@ export interface ListOptions {
 }
 
 /**
- * API for listing enrolled payment methods for card delegation.
+ * API for managing payment methods and delegations (card and crypto).
  */
 export class DelegationAPI extends BasePaymentsAPI {
   static getInstance(options: PaymentOptions): DelegationAPI {
@@ -137,6 +137,17 @@ export class DelegationAPI extends BasePaymentsAPI {
       totalRemainingBudgetCents,
       currency: delegations[0]?.currency ?? 'usd',
     }
+  }
+
+  /**
+   * Create a new delegation for either stripe or erc4337 provider.
+   *
+   * @param payload - The delegation creation parameters
+   * @returns The created delegation ID (and token for card delegations)
+   */
+  async createDelegation(payload: CreateDelegationPayload): Promise<CreateDelegationResponse> {
+    const url = new URL('/api/v1/delegation/create', this.environment.backend)
+    return this.fetchJSON(url, 'POST', 'create delegation', payload)
   }
 
   /**

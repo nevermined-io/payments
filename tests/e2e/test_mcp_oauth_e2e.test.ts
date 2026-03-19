@@ -508,9 +508,17 @@ describe('MCP OAuth E2E Tests', () => {
       expect(orderResult.success).toBe(true)
       console.log('[E2E] Plan ordered successfully:', orderResult)
 
-      // Get access token for the agent
+      // Create delegation and get access token for the agent
+      const delegation = await paymentsSubscriber.delegation.createDelegation({
+        provider: 'erc4337',
+        spendingLimitCents: 100000,
+        durationSecs: 604800,
+      })
       const accessParams = await retryWithBackoff(
-        () => paymentsSubscriber.x402.getX402AccessToken(creditsPlanId!, mcpAgentDID!),
+        () =>
+          paymentsSubscriber.x402.getX402AccessToken(creditsPlanId!, mcpAgentDID!, {
+            delegationConfig: { delegationId: delegation.delegationId },
+          }),
         { label: 'getX402AccessToken for MCP' },
       )
 
