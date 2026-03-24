@@ -178,8 +178,6 @@ export interface CreateRouterOptions {
   enableOAuthDiscovery?: boolean
   /** Enable client registration */
   enableClientRegistration?: boolean
-  /** Enable health check */
-  enableHealthCheck?: boolean
   /** Enable server info */
   enableServerInfo?: boolean
   /** Server version */
@@ -208,8 +206,6 @@ export interface StartServerOptions {
   enableOAuthDiscovery?: boolean
   /** Enable client registration */
   enableClientRegistration?: boolean
-  /** Enable health check */
-  enableHealthCheck?: boolean
   /** Enable server info */
   enableServerInfo?: boolean
   /** Server version */
@@ -400,7 +396,6 @@ export function buildMcpIntegration(paymentsService: Payments) {
       scopes: extendedConfig.scopes,
       enableOAuthDiscovery: options.enableOAuthDiscovery ?? true,
       enableClientRegistration: options.enableClientRegistration ?? true,
-      enableHealthCheck: options.enableHealthCheck ?? true,
       enableServerInfo: options.enableServerInfo ?? true,
       version: options.version,
       description: options.description,
@@ -449,7 +444,6 @@ export function buildMcpIntegration(paymentsService: Payments) {
       scopes: extendedConfig.scopes,
       enableOAuthDiscovery: options.enableOAuthDiscovery ?? true,
       enableClientRegistration: options.enableClientRegistration ?? true,
-      enableHealthCheck: options.enableHealthCheck ?? true,
       enableServerInfo: options.enableServerInfo ?? true,
       version: options.version,
       description: options.description,
@@ -499,7 +493,6 @@ export function buildMcpIntegration(paymentsService: Payments) {
       scopes: extendedConfig.scopes,
       enableOAuthDiscovery: options.enableOAuthDiscovery ?? true,
       enableClientRegistration: options.enableClientRegistration ?? true,
-      enableHealthCheck: options.enableHealthCheck ?? true,
       enableServerInfo: options.enableServerInfo ?? true,
       version: options.version,
       description: options.description,

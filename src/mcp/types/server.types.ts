@@ -141,8 +141,6 @@ export interface McpServerConfig {
   enableOAuthDiscovery?: boolean
   /** Enable client registration (default: true) */
   enableClientRegistration?: boolean
-  /** Enable health check endpoint (default: true) */
-  enableHealthCheck?: boolean
   /** Enable server info endpoint (default: true) */
   enableServerInfo?: boolean
   /** Callback when server starts */
