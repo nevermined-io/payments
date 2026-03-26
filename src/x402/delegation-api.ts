@@ -13,23 +13,25 @@ import { CreateDelegationPayload, CreateDelegationResponse, PaymentOptions } fro
  * Summary of a user's enrolled payment method.
  */
 export interface PaymentMethodSummary {
-  /** Payment method ID (e.g., 'pm_...') */
+  /** Payment method ID (Stripe 'pm_...' or Braintree vault token) */
   id: string
-  /** Card type (e.g., 'card') */
+  /** Payment method type (e.g., 'card', 'paypal') */
   type: string
-  /** Card brand (e.g., 'visa', 'mastercard') */
+  /** Card brand (e.g., 'visa', 'mastercard') or payment method type ('paypal', 'venmo') */
   brand: string
-  /** Last 4 digits of the card number */
+  /** Last 4 digits (cards) or email/username (PayPal/Venmo) */
   last4: string
-  /** Card expiration month */
+  /** Expiration month (0 for non-card methods) */
   expMonth: number
-  /** Card expiration year */
+  /** Expiration year (0 for non-card methods) */
   expYear: number
-  /** Human-readable alias for the card, if set */
+  /** Human-readable alias, if set */
   alias?: string | null
+  /** Payment provider: 'stripe' or 'braintree' */
+  provider?: string
   /** Current status ('Active' or 'Revoked') */
   status?: string
-  /** NVM API Key IDs allowed to use this card, or null if unrestricted */
+  /** NVM API Key IDs allowed to use this payment method, or null if unrestricted */
   allowedApiKeyIds?: string[] | null
 }
 
