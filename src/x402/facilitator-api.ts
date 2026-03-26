@@ -292,7 +292,8 @@ async function fetchPlanMetadata(
   try {
     const plan = await payments.plans.getPlan(planId)
     const isCrypto = plan.registry?.price?.isCrypto
-    const fiatProvider = plan.registry?.price?.fiatPaymentProvider
+    // fiatPaymentProvider is in plan.metadata.plan, not in registry.price
+    const fiatProvider = (plan as any).metadata?.plan?.fiatPaymentProvider
     const scheme: X402SchemeType =
       isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
     planMetadataCache.set(planId, { scheme, fiatProvider, cachedAt: Date.now() })
