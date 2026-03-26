@@ -274,6 +274,7 @@ export function buildPaymentRequired(
 
 interface CachedPlanMetadata {
   scheme: X402SchemeType
+  fiatProvider?: string
   cachedAt: number
 }
 
@@ -291,13 +292,30 @@ async function fetchPlanMetadata(
   try {
     const plan = await payments.plans.getPlan(planId)
     const isCrypto = plan.registry?.price?.isCrypto
+    const fiatProvider = plan.registry?.price?.fiatPaymentProvider
     const scheme: X402SchemeType =
       isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
-    planMetadataCache.set(planId, { scheme, cachedAt: Date.now() })
+    planMetadataCache.set(planId, { scheme, fiatProvider, cachedAt: Date.now() })
     return { scheme }
   } catch {
     return { scheme: 'nvm:erc4337' }
   }
+}
+
+/**
+ * Resolve the network for a plan from its fiatPaymentProvider metadata.
+ * For card-delegation plans, returns the provider ('stripe' or 'braintree').
+ * Returns undefined for crypto plans.
+ */
+export async function resolveNetwork(
+  payments: Payments,
+  planId: string,
+  explicitNetwork?: string,
+): Promise<string | undefined> {
+  if (explicitNetwork) return explicitNetwork
+  await fetchPlanMetadata(payments, planId)
+  const cached = planMetadataCache.get(planId)
+  return cached?.fiatProvider ?? undefined
 }
 
 /**
