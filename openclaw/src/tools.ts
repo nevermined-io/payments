@@ -396,15 +396,18 @@ async function buildTokenOptions(
   if (paymentType !== 'fiat') return undefined
 
   let paymentMethodId = str(params, 'paymentMethodId')
+  const methods = await getPayments().delegation.listPaymentMethods()
   if (!paymentMethodId) {
-    const methods = await getPayments().delegation.listPaymentMethods()
-    const card = methods.find((m) => m.type === 'card')
-    if (!card) throw new Error('No enrolled card found. Enroll a card at https://nevermined.app')
+    const card = methods.find((m) => m.type === 'card' || m.type === 'paypal')
+    if (!card) throw new Error('No enrolled payment method found. Enroll one at https://nevermined.app')
     paymentMethodId = card.id
   }
+  const matched = methods.find((m) => m.id === paymentMethodId)
+  const network = matched?.provider ?? 'stripe'
 
   return {
     scheme: 'nvm:card-delegation',
+    network,
     delegationConfig: {
       providerPaymentMethodId: paymentMethodId,
       spendingLimitCents: Number(str(params, 'spendingLimitCents') ?? config.defaultSpendingLimitCents ?? 1000),

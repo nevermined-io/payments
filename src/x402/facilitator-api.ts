@@ -146,6 +146,8 @@ export interface VerifyPermissionsResult {
   invalidReason?: string
   /** Address of the payer's wallet */
   payer?: string
+  /** Network identifier (e.g., 'stripe', 'braintree', 'eip155:84532') */
+  network?: string
   /** Agent request ID for observability tracking (Nevermined extension) */
   agentRequestId?: string
   /** URL pattern that matched the endpoint (Nevermined extension) */
@@ -230,6 +232,7 @@ export function buildPaymentRequired(
     httpVerb?: string
     network?: string
     description?: string
+    mimeType?: string
     scheme?: X402SchemeType
     environment?: EnvironmentName
   },
@@ -241,31 +244,31 @@ export function buildPaymentRequired(
     scheme = 'nvm:erc4337',
     network,
     description,
+    mimeType,
     environment,
   } = options || {}
   const resolvedNetwork = network ?? getDefaultNetwork(scheme, environment)
 
-  // Build extra fields if any are provided
-  const extra: X402SchemeExtra | undefined =
-    agentId || httpVerb
-      ? {
-          ...(agentId && { agentId }),
-          ...(httpVerb && { httpVerb }),
-        }
-      : undefined
+  // Build extra fields — always include version for scheme versioning
+  const extra: X402SchemeExtra = {
+    version: '1',
+    ...(agentId && { agentId }),
+    ...(httpVerb && { httpVerb }),
+  }
 
   return {
     x402Version: 2,
     resource: {
       url: endpoint || '',
       ...(description && { description }),
+      ...(mimeType && { mimeType }),
     },
     accepts: [
       {
         scheme,
         network: resolvedNetwork,
         planId,
-        ...(extra && { extra }),
+        extra,
       },
     ],
     extensions: {},
@@ -274,6 +277,7 @@ export function buildPaymentRequired(
 
 interface CachedPlanMetadata {
   scheme: X402SchemeType
+  fiatProvider?: string
   cachedAt: number
 }
 
@@ -291,13 +295,31 @@ async function fetchPlanMetadata(
   try {
     const plan = await payments.plans.getPlan(planId)
     const isCrypto = plan.registry?.price?.isCrypto
+    // fiatPaymentProvider is in plan.metadata.plan, not in registry.price
+    const fiatProvider = (plan as any).metadata?.plan?.fiatPaymentProvider
     const scheme: X402SchemeType =
       isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
-    planMetadataCache.set(planId, { scheme, cachedAt: Date.now() })
+    planMetadataCache.set(planId, { scheme, fiatProvider, cachedAt: Date.now() })
     return { scheme }
   } catch {
     return { scheme: 'nvm:erc4337' }
   }
+}
+
+/**
+ * Resolve the network for a plan from its fiatPaymentProvider metadata.
+ * For card-delegation plans, returns the provider ('stripe' or 'braintree').
+ * Returns undefined for crypto plans.
+ */
+export async function resolveNetwork(
+  payments: Payments,
+  planId: string,
+  explicitNetwork?: string,
+): Promise<string | undefined> {
+  if (explicitNetwork) return explicitNetwork
+  await fetchPlanMetadata(payments, planId)
+  const cached = planMetadataCache.get(planId)
+  return cached?.fiatProvider
 }
 
 /**

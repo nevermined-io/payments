@@ -58,6 +58,7 @@ import type { Payments } from '../../payments.js'
 import type { StartAgentRequest, X402SchemeType } from '../../common/types.js'
 import {
   buildPaymentRequired,
+  resolveNetwork,
   resolveScheme,
   type X402PaymentRequired,
   type VerifyPermissionsResult,
@@ -77,6 +78,10 @@ export interface RouteConfig {
   network?: string
   /** x402 scheme override (auto-detected from plan metadata if omitted) */
   scheme?: X402SchemeType
+  /** Human-readable description of the protected resource */
+  description?: string
+  /** Expected response MIME type (e.g., "application/json") */
+  mimeType?: string
 }
 
 /**
@@ -265,17 +270,28 @@ export function paymentMiddleware(
         return
       }
 
-      const { planId, credits = 1, agentId, network, scheme: explicitScheme } = routeConfig
+      const {
+        planId,
+        credits = 1,
+        agentId,
+        network,
+        scheme: explicitScheme,
+        description,
+        mimeType,
+      } = routeConfig
 
-      // Resolve scheme from plan metadata (cached) or explicit override
+      // Resolve scheme and network from plan metadata (cached) or explicit overrides
       const scheme = await resolveScheme(payments, planId, explicitScheme)
+      const resolvedNetwork = await resolveNetwork(payments, planId, network)
 
       // Build payment required object (needed for both error responses and verification)
       const paymentRequired = buildPaymentRequired(planId, {
         endpoint: req.originalUrl || req.url,
         agentId,
         httpVerb: req.method,
-        network,
+        network: resolvedNetwork,
+        description,
+        mimeType,
         scheme,
         environment: payments.getEnvironmentName(),
       })

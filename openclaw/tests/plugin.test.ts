@@ -464,6 +464,7 @@ describe('OpenClaw Nevermined Plugin', () => {
         'plan-default', 'agent-default',
         {
           scheme: 'nvm:card-delegation',
+          network: 'stripe',
           delegationConfig: {
             providerPaymentMethodId: 'pm_explicit_123',
             spendingLimitCents: 2000,
@@ -485,6 +486,7 @@ describe('OpenClaw Nevermined Plugin', () => {
         'plan-default', 'agent-default',
         {
           scheme: 'nvm:card-delegation',
+          network: 'stripe',
           delegationConfig: {
             providerPaymentMethodId: 'pm_test_1',
             spendingLimitCents: 1000,
@@ -501,7 +503,7 @@ describe('OpenClaw Nevermined Plugin', () => {
         .mockResolvedValueOnce([])
 
       const tool = tools.get('nevermined_getAccessToken')!
-      await expect(tool.execute('call-1', { paymentType: 'fiat' })).rejects.toThrow('No enrolled card found')
+      await expect(tool.execute('call-1', { paymentType: 'fiat' })).rejects.toThrow('No enrolled payment method found')
     })
   })
 
@@ -602,6 +604,7 @@ describe('OpenClaw Nevermined Plugin', () => {
         'plan-default', 'agent-default',
         {
           scheme: 'nvm:card-delegation',
+          network: 'stripe',
           delegationConfig: {
             providerPaymentMethodId: 'pm_fiat_456',
             spendingLimitCents: 1000,

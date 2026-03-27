@@ -533,7 +533,7 @@ export interface DelegationConfig {
   durationSecs?: number
   /** Currency code (default: 'usd') */
   currency?: string
-  /** Stripe Connect merchant account ID */
+  /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
   merchantAccountId?: string
   /** Maximum number of transactions allowed */
   maxTransactions?: number
@@ -545,9 +545,9 @@ export interface DelegationConfig {
  * Payload for creating a new delegation via POST /api/v1/delegation/create.
  */
 export interface CreateDelegationPayload {
-  /** Delegation provider: 'stripe' for card, 'erc4337' for crypto */
-  provider: 'stripe' | 'erc4337'
-  /** Stripe payment method ID (e.g., 'pm_...'). Required for stripe provider. */
+  /** Delegation provider: 'stripe' or 'braintree' for card, 'erc4337' for crypto */
+  provider: 'stripe' | 'braintree' | 'erc4337'
+  /** Payment method ID from the provider (Stripe 'pm_...' or Braintree vault token). Required for stripe/braintree providers. */
   providerPaymentMethodId?: string
   /** Maximum spending limit in cents */
   spendingLimitCents: number
@@ -557,7 +557,7 @@ export interface CreateDelegationPayload {
   currency?: string
   /** Plan ID to scope the delegation to */
   planId?: string
-  /** Stripe Connect merchant account ID */
+  /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
   merchantAccountId?: string
   /** Maximum number of transactions allowed */
   maxTransactions?: number
