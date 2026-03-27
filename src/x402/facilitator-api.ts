@@ -266,7 +266,7 @@ export function buildPaymentRequired(
         scheme,
         network: resolvedNetwork,
         planId,
-        ...(extra && { extra }),
+        extra,
       },
     ],
     extensions: {},

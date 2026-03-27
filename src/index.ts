@@ -10,7 +10,7 @@ export type { BackendApiOptions } from './api/nvm-api.js'
 export { ContractsAPI } from './api/contracts-api.js'
 
 // x402 utilities and types
-export { buildPaymentRequired, resolveScheme } from './x402/facilitator-api.js'
+export { buildPaymentRequired, resolveNetwork, resolveScheme } from './x402/facilitator-api.js'
 export { DelegationAPI } from './x402/delegation-api.js'
 export type {
   PaymentMethodSummary,

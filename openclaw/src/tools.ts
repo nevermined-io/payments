@@ -397,12 +397,16 @@ async function buildTokenOptions(
 
   let paymentMethodId = str(params, 'paymentMethodId')
   let network: string | undefined
+  const methods = await getPayments().delegation.listPaymentMethods()
   if (!paymentMethodId) {
-    const methods = await getPayments().delegation.listPaymentMethods()
     const card = methods.find((m) => m.type === 'card' || m.type === 'paypal')
     if (!card) throw new Error('No enrolled payment method found. Enroll one at https://nevermined.app')
     paymentMethodId = card.id
     network = card.provider ?? 'stripe'
+  } else {
+    // Resolve provider for explicitly provided payment method
+    const match = methods.find((m) => m.id === paymentMethodId)
+    network = match?.provider ?? 'stripe'
   }
 
   return {

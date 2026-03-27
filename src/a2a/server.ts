@@ -16,7 +16,7 @@ import { InMemoryTaskStore, JsonRpcTransportHandler, AgentExecutor } from '@a2a-
 import type { AgentCard, HttpRequestContext } from './types.js'
 import { PaymentsRequestHandler } from './paymentsRequestHandler.js'
 import type { Payments } from '../payments.js'
-import { buildPaymentRequired, resolveScheme } from '../x402/facilitator-api.js'
+import { buildPaymentRequired, resolveNetwork, resolveScheme } from '../x402/facilitator-api.js'
 import { X402_HEADERS } from '../x402/express/middleware.js'
 
 /**
@@ -162,10 +162,12 @@ async function bearerTokenMiddleware(
   const planId = (paymentExtension.params?.planId as string) || ''
   const agentId = paymentExtension.params?.agentId as string
   const scheme = await resolveScheme(paymentsService, planId)
+  const resolvedNetwork = await resolveNetwork(paymentsService, planId)
   const paymentRequired = buildPaymentRequired(planId, {
     endpoint: absoluteUrl,
     agentId,
     httpVerb: 'POST',
+    network: resolvedNetwork,
     scheme,
     environment: paymentsService.getEnvironmentName(),
   })
