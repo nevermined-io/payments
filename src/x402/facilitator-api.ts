@@ -245,14 +245,12 @@ export function buildPaymentRequired(
   } = options || {}
   const resolvedNetwork = network ?? getDefaultNetwork(scheme, environment)
 
-  // Build extra fields if any are provided
-  const extra: X402SchemeExtra | undefined =
-    agentId || httpVerb
-      ? {
-          ...(agentId && { agentId }),
-          ...(httpVerb && { httpVerb }),
-        }
-      : undefined
+  // Build extra fields — always include version for scheme versioning
+  const extra: X402SchemeExtra = {
+    version: '1',
+    ...(agentId && { agentId }),
+    ...(httpVerb && { httpVerb }),
+  }
 
   return {
     x402Version: 2,

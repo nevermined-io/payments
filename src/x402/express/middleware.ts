@@ -78,6 +78,8 @@ export interface RouteConfig {
   network?: string
   /** x402 scheme override (auto-detected from plan metadata if omitted) */
   scheme?: X402SchemeType
+  /** Human-readable description of the protected resource */
+  description?: string
 }
 
 /**
@@ -266,7 +268,8 @@ export function paymentMiddleware(
         return
       }
 
-      const { planId, credits = 1, agentId, network, scheme: explicitScheme } = routeConfig
+      const { planId, credits = 1, agentId, network, scheme: explicitScheme, description } =
+        routeConfig
 
       // Resolve scheme and network from plan metadata (cached) or explicit overrides
       const scheme = await resolveScheme(payments, planId, explicitScheme)
@@ -278,6 +281,7 @@ export function paymentMiddleware(
         agentId,
         httpVerb: req.method,
         network: resolvedNetwork,
+        description,
         scheme,
         environment: payments.getEnvironmentName(),
       })
