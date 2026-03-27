@@ -317,7 +317,7 @@ export async function resolveNetwork(
   if (explicitNetwork) return explicitNetwork
   await fetchPlanMetadata(payments, planId)
   const cached = planMetadataCache.get(planId)
-  return cached?.fiatProvider ?? undefined
+  return cached?.fiatProvider
 }
 
 /**
