@@ -146,6 +146,8 @@ export interface VerifyPermissionsResult {
   invalidReason?: string
   /** Address of the payer's wallet */
   payer?: string
+  /** Network identifier (e.g., 'stripe', 'braintree', 'eip155:84532') */
+  network?: string
   /** Agent request ID for observability tracking (Nevermined extension) */
   agentRequestId?: string
   /** URL pattern that matched the endpoint (Nevermined extension) */
