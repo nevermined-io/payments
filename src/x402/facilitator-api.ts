@@ -230,6 +230,7 @@ export function buildPaymentRequired(
     httpVerb?: string
     network?: string
     description?: string
+    mimeType?: string
     scheme?: X402SchemeType
     environment?: EnvironmentName
   },
@@ -241,6 +242,7 @@ export function buildPaymentRequired(
     scheme = 'nvm:erc4337',
     network,
     description,
+    mimeType,
     environment,
   } = options || {}
   const resolvedNetwork = network ?? getDefaultNetwork(scheme, environment)
@@ -257,6 +259,7 @@ export function buildPaymentRequired(
     resource: {
       url: endpoint || '',
       ...(description && { description }),
+      ...(mimeType && { mimeType }),
     },
     accepts: [
       {

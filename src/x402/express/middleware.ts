@@ -80,6 +80,8 @@ export interface RouteConfig {
   scheme?: X402SchemeType
   /** Human-readable description of the protected resource */
   description?: string
+  /** Expected response MIME type (e.g., "application/json") */
+  mimeType?: string
 }
 
 /**
@@ -268,8 +270,15 @@ export function paymentMiddleware(
         return
       }
 
-      const { planId, credits = 1, agentId, network, scheme: explicitScheme, description } =
-        routeConfig
+      const {
+        planId,
+        credits = 1,
+        agentId,
+        network,
+        scheme: explicitScheme,
+        description,
+        mimeType,
+      } = routeConfig
 
       // Resolve scheme and network from plan metadata (cached) or explicit overrides
       const scheme = await resolveScheme(payments, planId, explicitScheme)
@@ -282,6 +291,7 @@ export function paymentMiddleware(
         httpVerb: req.method,
         network: resolvedNetwork,
         description,
+        mimeType,
         scheme,
         environment: payments.getEnvironmentName(),
       })
