@@ -66,6 +66,8 @@ jobs:
     name: Publish SDK to npm
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC
     steps:
       - uses: actions/checkout@v4
 
@@ -82,8 +84,6 @@ jobs:
 
       - name: Publish SDK package
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
       - name: Pack SDK tarball
         run: npm pack
@@ -100,6 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write  # Required for OIDC
     steps:
       - uses: actions/checkout@v4
         with:
@@ -152,8 +153,6 @@ jobs:
       - name: Publish CLI package
         working-directory: cli
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
       - name: Pack tarballs
         working-directory: cli
@@ -181,6 +180,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write  # Required for OIDC
     steps:
       - uses: actions/checkout@v4
         with:
@@ -233,8 +233,6 @@ jobs:
       - name: Publish OpenClaw Plugin package
         working-directory: openclaw
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
       - name: Pack OpenClaw Plugin tarball
         working-directory: openclaw
