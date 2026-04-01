@@ -81,9 +81,9 @@ jobs:
         run: yarn build
 
       - name: Publish SDK package
-        run: npm publish --access public || echo "Version may already exist on npm, continuing"
+        run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
       - name: Pack SDK tarball
         run: npm pack
@@ -151,9 +151,9 @@ jobs:
 
       - name: Publish CLI package
         working-directory: cli
-        run: npm publish --access public || echo "Version may already exist on npm, continuing"
+        run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
       - name: Pack tarballs
         working-directory: cli
@@ -232,9 +232,9 @@ jobs:
 
       - name: Publish OpenClaw Plugin package
         working-directory: openclaw
-        run: npm publish --access public || echo "Version may already exist on npm, continuing"
+        run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
       - name: Pack OpenClaw Plugin tarball
         working-directory: openclaw
