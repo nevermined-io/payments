@@ -33,8 +33,8 @@ The library is designed for use in browser environments or as part of AI Agents:
 ## Quickstart
 
 ```bash
-# yarn
-yarn add @nevermined-io/payments
+# pnpm
+pnpm add @nevermined-io/payments
 
 # npm
 npm install @nevermined-io/payments

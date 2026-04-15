@@ -21,8 +21,8 @@ npx @nevermined-io/cli <command>
 ```bash
 git clone https://github.com/nevermined-io/payments
 cd payments/cli
-yarn install
-yarn build
+pnpm install
+pnpm build
 ./bin/run.js --help
 ```
 
@@ -178,19 +178,19 @@ nvm agents register-agent did:nvm:plan123 --config agent-config.json
 ### Building
 
 ```bash
-yarn build
+pnpm build
 ```
 
 ### Testing
 
 ```bash
-yarn test
+pnpm test
 ```
 
 ### Linting
 
 ```bash
-yarn lint
+pnpm lint
 ```
 
 ## License

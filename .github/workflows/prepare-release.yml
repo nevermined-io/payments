@@ -28,6 +28,8 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24.x'
@@ -54,8 +56,8 @@ jobs:
           # The release.yml workflow updates their versions at publish time,
           # after the SDK is already published to npm.
 
-          yarn install
-          yarn run doc
+          pnpm install
+          pnpm run doc
           npx auto-changelog --latest-version "v$VERSION"
 
       - name: Commit and Push

@@ -24,18 +24,18 @@ Before installing the Nevermined Payments Library, ensure you have:
 - **Node.js**: Version 18.x or higher
 - **TypeScript**: Version 5.x or higher (recommended)
 - **Nevermined API Key**: Get your free API key from [nevermined.app](https://nevermined.app)
-- **Package Manager**: npm (included with Node.js) or yarn
+- **Package Manager**: npm (included with Node.js) or pnpm
 
 ## Installation
 
-Install the library using npm or yarn:
+Install the library using npm or pnpm:
 
 ```bash
 # Using npm
 npm install @nevermined-io/payments
 
-# Using yarn
-yarn add @nevermined-io/payments
+# Using pnpm
+pnpm add @nevermined-io/payments
 ```
 
 ### Peer Dependencies

@@ -34,41 +34,44 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install SDK dependencies
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
-        run: yarn build
+        run: pnpm build
 
       - name: Install CLI dependencies
         working-directory: cli
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into CLI
         run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
 
       - name: Generate CLI commands from SDK
         working-directory: cli
-        run: yarn generate || echo "Generation step completed (may have warnings)"
+        run: pnpm generate || echo "Generation step completed (may have warnings)"
 
       - name: Build CLI
         working-directory: cli
-        run: yarn build:manifest
+        run: pnpm build:manifest
 
       - name: Run CLI unit tests
         working-directory: cli
-        run: yarn test:unit
+        run: pnpm test:unit
 
       - name: Run CLI integration tests
         working-directory: cli
-        run: yarn test:integration
+        run: pnpm test:integration
 
       - name: Check for CLI changes
         id: check_changes

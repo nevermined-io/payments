@@ -6,6 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
+pnpm-debug.log*
 .DS_Store
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
@@ -73,6 +74,9 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
+# pnpm store
+.pnpm-store/
+
 # dotenv environment variable files
 .env
 .env.development.local
@@ -131,6 +135,9 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# pnpm virtual store
+node_modules/.pnpm
 
 
 # mocks

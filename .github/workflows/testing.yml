@@ -15,21 +15,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: yarn build
+        run: pnpm build
 
       - name: Lint
-        run: yarn lint
+        run: pnpm lint
 
   cli_sync_check:
     name: CLI Sync Check
@@ -40,37 +43,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
-        run: yarn build
+        run: pnpm build
 
       - name: Install CLI dependencies
         working-directory: cli
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into CLI
         run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
 
       - name: Build CLI
         working-directory: cli
-        run: yarn build
+        run: pnpm build
 
       - name: Run CLI sync check
         working-directory: cli
-        run: yarn sync-check
+        run: pnpm sync-check
 
       - name: Run CLI tests
         working-directory: cli
-        run: yarn test
+        run: pnpm test
 
   openclaw_check:
     name: OpenClaw Plugin Check
@@ -81,33 +87,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
-        run: yarn build
+        run: pnpm build
 
       - name: Install OpenClaw Plugin dependencies
         working-directory: openclaw
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into OpenClaw Plugin
         run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
 
       - name: Build OpenClaw Plugin
         working-directory: openclaw
-        run: yarn build
+        run: pnpm build
 
       - name: Run OpenClaw Plugin tests
         working-directory: openclaw
-        run: yarn test
+        run: pnpm test
 
   unit_integration:
     name: Unit & Integration
@@ -120,28 +129,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: yarn build
+        run: pnpm build
 
       - name: Run unit tests
-        run: yarn test:unit
+        run: pnpm test:unit
 
       - name: Run integration tests
         env:
           TEST_SUBSCRIBER_API_KEY: ${{ secrets.TEST_SUBSCRIBER_API_KEY }}
           TEST_BUILDER_API_KEY: ${{ secrets.TEST_BUILDER_API_KEY }}
           TEST_ENVIRONMENT: ${{ secrets.TEST_ENVIRONMENT }}
-        run: yarn test:integration
+        run: pnpm test:integration
 
   e2e:
     name: E2E
@@ -159,20 +171,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: yarn build
+        run: pnpm build
 
       - name: Run E2E tests
-        run: yarn test:e2e --detectOpenHandles
-
-
+        run: pnpm test:e2e --detectOpenHandles

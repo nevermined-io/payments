@@ -42,7 +42,7 @@ describe('Config Workflow Integration Tests', () => {
 
     // Build CLI
     try {
-      execSync('yarn build && npx oclif manifest', {
+      execSync('pnpm build && npx oclif manifest', {
         cwd: join(__dirname, '../..'),
         stdio: 'ignore',
       })
