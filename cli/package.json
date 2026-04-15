@@ -60,7 +60,7 @@
     "ts-morph": "^22.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.7.1",
-    "typescript": "^5.4.3"
+    "typescript": "^6.0.2"
   },
   "engines": {
     "node": ">=18.0.0"
