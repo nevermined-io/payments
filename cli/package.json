@@ -46,7 +46,7 @@
     "inquirer": "^9.2.15"
   },
   "devDependencies": {
-    "@oclif/test": "^3.2.10",
+    "@oclif/test": "^4.1.18",
     "@types/inquirer": "^9.0.7",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.30",
