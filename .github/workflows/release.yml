@@ -10,13 +10,13 @@ jobs:
     name: Build & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24.x'
           cache: 'pnpm'
@@ -71,11 +71,11 @@ jobs:
     permissions:
       id-token: write  # Required for OIDC
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24.x'
           registry-url: https://registry.npmjs.org/
@@ -93,7 +93,7 @@ jobs:
         run: npm pack
 
       - name: Upload SDK tarball
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdk-tarball
           path: '*.tgz'
@@ -106,13 +106,13 @@ jobs:
       contents: write
       id-token: write  # Required for OIDC
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24.x'
           cache: 'pnpm'
@@ -165,7 +165,7 @@ jobs:
         run: npx oclif pack tarballs --no-xz
 
       - name: Upload CLI tarballs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cli-tarballs
           path: cli/dist/*.tar.gz
@@ -186,13 +186,13 @@ jobs:
       contents: write
       id-token: write  # Required for OIDC
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24.x'
           cache: 'pnpm'
@@ -245,7 +245,7 @@ jobs:
         run: npm pack
 
       - name: Upload OpenClaw Plugin tarball
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openclaw-tarball
           path: openclaw/*.tgz
@@ -265,7 +265,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -276,19 +276,19 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download SDK tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: sdk-tarball
           path: sdk-tarball
 
       - name: Download CLI tarballs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cli-tarballs
           path: cli-tarballs
 
       - name: Download OpenClaw Plugin tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: openclaw-tarball
           path: openclaw-tarball
@@ -367,7 +367,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout payments repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: payments
 
@@ -392,14 +392,14 @@ jobs:
 
       - name: Generate GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: nevermined-io
 
       - name: Checkout docs_mintlify repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: nevermined-io/docs_mintlify
           token: ${{ steps.app-token.outputs.token }}
