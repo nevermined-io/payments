@@ -120,6 +120,17 @@ export class SessionManager {
       throw new Error('MCP server not set. Call setMcpServer() first.')
     }
 
+    // In stateless mode (sessionIdGenerator: undefined), each request gets a new transport
+    // but McpServer can only have one transport at a time. Close the existing connection
+    // before connecting the new transport so Protocol._transport is reset to undefined.
+    // The StreamableHTTPServerTransport with enableJsonResponse does not auto-close after
+    // sending a JSON response, so we must close it explicitly before each new connection.
+    try {
+      await this.mcpServer.close()
+    } catch (_e) {
+      // Ignore close errors — server may not have been connected yet
+    }
+
     const TransportClass = await getTransportClass()
 
     // Use stateless mode (sessionIdGenerator: undefined) to avoid requiring
@@ -130,10 +141,13 @@ export class SessionManager {
       enableJsonResponse: true,
     })
 
+    // Set onclose BEFORE connect() so the SDK chains it with its own handler.
+    // When the transport closes, both our cleanup and the SDK's cleanup run.
     transport.onclose = () => {
-      this.log?.(`Transport closed for session ${sessionId}`)
       this.sessions.delete(sessionId)
+      this.requestContexts.delete(sessionId)
       this.config.onSessionDestroyed?.(sessionId)
+      this.log?.(`Transport closed for session ${sessionId}`)
     }
 
     await this.mcpServer.connect(transport)
