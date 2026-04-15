@@ -20,7 +20,7 @@
     "dev": "tsx src/index.ts",
     "generate": "tsx src/generator/generate.ts",
     "sync-check": "tsx src/generator/sync-check.ts",
-    "test": "yarn test:unit && yarn test:integration",
+    "test": "pnpm test:unit && pnpm test:integration",
     "test:unit": "jest test/unit/simple.test.ts test/unit/output-formatter-basic.test.ts",
     "test:unit:all": "jest --testPathPattern=test/unit",
     "test:integration": "jest test/integration/cli-basic.test.ts test/integration/generated-commands.test.ts",
@@ -31,7 +31,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint . --ext .ts",
-    "prepack": "yarn build && oclif manifest && oclif readme",
+    "prepack": "pnpm build && oclif manifest && oclif readme",
     "postpack": "rm -f oclif.manifest.json",
     "version": "oclif readme && git add README.md"
   },

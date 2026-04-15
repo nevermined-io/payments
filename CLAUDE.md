@@ -12,28 +12,28 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture, flow diagram
 
 ```bash
 # Install dependencies
-yarn
+pnpm install
 
 # Build the project
-yarn build
+pnpm build
 
 # Run all tests
-yarn test
+pnpm test
 
 # Run specific test types
-yarn test:unit              # Unit tests only
-yarn test:integration       # Integration tests only
-yarn test:e2e               # E2E tests (runs sequentially with --runInBand)
+pnpm test:unit              # Unit tests only
+pnpm test:integration       # Integration tests only
+pnpm test:e2e               # E2E tests (runs sequentially with --runInBand)
 
 # Run a single test file
-yarn test -- tests/unit/payments.test.ts
+pnpm test -- tests/unit/payments.test.ts
 
 # Lint and format
-yarn lint                   # ESLint
-yarn format                 # Prettier check
+pnpm lint                   # ESLint
+pnpm format                 # Prettier check
 
 # Generate TypeDoc API documentation (HTML)
-yarn doc
+pnpm doc
 
 # Validate markdown documentation
 ./scripts/generate-docs.sh
@@ -92,13 +92,13 @@ When writing examples or documentation:
 Before submitting changes, run these checks:
 
 ```bash
-yarn build && yarn lint && yarn test:unit
+pnpm build && pnpm lint && pnpm test:unit
 ```
 
 For full validation including integration tests:
 
 ```bash
-yarn build && yarn lint && yarn test:unit && yarn test:integration && yarn test:e2e
+pnpm build && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm test:e2e
 ```
 
 ### After Modifying Source Files

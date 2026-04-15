@@ -1,0 +1,51 @@
+name: Update Dependabot branches after merge
+
+# Whenever anything lands on main, bring all open Dependabot PR branches
+# up to date so their CI can run and auto-merge can proceed unblocked.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate release bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Update outdated Dependabot PR branches
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Looking for open Dependabot PRs..."
+          prs=$(gh pr list \
+            --repo "$REPO" \
+            --author "dependabot[bot]" \
+            --state open \
+            --json number \
+            --jq '.[].number')
+
+          if [ -z "$prs" ]; then
+            echo "No open Dependabot PRs found."
+            exit 0
+          fi
+
+          for pr in $prs; do
+            echo "Updating branch for PR #$pr..."
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/$REPO/pulls/$pr/update-branch" \
+              && echo "PR #$pr branch updated." \
+              || echo "PR #$pr skipped (already up to date or conflict)."
+          done

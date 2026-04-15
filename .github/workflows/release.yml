@@ -14,53 +14,57 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install SDK dependencies
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile --ignore-engines
 
       - name: Build SDK
-        run: yarn build
+        run: pnpm build
 
       - name: Install CLI dependencies
         working-directory: cli
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile --ignore-engines
 
       - name: Link local SDK into CLI
         run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
 
       - name: Generate CLI commands
         working-directory: cli
-        run: yarn generate || echo "Generation completed"
+        run: pnpm generate || echo "Generation completed"
 
       - name: Build CLI
         working-directory: cli
-        run: yarn build:manifest
+        run: pnpm build:manifest
 
       - name: Run CLI tests
         working-directory: cli
         run: |
-          yarn test:unit
-          yarn test:integration
+          pnpm test:unit
+          pnpm test:integration
 
       - name: Install OpenClaw Plugin dependencies
         working-directory: openclaw
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile --ignore-engines
 
       - name: Link local SDK into OpenClaw Plugin
         run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
 
       - name: Build OpenClaw Plugin
         working-directory: openclaw
-        run: yarn build
+        run: pnpm build
 
       - name: Run OpenClaw Plugin tests
         working-directory: openclaw
-        run: yarn test
+        run: pnpm test
 
   publish-sdk:
     name: Publish SDK to npm
@@ -71,16 +75,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24.x'
           registry-url: https://registry.npmjs.org/
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile --ignore-engines
 
       - name: Build SDK
-        run: yarn build
+        run: pnpm build
 
       - name: Publish SDK package
         run: npm publish --access public
@@ -106,11 +114,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
           registry-url: https://registry.npmjs.org/
 
       - name: Extract version from tag
@@ -121,14 +133,14 @@ jobs:
           echo "Publishing version: $VERSION"
 
       - name: Install SDK dependencies
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile --ignore-engines
 
       - name: Build SDK
-        run: yarn build
+        run: pnpm build
 
       - name: Install CLI dependencies
         working-directory: cli
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile --ignore-engines
 
       - name: Link local SDK into CLI
         run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
@@ -144,11 +156,11 @@ jobs:
 
       - name: Generate CLI commands
         working-directory: cli
-        run: yarn generate || echo "Generation completed"
+        run: pnpm generate || echo "Generation completed"
 
       - name: Build CLI
         working-directory: cli
-        run: yarn build:manifest
+        run: pnpm build:manifest
 
       - name: Publish CLI package
         working-directory: cli
@@ -156,9 +168,7 @@ jobs:
 
       - name: Pack tarballs
         working-directory: cli
-        run: |
-          yarn config set ignore-engines true
-          npx oclif pack tarballs --no-xz
+        run: npx oclif pack tarballs --no-xz
 
       - name: Upload CLI tarballs
         uses: actions/upload-artifact@v4
@@ -186,11 +196,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'yarn'
-          cache-dependency-path: yarn.lock
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
           registry-url: https://registry.npmjs.org/
 
       - name: Extract version from tag
@@ -201,14 +215,14 @@ jobs:
           echo "Publishing version: $VERSION"
 
       - name: Install SDK dependencies
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile --ignore-engines
 
       - name: Build SDK
-        run: yarn build
+        run: pnpm build
 
       - name: Install OpenClaw Plugin dependencies
         working-directory: openclaw
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile --ignore-engines
 
       - name: Link local SDK into OpenClaw Plugin
         run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
@@ -224,11 +238,11 @@ jobs:
 
       - name: Build OpenClaw Plugin
         working-directory: openclaw
-        run: yarn build
+        run: pnpm build
 
       - name: Run OpenClaw Plugin tests
         working-directory: openclaw
-        run: yarn test
+        run: pnpm test
 
       - name: Publish OpenClaw Plugin package
         working-directory: openclaw
