@@ -53,7 +53,7 @@ export abstract class BasePaymentsAPI {
       const accountAddress = jwt.sub as string
       const heliconeApiKey = jwt.o11y as string
       return { accountAddress, heliconeApiKey }
-    } catch (error) {
+    } catch (_error) {
       throw new PaymentsError('Invalid NVM API Key')
     }
   }

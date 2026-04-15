@@ -383,7 +383,7 @@ ${runMethod}
    */
   private generateMethodCall(method: MethodInfo, _apiProperty: string): string {
     const args: string[] = []
-    const hasComplexTypes = method.parameters.some(p =>
+    const _hasComplexTypes = method.parameters.some(p =>
       this.isComplexType(p.type) &&
       !(p.name.toLowerCase().includes('id') && method.parameters.indexOf(p) === 0)
     )

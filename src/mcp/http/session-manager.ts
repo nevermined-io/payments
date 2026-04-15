@@ -27,7 +27,7 @@ async function getTransportClass(): Promise<any> {
     try {
       const module = await import('@modelcontextprotocol/sdk/server/streamableHttp.js')
       StreamableHTTPServerTransport = module.StreamableHTTPServerTransport
-    } catch (error) {
+    } catch (_error) {
       throw new Error(
         'Failed to load @modelcontextprotocol/sdk. Make sure it is installed: npm install @modelcontextprotocol/sdk',
       )
