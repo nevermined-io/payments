@@ -33,6 +33,9 @@ importers:
         specifier: ^9.2.15
         version: 9.3.8(@types/node@20.19.39)
     devDependencies:
+      '@jest/globals':
+        specifier: ^29.7.0
+        version: 29.7.0
       '@oclif/test':
         specifier: ^3.2.10
         version: 3.2.15
