@@ -29,7 +29,7 @@ describe('CLI Integration Tests', () => {
   beforeAll(() => {
     // Ensure CLI is built
     try {
-      execSync('yarn build', {
+      execSync('pnpm build', {
         cwd: join(__dirname, '../..'),
         stdio: 'ignore',
       })

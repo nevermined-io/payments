@@ -28,8 +28,8 @@ This directory contains automated workflows for the Nevermined Payments SDK and 
 
 **Process:**
 1. Detects SDK code changes (`src/**`, `package.json`, etc.)
-2. Regenerates CLI commands from SDK API (`yarn generate`)
-3. Builds CLI (`yarn build:manifest`)
+2. Regenerates CLI commands from SDK API (`pnpm generate`)
+3. Builds CLI (`pnpm build:manifest`)
 4. Runs all CLI tests (unit + integration)
 5. If changes detected, commits to the same branch/PR
 6. Comments on PR with sync status

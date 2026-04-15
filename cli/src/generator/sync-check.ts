@@ -132,8 +132,8 @@ async function main() {
     }
 
     console.log('\n💡 To fix:')
-    console.log('   Run: yarn cli:generate')
-    console.log('   Then: yarn build:manifest')
+    console.log('   Run: pnpm cli:generate')
+    console.log('   Then: pnpm build:manifest')
 
     process.exit(1)
   }

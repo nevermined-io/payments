@@ -109,9 +109,9 @@ When you modify source files, especially:
 - Authentication/authorization logic
 
 You MUST:
-1. Run `yarn build` to verify TypeScript compilation
-2. Run `yarn test:unit` to verify unit tests pass
-3. If modifying E2E-related code, run `yarn test:e2e`
+1. Run `pnpm build` to verify TypeScript compilation
+2. Run `pnpm test:unit` to verify unit tests pass
+3. If modifying E2E-related code, run `pnpm test:e2e`
 4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. Validate with `./scripts/generate-docs.sh`. On merge to main, the `update-docs.yml` workflow runs `generate-docs.sh` and auto-creates a PR with any changes. On tag push, `publish-docs.yml` publishes to docs_mintlify. However, `generate-docs.sh` only validates structure — it does NOT auto-update code examples, so those must be updated manually.
 5. When modifying `openclaw/` or `cli/` source files, check that they use the same function signatures as the core SDK (`src/`). The openclaw plugin and CLI are in-tree consumers that can silently break if signatures change.
 
@@ -193,7 +193,7 @@ See [TESTING.md](./TESTING.md) for testing patterns when building applications w
 
 E2E tests run directly against the **staging environment**. When making changes:
 
-1. Ensure E2E tests pass after code changes: `yarn test:e2e`
+1. Ensure E2E tests pass after code changes: `pnpm test:e2e`
 2. If E2E tests fail after backend API changes (in `nvm-monorepo`), the staging environment may need to be redeployed with those changes before the SDK E2E tests will pass
 3. E2E test failures due to pending backend deployments are expected - coordinate with the team to deploy backend changes to staging first
 
@@ -281,7 +281,7 @@ Located in `docs/` directory - auto-generated HTML documentation:
 
 ```bash
 # Generate TypeDoc documentation
-yarn doc
+pnpm doc
 ```
 
 The HTML documentation is generated from TypeScript source code comments and provides:
