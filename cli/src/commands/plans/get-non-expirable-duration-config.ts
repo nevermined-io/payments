@@ -1,3 +1,4 @@
+import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
@@ -18,7 +19,7 @@ export default class GetNonExpirableDurationConfig extends BaseCommand {
 
 
   public async run(): Promise<void> {
-    const {} = await this.parse(this.constructor as any)
+    const { flags } = await this.parse(this.constructor as any)
 
     const payments = await this.initPayments()
 

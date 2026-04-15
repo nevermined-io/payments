@@ -1,4 +1,4 @@
-import { Args } from '@oclif/core'
+import { Args, Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
@@ -25,7 +25,7 @@ export default class OrderFiatPlan extends BaseCommand {
 
 
   public async run(): Promise<void> {
-    const { args } = await this.parse(this.constructor as any)
+    const { flags, args } = await this.parse(this.constructor as any)
 
     const payments = await this.initPayments()
 
