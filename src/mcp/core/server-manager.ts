@@ -44,7 +44,7 @@ async function getMcpServerClass(): Promise<any> {
       const module = await import('@modelcontextprotocol/sdk/server/mcp.js')
       McpServerClass = module.McpServer
       ResourceTemplateClass = module.ResourceTemplate
-    } catch (error) {
+    } catch (_error) {
       throw new Error(
         'Failed to load @modelcontextprotocol/sdk. Make sure it is installed: npm install @modelcontextprotocol/sdk',
       )

@@ -42,7 +42,7 @@ export class ConfigManager {
         const content = await readFile(configPath, 'utf-8')
         this.configCache = JSON.parse(content) as Config
         return this.configCache
-      } catch (fileError) {
+      } catch (_fileError) {
         // Fall back to cosmiconfig search
         const result = await this.explorer.search()
         if (result && !result.isEmpty) {
@@ -51,7 +51,7 @@ export class ConfigManager {
         }
       }
       return null
-    } catch (error) {
+    } catch (_error) {
       return null
     }
   }

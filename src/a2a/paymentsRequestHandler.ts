@@ -446,7 +446,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
                   : event.metadata.creditsUsed
               }
             }
-          } catch (err) {
+          } catch (_err) {
             // Do nothing
           }
         }
@@ -472,7 +472,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
                 },
               )
             }
-          } catch (err) {
+          } catch (_err) {
             // Do nothing
           }
         }
@@ -697,7 +697,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           // Delete http context associated with the task
           this.deleteHttpRequestContextForTask(event.taskId)
         }
-      } catch (err) {
+      } catch (_err) {
         // Do nothing
       }
     }
@@ -713,7 +713,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           { contextId: event.contextId },
         )
       }
-    } catch (err) {
+    } catch (_err) {
       // Do nothing
     }
   }

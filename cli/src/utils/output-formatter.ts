@@ -27,7 +27,7 @@ export class OutputFormatter {
         if (Array.isArray(tableData) && options) {
           this.outputTable(tableData, options)
           if (options.summary) {
-            const { total, page, offset } = options.summary
+            const { total, page, offset: _offset } = options.summary
             console.log(chalk.gray(`\nShowing page ${page} (${tableData.length} of ${total} results)`))
           }
         } else {

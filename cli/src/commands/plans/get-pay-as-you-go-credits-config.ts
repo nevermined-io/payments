@@ -1,4 +1,3 @@
-import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
@@ -19,7 +18,7 @@ export default class GetPayAsYouGoCreditsConfig extends BaseCommand {
 
 
   public async run(): Promise<void> {
-    const { flags } = await this.parse(this.constructor as any)
+    const {} = await this.parse(this.constructor as any)
 
     const payments = await this.initPayments()
 
