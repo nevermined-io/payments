@@ -62,7 +62,7 @@ const agentApi: AgentAPIAttributes = {
   token: process.env.AGENT_BEARER_TOKEN,
 
   // Additional Security: only requests matching this allowlist are accepted by
-  // x402 verify. Omitted = allow-all (default).
+  // the Nevermined platform's x402 verification service. Omitted = allow-all (default).
   endpoints: [
     { POST: 'https://api.example.com/v1/agents/:agentId/tasks' },
     { GET: 'https://api.example.com/v1/agents/:agentId/tasks/:taskId' },
