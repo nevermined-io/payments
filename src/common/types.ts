@@ -329,17 +329,24 @@ export interface PlanMetadata extends AgentMetadata {
  */
 export interface AgentAPIAttributes {
   /**
-   * The list endpoints of the upstream service. All these endpoints are protected and only accessible to subscribers of the Payment Plan.
+   * Optional allowlist of upstream endpoints that require a valid Payment Plan
+   * subscription. When provided, the Nevermined platform enforces this list as
+   * **Additional Security** (defense-in-depth) on top of any per-route gating
+   * the Payments library middleware applies in your agent. When omitted, no
+   * route-level allowlist is enforced — your library middleware remains the
+   * sole gate.
    */
-  endpoints: Endpoint[]
+  endpoints?: Endpoint[]
   /**
    * The list of endpoints of the upstream service that publicly available. The access to these endpoints don't require subscription to the Payment Plan. They are useful to expose documentation, etc.
    */
   openEndpoints?: string[]
   /**
-   * The URL to the agent definition. Can be an OpenAPI spec, MCP Manifest, or A2A agent card. This field is mandatory and defines how the agent/service can be discovered and queried.
+   * Optional URL to a discoverable agent definition (OpenAPI spec, MCP
+   * Manifest, or A2A agent card). Stored as metadata for documentation /
+   * discovery — not consumed at runtime by the Nevermined platform.
    */
-  agentDefinitionUrl: string
+  agentDefinitionUrl?: string
 
   /////// AUTHORIZATION ///////
 
