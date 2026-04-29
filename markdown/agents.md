@@ -225,10 +225,10 @@ await payments.agents.updateAgentMetadata(
   },
   {
     // Adding `endpoints` activates the platform-enforced allowlist.
-    // To later remove it (and return to allow-all), pass `endpoints: []`
-    // along with the rest of the API config — but be aware the platform
-    // treats configured-but-empty as deny-all unless `openEndpoints`
-    // matches, preserving legacy semantics.
+    // Do not use `endpoints: []` to mean "allow all": a configured-but-empty
+    // allowlist is treated as deny-all unless `openEndpoints` matches,
+    // preserving legacy semantics. Only include `endpoints` when you want
+    // the allowlist to be enforced.
     endpoints: [
       { POST: 'https://weather-api.example.com/v2/agents/:agentId/forecast' },
       { GET: 'https://weather-api.example.com/v2/agents/:agentId/history' },
