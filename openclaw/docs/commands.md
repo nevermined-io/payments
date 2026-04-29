@@ -168,7 +168,7 @@ No parameters required.
 Send a prompt to a paid Nevermined AI agent and get the response. This is the main tool for interacting with agents — it handles the full payment lifecycle in a single call:
 
 1. Acquires an x402 access token (crypto or fiat, depending on `paymentType`)
-2. Sends the prompt to the agent's URL with the `PAYMENT-SIGNATURE` header
+2. Sends the prompt to the agent's URL with the `payment-signature` header
 3. Returns the agent's response
 
 If the agent returns a 402 (Payment Required) response, the tool returns an error suggesting you purchase credits first. This typically means your plan has run out of credits or you haven't subscribed yet.
