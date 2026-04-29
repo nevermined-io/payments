@@ -37,28 +37,51 @@ const agentMetadata: AgentMetadata = {
 
 ## Agent API Configuration
 
-Define how your agent's API endpoints can be accessed:
+`AgentAPIAttributes` describes how requests to your agent are authenticated and (optionally) which routes are gated by your Payment Plan. **All fields are optional.**
+
+### Minimal (recommended)
+
+Most builders only need to configure how the agent is authenticated. If you integrate with the Payments library and gate paid routes via library annotations or middleware, you do **not** need to declare endpoints or an OpenAPI URL at registration time.
 
 ```typescript
 import { AgentAPIAttributes } from '@nevermined-io/payments'
 
 const agentApi: AgentAPIAttributes = {
+  authType: 'bearer',
+  token: process.env.AGENT_BEARER_TOKEN,
+}
+```
+
+### With Additional Security (opt-in)
+
+If you want the Nevermined platform to enforce a route-level allowlist (defense-in-depth on top of your library-level gating), provide `endpoints`. You can also provide `agentDefinitionUrl` to publish a discoverable OpenAPI / MCP / A2A descriptor.
+
+```typescript
+const agentApi: AgentAPIAttributes = {
+  authType: 'bearer',
+  token: process.env.AGENT_BEARER_TOKEN,
+
+  // Additional Security: only requests matching this allowlist are accepted by
+  // the Nevermined platform's x402 verification service. Omitted = allow-all (default).
   endpoints: [
     { POST: 'https://api.example.com/v1/agents/:agentId/tasks' },
     { GET: 'https://api.example.com/v1/agents/:agentId/tasks/:taskId' },
   ],
-  openEndpoints: [],  // Endpoints that don't require authentication
-  authType: 'bearer',  // Authentication type: 'none', 'basic', 'bearer', 'oauth'
-  agentDefinitionUrl: 'https://api.example.com/openapi.json',  // Optional OpenAPI spec
+  openEndpoints: ['https://api.example.com/v1/health'],
+
+  // Optional: discoverable agent definition (OpenAPI / MCP Manifest / A2A card).
+  agentDefinitionUrl: 'https://api.example.com/openapi.json',
 }
 ```
 
-### Endpoint Patterns
+> **Migration note:** agents registered before endpoint and agent definition fields became optional may still have these fields populated and will continue to enforce the allowlist as before. Nothing changes for them. Use the Edit Agent screen on app.nevermined.app to add or remove the configuration.
 
-You can use path parameters in your endpoint definitions:
+### Endpoint Patterns (Additional Security)
+
+When you opt in to the allowlist, you can use path parameters in your endpoint definitions:
 
 ```typescript
-const agentApi = {
+const agentApi: AgentAPIAttributes = {
   endpoints: [
     { POST: 'https://api.example.com/agents/:agentId/query' },
     { GET: 'https://api.example.com/agents/:agentId/status' },
@@ -88,15 +111,11 @@ const agentMetadata: AgentMetadata = {
   tags: ['weather', 'forecast', 'api'],
 }
 
-// Configure API endpoints
+// Configure API authentication. endpoints + agentDefinitionUrl are
+// optional — see "Additional Security (opt-in)" above.
 const agentApi: AgentAPIAttributes = {
-  endpoints: [
-    { POST: 'https://weather-api.example.com/v1/agents/:agentId/forecast' },
-    { GET: 'https://weather-api.example.com/v1/agents/:agentId/history' },
-  ],
-  openEndpoints: [],
   authType: 'bearer',
-  agentDefinitionUrl: 'https://weather-api.example.com/openapi.json',
+  token: process.env.AGENT_BEARER_TOKEN,
 }
 
 // Register agent with existing plans
@@ -146,10 +165,13 @@ const agentMetadata: AgentMetadata = {
 }
 
 const agentApi: AgentAPIAttributes = {
-  endpoints: [
-    { POST: 'https://weather-api.example.com/v1/agents/:agentId/tasks' },
-  ],
-  agentDefinitionUrl: 'https://weather-api.example.com/openapi.json',
+  authType: 'bearer',
+  token: process.env.AGENT_BEARER_TOKEN,
+  // Optional: opt in to platform-enforced route allowlist. See
+  // "Additional Security (opt-in)" above.
+  // endpoints: [
+  //   { POST: 'https://weather-api.example.com/v1/agents/:agentId/tasks' },
+  // ],
 }
 
 // Register both together
@@ -191,10 +213,10 @@ plans.forEach(plan => {
 
 ## Update Agent Metadata
 
-You can update agent metadata and API configuration after registration:
+You can update agent metadata and API configuration after registration. This is also where builders typically **opt in to Additional Security** by adding an `endpoints` allowlist or an `agentDefinitionUrl` to an existing agent:
 
 ```typescript
-// Update agent information
+// Update agent information and opt in to the route-level allowlist.
 await payments.agents.updateAgentMetadata(
   agentId,
   {
@@ -202,11 +224,17 @@ await payments.agents.updateAgentMetadata(
     tags: ['weather', 'forecast', 'climate', 'ai-powered'],
   },
   {
+    // Adding `endpoints` activates the platform-enforced allowlist.
+    // Do not use `endpoints: []` to mean "allow all": a configured-but-empty
+    // allowlist is treated as deny-all unless `openEndpoints` matches,
+    // preserving legacy semantics. Only include `endpoints` when you want
+    // the allowlist to be enforced.
     endpoints: [
       { POST: 'https://weather-api.example.com/v2/agents/:agentId/forecast' },
       { GET: 'https://weather-api.example.com/v2/agents/:agentId/history' },
-      { GET: 'https://weather-api.example.com/v2/agents/:agentId/alerts' },  // New endpoint
+      { GET: 'https://weather-api.example.com/v2/agents/:agentId/alerts' },
     ],
+    agentDefinitionUrl: 'https://weather-api.example.com/openapi.json',
   }
 )
 
