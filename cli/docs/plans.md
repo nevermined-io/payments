@@ -225,14 +225,44 @@ The `--credits-duration` flag is optional and specifies duration in seconds.
 
 ## Redeeming Credits
 
-Burn/redeem credits for a given payment plan:
+Credit redemption (burning credits after a paid request) is performed via the x402 facilitator, not via a dedicated `plans` command. The legacy `nvm plans redeem-credits` command was removed because the backend exposes no direct redeem endpoint — the only burn path is `POST /api/v1/x402/settle`.
+
+Migration (subscriber side — get an access token):
 
 ```bash
-nvm plans redeem-credits <agent-request-id> \
-  --plan-id <plan-id> \
-  --credits-amount-to-redeem 5 \
-  --redeem-from "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+nvm x402token get-x402-access-token <plan-id> --format json
+# → { "accessToken": "eyJ4NDAyVm..." }
 ```
+
+Migration (agent side — verify and settle):
+
+```bash
+# Build the params JSON once
+cat > /tmp/settle-params.json <<EOF
+{
+  "paymentRequired": {
+    "x402Version": 2,
+    "resource": { "url": "https://your-agent.example.com/task" },
+    "accepts": [{
+      "scheme": "nvm:erc4337",
+      "network": "eip155:84532",
+      "planId": "<plan-id>",
+      "extra": { "version": "1" }
+    }],
+    "extensions": {}
+  },
+  "x402AccessToken": "<accessToken from previous step>",
+  "agentRequestId": "<id from verify-permissions response>",
+  "maxAmount": "5"
+}
+EOF
+
+nvm facilitator verify-permissions --params "$(cat /tmp/settle-params.json)" --format json
+nvm facilitator settle-permissions --params "$(cat /tmp/settle-params.json)" --format json
+# → { "success": true, "creditsRedeemed": "5", "remainingBalance": "...", ... }
+```
+
+`settle-permissions` is idempotent on `agentRequestId` — replaying the same id returns the same transaction id without double-burning.
 
 ## Price Configuration Helpers
 

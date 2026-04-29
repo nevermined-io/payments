@@ -19,7 +19,6 @@ import { BasePaymentsAPI } from './base-payments.js'
 import * as Plans from '../plans.js'
 import { ContractsAPI } from './contracts-api.js'
 import {
-  API_URL_REDEEM_PLAN,
   API_URL_GET_PLAN,
   API_URL_GET_PLAN_AGENTS,
   API_URL_MINT_EXPIRABLE_PLAN,
@@ -731,54 +730,6 @@ export class PlansAPI extends BasePaymentsAPI {
     const response = await fetch(url, options)
     if (!response.ok) {
       throw PaymentsError.fromBackend('Unable to mint expirable credits', await response.json())
-    }
-
-    return response.json()
-  }
-
-  /**
-   * Burns/redeem credits for a given Payment Plan.
-   *
-   * @remarks
-   * Only the owner of the Payment Plan can call this method.
-   *
-   * @param agentRequestId - The unique identifier of the agent request to track the operation. This ID is generated via the `requests.startProcessingRequest` method
-   * @param planId - The unique identifier of the Payment Plan.
-   * @param redeemFrom - The address of the account to redeem from.
-   * @param creditsAmountToRedeem - The amount of credits to redeem.
-   * @returns @see {@link NvmAPIResult} A promise that resolves to the result of the operation.
-   * @throws PaymentsError if unable to burn credits.
-   *
-   * ```
-   * const result = await payments.plans.redeemCredits(
-   *   'request-id-12345', // The request ID to track the operation
-   *    planId,
-   *    '0x505384192Ba6a4D4b50EAB846ee67db3b9A93359', // The address of the account to redeem from
-   *    5n
-   * )
-   * // {
-   * //   txHash: '0x8d29d5769e832a35e53f80cd4e8890d941c50a09c33dbd975533debc894f2535',
-   * //   success: true
-   * // }
-   * ```
-   */
-  public async redeemCredits(
-    agentRequestId: string,
-    planId: string,
-    redeemFrom: Address,
-    creditsAmountToRedeem: string,
-  ): Promise<NvmAPIResult> {
-    const body = {
-      agentRequestId,
-      planId,
-      redeemFrom,
-      amount: creditsAmountToRedeem,
-    }
-    const options = this.getBackendHTTPOptions('POST', body)
-    const url = new URL(API_URL_REDEEM_PLAN, this.environment.backend)
-    const response = await fetch(url, options)
-    if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to redeem credits', await response.json())
     }
 
     return response.json()
