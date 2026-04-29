@@ -74,7 +74,7 @@ const agentApi: AgentAPIAttributes = {
 }
 ```
 
-> **Migration note:** existing agents that registered before April 2026 still have these fields populated and continue to enforce the allowlist as before. Nothing changes for them. Use the Edit Agent screen on app.nevermined.app to add or remove the configuration.
+> **Migration note:** agents registered before endpoint and agent definition fields became optional may still have these fields populated and will continue to enforce the allowlist as before. Nothing changes for them. Use the Edit Agent screen on app.nevermined.app to add or remove the configuration.
 
 ### Endpoint patterns (Additional Security)
 
