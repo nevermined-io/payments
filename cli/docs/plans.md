@@ -225,14 +225,7 @@ The `--credits-duration` flag is optional and specifies duration in seconds.
 
 ## Redeeming Credits
 
-Burn/redeem credits for a given payment plan:
-
-```bash
-nvm plans redeem-credits <agent-request-id> \
-  --plan-id <plan-id> \
-  --credits-amount-to-redeem 5 \
-  --redeem-from "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
-```
+Credit redemption (burn) is performed via the x402 facilitator. Use `nvm facilitator settle-permissions` with an x402 access token obtained from `nvm x402token get-x402-access-token`. The legacy `plans redeem-credits` command was removed because the backend exposes no direct redeem endpoint.
 
 ## Price Configuration Helpers
 
