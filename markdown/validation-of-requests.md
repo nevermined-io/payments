@@ -20,7 +20,7 @@ The validation flow consists of:
 
 ## Receiving Requests
 
-Extract the X402 access token from request headers. The X402 v2 spec defines the `PAYMENT-SIGNATURE` header:
+Extract the X402 access token from request headers. The X402 v2 spec defines the `payment-signature` header:
 
 ```typescript
 import express from 'express'
@@ -29,7 +29,7 @@ const app = express()
 app.use(express.json())
 
 app.post('/api/v1/tasks', async (req, res) => {
-  // Extract token from PAYMENT-SIGNATURE header (X402 v2)
+  // Extract token from payment-signature header (X402 v2)
   const accessToken = req.headers['payment-signature'] as string
 
   // Alternative: Authorization header
@@ -186,7 +186,7 @@ function return402Response(res: express.Response, planId: string, agentId: strin
 
   res.end(JSON.stringify({
     error: 'Payment required',
-    message: 'Valid X402 access token required in PAYMENT-SIGNATURE header',
+    message: 'Valid X402 access token required in payment-signature header',
   }))
 }
 
