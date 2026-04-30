@@ -2,13 +2,13 @@ import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Marks whether proof is required in a credits configuration.
+ * Marks whether burns of these credits are mirrored on-chain.
  */
-export default class SetProofRequired extends BaseCommand {
-  static override description = "Marks whether proof is required in a credits configuration."
+export default class SetOnchainMirror extends BaseCommand {
+  static override description = "Marks whether burns of these credits are mirrored on-chain."
 
   static override examples = [
-    '$ nvm plans set-proof-required'
+    '$ nvm plans set-onchain-mirror'
   ]
 
   static override flags = {
@@ -17,7 +17,7 @@ export default class SetProofRequired extends BaseCommand {
       description: "creditsConfig as JSON string",
       required: true
     }),
-    'proof-required': Flags.boolean({ required: false }),
+    'onchain-mirror': Flags.boolean({ required: false }),
   }
 
 
@@ -28,7 +28,7 @@ export default class SetProofRequired extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.setProofRequired(await this.parseJsonInput(flags['credits-config']), flags['proof-required'])
+      const result = await payments.plans.setOnchainMirror(await this.parseJsonInput(flags['credits-config']), flags['onchain-mirror'])
 
       this.formatter.output(result)
     } catch (error) {

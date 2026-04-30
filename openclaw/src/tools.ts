@@ -260,7 +260,7 @@ export function createTools(
           {
             isRedemptionAmountFixed: true,
             redemptionType: 4,
-            proofRequired: false,
+            onchainMirror: false,
             durationSecs: 0n,
             amount: BigInt(creditsAmount),
             minAmount: 1n,
@@ -352,7 +352,7 @@ export function createTools(
           {
             isRedemptionAmountFixed: true,
             redemptionType: 4,
-            proofRequired: false,
+            onchainMirror: false,
             durationSecs: 0n,
             amount: BigInt(creditsAmount),
             minAmount: 1n,

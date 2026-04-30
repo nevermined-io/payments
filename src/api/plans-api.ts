@@ -204,17 +204,25 @@ export class PlansAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Marks whether proof is required in a credits configuration.
+   * Marks whether burns of these credits are mirrored on-chain.
+   *
+   * When `false`, the credits ledger is the API's Postgres and burns are
+   * recorded off-chain only — this is also the structural default of
+   * `PlanCreditsConfig.onchainMirror` produced by the credits-config
+   * builders. When `true`, an on-chain audit mirror replays each burn to
+   * `NFT1155Credits`.
    *
    * @param creditsConfig - Credits configuration to modify.
-   * @param proofRequired - Whether proof is required (default true).
+   * @param onchainMirror - Whether on-chain mirroring is enabled. Defaults
+   *   to `true` so calling `setOnchainMirror(config)` enables the mirror;
+   *   pass `false` explicitly to disable it.
    * @returns The updated PlanCreditsConfig.
    */
-  public setProofRequired(
+  public setOnchainMirror(
     creditsConfig: PlanCreditsConfig,
-    proofRequired = true,
+    onchainMirror = true,
   ): PlanCreditsConfig {
-    return Plans.setProofRequired(creditsConfig, proofRequired)
+    return Plans.setOnchainMirror(creditsConfig, onchainMirror)
   }
   /**
    * This method is used to create a singleton instance of the PlansAPI class.

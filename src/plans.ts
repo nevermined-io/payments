@@ -103,7 +103,7 @@ export const getExpirableDurationConfig = (durationOfPlan: bigint): PlanCreditsC
   return {
     isRedemptionAmountFixed: false,
     redemptionType: PlanRedemptionType.ONLY_SUBSCRIBER,
-    proofRequired: false,
+    onchainMirror: false,
     durationSecs: durationOfPlan,
     amount: 1n,
     minAmount: 1n,
@@ -122,7 +122,7 @@ export const getFixedCreditsConfig = (
   return {
     isRedemptionAmountFixed: true,
     redemptionType: PlanRedemptionType.ONLY_SUBSCRIBER,
-    proofRequired: false,
+    onchainMirror: false,
     durationSecs: 0n,
     amount: creditsGranted,
     minAmount: creditsPerRequest,
@@ -138,7 +138,7 @@ export const getDynamicCreditsConfig = (
   return {
     isRedemptionAmountFixed: false,
     redemptionType: PlanRedemptionType.ONLY_SUBSCRIBER,
-    proofRequired: false,
+    onchainMirror: false,
     durationSecs: 0n,
     amount: creditsGranted,
     minAmount: minCreditsPerRequest,
@@ -156,13 +156,13 @@ export const setRedemptionType = (
   }
 }
 
-export const setProofRequired = (
+export const setOnchainMirror = (
   creditsConfig: PlanCreditsConfig,
-  proofRequired = true,
+  onchainMirror = true,
 ): PlanCreditsConfig => {
   return {
     ...creditsConfig,
-    proofRequired,
+    onchainMirror,
   }
 }
 
@@ -207,7 +207,7 @@ export const getPayAsYouGoCreditsConfig = (): PlanCreditsConfig => {
   return {
     isRedemptionAmountFixed: false,
     redemptionType: PlanRedemptionType.ONLY_SUBSCRIBER,
-    proofRequired: false,
+    onchainMirror: false,
     durationSecs: 0n,
     amount: 1n,
     minAmount: 1n,
