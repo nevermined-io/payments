@@ -181,7 +181,7 @@ Should show 5 credits.
 
 The Claw calls `nevermined_queryAgent`, which:
 1. Acquires an x402 access token
-2. Sends the prompt with a `PAYMENT-SIGNATURE` header
+2. Sends the prompt with a `payment-signature` header
 3. The paid endpoint verifies, processes, and settles
 4. Returns the weather forecast
 
@@ -218,7 +218,7 @@ The Claw calls `nevermined_orderFiatPlan`, which returns a Stripe checkout URL. 
 The Claw calls `nevermined_queryAgent` with `paymentType: fiat`. The plugin:
 1. Looks up enrolled payment methods (or uses the specified `paymentMethodId`)
 2. Gets an x402 access token using the `nvm:card-delegation` scheme
-3. Sends the request with the `PAYMENT-SIGNATURE` header
+3. Sends the request with the `payment-signature` header
 4. The agent verifies and settles as usual
 
 You can also set `paymentType: fiat` in the plugin config to make fiat the default for all calls.

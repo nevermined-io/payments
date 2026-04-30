@@ -234,7 +234,7 @@ Static resources use the same X402 access token authentication as AI agents:
 
 1. Subscribers order a plan and receive credits
 2. Subscribers generate an X402 access token
-3. Requests to static resources include the token in the `PAYMENT-SIGNATURE` header
+3. Requests to static resources include the token in the `payment-signature` header
 4. Your server verifies the token and grants access
 5. Credits are burned based on your plan configuration
 

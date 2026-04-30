@@ -287,6 +287,9 @@ nvm plans get-native-token-price-config --amount 1000 --receiver "0x123..."
 # ERC20 token price
 nvm plans get-erc20-price-config --amount 1000 --receiver "0x123..." --token-address "0xToken..."
 
+# EURC (Euro stablecoin) price
+nvm plans get-eurc-price-config --amount 1000 --receiver "0x123..."
+
 # Pay-as-you-go price
 nvm plans get-pay-as-you-go-price-config --amount 1000 --receiver "0x123..."
 ```

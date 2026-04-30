@@ -46,7 +46,7 @@ Interactive prompts:
 
 Flags:
 - `--api-key` — Provide API key non-interactively
-- `--environment` — Set environment (sandbox, live, staging_sandbox, staging_live)
+- `--environment` — Set environment (sandbox, live)
 - `-i, --interactive` — Interactive mode (default: true)
 
 ### View Configuration
