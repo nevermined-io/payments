@@ -318,14 +318,14 @@ nvm plans get-non-expirable-duration-config
 
 ## Advanced Operations
 
-### Set Proof Required
+### Set Onchain Mirror
 
-Mark whether proof is required in a credits configuration:
+Mark whether burns of these credits are mirrored on-chain:
 
 ```bash
-nvm plans set-proof-required \
+nvm plans set-onchain-mirror \
   --credits-config credits-config.json \
-  --proof-required
+  --onchain-mirror
 ```
 
 ### Set Redemption Type

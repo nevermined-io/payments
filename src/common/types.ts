@@ -115,9 +115,12 @@ export interface PlanCreditsConfig {
    */
   redemptionType: PlanRedemptionType
   /**
-   * Whether the credits burn proof signed by the user is required
+   * Whether burns of these credits are mirrored on-chain. When `false`
+   * (default) the credits ledger lives in the API's Postgres and burns
+   * are recorded off-chain only. When `true` an `OnchainMirrorWorker`
+   * replays each off-chain burn to `NFT1155Credits` for audit.
    */
-  proofRequired: boolean
+  onchainMirror: boolean
   /**
    * The duration of the credits in seconds
    * @remarks 0 means non-expirable
