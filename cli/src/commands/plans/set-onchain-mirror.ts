@@ -2,10 +2,10 @@ import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Marks whether burns of these credits are mirrored on-chain.
+ * Marks whether burns of these credits are mirrored on-chain. When `false`, the credits ledger is the API's Postgres and burns are recorded off-chain only — this is also the structural default of `PlanCreditsConfig.onchainMirror` produced by the credits-config builders. When `true`, an on-chain audit mirror replays each burn to `NFT1155Credits`.
  */
 export default class SetOnchainMirror extends BaseCommand {
-  static override description = "Marks whether burns of these credits are mirrored on-chain."
+  static override description = "Marks whether burns of these credits are mirrored on-chain. When `false`, the credits ledger is the API's Postgres and burns are recorded off-chain only — this is also the structural default of `PlanCreditsConfig.onchainMirror` produced by the credits-config builders. When `true`, an on-chain audit mirror replays each burn to `NFT1155Credits`."
 
   static override examples = [
     '$ nvm plans set-onchain-mirror'
