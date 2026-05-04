@@ -552,7 +552,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       globalThis.fetch = originalFetch
     })
 
-    test('sends prompt with PAYMENT-SIGNATURE header', async () => {
+    test('sends prompt with payment-signature header', async () => {
       const mockFetch = globalThis.fetch as jest.Mock<typeof fetch>
       mockFetch.mockResolvedValue({
         ok: true,
@@ -576,7 +576,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(fetchCall[0]).toBe('https://agent.example.com/tasks')
       const fetchInit = fetchCall[1] as RequestInit
       expect(fetchInit.method).toBe('POST')
-      expect((fetchInit.headers as Record<string, string>)['PAYMENT-SIGNATURE']).toBe('tok_test_123')
+      expect((fetchInit.headers as Record<string, string>)['payment-signature']).toBe('tok_test_123')
       expect(JSON.parse(fetchInit.body as string)).toEqual({ prompt: 'What is AI?' })
 
       expect(result).toEqual({ answer: 'hello' })

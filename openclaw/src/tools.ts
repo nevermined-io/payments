@@ -187,7 +187,7 @@ export function createTools(
           method,
           headers: {
             'Content-Type': 'application/json',
-            'PAYMENT-SIGNATURE': accessToken,
+            'payment-signature': accessToken,
           },
           body: method !== 'GET' ? JSON.stringify({ prompt }) : undefined,
         })
