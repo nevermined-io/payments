@@ -50,7 +50,7 @@ metadata:
 
 This plugin provides gateway tools for interacting with Nevermined AI agent payments. Supports both crypto (on-chain) and fiat (credit card) payment flows.
 
-> **Official source.** This skill is published from [`nevermined-io/payments`](https://github.com/nevermined-io/payments) (subdirectory `openclaw/`) by Nevermined AG. The npm package is [`@nevermined-io/openclaw-plugin`](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin) (Apache-2.0). Any ClawHub listing under a different publisher is unofficial — see the README's [Official source & provenance](https://github.com/nevermined-io/payments/tree/main/openclaw#official-source--provenance) section.
+> **Official source.** This skill is published from [`nevermined-io/payments`](https://github.com/nevermined-io/payments) (subdirectory `openclaw/`) by Nevermined AG, mirrored to ClawHub at [`clawhub.ai/aaitor/nevermined-payments`](https://clawhub.ai/aaitor/nevermined-payments/openclaw) (publishing handle is a Nevermined admin until ClawHub ships org publishers). The npm package is [`@nevermined-io/openclaw-plugin`](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin) (Apache-2.0).
 >
 > **Never log payment tokens.** x402 access tokens (the `payment-signature` header) are bearer credentials. Redact them in any debug or telemetry output.
 
