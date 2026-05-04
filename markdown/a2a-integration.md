@@ -22,13 +22,15 @@ The A2A integration provides:
 The agent card is published at `/.well-known/agent.json` and includes payment metadata. Before sending a paid request, **clients should fetch and validate the target agent's card** to confirm the expected `agentId`, the `capabilities`, and the supported X402 schemes — this protects against routing payment-signature tokens to a typosquatted or unauthorised endpoint:
 
 ```typescript
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
+
 const cardUrl = new URL('/.well-known/agent.json', agentUrl)
 const card = await fetch(cardUrl, { method: 'GET' }).then((r) => r.json())
 
 if (card.agentId !== expectedAgentId) {
   throw new Error(`Agent card mismatch: expected ${expectedAgentId}, got ${card.agentId}`)
 }
-if (!cardUrl.protocol.startsWith('https') && !isLoopback(cardUrl.hostname)) {
+if (cardUrl.protocol !== 'https:' && !LOOPBACK_HOSTS.has(cardUrl.hostname)) {
   console.warn(`Agent card fetched over ${cardUrl.protocol} — production traffic must use HTTPS.`)
 }
 ```

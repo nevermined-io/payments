@@ -523,9 +523,12 @@ export async function buildOrderQuote(
 }
 
 /**
- * Redact a bearer token / payment-signature for safe logging.
- * Returns "<empty>" for empty input, the token itself if it's already short,
- * or a head/tail-only form like `eyJhbG…aA1c` (8 chars total).
+ * Redact a bearer token / payment-signature for safe logging. Output forms:
+ *   - Empty / non-string input  → `"<empty>"`
+ *   - Length ≤ 12               → `"ab…yz"`           (head 2 + ellipsis + tail 2 = 5 chars)
+ *   - Length > 12               → `"eyJhbG…aA1c"`     (head 6 + ellipsis + tail 4 = 11 chars)
+ *
+ * Intended for debug output and log redactors — never reconstructs the token.
  */
 export function redactToken(token: unknown): string {
   if (typeof token !== 'string' || token.length === 0) return '<empty>'

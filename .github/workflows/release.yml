@@ -221,12 +221,24 @@ jobs:
 
       - name: Update OpenClaw Plugin version
         working-directory: openclaw
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           CURRENT=$(node -p "require('./package.json').version")
-          if [ "$CURRENT" != "${{ steps.version.outputs.version }}" ]; then
-            npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          if [ "$CURRENT" != "$RELEASE_VERSION" ]; then
+            npm version "$RELEASE_VERSION" --no-git-tag-version
           fi
-          echo "OpenClaw Plugin version is ${{ steps.version.outputs.version }}"
+          # Keep openclaw.plugin.json in lockstep so the published tarball
+          # never ships package.json and openclaw.plugin.json with different
+          # version strings.
+          node -e "
+            const fs = require('node:fs');
+            const path = 'openclaw.plugin.json';
+            const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+            data.version = process.env.RELEASE_VERSION;
+            fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+          "
+          echo "OpenClaw Plugin version is $RELEASE_VERSION (package.json + openclaw.plugin.json)"
 
       - name: Build OpenClaw Plugin
         working-directory: openclaw
@@ -251,11 +263,13 @@ jobs:
           path: openclaw/*.tgz
 
       - name: Commit OpenClaw Plugin version update
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add openclaw/package.json
-          git diff --cached --quiet || git commit -m "chore(openclaw): bump version to ${{ steps.version.outputs.version }}"
+          git add openclaw/package.json openclaw/openclaw.plugin.json
+          git diff --cached --quiet || git commit -m "chore(openclaw): bump version to $RELEASE_VERSION"
           git push origin HEAD:main || echo "Could not push to main (protected branch)"
 
   publish-clawhub:
@@ -303,6 +317,13 @@ jobs:
           if [ "$CURRENT" != "$RELEASE_VERSION" ]; then
             npm version "$RELEASE_VERSION" --no-git-tag-version
           fi
+          node -e "
+            const fs = require('node:fs');
+            const path = 'openclaw.plugin.json';
+            const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+            data.version = process.env.RELEASE_VERSION;
+            fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+          "
 
       - name: Install ClawHub CLI
         run: npm install -g clawhub@latest
