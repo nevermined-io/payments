@@ -8,6 +8,8 @@ icon: "shield-check"
 
 This guide explains how AI agents validate incoming requests and settle payments using the Nevermined Facilitator. Agent builders use these methods to verify subscriber access and burn credits.
 
+> 🔐 **Never log incoming tokens.** When you extract the `payment-signature` header, treat it as a bearer secret: do not echo it in error messages, debug output, or telemetry. Configure your log/trace exporters to redact `payment-signature`, `authorization`, and `cookie` headers by default.
+
 ## Overview
 
 The validation flow consists of:

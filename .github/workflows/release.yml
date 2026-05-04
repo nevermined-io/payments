@@ -238,7 +238,7 @@ jobs:
 
       - name: Publish OpenClaw Plugin package
         working-directory: openclaw
-        run: npm publish --access public
+        run: npm publish --access public --provenance
 
       - name: Pack OpenClaw Plugin tarball
         working-directory: openclaw

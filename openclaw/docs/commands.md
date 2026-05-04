@@ -102,14 +102,19 @@ Purchase a payment plan using cryptocurrency. This initiates an on-chain transac
 
 Use this for plans priced in native tokens (ETH, MATIC) or ERC-20 tokens (USDC). For plans priced in fiat currency, use `nevermined_orderFiatPlan` instead.
 
+> ⚠️ **Two-step confirmation flow.** This tool spends real money. The first call returns a *quote* — `planId`, `name`, `price`, `credits`, `paymentType`, `environment`, plus the literal `"Re-call with confirm: true to proceed."`. The agent must show that quote to the user and only call again with `confirm: true` once the user has explicitly approved.
+
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `planId` | string | No | Config `planId` | The plan ID to purchase |
+| `confirm` | boolean | No | `false` | Set to `true` only after the user has approved the quote returned by the first call. |
 
 **Example prompt:**
 > Buy the Weather Forecast plan so I can start querying the agent.
 
-**Returns:** Order confirmation with transaction hash.
+**Returns:**
+- Without `confirm: true`: `{ planId, name, price, credits, paymentType, environment, requiresConfirmation: true, message: "Re-call with confirm: true to proceed." }`
+- With `confirm: true`: order confirmation with transaction hash.
 
 ---
 
@@ -119,14 +124,19 @@ Purchase a payment plan using fiat currency (USD). Instead of executing an on-ch
 
 Use this for plans that have been created with `pricingType: fiat`. For crypto-priced plans, use `nevermined_orderPlan` instead.
 
+> ⚠️ **Two-step confirmation flow.** Same as `nevermined_orderPlan`: the first call returns a quote, the second call (with `confirm: true`) issues the Stripe checkout URL.
+
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `planId` | string | No | Config `planId` | The plan ID to purchase |
+| `confirm` | boolean | No | `false` | Set to `true` only after the user has approved the quote returned by the first call. |
 
 **Example prompt:**
 > I want to subscribe to the Premium Agent plan using my credit card.
 
 **Returns:**
+- Without `confirm: true`: `{ planId, name, price, credits, paymentType: "fiat", environment, requiresConfirmation: true, message: "Re-call with confirm: true to proceed." }`
+- With `confirm: true`:
 ```json
 {
   "result": {

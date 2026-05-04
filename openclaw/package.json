@@ -40,10 +40,23 @@
     "zod": "^3.23.0"
   },
   "license": "Apache-2.0",
+  "author": {
+    "name": "Nevermined AG",
+    "url": "https://nevermined.io"
+  },
+  "homepage": "https://github.com/nevermined-io/payments/tree/main/openclaw#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/nevermined-io/payments.git",
     "directory": "openclaw"
+  },
+  "bugs": {
+    "url": "https://github.com/nevermined-io/payments/issues"
+  },
+  "funding": "https://nevermined.io",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "openclaw": {
     "extensions": [

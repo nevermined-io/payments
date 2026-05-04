@@ -2,11 +2,29 @@
 
 OpenClaw plugin for [Nevermined](https://nevermined.io) — exposes AI agent payment operations as gateway tools callable from any OpenClaw channel (Telegram, Discord, WhatsApp, etc.).
 
+## Official source & provenance
+
+This plugin is published from the [`nevermined-io/payments`](https://github.com/nevermined-io/payments) monorepo (subdirectory `openclaw/`) by Nevermined AG.
+
+| | |
+|---|---|
+| **npm package** | [`@nevermined-io/openclaw-plugin`](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin) — published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) attestations from this repo's `release.yml` workflow. |
+| **GitHub repository** | https://github.com/nevermined-io/payments (subdirectory [`openclaw/`](https://github.com/nevermined-io/payments/tree/main/openclaw)) |
+| **License** | Apache-2.0 |
+| **Security policy** | https://github.com/nevermined-io/payments/security/policy |
+| **Issue tracker** | https://github.com/nevermined-io/payments/issues |
+
+> ⚠️ **Unofficial mirrors.** Only install from the npm registry under the `@nevermined-io` scope or from a ClawHub listing whose publisher matches `nevermined-io`. Listings under any other publisher (for example `clawhub.ai/aaitor/nevermined-payments/...`) are **not** maintained by Nevermined and may lag behind security fixes. Verify the listed source repository before installing.
+>
+> 🔐 **Never log payment tokens.** x402 access tokens (the `payment-signature` header) are bearer credentials. Treat them like API keys: redact them in any debug output, log pipeline, or telemetry exporter (pino, winston, OpenTelemetry, etc.).
+
 ## Installation
 
 ```bash
-openclaw plugin install @nevermined-io/openclaw-plugin
+openclaw plugin install @nevermined-io/openclaw-plugin@^1.1
 ```
+
+The plugin requires `@nevermined-io/payments@^1.1` as a peer dependency. Pin both packages in production deployments (lockfiles, container images) so SDK upgrades are explicit and reviewable.
 
 ## Authentication
 
@@ -77,8 +95,9 @@ Add your API key directly to `openclaw.json`:
 |------|-------------|------------|
 | `nevermined_checkBalance` | Check credit balance for a plan | `planId` |
 | `nevermined_getAccessToken` | Get an x402 access token | `planId`, `agentId` |
-| `nevermined_orderPlan` | Purchase a payment plan | `planId` |
-| `nevermined_queryAgent` | Query an agent end-to-end | `agentUrl`, `prompt`, `planId`, `agentId` |
+| `nevermined_orderPlan` | Purchase a crypto payment plan (two-step: returns a quote until `confirm: true` is passed) | `planId`, `confirm` |
+| `nevermined_orderFiatPlan` | Order a fiat payment plan (two-step: returns a quote until `confirm: true` is passed) | `planId`, `confirm` |
+| `nevermined_queryAgent` | Query an agent end-to-end (HTTPS recommended) | `agentUrl`, `prompt`, `planId`, `agentId` |
 
 ### Builder Tools
 

@@ -28,15 +28,17 @@ Before installing the Nevermined Payments Library, ensure you have:
 
 ## Installation
 
-Install the library using npm or pnpm:
+Install the library using npm or pnpm. Pin the major version (or use a lockfile-tracked exact version) so SDK upgrades are explicit and reviewable:
 
 ```bash
 # Using npm
-npm install @nevermined-io/payments
+npm install @nevermined-io/payments@^1.1
 
 # Using pnpm
-pnpm add @nevermined-io/payments
+pnpm add @nevermined-io/payments@^1.1
 ```
+
+> 🔐 **Security:** always commit your `package-lock.json` / `pnpm-lock.yaml` and review SDK version bumps before deploying. Running unpinned installs in production lets transitive dependencies change between deploys.
 
 ### Peer Dependencies
 

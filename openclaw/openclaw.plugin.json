@@ -1,7 +1,25 @@
 {
   "id": "openclaw-plugin",
   "name": "@nevermined-io/openclaw-plugin",
-  "description": "Nevermined plugin for OpenClaw — AI agent payments and access control",
+  "version": "1.1.1",
+  "license": "Apache-2.0",
+  "description": "Official Nevermined plugin for OpenClaw — AI-agent payments, x402 access tokens, and gateway tools.",
+  "author": {
+    "name": "Nevermined AG",
+    "url": "https://nevermined.io"
+  },
+  "homepage": "https://nevermined.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nevermined-io/payments.git",
+    "directory": "openclaw"
+  },
+  "bugs": {
+    "url": "https://github.com/nevermined-io/payments/issues"
+  },
+  "security": {
+    "url": "https://github.com/nevermined-io/payments/security/policy"
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

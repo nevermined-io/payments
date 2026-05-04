@@ -90,16 +90,21 @@ export function createTools(
     {
       name: 'nevermined_orderPlan',
       label: 'Nevermined Order Plan',
-      description: 'Order (purchase) a Nevermined crypto payment plan',
+      description: 'Order (purchase) a Nevermined crypto payment plan. Two-step: returns a quote until called again with confirm:true.',
       parameters: {
         type: 'object' as const,
         properties: {
           planId: { type: 'string', description: 'The payment plan ID to order' },
+          confirm: { type: 'boolean', description: 'Set to true to execute the on-chain purchase. Without confirm:true the tool returns the plan summary only.' },
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, 'crypto')
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
+
+        if (!isConfirmed(params)) {
+          return result(await buildOrderQuote(getPayments, planId, 'crypto', config))
+        }
 
         const res = await getPayments().plans.orderPlan(planId)
         return result(res)
@@ -109,16 +114,21 @@ export function createTools(
     {
       name: 'nevermined_orderFiatPlan',
       label: 'Nevermined Order Fiat Plan',
-      description: 'Order a fiat payment plan — returns a Stripe checkout URL for completing the purchase',
+      description: 'Order a fiat payment plan — returns a Stripe checkout URL. Two-step: returns a quote until called again with confirm:true.',
       parameters: {
         type: 'object' as const,
         properties: {
           planId: { type: 'string', description: 'The payment plan ID to order' },
+          confirm: { type: 'boolean', description: 'Set to true to receive the Stripe checkout URL. Without confirm:true the tool returns the plan summary only.' },
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
         const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, 'fiat')
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
+
+        if (!isConfirmed(params)) {
+          return result(await buildOrderQuote(getPayments, planId, 'fiat', config))
+        }
 
         const res = await getPayments().plans.orderFiatPlan(planId)
         return result(res)
@@ -167,6 +177,8 @@ export function createTools(
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
         const agentId = str(params, 'agentId') ?? config.agentId
         const method = str(params, 'method') ?? 'POST'
+
+        warnIfInsecureUrl(agentUrl)
 
         const tokenOptions = await buildTokenOptions(getPayments, params, config)
         const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
@@ -467,4 +479,74 @@ function parsePriceToBigInt(priceStr: string, pricingType: string): bigint {
     return BigInt(Math.round(dollars * 10 ** decimals))
   }
   return BigInt(trimmed)
+}
+
+/** Whether the caller passed an explicit confirm:true. Anything else (false, "false", undefined) is treated as a quote request. */
+function isConfirmed(params: Record<string, unknown>): boolean {
+  const raw = params.confirm
+  if (typeof raw === 'boolean') return raw
+  if (typeof raw === 'string') return raw.toLowerCase() === 'true'
+  return false
+}
+
+/**
+ * Fetch a plan summary so the agent can show price, credits, and environment to the user
+ * before they pass `confirm: true`. Used to gate the order tools per ClawHub finding #1.
+ */
+export async function buildOrderQuote(
+  getPayments: () => Payments,
+  planId: string,
+  paymentType: 'crypto' | 'fiat',
+  config: NeverminedPluginConfig,
+): Promise<Record<string, unknown>> {
+  let summary: Record<string, unknown> = { planId }
+  try {
+    const plan = (await getPayments().plans.getPlan(planId)) as Record<string, unknown> | undefined
+    if (plan && typeof plan === 'object') {
+      summary = {
+        planId,
+        name: plan.name ?? plan.planName,
+        price: plan.price,
+        credits: plan.credits ?? plan.creditsAmount,
+      }
+    }
+  } catch {
+    // Plan lookup failures shouldn't block the quote — the LLM can still confirm explicitly.
+  }
+  return {
+    ...summary,
+    paymentType,
+    environment: config.environment ?? 'sandbox',
+    requiresConfirmation: true,
+    message: 'Re-call with confirm: true to proceed.',
+  }
+}
+
+/**
+ * Redact a bearer token / payment-signature for safe logging.
+ * Returns "<empty>" for empty input, the token itself if it's already short,
+ * or a head/tail-only form like `eyJhbG…aA1c` (8 chars total).
+ */
+export function redactToken(token: unknown): string {
+  if (typeof token !== 'string' || token.length === 0) return '<empty>'
+  if (token.length <= 12) return `${token.slice(0, 2)}…${token.slice(-2)}`
+  return `${token.slice(0, 6)}…${token.slice(-4)}`
+}
+
+/**
+ * Warn (do not throw) when an agent URL is not HTTPS. Local development
+ * (`localhost`, `127.0.0.1`, `::1`) is allowed silently. ClawHub finding #6.
+ */
+function warnIfInsecureUrl(url: string): void {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:') return
+    const host = parsed.hostname
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return
+    console.warn(
+      `[nevermined] agentUrl uses ${parsed.protocol}//${host} — payment-signature tokens must only be sent over HTTPS in production.`,
+    )
+  } catch {
+    // Invalid URLs will be surfaced by the fetch call itself.
+  }
 }

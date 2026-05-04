@@ -196,9 +196,10 @@ payments.mcp.registerTool(
   { credits: 1n }
 )
 
-// Start server
+// Start server (bind to localhost by default; expose via a reverse proxy with HTTPS for public traffic)
 const { info, stop } = await payments.mcp.start({
   port: 5001,
+  host: process.env.MCP_HOST ?? '127.0.0.1',
   agentId: process.env.NVM_AGENT_ID!,
   serverName: 'weather-server',
   version: '1.0.0',
@@ -214,6 +215,8 @@ process.on('SIGINT', async () => {
   process.exit(0)
 })
 ```
+
+> 🔐 **Bind to localhost in development.** The MCP server holds an OAuth issuer and accepts paid requests — exposing it directly on `0.0.0.0` is rarely what you want. Bind to `127.0.0.1` and front it with a reverse proxy (Caddy, nginx, Traefik) terminating TLS for any public traffic.
 
 ## MCP Logical URIs
 
@@ -338,9 +341,10 @@ payments.mcp.registerResource(
   { credits: 1n }
 )
 
-// Start server
+// Start server (bind to localhost by default; front with HTTPS reverse proxy for public traffic)
 const { info, stop } = await payments.mcp.start({
   port: 5001,
+  host: process.env.MCP_HOST ?? '127.0.0.1',
   agentId: process.env.NVM_AGENT_ID!,
   serverName: 'weather-agent',
   version: '1.0.0',
@@ -470,7 +474,12 @@ app.get('/custom', (req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.listen(5001)
+// Bind to localhost; expose via a reverse proxy with HTTPS for public traffic
+const server = app.listen(5001, '127.0.0.1')
+
+process.on('SIGINT', () => {
+  server.close(() => process.exit(0))
+})
 ```
 
 ## Best Practices

@@ -19,8 +19,10 @@ The Nevermined OpenClaw plugin exposes AI agent payment operations as gateway to
 Install the plugin from your OpenClaw gateway:
 
 ```bash
-openclaw plugin install @nevermined-io/openclaw-plugin
+openclaw plugin install @nevermined-io/openclaw-plugin@^1.1
 ```
+
+The plugin requires `@nevermined-io/payments@^1.1` as a peer dependency. Pin both packages and commit your lockfile so SDK upgrades are explicit.
 
 ## Authentication
 

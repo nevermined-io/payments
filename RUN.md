@@ -225,8 +225,15 @@ app.post('/api/task', async (req, res) => {
   }
 })
 
-app.listen(3000)
+// Bind to localhost; expose via a reverse proxy with HTTPS for public traffic
+const server = app.listen(3000, '127.0.0.1')
+
+process.on('SIGINT', () => {
+  server.close(() => process.exit(0))
+})
 ```
+
+> 🔐 **Production deployments**: terminate TLS in a reverse proxy (Caddy, nginx, Traefik) and forward only over a private network to the agent. The `payment-signature` header is a bearer credential — never accept it over plain HTTP.
 
 ### X402 Payment Required Response
 

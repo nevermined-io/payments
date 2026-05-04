@@ -43,15 +43,22 @@ The plugin adds 9 payment tools and 2 slash commands to your OpenClaw gateway:
 - Node.js >= 18
 - A [Nevermined account](https://nevermined.app) with an API key
 
+> 🔐 **Security expectations.** This plugin issues `payment-signature` bearer tokens that authorise spending against your plan. In production:
+>
+> - **Use HTTPS for every `agentUrl`** passed to `nevermined_queryAgent`. The tool warns when the URL is not `https://` (loopback hosts excepted for local dev).
+> - **Validate agent cards** at `<agentUrl>/.well-known/agent.json` before issuing a paid request — confirm `agentId` and supported X402 schemes match what you expect.
+> - **Never log payment tokens** — redact the `payment-signature` header in pino, winston, OpenTelemetry, and any sentry/datadog/log-shipping layer.
+> - **Confirm before ordering** — `nevermined_orderPlan` and `nevermined_orderFiatPlan` are gated by a `confirm: true` parameter so the agent must show the user the price/credits/environment first.
+
 ## Step 1: Install the Plugin
 
 From your OpenClaw gateway server:
 
 ```bash
-openclaw plugin install @nevermined-io/openclaw-plugin
+openclaw plugin install @nevermined-io/openclaw-plugin@^1.1
 ```
 
-Or install manually by placing the package in `~/.openclaw/extensions/nevermined/`.
+Or install manually by placing the package in `~/.openclaw/extensions/nevermined/`. Pin the major version and commit your lockfile so SDK upgrades are explicit.
 
 After installation, restart the gateway:
 
