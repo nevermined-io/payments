@@ -258,6 +258,78 @@ jobs:
           git diff --cached --quiet || git commit -m "chore(openclaw): bump version to ${{ steps.version.outputs.version }}"
           git push origin HEAD:main || echo "Could not push to main (protected branch)"
 
+  publish-clawhub:
+    name: Publish OpenClaw Plugin to ClawHub
+    needs: publish-openclaw
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Extract version from tag
+        id: version
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing ClawHub skill at version: $VERSION"
+
+      - name: Build OpenClaw Plugin
+        run: |
+          pnpm install --frozen-lockfile --ignore-engines
+          pnpm build
+          pnpm --filter ./openclaw install --frozen-lockfile --ignore-engines || (cd openclaw && pnpm install --frozen-lockfile --ignore-engines)
+          rm -rf openclaw/node_modules/@nevermined-io/payments
+          ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
+          (cd openclaw && pnpm build)
+
+      - name: Sync OpenClaw Plugin version with release tag
+        working-directory: openclaw
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "$RELEASE_VERSION" ]; then
+            npm version "$RELEASE_VERSION" --no-git-tag-version
+          fi
+
+      - name: Install ClawHub CLI
+        run: npm install -g clawhub@latest
+
+      - name: Authenticate with ClawHub
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          if [ -z "$CLAWHUB_TOKEN" ]; then
+            echo "::error::CLAWHUB_TOKEN secret is not configured. Configure it in the repo or org settings to enable ClawHub publishing."
+            exit 1
+          fi
+          clawhub login --token "$CLAWHUB_TOKEN"
+          clawhub whoami
+
+      - name: Dry-run ClawHub publish
+        run: clawhub package publish ./openclaw --family code-plugin --dry-run --json
+
+      - name: Publish OpenClaw Plugin to ClawHub
+        # If the version already exists on ClawHub the CLI will exit non-zero;
+        # we treat that as success so re-runs of the same release tag are idempotent.
+        run: |
+          if ! clawhub package publish ./openclaw --family code-plugin --json; then
+            echo "::warning::ClawHub publish failed (the version may already be published). Inspect the log above."
+            exit 1
+          fi
+
   github-release:
     name: Create GitHub Release
     needs: [publish-cli, publish-openclaw]
