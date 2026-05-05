@@ -23,11 +23,18 @@ function createMockPayments() {
       }),
       orderPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ txHash: '0xdeadbeef', success: true }),
       getPlans: jest.fn<() => Promise<unknown>>().mockResolvedValue([{ planId: 'plan-1' }, { planId: 'plan-2' }]),
+      // Mirrors the real backend response shape (apps/api/src/plans/dto/get-plan-dto.ts).
+      // The unit test failed silently before this PR because it used an invented flat shape.
       getPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({
-        planId: 'plan-default',
-        name: 'Test Plan',
-        price: '1 USDC',
-        credits: 100,
+        id: 'plan-default',
+        metadata: {
+          main: { name: 'Test Plan', price: '1 USDC' },
+          plan: { accessLimit: 'credits', currency: 'USDC' },
+        },
+        registry: {
+          price: { isCrypto: true, amounts: [1000000n] },
+          credits: { amount: 100n },
+        },
       }),
       registerPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ planId: 'plan-new' }),
       orderFiatPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } }),
@@ -435,7 +442,11 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(result.message).toBe('Re-call with confirm: true to proceed.')
       expect(result.paymentType).toBe('crypto')
       expect(result.planId).toBe('plan-default')
-      expect(result.credits).toBe(100)
+      expect(result.name).toBe('Test Plan')
+      expect(result.price).toBe('1 USDC')
+      expect(result.credits).toBe('100') // bigint stringified for JSON safety
+      expect(result.accessLimit).toBe('credits')
+      expect(result.currency).toBe('USDC')
     })
 
     test('nevermined_orderPlan — with confirm:true, executes the order', async () => {

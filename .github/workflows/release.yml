@@ -277,56 +277,32 @@ jobs:
     needs: publish-openclaw
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-
-      - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Extract version from tag
-        id: version
-        env:
-          GITHUB_REF: ${{ github.ref }}
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Publishing ClawHub skill at version: $VERSION"
+      - name: Download OpenClaw Plugin tarball from publish-openclaw
+        uses: actions/download-artifact@v4
+        with:
+          name: openclaw-tarball
+          path: tarball
 
-      - name: Build OpenClaw Plugin
+      - name: Resolve tarball path
+        id: tarball
+        # The CLI interprets bare paths as `owner/repo` GitHub references — the
+        # leading `./` is required to force "this is a local file".
         run: |
-          pnpm install --frozen-lockfile --ignore-engines
-          pnpm build
-          pnpm --filter ./openclaw install --frozen-lockfile --ignore-engines || (cd openclaw && pnpm install --frozen-lockfile --ignore-engines)
-          rm -rf openclaw/node_modules/@nevermined-io/payments
-          ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
-          (cd openclaw && pnpm build)
-
-      - name: Sync OpenClaw Plugin version with release tag
-        working-directory: openclaw
-        env:
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          CURRENT=$(node -p "require('./package.json').version")
-          if [ "$CURRENT" != "$RELEASE_VERSION" ]; then
-            npm version "$RELEASE_VERSION" --no-git-tag-version
+          FILE=$(ls tarball/*.tgz | head -n1)
+          if [ -z "$FILE" ]; then
+            echo "::error::No .tgz found in the openclaw-tarball artifact."
+            exit 1
           fi
-          node -e "
-            const fs = require('node:fs');
-            const path = 'openclaw.plugin.json';
-            const data = JSON.parse(fs.readFileSync(path, 'utf8'));
-            data.version = process.env.RELEASE_VERSION;
-            fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
-          "
+          echo "path=./$FILE" >> "$GITHUB_OUTPUT"
+          echo "Tarball: ./$FILE"
 
       - name: Install ClawHub CLI
-        run: npm install -g clawhub@latest
+        # Pinned to ^0.12 — bump deliberately when ClawHub ships a major.
+        run: npm install -g clawhub@^0.12
 
       - name: Authenticate with ClawHub
         env:
@@ -340,16 +316,53 @@ jobs:
           clawhub whoami
 
       - name: Dry-run ClawHub publish
-        run: clawhub package publish ./openclaw --family code-plugin --dry-run --json
+        # When publishing from a tarball, the CLI cannot infer git source
+        # attribution, so pass it explicitly from the GitHub Actions context.
+        env:
+          TARBALL: ${{ steps.tarball.outputs.path }}
+          SOURCE_REPO: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          clawhub package publish "$TARBALL" \
+            --family code-plugin \
+            --source-repo "$SOURCE_REPO" \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-ref "$SOURCE_REF" \
+            --source-path openclaw \
+            --dry-run --json
 
       - name: Publish OpenClaw Plugin to ClawHub
-        # If the version already exists on ClawHub the CLI will exit non-zero;
-        # we treat that as success so re-runs of the same release tag are idempotent.
+        # Re-runs of the same release tag should be idempotent: if the CLI fails
+        # solely because this exact version is already published, swallow it.
+        # Any other failure (auth, schema, network, validation) still fails the
+        # job loudly so we don't ship a release that quietly skipped ClawHub.
+        env:
+          TARBALL: ${{ steps.tarball.outputs.path }}
+          SOURCE_REPO: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref }}
         run: |
-          if ! clawhub package publish ./openclaw --family code-plugin --json; then
-            echo "::warning::ClawHub publish failed (the version may already be published). Inspect the log above."
-            exit 1
+          set +e
+          OUT=$(clawhub package publish "$TARBALL" \
+            --family code-plugin \
+            --source-repo "$SOURCE_REPO" \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-ref "$SOURCE_REF" \
+            --source-path openclaw \
+            --json 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUT"
+          if [ "$STATUS" -eq 0 ]; then
+            exit 0
           fi
+          if echo "$OUT" | grep -qiE "already (published|exists)|version (already|exists)|duplicate version|^http.*409|status\s*[:=]?\s*409|conflict"; then
+            echo "::notice::ClawHub already has this version — treating as idempotent success."
+            exit 0
+          fi
+          echo "::error::ClawHub publish failed for a reason other than 'already published'."
+          exit "$STATUS"
 
   github-release:
     name: Create GitHub Release

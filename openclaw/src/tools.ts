@@ -490,8 +490,34 @@ function isConfirmed(params: Record<string, unknown>): boolean {
 }
 
 /**
+ * Shape of the response returned by `payments.plans.getPlan(planId)`. Only the
+ * fields we actually read for the quote are typed here — see
+ * `apps/api/src/plans/dto/get-plan-dto.ts` and `metadata.dto.ts` in nvm-monorepo
+ * for the full definition.
+ */
+interface GetPlanResponse {
+  id?: string
+  metadata?: {
+    main?: { name?: string; price?: string }
+    plan?: {
+      accessLimit?: 'credits' | 'time'
+      currency?: string
+      fiatPaymentProvider?: 'stripe' | 'braintree'
+    }
+  }
+  registry?: {
+    price?: { isCrypto?: boolean; amounts?: bigint[] }
+    credits?: { amount?: bigint }
+  }
+}
+
+/**
  * Fetch a plan summary so the agent can show price, credits, and environment to the user
  * before they pass `confirm: true`. Used to gate the order tools per ClawHub finding #1.
+ *
+ * Field paths follow the canonical `getPlan` response shape (`metadata.main.*`,
+ * `metadata.plan.*`, `registry.credits.amount`, `registry.price.*`); BigInts are
+ * stringified so the JSON envelope serialises safely.
  */
 export async function buildOrderQuote(
   getPayments: () => Payments,
@@ -501,13 +527,21 @@ export async function buildOrderQuote(
 ): Promise<Record<string, unknown>> {
   let summary: Record<string, unknown> = { planId }
   try {
-    const plan = (await getPayments().plans.getPlan(planId)) as Record<string, unknown> | undefined
+    const plan = (await getPayments().plans.getPlan(planId)) as GetPlanResponse | undefined
     if (plan && typeof plan === 'object') {
+      const main = plan.metadata?.main
+      const planMeta = plan.metadata?.plan
+      const creditsAmount = plan.registry?.credits?.amount
+      // Always echo the user-provided planId so a follow-up `confirm: true` call
+      // re-uses the same identifier the agent already showed the user.
       summary = {
         planId,
-        name: plan.name ?? plan.planName,
-        price: plan.price,
-        credits: plan.credits ?? plan.creditsAmount,
+        name: main?.name,
+        price: main?.price,
+        credits: creditsAmount !== undefined ? creditsAmount.toString() : undefined,
+        accessLimit: planMeta?.accessLimit,
+        currency: planMeta?.currency,
+        fiatPaymentProvider: planMeta?.fiatPaymentProvider,
       }
     }
   } catch {
