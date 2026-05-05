@@ -288,7 +288,7 @@ nvm plans get-plan --help
 
 ### Support
 
-- Discord Community: https://discord.gg/nevermined
+- Discord Community: https://discord.gg/GZju2qScKq
 - Email Support: support@nevermined.io
 - Developer Forum: https://forum.nevermined.io
 
