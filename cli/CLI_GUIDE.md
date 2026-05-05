@@ -577,4 +577,4 @@ chore: update dependencies
 
 - Documentation: https://nevermined.ai/docs
 - Issues: https://github.com/nevermined-io/payments/issues
-- Discord: https://discord.gg/nevermined
+- Discord: https://discord.gg/GZju2qScKq
