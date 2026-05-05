@@ -8,6 +8,8 @@ icon: "message"
 
 After purchasing a payment plan, subscribers can generate X402 access tokens and use them to query AI agents. This guide explains how to get tokens and make authenticated requests.
 
+> 🔐 **Treat access tokens like API keys.** The `accessToken` returned by `getX402AccessToken()` is a bearer credential that authorises spending against your plan. Send it only over HTTPS, never log its full value, and scrub the `payment-signature` header from any pino/winston/OpenTelemetry exporter. Use a redaction helper such as ``redactToken(t) => `${t.slice(0,6)}…${t.slice(-4)}` `` if you need diagnostic output.
+
 ## Overview
 
 The query flow consists of:
@@ -153,7 +155,8 @@ const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
   agentId
 )
 
-console.log(`Token generated, length: ${accessToken.length} characters`)
+// ⚠️ Never log the full token — it is a bearer credential.
+console.log('Access token generated')
 ```
 
 ## Token Structure (X402 v2)

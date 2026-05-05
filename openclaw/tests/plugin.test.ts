@@ -23,6 +23,19 @@ function createMockPayments() {
       }),
       orderPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ txHash: '0xdeadbeef', success: true }),
       getPlans: jest.fn<() => Promise<unknown>>().mockResolvedValue([{ planId: 'plan-1' }, { planId: 'plan-2' }]),
+      // Mirrors the real backend response shape (apps/api/src/plans/dto/get-plan-dto.ts).
+      // The unit test failed silently before this PR because it used an invented flat shape.
+      getPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({
+        id: 'plan-default',
+        metadata: {
+          main: { name: 'Test Plan', price: '1 USDC' },
+          plan: { accessLimit: 'credits', currency: 'USDC' },
+        },
+        registry: {
+          price: { isCrypto: true, amounts: [1000000n] },
+          credits: { amount: 100n },
+        },
+      }),
       registerPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ planId: 'plan-new' }),
       orderFiatPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } }),
     },
@@ -417,21 +430,53 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(result).toEqual({ accessToken: 'tok_test_123' })
     })
 
-    test('nevermined_orderPlan — returns order result', async () => {
+    test('nevermined_orderPlan — without confirm, returns a quote and does not order', async () => {
       const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_orderPlan')!
-      const result = parseResult(await tool.execute('call-1', {}))
+      const result = parseResult(await tool.execute('call-1', {})) as Record<string, unknown>
+
+      expect(mockPayments.plans.orderPlan).not.toHaveBeenCalled()
+      expect(mockPayments.plans.getPlan).toHaveBeenCalledWith('plan-default')
+      expect(result.requiresConfirmation).toBe(true)
+      expect(result.message).toBe('Re-call with confirm: true to proceed.')
+      expect(result.paymentType).toBe('crypto')
+      expect(result.planId).toBe('plan-default')
+      expect(result.name).toBe('Test Plan')
+      expect(result.price).toBe('1 USDC')
+      expect(result.credits).toBe('100') // bigint stringified for JSON safety
+      expect(result.accessLimit).toBe('credits')
+      expect(result.currency).toBe('USDC')
+    })
+
+    test('nevermined_orderPlan — with confirm:true, executes the order', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_orderPlan')!
+      const result = parseResult(await tool.execute('call-1', { confirm: true }))
 
       expect(mockPayments.plans.orderPlan).toHaveBeenCalledWith('plan-default')
       expect(result).toEqual({ txHash: '0xdeadbeef', success: true })
     })
 
-    test('nevermined_orderFiatPlan — returns Stripe checkout URL', async () => {
+    test('nevermined_orderFiatPlan — without confirm, returns a quote and does not call Stripe', async () => {
       const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_orderFiatPlan')!
-      const result = parseResult(await tool.execute('call-1', { planId: 'plan-fiat' }))
+      const result = parseResult(await tool.execute('call-1', { planId: 'plan-fiat' })) as Record<string, unknown>
+
+      expect(mockPayments.plans.orderFiatPlan).not.toHaveBeenCalled()
+      expect(result.requiresConfirmation).toBe(true)
+      expect(result.message).toBe('Re-call with confirm: true to proceed.')
+      expect(result.paymentType).toBe('fiat')
+      expect(result.planId).toBe('plan-fiat')
+    })
+
+    test('nevermined_orderFiatPlan — with confirm:true, returns Stripe checkout URL', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_orderFiatPlan')!
+      const result = parseResult(await tool.execute('call-1', { planId: 'plan-fiat', confirm: true }))
 
       expect(mockPayments.plans.orderFiatPlan).toHaveBeenCalledWith('plan-fiat')
       expect(result).toEqual({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } })
@@ -518,7 +563,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       globalThis.fetch = originalFetch
     })
 
-    test('sends prompt with PAYMENT-SIGNATURE header', async () => {
+    test('sends prompt with payment-signature header', async () => {
       const mockFetch = globalThis.fetch as jest.Mock<typeof fetch>
       mockFetch.mockResolvedValue({
         ok: true,
@@ -542,7 +587,7 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(fetchCall[0]).toBe('https://agent.example.com/tasks')
       const fetchInit = fetchCall[1] as RequestInit
       expect(fetchInit.method).toBe('POST')
-      expect((fetchInit.headers as Record<string, string>)['PAYMENT-SIGNATURE']).toBe('tok_test_123')
+      expect((fetchInit.headers as Record<string, string>)['payment-signature']).toBe('tok_test_123')
       expect(JSON.parse(fetchInit.body as string)).toEqual({ prompt: 'What is AI?' })
 
       expect(result).toEqual({ answer: 'hello' })

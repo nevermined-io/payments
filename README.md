@@ -34,11 +34,13 @@ The library is designed for use in browser environments or as part of AI Agents:
 
 ```bash
 # pnpm
-pnpm add @nevermined-io/payments
+pnpm add @nevermined-io/payments@^1.1
 
 # npm
-npm install @nevermined-io/payments
+npm install @nevermined-io/payments@^1.1
 ```
+
+> Pin the major version (or rely on a committed lockfile) so SDK upgrades are explicit. Always commit `package-lock.json` / `pnpm-lock.yaml`.
 ## A2A Integration (Agents‑to‑Agents)
 
 Nevermined Payments integrates with the A2A protocol to authorize and charge per request between agents:
