@@ -23,14 +23,14 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install SDK dependencies
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: pnpm build
 
       - name: Install CLI dependencies
         working-directory: cli
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into CLI
         run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
@@ -51,7 +51,7 @@ jobs:
 
       - name: Install OpenClaw Plugin dependencies
         working-directory: openclaw
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into OpenClaw Plugin
         run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
@@ -81,7 +81,7 @@ jobs:
           registry-url: https://registry.npmjs.org/
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: pnpm build
@@ -127,14 +127,14 @@ jobs:
           echo "Publishing version: $VERSION"
 
       - name: Install SDK dependencies
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: pnpm build
 
       - name: Install CLI dependencies
         working-directory: cli
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into CLI
         run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
@@ -207,14 +207,14 @@ jobs:
           echo "Publishing version: $VERSION"
 
       - name: Install SDK dependencies
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: pnpm build
 
       - name: Install OpenClaw Plugin dependencies
         working-directory: openclaw
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into OpenClaw Plugin
         run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
