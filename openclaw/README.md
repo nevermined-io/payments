@@ -14,7 +14,7 @@ This plugin is published from the [`nevermined-io/payments`](https://github.com/
 | **Security policy** | https://github.com/nevermined-io/payments/security/policy |
 | **Issue tracker** | https://github.com/nevermined-io/payments/issues |
 
-> ✅ **Official ClawHub listing.** Until ClawHub ships org publishers, the official skill lives at [`clawhub.ai/aaitor/nevermined-payments`](https://clawhub.ai/aaitor/nevermined-payments/openclaw) — `@aaitor` is a Nevermined admin and that account's token is the one used by this repo's release workflow. Treat any other ClawHub publisher as a third-party mirror until further notice. The canonical npm package is [`@nevermined-io/openclaw-plugin`](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin).
+> ✅ **Official ClawHub listing.** The official skill lives at [`clawhub.ai/nevermined/nevermined-payments`](https://clawhub.ai/nevermined/nevermined-payments) under the `@nevermined` org publisher. Treat any other ClawHub publisher as a third-party mirror until further notice. The canonical npm package is [`@nevermined-io/openclaw-plugin`](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin).
 >
 > 🔐 **Never log payment tokens.** x402 access tokens (the `payment-signature` header) are bearer credentials. Treat them like API keys: redact them in any debug output, log pipeline, or telemetry exporter (pino, winston, OpenTelemetry, etc.).
 
