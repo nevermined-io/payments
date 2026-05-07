@@ -1,16 +1,20 @@
 /**
- * @file Unit tests for `tests/e2e/helpers/legal-consent.ts`.
+ * @file Unit tests for the consent-bootstrap exported from
+ * `tests/e2e/global-setup.ts`. Inlined there (rather than in a sibling
+ * helper) because Jest's `globalSetup` resolver doesn't apply the same
+ * `.js → .ts` mapping the worker context does — see the file header for
+ * the full rationale.
  *
- * The helper is exercised end-to-end against staging by every e2e suite via
- * Jest globalSetup, so the unit tests focus on the no-op-safe contract from
- * issue #334:
+ * The bootstrap is exercised end-to-end against staging by every e2e suite
+ * via Jest globalSetup, so the unit tests focus on the no-op-safe contract
+ * from issue #334:
  *  - manifest fetch failures must not throw
  *  - per-key POST failures must not throw and must not block other keys
  *  - empty / missing keys are skipped without any HTTP traffic
  *  - the request shape (URL, headers, JSON body) matches the backend spec
  */
 
-import { bootstrapLegalConsent } from '../e2e/helpers/legal-consent.js'
+import { bootstrapLegalConsent } from '../e2e/global-setup.js'
 
 type FetchInit = NonNullable<Parameters<typeof fetch>[1]>
 
