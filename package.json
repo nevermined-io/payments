@@ -45,7 +45,7 @@
     "test": "jest --verbose --config ./tests/jest.config.json",
     "test:unit": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/unit",
     "test:integration": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/integration",
-    "test:e2e": "jest --verbose --config ./tests/jest.config.json --testPathPattern=tests/e2e --runInBand",
+    "test:e2e": "jest --verbose --config ./tests/jest.e2e.config.cjs --testPathPattern=tests/e2e --runInBand",
     "format": "prettier --check ./src",
     "prepublishOnly": "pnpm build",
     "doc": "typedoc --out docs ./src",
