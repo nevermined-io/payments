@@ -12,6 +12,7 @@
  *  - per-key POST failures must not throw and must not block other keys
  *  - empty / missing keys are skipped without any HTTP traffic
  *  - the request shape (URL, headers, JSON body) matches the backend spec
+ *  - manifest entries with no `current` version are filtered out
  */
 
 import { bootstrapLegalConsent } from '../e2e/global-setup.js'
@@ -54,6 +55,14 @@ describe('bootstrapLegalConsent', () => {
     return calls
   }
 
+  const installFetchReject = (error: Error): jest.Mock => {
+    const fn = jest.fn(async () => {
+      throw error
+    })
+    global.fetch = fn as unknown as typeof fetch
+    return fn
+  }
+
   const jsonResponse = (body: unknown, status = 200): Response =>
     new Response(JSON.stringify(body), {
       status,
@@ -62,7 +71,10 @@ describe('bootstrapLegalConsent', () => {
 
   test('skips entirely when no API keys are supplied', async () => {
     const calls = installFetch(() => jsonResponse({}))
-    await bootstrapLegalConsent(BACKEND, [undefined, ''])
+    await bootstrapLegalConsent(BACKEND, [
+      { label: 'subscriber', key: undefined },
+      { label: 'builder', key: '' },
+    ])
     expect(calls).toHaveLength(0)
   })
 
@@ -79,7 +91,10 @@ describe('bootstrapLegalConsent', () => {
       return jsonResponse({ recorded: 2 }, 201)
     })
 
-    await bootstrapLegalConsent(BACKEND, [KEY_A, KEY_B])
+    await bootstrapLegalConsent(BACKEND, [
+      { label: 'subscriber', key: KEY_A },
+      { label: 'builder', key: KEY_B },
+    ])
 
     expect(calls).toHaveLength(3)
     expect(calls[0].url).toBe('https://api.sandbox.nevermined.dev/api/v1/legal-documents/manifest')
@@ -107,25 +122,60 @@ describe('bootstrapLegalConsent', () => {
     expect(authHeaders).toEqual([`Bearer ${KEY_A}`, `Bearer ${KEY_B}`])
   })
 
+  test('drops manifest entries that have no `current` version', async () => {
+    const calls = installFetch((call) => {
+      if (call.url.endsWith('/manifest')) {
+        return jsonResponse({
+          documents: {
+            terms: { current: '1.1.0' },
+            // Legacy / mid-publish entry: declares re-consent but no current version.
+            legacy: { requiresReConsent: true },
+            privacy: { current: '' },
+          },
+        })
+      }
+      return jsonResponse({ recorded: 1 }, 201)
+    })
+
+    await bootstrapLegalConsent(BACKEND, [{ label: 'subscriber', key: KEY_A }])
+
+    const post = calls[1]
+    const body = JSON.parse(String(post.init?.body))
+    expect(body.acceptances).toEqual([{ slug: 'terms', version: '1.1.0' }])
+  })
+
   test('logs and returns when the manifest fetch fails — no POSTs attempted', async () => {
     const calls = installFetch(() => jsonResponse({ error: 'oops' }, 500))
 
-    await expect(bootstrapLegalConsent(BACKEND, [KEY_A])).resolves.toBeUndefined()
+    await expect(
+      bootstrapLegalConsent(BACKEND, [{ label: 'subscriber', key: KEY_A }]),
+    ).resolves.toBeUndefined()
     expect(calls).toHaveLength(1)
     expect(warnSpy).toHaveBeenCalledTimes(1)
     expect(warnSpy.mock.calls[0][0]).toContain('manifest fetch')
   })
 
+  test('logs and returns when fetch itself rejects (e.g. ECONNREFUSED)', async () => {
+    const fn = installFetchReject(new Error('ECONNREFUSED 127.0.0.1:443'))
+
+    await expect(
+      bootstrapLegalConsent(BACKEND, [{ label: 'subscriber', key: KEY_A }]),
+    ).resolves.toBeUndefined()
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('ECONNREFUSED')
+  })
+
   test('returns silently when the manifest declares no documents', async () => {
     const calls = installFetch(() => jsonResponse({ documents: {} }))
 
-    await bootstrapLegalConsent(BACKEND, [KEY_A])
+    await bootstrapLegalConsent(BACKEND, [{ label: 'subscriber', key: KEY_A }])
 
     expect(calls).toHaveLength(1)
     expect(warnSpy).not.toHaveBeenCalled()
   })
 
-  test('logs but does not throw when one key fails — other keys still posted', async () => {
+  test('logs by label and does not throw when one key fails — others still posted', async () => {
     const calls = installFetch((call) => {
       if (call.url.endsWith('/manifest')) {
         return jsonResponse({ documents: { terms: { current: '1.0.0' } } })
@@ -137,11 +187,16 @@ describe('bootstrapLegalConsent', () => {
       return jsonResponse({ recorded: 1 }, 201)
     })
 
-    await expect(bootstrapLegalConsent(BACKEND, [KEY_A, KEY_B])).resolves.toBeUndefined()
+    await expect(
+      bootstrapLegalConsent(BACKEND, [
+        { label: 'subscriber', key: KEY_A },
+        { label: 'builder', key: KEY_B },
+      ]),
+    ).resolves.toBeUndefined()
 
     expect(calls).toHaveLength(3)
     expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('key #0')
+    expect(warnSpy.mock.calls[0][0]).toContain('"subscriber"')
   })
 
   test('does not double-up the slash when backend URL has no trailing slash', async () => {
@@ -152,7 +207,9 @@ describe('bootstrapLegalConsent', () => {
       return jsonResponse({ recorded: 1 }, 201)
     })
 
-    await bootstrapLegalConsent('https://api.sandbox.nevermined.dev', [KEY_A])
+    await bootstrapLegalConsent('https://api.sandbox.nevermined.dev', [
+      { label: 'subscriber', key: KEY_A },
+    ])
 
     expect(calls[0].url).toBe('https://api.sandbox.nevermined.dev/api/v1/legal-documents/manifest')
     expect(calls[1].url).toBe(
