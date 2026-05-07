@@ -70,7 +70,7 @@
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "babel-jest": "^30.0.2",
-    "cohere-ai": "^7.19.0",
+    "cohere-ai": "^8.0.0",
     "dotenv": "^17.2.3",
     "eslint": "^8.56.0",
     "eslint-config-nevermined": "^0.3.0",
