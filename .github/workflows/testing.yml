@@ -68,7 +68,11 @@ jobs:
 
       - name: Build CLI
         working-directory: cli
-        run: pnpm build
+        # Use build:manifest (not just build) so oclif.manifest.json is
+        # written. Without the manifest, oclif walks src/ when resolving
+        # commands with positional args and chokes on the .ts files'
+        # `.js` ESM import paths. Mirrors cli-sync-and-test.yml.
+        run: pnpm build:manifest
 
       - name: Run CLI sync check
         working-directory: cli
