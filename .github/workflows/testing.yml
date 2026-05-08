@@ -77,12 +77,13 @@ jobs:
       - name: Debug manifest + dist (TEMP — remove before merge)
         working-directory: cli
         run: |
-          echo "=== Direct invocation (no NODE_ENV) ==="
-          node bin/run.js x402token build-payment-required 12345 --resource-url 'https://example.com/test' -f json || echo "FAILED EXIT=$?"
-          echo "=== Direct invocation (NODE_ENV=test) ==="
-          NODE_ENV=test node bin/run.js x402token build-payment-required 12345 --resource-url 'https://example.com/test' -f json 2>&1 | tail -25 || echo "FAILED EXIT=$?"
-          echo "=== Run jest test only for build-payment-required (verbose) ==="
-          DEBUG='oclif:*' npx jest test/integration/generated-commands.test.ts -t "build-payment-required emits valid" --no-color 2>&1 | tail -40 || echo "JEST FAILED"
+          echo "=== Run cli-basic.test.ts FIRST then verify manifest ==="
+          npx jest test/integration/cli-basic.test.ts --no-color 2>&1 | tail -15 || echo "CLI BASIC FAILED"
+          echo "=== Manifest after cli-basic ==="
+          ls -la oclif.manifest.json 2>&1 || echo "MANIFEST GONE"
+          ls -la dist/commands/x402token/ 2>&1 || echo "DIST GONE"
+          echo "=== Direct invocation after cli-basic ==="
+          node bin/run.js x402token build-payment-required 12345 --resource-url 'https://example.com/test' -f json 2>&1 | head -25 || echo "DIRECT FAILED EXIT=$?"
 
       - name: Run CLI sync check
         working-directory: cli
