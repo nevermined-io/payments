@@ -74,6 +74,18 @@ jobs:
         # `.js` ESM import paths. Mirrors cli-sync-and-test.yml.
         run: pnpm build:manifest
 
+      - name: Debug manifest + dist (TEMP — remove before merge)
+        working-directory: cli
+        run: |
+          echo "=== oclif.manifest.json: total commands ==="
+          node -e "const m=require('./oclif.manifest.json'); console.log('Total:', Object.keys(m.commands).length); console.log('Has build-payment-required:', 'x402token:build-payment-required' in m.commands);"
+          echo "=== build-payment-required manifest entry ==="
+          node -e "const m=require('./oclif.manifest.json'); console.log(JSON.stringify(m.commands['x402token:build-payment-required'], null, 2));"
+          echo "=== dist/commands/x402token files ==="
+          ls -la dist/commands/x402token/ || true
+          echo "=== Direct invocation (with manifest) ==="
+          node bin/run.js x402token build-payment-required 12345 --resource-url 'https://example.com/test' -f json || echo "FAILED with EXIT=$?"
+
       - name: Run CLI sync check
         working-directory: cli
         run: pnpm sync-check
