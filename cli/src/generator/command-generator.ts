@@ -7,6 +7,7 @@ import { writeFile, mkdir, readFile } from 'fs/promises'
 import { join, dirname } from 'path'
 import { existsSync } from 'fs'
 import { MethodInfo, APIClassInfo } from './api-scanner.js'
+import { MANUALLY_MAINTAINED_COMMANDS } from './manually-maintained.js'
 
 export interface CommandMetadata {
   className: string
@@ -18,15 +19,6 @@ export interface CommandMetadata {
     afterInit?: string
   }
 }
-
-/**
- * Commands that are manually maintained and should not be overwritten by the generator.
- * Key format: "topic/command-name" (matches the file path under commands/).
- */
-const MANUALLY_MAINTAINED_COMMANDS = new Set([
-  'x402token/get-x402-access-token',
-  'x402token/build-payment-required',
-])
 
 export class CommandGenerator {
   private outputDir: string

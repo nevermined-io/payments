@@ -11,6 +11,7 @@ import { dirname } from 'path'
 import { readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { APIScanner } from './api-scanner.js'
+import { MANUALLY_MAINTAINED_COMMANDS } from './manually-maintained.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -100,13 +101,18 @@ async function main() {
       }
     }
 
-    // Check for extra commands (removed from SDK)
+    // Check for extra commands (removed from SDK), skipping manually-maintained ones
     for (const commandName of existingCommands) {
-      if (!expectedCommands.has(commandName)) {
-        const message = `Extra command (not in SDK): ${topic} ${commandName}`
-        console.log(`   ⚠️  ${message}`)
-        issues.push({ type: 'extra', message })
+      if (expectedCommands.has(commandName)) {
+        continue
       }
+      if (MANUALLY_MAINTAINED_COMMANDS.has(`${topic}/${commandName}`)) {
+        console.log(`   ✓ ${commandName} (manually maintained)`)
+        continue
+      }
+      const message = `Extra command (not in SDK): ${topic} ${commandName}`
+      console.log(`   ⚠️  ${message}`)
+      issues.push({ type: 'extra', message })
     }
   }
 
