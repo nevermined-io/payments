@@ -17,7 +17,10 @@ export default class RegisterAgent extends BaseCommand {
       description: "agentMetadata as JSON string",
       required: true
     }),
-    'agent-api': Flags.string({ required: true }),
+    'agent-api': Flags.string({
+      description: "agentApi as JSON string",
+      required: true
+    }),
     'payment-plans': Flags.string({ required: true }),
   }
 
@@ -29,7 +32,7 @@ export default class RegisterAgent extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.agents.registerAgent(await this.parseJsonInput(flags['agent-metadata']), flags['agent-api'], flags['payment-plans'])
+      const result = await payments.agents.registerAgent(await this.parseJsonInput(flags['agent-metadata']), await this.parseJsonInput(flags['agent-api']), flags['payment-plans'])
 
       this.formatter.output(result)
     } catch (error) {
