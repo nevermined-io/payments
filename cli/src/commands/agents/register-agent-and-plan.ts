@@ -17,7 +17,10 @@ export default class RegisterAgentAndPlan extends BaseCommand {
       description: "agentMetadata as JSON string",
       required: true
     }),
-    'agent-api': Flags.string({ required: true }),
+    'agent-api': Flags.string({
+      description: "agentApi as JSON string",
+      required: true
+    }),
     'plan-metadata': Flags.string({
       description: "planMetadata as JSON string",
       required: true
@@ -41,7 +44,7 @@ export default class RegisterAgentAndPlan extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.agents.registerAgentAndPlan(await this.parseJsonInput(flags['agent-metadata']), flags['agent-api'], await this.parseJsonInput(flags['plan-metadata']), await this.parseJsonInput(flags['price-config']), await this.parseJsonInput(flags['credits-config']), flags['access-limit'])
+      const result = await payments.agents.registerAgentAndPlan(await this.parseJsonInput(flags['agent-metadata']), await this.parseJsonInput(flags['agent-api']), await this.parseJsonInput(flags['plan-metadata']), await this.parseJsonInput(flags['price-config']), await this.parseJsonInput(flags['credits-config']), flags['access-limit'])
 
       this.formatter.output(result)
     } catch (error) {
