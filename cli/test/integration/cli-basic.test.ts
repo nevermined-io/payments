@@ -10,10 +10,15 @@ import { join } from 'path'
 const CLI_PATH = join(__dirname, '../../bin/run.js')
 
 function runCLI(args: string[]): { stdout: string; stderr: string; exitCode: number } {
+  // Strip NODE_ENV=test from the child env: oclif treats that as development
+  // mode and scans src/ instead of dist/, which breaks command resolution.
+  const childEnv = { ...process.env }
+  delete childEnv.NODE_ENV
   try {
     const stdout = execSync(`node ${CLI_PATH} ${args.join(' ')}`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: childEnv,
     })
     return { stdout, stderr: '', exitCode: 0 }
   } catch (error: any) {

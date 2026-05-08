@@ -15,15 +15,16 @@ export default class BuildPaymentRequired extends BaseCommand {
   static override examples = [
     '$ nvm x402token build-payment-required <planId> --resource-url https://example.com/api/test',
     '$ nvm x402token build-payment-required <planId> --resource-url https://example.com/api/test --agent-id <agentId> --http-verb POST',
-    '$ nvm x402token build-payment-required <planId> --scheme nvm:card-delegation --network stripe',
-    '$ nvm x402token build-payment-required <planId> --resource-url https://example.com/api/test -f json',
+    '$ nvm x402token build-payment-required <planId> --resource-url https://example.com/api/test --scheme nvm:card-delegation',
+    '$ nvm x402token build-payment-required <planId> --resource-url https://example.com/api/test --environment live -f json',
   ]
 
   static override flags = {
     ...BaseCommand.baseFlags,
     'resource-url': Flags.string({
-      description: 'Protected resource URL (maps to the `endpoint` option in the SDK)',
-      required: false,
+      description:
+        'Protected resource URL (maps to the `endpoint` option in the SDK). Required because the backend rejects payloads with an empty `resource.url`.',
+      required: true,
     }),
     'agent-id': Flags.string({ required: false }),
     'http-verb': Flags.string({
@@ -52,6 +53,7 @@ export default class BuildPaymentRequired extends BaseCommand {
     environment: Flags.string({
       description:
         'Environment used to resolve the default network. Falls back to the active profile when omitted.',
+      options: ['sandbox', 'live', 'staging_sandbox', 'staging_live', 'custom'],
       required: false,
     }),
   }

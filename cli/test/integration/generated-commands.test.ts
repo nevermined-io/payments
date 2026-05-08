@@ -9,10 +9,16 @@ import { join } from 'path'
 const CLI_PATH = join(__dirname, '../../bin/run.js')
 
 function runCLI(args: string[]): { stdout: string; stderr: string; exitCode: number } {
+  // Strip NODE_ENV=test from the child env: oclif treats that as development
+  // mode and scans src/ instead of dist/, which breaks command resolution for
+  // commands with positional args (oclif misinterprets the arg as a subcommand).
+  const childEnv = { ...process.env }
+  delete childEnv.NODE_ENV
   try {
     const stdout = execSync(`node ${CLI_PATH} ${args.join(' ')}`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: childEnv,
     })
     return { stdout, stderr: '', exitCode: 0 }
   } catch (error: any) {
@@ -173,6 +179,8 @@ describe('Generated Commands Integration Tests', () => {
         'x402token',
         'build-payment-required',
         '12345',
+        '--resource-url',
+        'https://example.com/api/test',
         '--environment',
         'live',
         '-f',
@@ -181,6 +189,7 @@ describe('Generated Commands Integration Tests', () => {
 
       expect(exitCode).toBe(0)
       const payload = JSON.parse(stdout)
+      expect(payload.resource.url).toBe('https://example.com/api/test')
       expect(payload.accepts[0].network).toBe('eip155:8453')
     })
 
@@ -189,6 +198,8 @@ describe('Generated Commands Integration Tests', () => {
         'x402token',
         'build-payment-required',
         '12345',
+        '--resource-url',
+        'https://example.com/api/test',
         '--scheme',
         'nvm:card-delegation',
         '-f',
@@ -197,6 +208,7 @@ describe('Generated Commands Integration Tests', () => {
 
       expect(exitCode).toBe(0)
       const payload = JSON.parse(stdout)
+      expect(payload.resource.url).toBe('https://example.com/api/test')
       expect(payload.accepts[0].scheme).toBe('nvm:card-delegation')
       expect(payload.accepts[0].network).toBe('stripe')
     })
@@ -206,6 +218,28 @@ describe('Generated Commands Integration Tests', () => {
 
       expect(exitCode).not.toBe(0)
       expect(stderr.length).toBeGreaterThan(0)
+    })
+
+    test('x402token build-payment-required requires --resource-url', () => {
+      const { stderr, exitCode } = runCLI(['x402token', 'build-payment-required', '12345'])
+
+      expect(exitCode).not.toBe(0)
+      expect(stderr).toContain('resource-url')
+    })
+
+    test('x402token build-payment-required rejects unknown --environment', () => {
+      const { stderr, exitCode } = runCLI([
+        'x402token',
+        'build-payment-required',
+        '12345',
+        '--resource-url',
+        'https://example.com/api/test',
+        '--environment',
+        'mainnet',
+      ])
+
+      expect(exitCode).not.toBe(0)
+      expect(stderr).toContain('environment')
     })
   })
 
