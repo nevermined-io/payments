@@ -363,8 +363,8 @@ ${runMethod}
       return true
     }
 
-    // Types ending with Config, Metadata, Options are likely interfaces
-    if (/(Config|Metadata|Options|Settings|Params)$/.test(baseType)) {
+    // Types ending with Config, Metadata, Options, Attributes, etc. are likely interfaces
+    if (/(Config|Metadata|Options|Settings|Params|Attributes)$/.test(baseType)) {
       return true
     }
 

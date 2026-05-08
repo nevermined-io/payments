@@ -78,7 +78,22 @@ describe('Generated Commands Integration Tests', () => {
       expect(stdout).toContain('agent-metadata')
       expect(stdout).toContain('agent-api')
       expect(stdout).toContain('payment-plans')
-      expect(stdout).toContain('JSON string')
+      expect(stdout).toContain('agentMetadata as JSON string')
+      expect(stdout).toContain('agentApi as JSON string')
+    })
+
+    test('agents register-agent-and-plan documents agent-api as JSON', () => {
+      const { stdout, exitCode } = runCLI(['agents', 'register-agent-and-plan', '--help'])
+
+      expect(exitCode).toBe(0)
+      expect(stdout).toContain('agentApi as JSON string')
+    })
+
+    test('agents update-agent-metadata documents agent-api as JSON', () => {
+      const { stdout, exitCode } = runCLI(['agents', 'update-agent-metadata', '--help'])
+
+      expect(exitCode).toBe(0)
+      expect(stdout).toContain('agentApi as JSON string')
     })
 
     test('agents register-agent requires all flags', () => {
