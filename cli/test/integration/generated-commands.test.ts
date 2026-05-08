@@ -97,6 +97,101 @@ describe('Generated Commands Integration Tests', () => {
       expect(stdout).toContain('USAGE')
       expect(stdout).toContain('x402')
     })
+
+    test('x402token build-payment-required shows help', () => {
+      const { stdout, exitCode } = runCLI(['x402token', 'build-payment-required', '--help'])
+
+      expect(exitCode).toBe(0)
+      expect(stdout).toContain('USAGE')
+      expect(stdout).toContain('build-payment-required')
+      expect(stdout).toContain('plan identifier')
+      expect(stdout).toContain('--resource-url')
+      expect(stdout).toContain('--scheme')
+    })
+
+    test('x402token build-payment-required emits valid X402PaymentRequired JSON', () => {
+      const { stdout, exitCode } = runCLI([
+        'x402token',
+        'build-payment-required',
+        '12345',
+        '--resource-url',
+        'https://example.com/api/test',
+        '--agent-id',
+        '999',
+        '--http-verb',
+        'POST',
+        '--description',
+        'TestResource',
+        '--mime-type',
+        'application/json',
+        '--environment',
+        'sandbox',
+        '-f',
+        'json',
+      ])
+
+      expect(exitCode).toBe(0)
+      const payload = JSON.parse(stdout)
+      expect(payload.x402Version).toBe(2)
+      expect(payload.resource).toEqual({
+        url: 'https://example.com/api/test',
+        description: 'TestResource',
+        mimeType: 'application/json',
+      })
+      expect(payload.extensions).toEqual({})
+      expect(Array.isArray(payload.accepts)).toBe(true)
+      expect(payload.accepts).toHaveLength(1)
+      expect(payload.accepts[0]).toEqual({
+        scheme: 'nvm:erc4337',
+        network: 'eip155:84532',
+        planId: '12345',
+        extra: {
+          version: '1',
+          agentId: '999',
+          httpVerb: 'POST',
+        },
+      })
+    })
+
+    test('x402token build-payment-required resolves live network from --environment', () => {
+      const { stdout, exitCode } = runCLI([
+        'x402token',
+        'build-payment-required',
+        '12345',
+        '--environment',
+        'live',
+        '-f',
+        'json',
+      ])
+
+      expect(exitCode).toBe(0)
+      const payload = JSON.parse(stdout)
+      expect(payload.accepts[0].network).toBe('eip155:8453')
+    })
+
+    test('x402token build-payment-required uses card-delegation defaults', () => {
+      const { stdout, exitCode } = runCLI([
+        'x402token',
+        'build-payment-required',
+        '12345',
+        '--scheme',
+        'nvm:card-delegation',
+        '-f',
+        'json',
+      ])
+
+      expect(exitCode).toBe(0)
+      const payload = JSON.parse(stdout)
+      expect(payload.accepts[0].scheme).toBe('nvm:card-delegation')
+      expect(payload.accepts[0].network).toBe('stripe')
+    })
+
+    test('x402token build-payment-required requires plan argument', () => {
+      const { stderr, exitCode } = runCLI(['x402token', 'build-payment-required'])
+
+      expect(exitCode).not.toBe(0)
+      expect(stderr.length).toBeGreaterThan(0)
+    })
   })
 
   describe('Facilitator Commands', () => {

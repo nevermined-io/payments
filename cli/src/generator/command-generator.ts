@@ -25,6 +25,7 @@ export interface CommandMetadata {
  */
 const MANUALLY_MAINTAINED_COMMANDS = new Set([
   'x402token/get-x402-access-token',
+  'x402token/build-payment-required',
 ])
 
 export class CommandGenerator {
