@@ -257,7 +257,6 @@ POST /mcp              - MCP JSON-RPC endpoint
 GET /mcp               - SSE streaming endpoint
 DELETE /mcp            - Session cleanup
 GET /                  - Server info
-GET /health            - Health check
 GET /.well-known/oauth-protected-resource
 GET /.well-known/oauth-authorization-server
 GET /.well-known/openid-configuration
