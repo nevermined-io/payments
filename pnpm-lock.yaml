@@ -20,22 +20,22 @@ importers:
         version: 0.3.13(@grpc/grpc-js@1.14.3)(express@4.21.2)
       '@helicone/helpers':
         specifier: ^1.6.0
-        version: 1.8.3(openai@6.35.0(ws@8.20.0)(zod@4.3.6))
+        version: 1.8.3(openai@6.36.0(ws@8.20.0)(zod@4.4.3))
       '@langchain/core':
         specifier: '>=0.3.80'
-        version: 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+        version: 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
       '@opentelemetry/exporter-trace-otlp-http':
-        specifier: ^0.215.0
-        version: 0.215.0(@opentelemetry/api@1.9.1)
+        specifier: ^0.217.0
+        version: 0.217.0(@opentelemetry/api@1.9.1)
       '@traceloop/node-server-sdk':
         specifier: ^0.26.0
-        version: 0.26.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))
+        version: 0.26.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))
       axios:
         specifier: ^1.13.1
-        version: 1.15.2
+        version: 1.16.0
       express:
         specifier: 4.21.2
         version: 4.21.2
@@ -50,29 +50,29 @@ importers:
         version: 10.0.0
       zod:
         specifier: ^4.0.17
-        version: 4.3.6
+        version: 4.4.3
       zod-to-json-schema:
         specifier: ^3.25.0
-        version: 3.25.2(zod@4.3.6)
+        version: 3.25.2(zod@4.4.3)
     devDependencies:
       '@anthropic-ai/sdk':
-        specifier: ^0.91.1
-        version: 0.91.1(zod@4.3.6)
+        specifier: ^0.95.0
+        version: 0.95.0(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime':
         specifier: ^3.972.0
-        version: 3.1038.0
+        version: 3.1044.0
       '@babel/core':
         specifier: ^7.27.4
         version: 7.29.0
       '@babel/preset-env':
         specifier: ^7.27.2
-        version: 7.29.2(@babel/core@7.29.0)
+        version: 7.29.5(@babel/core@7.29.0)
       '@google-cloud/aiplatform':
         specifier: ^6.1.0
-        version: 6.6.0
+        version: 6.7.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.24.3
-        version: 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
+        version: 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)
       '@types/express':
         specifier: 4.17.23
         version: 4.17.23
@@ -126,10 +126,10 @@ importers:
         version: 29.7.0(@types/node@20.19.39)(ts-node@10.9.2(@types/node@20.19.39)(typescript@5.9.3))
       langchain:
         specifier: ^0.3.37
-        version: 0.3.37(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(axios@1.15.2)(handlebars@4.7.9)(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+        version: 0.3.37(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(axios@1.16.0)(handlebars@4.7.9)(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0)
       openai:
         specifier: ^6.2.0
-        version: 6.35.0(ws@8.20.0)(zod@4.3.6)
+        version: 6.36.0(ws@8.20.0)(zod@4.4.3)
       prettier:
         specifier: ^3.2.5
         version: 3.8.3
@@ -178,8 +178,8 @@ packages:
       express:
         optional: true
 
-  '@anthropic-ai/sdk@0.91.1':
-    resolution: {integrity: sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw==}
+  '@anthropic-ai/sdk@0.95.0':
+    resolution: {integrity: sha512-7It2B76OFJH9jC/a0TicXFMq0ZZM25ei+i/mK7JnsE1Ibmo0Yfkqm+DXOHeU/ZxxKwLLGPP6qaAvKmQmgV6XhA==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -204,8 +204,8 @@ packages:
   '@aws-crypto/util@5.2.0':
     resolution: {integrity: sha512-4RkU9EsI6ZpBve5fseQlGNUWKMa1RLPQ1dnjnQoe07ldfIzcsGb5hC5W0Dm7u423KWzawlrpbjXBrXCEv9zazQ==}
 
-  '@aws-sdk/client-bedrock-runtime@3.1038.0':
-    resolution: {integrity: sha512-oGiqs9v9WzPOdv7PDdm9iPibHgrbDvCDyNg43wFZn2PiiEUisFM+xUP2CRMsj41SmwZPhohmZkXiUu1+MghbAQ==}
+  '@aws-sdk/client-bedrock-runtime@3.1044.0':
+    resolution: {integrity: sha512-uwJB0pVZIey+kYag8xeUirMvuaDhhEHuYgSsapOKT5XCAije5pLNlg160eECJdhX9JEf0IthIM3IiHKSEkFtMw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-cognito-identity@3.1030.0':
@@ -216,8 +216,8 @@ packages:
     resolution: {integrity: sha512-5Sh+2B0mvnxUNdz5FgT1Q+mr+oH9qPtSQqSKnhqawtCY9ZT1firLhVCmdqHBBlsFbh6uwEdOyBcZcvf89qWU1w==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/core@3.974.6':
-    resolution: {integrity: sha512-8Vu7zGxu+39ChR/s5J7nXBw3a2kMHAi0OfKT8ohgTVjX0qYed/8mIfdBb638oBmKrWCwwKjYAM5J/4gMJ8nAJA==}
+  '@aws-sdk/core@3.974.8':
+    resolution: {integrity: sha512-njR2qoG6ZuB0kvAS2FyICsFZJ6gmCcf2X/7JcD14sUvGDm26wiZ5BrA6LOiUxKFEF+IVe7kdroxyE00YlkiYsw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-cognito-identity@3.972.22':
@@ -228,60 +228,60 @@ packages:
     resolution: {integrity: sha512-6QfI0wv4jpG5CrdO/AO0JfZ2ux+tKwJPrUwmvxXF50vI5KIypKVGNF6b4vlkYEnKumDTI1NX2zUBi8JoU5QU3A==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-env@3.972.32':
-    resolution: {integrity: sha512-7vA4GHg8NSmQxquJHSBcSM3RgB4ZaaRi6u4+zGFKOmOH6aqlgr2Sda46clkZDYzlirgfY96w15Zj0jh6PT48ng==}
+  '@aws-sdk/credential-provider-env@3.972.34':
+    resolution: {integrity: sha512-XT0jtf8Fw9JE6ppsQeoNnZRiG+jqRixMT1v1ZR17G60UvVdsQmTG8nbEyHuEPfMxDXEhfdARaM/XiEhca4lGHQ==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-http@3.972.27':
     resolution: {integrity: sha512-3V3Usj9Gs93h865DqN4M2NWJhC5kXU9BvZskfN3+69omuYlE3TZxOEcVQtBGLOloJB7BVfJKXVLqeNhOzHqSlQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-http@3.972.34':
-    resolution: {integrity: sha512-vBrhWujFCLp1u8ptJRWYlipMutzPptb8pDQ00rKVH9q67T7rGd3VTWIj63aKrlLuY6qSsw1Rt5F/D/7wnNgryA==}
+  '@aws-sdk/credential-provider-http@3.972.36':
+    resolution: {integrity: sha512-DPoGWfy7J7RKxvbf5kOKIGQkD2ek3dbKgzKIGrnLuvZBz5myU+Im/H6pmc14QcnFbqHMqxvtWSgRDSJW3qXLQg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-ini@3.972.29':
     resolution: {integrity: sha512-SiBuAnXecCbT/OpAf3vqyI/AVE3mTaYr9ShXLybxZiPLBiPCCOIWSGAtYYGQWMRvobBTiqOewaB+wcgMMZI2Aw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-ini@3.972.36':
-    resolution: {integrity: sha512-FBHyCmV8EB0gUvh1d+CZm87zt2PrdC7OyWexLRoH3I5zWSOUGa+9t58Y5jbxRfwUp3AWpHAFvKY6YzgR845sVA==}
+  '@aws-sdk/credential-provider-ini@3.972.38':
+    resolution: {integrity: sha512-oDzUBu2MGJFgoar05sPMCwSrhw44ASyccrHzj66vO69OZqi7I6hZZxXfuPLC8OCzW7C+sU+bI73XHij41yekgQ==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-login@3.972.29':
     resolution: {integrity: sha512-OGOslTbOlxXexKMqhxCEbBQbUIfuhGxU5UXw3Fm56ypXHvrXH4aTt/xb5Y884LOoteP1QST1lVZzHfcTnWhiPQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-login@3.972.36':
-    resolution: {integrity: sha512-IFap01lJKxQc0C/OHmZwZQr/cKq0DhrcmKedRrdnnl42D+P0SImnnnWQjv07uIPqpEdtqmkPXb9TiPYTU+prxQ==}
+  '@aws-sdk/credential-provider-login@3.972.38':
+    resolution: {integrity: sha512-g1NosS8qe4OF++G2UFCM5ovSkgipC7YYor5KCWatG0UoMSO5YFj9C8muePlyVmOBV/WTI16Jo3/s1NUo/o1Bww==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-node@3.972.37':
-    resolution: {integrity: sha512-/WFixFAAiw8WpmjZcI0l4t3DerXLmVinOIfuotmRZnu2qmsFPoqqmstASz0z8bi1pGdFXzeLzf6bwucM3mZcUQ==}
+  '@aws-sdk/credential-provider-node@3.972.39':
+    resolution: {integrity: sha512-HEswDQyxUtadoZ/bJsPPENHg7R0Lzym5LuMksJeHvqhCOpP+rtkDLKI4/ZChH4w3cf5kG8n6bZuI8PzajoiqMg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-process@3.972.25':
     resolution: {integrity: sha512-HR7ynNRdNhNsdVCOCegy1HsfsRzozCOPtD3RzzT1JouuaHobWyRfJzCBue/3jP7gECHt+kQyZUvwg/cYLWurNQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-process@3.972.32':
-    resolution: {integrity: sha512-uZp4tlGbpczV8QxmtIwOpSkcyGtBRR8/T4BAumRKfAt1nwCig3FSCZvrKl6ARDIDVRYn5p2oRcAsfFR01EgMGA==}
+  '@aws-sdk/credential-provider-process@3.972.34':
+    resolution: {integrity: sha512-T3IFs4EVmVi1dVN5RciFnklCANSzvrQd/VuHY9ThHSQmYkTogjcGkoJEr+oNUPQZnso52183088NqysMPji1/Q==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-sso@3.972.29':
     resolution: {integrity: sha512-HWv4SEq3jZDYPlwryZVef97+U8CxxRos5mK8sgGO1dQaFZpV5giZLzqGE5hkDmh2csYcBO2uf5XHjPTpZcJlig==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-sso@3.972.36':
-    resolution: {integrity: sha512-DsLr0UHMyKzRJKe2bjlwU8q1cfoXg8TIJKV/xwvnalAemiZLOZunFzj/whGnFDZIBVLdnbLiwv5SvRf1+CSwkg==}
+  '@aws-sdk/credential-provider-sso@3.972.38':
+    resolution: {integrity: sha512-5ZxG+t0+3Q3QPh8KEjX6syskhgNf7I0MN7oGioTf6Lm1NTjfP7sIcYGNsthXC2qR8vcD3edNZwCr2ovfSSWuRA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-web-identity@3.972.29':
     resolution: {integrity: sha512-PdMBza1WEKEUPFEmMGCfnU2RYCz9MskU2e8JxjyUOsMKku7j9YaDKvbDi2dzC0ihFoM6ods2SbhfAAro+Gwlew==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/credential-provider-web-identity@3.972.36':
-    resolution: {integrity: sha512-uzrURO7frJhHQVVNR5zBJcCYeMYflmXcWBK1+MiBym2Dfjh6nXATrMixrmGZi+97Q7ETZ+y/4lUwAy0Nfnznjw==}
+  '@aws-sdk/credential-provider-web-identity@3.972.38':
+    resolution: {integrity: sha512-lYHFF30DGI20jZcYX8cm6Ns0V7f1dDN6g/MBDLTyD/5iw+bXs3yBr2iAiHDkx4RFU5JgsnZvCHYKiRVPRdmOgw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-providers@3.1030.0':
@@ -308,12 +308,12 @@ packages:
     resolution: {integrity: sha512-+zz6f79Kj9V5qFK2P+D8Ehjnw4AhphAlCAsPjUqEcInA9umtSSKMrHbSagEeOIsDNuvVrH98bjRHcyQukTrhaQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-sdk-s3@3.972.35':
-    resolution: {integrity: sha512-lLppaNTAz+wNgLdi4FtHzrlwrGF0ODTnBWHBaFg85SKs0eJ+M+tP5ifrA8f/0lNd+Ak3MC1NGC6RavV3ny4HTg==}
+  '@aws-sdk/middleware-sdk-s3@3.972.37':
+    resolution: {integrity: sha512-Km7M+i8DrLArVzrid1gfxeGhYHBd3uxvE77g0s5a52zPSVosxzQBnJ0gwWb6NIp/DOk8gsBMhi7V+cpJG0ndTA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/middleware-user-agent@3.972.36':
-    resolution: {integrity: sha512-O2beToxguBvrZFFZ+fFgPbbae8MvyIBjQ6lImee4APHEXXNAD5ZJ2ayLF1mb7rsKw86TM81y5czg82bZncjSjg==}
+  '@aws-sdk/middleware-user-agent@3.972.38':
+    resolution: {integrity: sha512-iz+B29TXcAZsJpwB+AwG/TTGA5l/VnmMZ2UxtiySOZjI6gCdmviXPwdgzcmuazMy16rXoPY4mYCGe7zdNKfx5A==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/middleware-websocket@3.972.16':
@@ -324,24 +324,28 @@ packages:
     resolution: {integrity: sha512-uFkmCDXvmQYLanlYdOFS0+MQWkrj9wPMt/ZCc/0J0fjPim6F5jBVBmEomvGY/j77ILW6GTPwN22Jc174Mhkw6Q==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/nested-clients@3.997.4':
-    resolution: {integrity: sha512-4Sf+WY1lMJzXlw5MiyCMe/UzdILCwvuaHThbqMXS6dfh9gZy3No360I42RXquOI/ULUOhWy2HCyU0Fp20fQGPQ==}
+  '@aws-sdk/nested-clients@3.997.6':
+    resolution: {integrity: sha512-WBDnqatJl+kGObpfmfSxqnXeYTu3Me8wx8WCtvoxX3pfWrrTv8I4WTMSSs7PZqcRcVh8WeUKMgGFjMG+52SR1w==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/region-config-resolver@3.972.13':
     resolution: {integrity: sha512-CvJ2ZIjK/jVD/lbOpowBVElJyC1YxLTIJ13yM0AEo0t2v7swOzGjSA6lJGH+DwZXQhcjUjoYwc8bVYCX5MDr1A==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/signature-v4-multi-region@3.996.23':
-    resolution: {integrity: sha512-wBbys3Y53Ikly556vyADurKpYQHXS7Jjaskbz+Ga9PZCz7PB/9f3VdKbDlz7dqIzn+xwz7L/a6TR4iXcOi8IRw==}
+  '@aws-sdk/signature-v4-multi-region@3.996.25':
+    resolution: {integrity: sha512-+CMIt3e1VzlklAECmG+DtP1sV8iKq25FuA0OKpnJ4KA0kxUtd7CgClY7/RU6VzJBQwbN4EJ9Ue6plvqx1qGadw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/token-providers@3.1026.0':
     resolution: {integrity: sha512-Ieq/HiRrbEtrYP387Nes0XlR7H1pJiJOZKv+QyQzMYpvTiDs0VKy2ZB3E2Zf+aFovWmeE7lRE4lXyF7dYM6GgA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/token-providers@3.1038.0':
-    resolution: {integrity: sha512-Qniru+9oGGb/HNK/gGZWbV3jsD0k71ngE7qMQ/x6gYNYLd2EOwHCS6E2E6jfkaqO4i0d+nNKmfRy8bNcshKdGQ==}
+  '@aws-sdk/token-providers@3.1041.0':
+    resolution: {integrity: sha512-Th7kPI6YPtvJUcdznooXJMy+9rQWjmEF81LxaJssngBzuysK4a/x+l8kjm1zb7nYsUPbndnBdUnwng/3PLvtGw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/token-providers@3.1044.0':
+    resolution: {integrity: sha512-uvpWTfpzOM9qVrR0kdAjzBbvv2ERW7S1CKeBeRkHyHy21Ext5fNReIVrbAzhjuVC7UxRyZQ8PHYW/3T83hWlbg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/types@3.973.8':
@@ -367,8 +371,8 @@ packages:
   '@aws-sdk/util-user-agent-browser@3.972.10':
     resolution: {integrity: sha512-FAzqXvfEssGdSIz8ejatan0bOdx1qefBWKF/gWmVBXIP1HkS7v/wjjaqrAGGKvyihrXTXW00/2/1nTJtxpXz7g==}
 
-  '@aws-sdk/util-user-agent-node@3.973.22':
-    resolution: {integrity: sha512-YTYqTmOUrwbm1h99Ee4y/mVYpFRl0oSO/amtP5cc1BZZWdaAVWs9zj3TkyRHWvR9aI/ZS8m3mS6awXtYUlWyaw==}
+  '@aws-sdk/util-user-agent-node@3.973.24':
+    resolution: {integrity: sha512-ZWwlkjcIp7cEL8ZfTpTAPNkwx25p7xol0xlKoWVVf22+nsjwmLcHYtTPjIV1cSpmB/b6DaK4cb1fSkvCXHgRdw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       aws-crt: '>=1.0.0'
@@ -376,8 +380,8 @@ packages:
       aws-crt:
         optional: true
 
-  '@aws-sdk/xml-builder@3.972.21':
-    resolution: {integrity: sha512-qxNiHUtlrsjTeSlrPWiFkWps7uD6YB4eKzg7eLAFH8jbiHTlt0ePNlo2Xu+WlftP38JIcMaIX4jTUjOlE2ySWw==}
+  '@aws-sdk/xml-builder@3.972.22':
+    resolution: {integrity: sha512-PMYKKtJd70IsSG0yHrdAbxBr+ZWBKLvzFZfD3/urxgf6hXVMzuU5M+3MJ5G67RpOmLBu1fAUN65SbWuKUCOlAA==}
     engines: {node: '>=20.0.0'}
 
   '@aws/lambda-invoke-store@0.2.4':
@@ -388,8 +392,8 @@ packages:
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/compat-data@7.29.0':
-    resolution: {integrity: sha512-T1NCJqT/j9+cn8fvkt7jtwbLBfLC/1y1c7NtCeXFRgzGTsafi68MRv8yzkYSapBnFA6L3U2VSc02ciDzoAJhJg==}
+  '@babel/compat-data@7.29.3':
+    resolution: {integrity: sha512-LIVqM46zQWZhj17qA8wb4nW/ixr2y1Nw+r1etiAWgRM6U1IqP+LNhL1yg440jYZR72jCWcWbLWzIosH+uP1fqg==}
     engines: {node: '>=6.9.0'}
 
   '@babel/core@7.29.0':
@@ -408,8 +412,8 @@ packages:
     resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/helper-create-class-features-plugin@7.28.6':
-    resolution: {integrity: sha512-dTOdvsjnG3xNT9Y0AUg1wAl38y+4Rl4sf9caSQZOXdNqVn+H+HbbJ4IyyHaIqNR6SW9oJpA/RuRjsjCw2IdIow==}
+  '@babel/helper-create-class-features-plugin@7.29.3':
+    resolution: {integrity: sha512-RpLYy2sb51oNLjuu1iD3bwBqCBWUzjO0ocp+iaCP/lJtb2CPLcnC2Fftw+4sAzaMELGeWTgExSKADbdo0GFVzA==}
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0
@@ -506,6 +510,12 @@ packages:
 
   '@babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression@7.27.1':
     resolution: {integrity: sha512-g4L7OYun04N1WyqMNjldFwlfPCLVkgB54A/YCXICZYBsvJJE3kByKv9c9+R/nAfmIfjl2rKYLNyMHboYbZaWaA==}
+    engines: {node: '>=6.9.0'}
+    peerDependencies:
+      '@babel/core': ^7.0.0
+
+  '@babel/plugin-bugfix-safari-rest-destructuring-rhs-array@7.29.3':
+    resolution: {integrity: sha512-SRS46DFR4HqzUzCVgi90/xMoL+zeBDBvWdKYXSEzh79kXswNFEglUpMKxR04//dPqwYXWUBJ3mpUd933ru9Kmg==}
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0
@@ -781,8 +791,8 @@ packages:
     peerDependencies:
       '@babel/core': ^7.0.0-0
 
-  '@babel/plugin-transform-modules-systemjs@7.29.0':
-    resolution: {integrity: sha512-PrujnVFbOdUpw4UHiVwKvKRLMMic8+eC0CuNlxjsyZUiBjhFdPsewdXCkveh2KqBA9/waD0W1b4hXSOBQJezpQ==}
+  '@babel/plugin-transform-modules-systemjs@7.29.4':
+    resolution: {integrity: sha512-N7QmZ0xRZfjHOfZeQLJjwgX2zS9pdGHSVl/cjSGlo4dXMqvurfxXDMKY4RqEKzPozV78VMcd0lxyG13mlbKc4w==}
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
@@ -937,8 +947,8 @@ packages:
     peerDependencies:
       '@babel/core': ^7.0.0
 
-  '@babel/preset-env@7.29.2':
-    resolution: {integrity: sha512-DYD23veRYGvBFhcTY1iUvJnDNpuqNd/BzBwCvzOTKUnJjKg5kpUBh3/u9585Agdkgj+QuygG7jLfOPWMa2KVNw==}
+  '@babel/preset-env@7.29.5':
+    resolution: {integrity: sha512-/69t2aEzGKHD76DyLbHysF/QH2LJOB8iFnYO37unDTKBTubzcMRv0f3H5EiN1Q6ajOd/eB7dAInF0qdFVS06kA==}
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
@@ -1004,8 +1014,8 @@ packages:
   '@gerrit0/mini-shiki@3.23.0':
     resolution: {integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==}
 
-  '@google-cloud/aiplatform@6.6.0':
-    resolution: {integrity: sha512-CVPo83uZGTrH0gids2kMfckjryktU7VhmYm+QncJcTVC7FBjEuZTqz5vhHqoJ5t2IHcmwGoi2sDmM3yl0ZMQaA==}
+  '@google-cloud/aiplatform@6.7.0':
+    resolution: {integrity: sha512-CxMkLxRPiJ6fUd9gLiM8tyENX58b9xuX+86RG8wXfYyEUqvZQZdvpSnHq50EQcsn9jzqPGeMkEFHdrO7+ugvCg==}
     engines: {node: '>=18'}
 
   '@google-cloud/opentelemetry-cloud-trace-exporter@3.0.0':
@@ -1243,8 +1253,8 @@ packages:
     resolution: {integrity: sha512-9B9RU0H7Ya1Dx/Rkyc4stuBZSGVQF27WigitInx2QQoj6KUpEFYPKoWjdFTunJYxmXmh17HeBvbMa1EhGyPmqQ==}
     engines: {node: '>=8.0.0'}
 
-  '@opentelemetry/api-logs@0.215.0':
-    resolution: {integrity: sha512-xrFlqhdhUyO8wSRn6DjE0145/HPWSJ5Nm0C7vWua6TdL/FSEAZvEyvdsa9CRXuxo9ebb7j/NEPhEcO62IJ0qUA==}
+  '@opentelemetry/api-logs@0.217.0':
+    resolution: {integrity: sha512-Cdq0jW2lknrNfrAm92MyEAvpe2cRsKjdnQLHUL6xRA4IVUnsWx6P65E7NcUO0Y+L4w1Aee5iV8FvjSwd+lrs9A==}
     engines: {node: '>=8.0.0'}
 
   '@opentelemetry/api@1.9.1':
@@ -1271,6 +1281,12 @@ packages:
 
   '@opentelemetry/core@2.7.0':
     resolution: {integrity: sha512-DT12SXVwV2eoJrGf4nnsvZojxxeQo+LlNAsoYGRRObPWTeN6APiqZ2+nqDCQDvQX40eLi1AePONS0onoASp3yQ==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.0.0 <1.10.0'
+
+  '@opentelemetry/core@2.7.1':
+    resolution: {integrity: sha512-QAqIj32AtK6+pEVNG7EOVxHdE06RP+FM5qpiEJ4RtDcFIqKUZHYhl7/7UY5efhwmwNAg7j8QbJVBLxMerc0+gw==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
@@ -1329,8 +1345,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
 
-  '@opentelemetry/exporter-trace-otlp-http@0.215.0':
-    resolution: {integrity: sha512-k4J9ISeGpb0Bm/wCrlcrbroMFTkiWMrdhNxQGrlktxLy127Yzd4/7nrTawn5d/ApktYTknvdixsE6++34Qfi1w==}
+  '@opentelemetry/exporter-trace-otlp-http@0.217.0':
+    resolution: {integrity: sha512-38YQoqtYjglz2GV94LGUN/djLvxtvGIQO68o6qAFPVshjmwSdX1F2i0c7vn3lEl1L5B/YqjB/bgKXaVx7KO+RQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -1359,8 +1375,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
 
-  '@opentelemetry/otlp-exporter-base@0.215.0':
-    resolution: {integrity: sha512-lHrfbmeLSmesGSkkHiqDwOzfaEMSWXdc7q6UoLfbW8byONCb+bE/zkAr0kapN4US1baT/2nbpNT7Cn9XoB96Vg==}
+  '@opentelemetry/otlp-exporter-base@0.217.0':
+    resolution: {integrity: sha512-eYfqnB3UhKu/5frhd1R6+FprKygbhkomuaceMXDyzxbfXB9tKgZOVmjaJ02CkLA6Tdzumxl+e2H+vo2a8jiMPQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -1377,8 +1393,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
 
-  '@opentelemetry/otlp-transformer@0.215.0':
-    resolution: {integrity: sha512-cWwBvaV+vkXHkSoTYR8hGw+AW03UlgTr6xtrUKOMeum3T+8vffYXIfXu6KY5MLu8O9QtoBKqaKWw9I5xoOepng==}
+  '@opentelemetry/otlp-transformer@0.217.0':
+    resolution: {integrity: sha512-MKK8UHKFUOGAvbZRWh90MhwHG+Fxm6OROBdjKPCF+HQobjuJ/Kuf8Chs8CR45X1aqotxrMj7OxTdsXe8sXuGVA==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': ^1.3.0
@@ -1407,14 +1423,20 @@ packages:
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
+  '@opentelemetry/resources@2.7.1':
+    resolution: {integrity: sha512-DeT6KKolmC4e/dRQvMQ/RwlnzhaqeiFOXY5ngoOPJ07GgVVKxZOg9EcrNZb5aTzUn+iCrJldAgOfQm1O/QfPAQ==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.3.0 <1.10.0'
+
   '@opentelemetry/sdk-logs@0.203.0':
     resolution: {integrity: sha512-vM2+rPq0Vi3nYA5akQD2f3QwossDnTDLvKbea6u/A2NZ3XDkPxMfo/PNrDoXhDUD/0pPo2CdH5ce/thn9K0kLw==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': '>=1.4.0 <1.10.0'
 
-  '@opentelemetry/sdk-logs@0.215.0':
-    resolution: {integrity: sha512-y3ucOmphzc4vgBTyIGchs+N/1rkACmoka8QalT2z1LBNM232Z17zMYayHcMl+dgMoOadZ0b72UZv7mDtqy1cFA==}
+  '@opentelemetry/sdk-logs@0.217.0':
+    resolution: {integrity: sha512-BB+PcHItcZDL63dPMW+mJvwN9rk37wuIDjRxbVlg6pPDvDR/7GL7UJHbGsllgoggOoTimsKgENaWPoGch/oE1A==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': '>=1.4.0 <1.10.0'
@@ -1425,8 +1447,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0 <1.10.0'
 
-  '@opentelemetry/sdk-metrics@2.7.0':
-    resolution: {integrity: sha512-Vd7h95av/LYRsAVN7wbprvvJnHkq7swMXAo7Uad0Uxf9jl6NSReLa0JNivrcc5BVIx/vl2t+cgdVQQbnVhsR9w==}
+  '@opentelemetry/sdk-metrics@2.7.1':
+    resolution: {integrity: sha512-MpDJdkiFDs3Pm1RHO3KByuZbuBdJEXEAkiC0+yJdsZGVCdf1RpHR6n+LHDcS7ffmfrt5kVCzJSCfm4z2C7v0uQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': '>=1.9.0 <1.10.0'
@@ -1445,6 +1467,12 @@ packages:
 
   '@opentelemetry/sdk-trace-base@2.7.0':
     resolution: {integrity: sha512-Yg9zEXJB50DLVLpsKPk7NmNqlPlS+OvqhJGh0A8oawIOTPOwlm4eXs9BMJV7L79lvEwI+dWtAj+YjTyddV336A==}
+    engines: {node: ^18.19.0 || >=20.6.0}
+    peerDependencies:
+      '@opentelemetry/api': '>=1.3.0 <1.10.0'
+
+  '@opentelemetry/sdk-trace-base@2.7.1':
+    resolution: {integrity: sha512-NAYIlsF8MPUsKqJMiDQJTMPOmlbawC1Iz/omMLygZ1C9am8fTKYjTaI+OZM+WTY3t3Glo0wnOg/6/pac6RGPPw==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
@@ -1478,9 +1506,6 @@ packages:
   '@protobufjs/base64@1.1.2':
     resolution: {integrity: sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg==}
 
-  '@protobufjs/codegen@2.0.4':
-    resolution: {integrity: sha512-YyFaikqM5sH0ziFZCN3xDC7zeGaB/d0IUb9CATugHWbd1FRFwWwt4ld4OYMPWu5a3Xe01mGAULCdqhMlPl29Jg==}
-
   '@protobufjs/codegen@2.0.5':
     resolution: {integrity: sha512-zgXFLzW3Ap33e6d0Wlj4MGIm6Ce8O89n/apUaGNB/jx+hw+ruWEp7EwGUshdLKVRCxZW12fp9r40E1mQrf/34g==}
 
@@ -1493,9 +1518,6 @@ packages:
   '@protobufjs/float@1.0.2':
     resolution: {integrity: sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ==}
 
-  '@protobufjs/inquire@1.1.0':
-    resolution: {integrity: sha512-kdSefcPdruJiFMVSbn801t4vFK7KB/5gd2fYvrxhuJYg8ILrmn9SKSX2tZdV6V+ksulWqS7aXjBcRXl3wHoD9Q==}
-
   '@protobufjs/inquire@1.1.1':
     resolution: {integrity: sha512-mnzgDV26ueAvk7rsbt9L7bE0SuAoqyuys/sMMrmVcN5x9VsxpcG3rqAUSgDyLp0UZlmNfIbQ4fHfCtreVBk8Ew==}
 
@@ -1504,9 +1526,6 @@ packages:
 
   '@protobufjs/pool@1.1.0':
     resolution: {integrity: sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw==}
-
-  '@protobufjs/utf8@1.1.0':
-    resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
 
   '@protobufjs/utf8@1.1.1':
     resolution: {integrity: sha512-oOAWABowe8EAbMyWKM0tYDKi8Yaox52D+HWZhAIJqQXbqe0xI/GV7FhLWqlEKreMkfDjshR5FKgi3mnle0h6Eg==}
@@ -1724,8 +1743,8 @@ packages:
     resolution: {integrity: sha512-1Su2vj9RYNDEv/V+2E+jXkkwGsgR7dc4sfHn9Z7ruzQHJIEni9zzw5CauvRXlFJfmgcqYP8fWa0dkh2Q2YaQyw==}
     engines: {node: '>=18.0.0'}
 
-  '@smithy/util-retry@4.3.6':
-    resolution: {integrity: sha512-p6/FO1n2KxMeQyna067i0uJ6TSbb165ZhnRtCpWh4Foxqbfc6oW+XITaL8QkFJj3KFnDe2URt4gOhgU06EP9ew==}
+  '@smithy/util-retry@4.3.8':
+    resolution: {integrity: sha512-LUIxbTBi+OpvXpg91poGA6BdyoleMDLnfXjVDqyi2RvZmTveY5loE/FgYUBCR5LU2BThW2SoZRh8dTIIy38IPw==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/util-stream@4.5.25':
@@ -1751,6 +1770,9 @@ packages:
   '@smithy/uuid@1.1.2':
     resolution: {integrity: sha512-O/IEdcCUKkubz60tFbGA7ceITTAJsty+lBjNoorP4Z6XRqaFb/OjQjZODophEcuq68nKm6/0r+6/lLQ+XVpk8g==}
     engines: {node: '>=18.0.0'}
+
+  '@stablelib/base64@1.0.1':
+    resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -2059,6 +2081,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@unrs/resolver-binding-android-arm-eabi@1.11.1':
     resolution: {integrity: sha512-ppLRUgHVaGRWUx0R0Ut06Mjo9gBaBkg3v/8AxusGLhsIotbBLuRk51rAzqLC8gq6NyyAojEXglNjzf6R948DNw==}
@@ -2317,8 +2340,8 @@ packages:
     resolution: {integrity: sha512-zBQouZixDTbo3jMGqHKyePxYxr1e5W8UdTmBQ7sNtaA9M2bE32daxxPLS/jojhKOHxQ7LWwPjfiwf/fhaJWzlg==}
     engines: {node: '>=4'}
 
-  axios@1.15.2:
-    resolution: {integrity: sha512-wLrXxPtcrPTsNlJmKjkPnNPK2Ihe0hn0wGSaTEiHRPxwjvJwT3hKmXF4dpqxmPO9SoNb2FsYXj/xEo0gHN+D5A==}
+  axios@1.16.0:
+    resolution: {integrity: sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==}
 
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
@@ -2394,8 +2417,8 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  baseline-browser-mapping@2.10.19:
-    resolution: {integrity: sha512-qCkNLi2sfBOn8XhZQ0FXsT1Ki/Yo5P90hrkRamVFRS7/KV9hpfA4HkoWNU152+8w0zPjnxo5psx5NL3PSGgv5g==}
+  baseline-browser-mapping@2.10.27:
+    resolution: {integrity: sha512-zEs/ufmZoUd7WftKpKyXaT6RFxpQ5Qm9xytKRHvJfxFV9DFJkZph9RvJ1LcOUi0Z1ZVijMte65JbILeV+8QQEA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -2476,8 +2499,8 @@ packages:
     resolution: {integrity: sha512-Gmy6FhYlCY7uOElZUSbxo2UCDH8owEk996gkbrpsgGtrJLM3J7jGxl9Ic7Qwwj4ivOE5AWZWRMecDdF7hqGjFA==}
     engines: {node: '>=10'}
 
-  caniuse-lite@1.0.30001788:
-    resolution: {integrity: sha512-6q8HFp+lOQtcf7wBK+uEenxymVWkGKkjFpCvw5W25cmMwEDU45p1xQFBQv8JDlMMry7eNxyBaR+qxgmTUZkIRQ==}
+  caniuse-lite@1.0.30001792:
+    resolution: {integrity: sha512-hVLMUZFgR4JJ6ACt1uEESvQN1/dBVqPAKY0hgrV70eN3391K6juAfTjKZLKvOMsx8PxA7gsY1/tLMMTcfFLLpw==}
 
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
@@ -2726,8 +2749,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  electron-to-chromium@1.5.336:
-    resolution: {integrity: sha512-AbH9q9J455r/nLmdNZes0G0ZKcRX73FicwowalLs6ijwOmCJSRRrLX63lcAlzy9ux3dWK1w1+1nsBJEWN11hcQ==}
+  electron-to-chromium@1.5.352:
+    resolution: {integrity: sha512-9wHk8x6dyuimoe18EdiDPWKExNdxYqo4fn4FwOVVper6RxT3cmpBwBkWWfSOCYJjQdIco/nPhJhNLmn4Ufg1Yg==}
 
   emittery@0.13.1:
     resolution: {integrity: sha512-DeWwawk6r5yR9jFgnDKYt4sLS0LmHJJi3ZOnb5/JdbYwj3nW+FxQnHIjhBKz8YLC7oRNPVM9NQ47I3CVx34eqQ==}
@@ -3017,11 +3040,14 @@ packages:
   fast-safe-stringify@2.1.1:
     resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==}
 
+  fast-sha256@1.3.0:
+    resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
+
   fast-uri@3.1.0:
     resolution: {integrity: sha512-iPeeDKJSWf4IEOasVVrknXpaBV0IApz/gp7S2bb7Z4Lljbl2MGJRqInZiUrQwV16cpzw/D3S5j5Julj/gT52AA==}
 
-  fast-xml-builder@1.1.5:
-    resolution: {integrity: sha512-4TJn/8FKLeslLAH3dnohXqE3QSoxkhvaMzepOIZytwJXZO69Bfz0HBdDHzOTOon6G59Zrk6VQ2bEiv1t61rfkA==}
+  fast-xml-builder@1.1.9:
+    resolution: {integrity: sha512-jcyKVSEX13iseJqg7n/KWw+xnu/7fdrZ333Fac54KjHDIELVCfDDJXYIm6DTJ0Su4gSzrhqiK0DzY/wZbF40mw==}
 
   fast-xml-parser@5.7.2:
     resolution: {integrity: sha512-P7oW7tLbYnhOLQk/Gv7cZgzgMPP/XN03K02/Jy6Y/NHzyIAIpxuZIM/YqAkfiXFPxA2CTm7NtCijK9EDu09u2w==}
@@ -4092,8 +4118,8 @@ packages:
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
 
-  node-releases@2.0.37:
-    resolution: {integrity: sha512-1h5gKZCF+pO/o3Iqt5Jp7wc9rH3eJJ0+nh/CIoiRwjRxde/hAHyLPXYN4V3CqKAbiZPSeJFSWHmJsbkicta0Eg==}
+  node-releases@2.0.38:
+    resolution: {integrity: sha512-3qT/88Y3FbH/Kx4szpQQ4HzUbVrHPKTLVpVocKiLfoYvw9XSGOX2FmD2d6DrXbVYyAQTF2HeF6My8jmzx7/CRw==}
 
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
@@ -4172,8 +4198,8 @@ packages:
       zod:
         optional: true
 
-  openai@6.35.0:
-    resolution: {integrity: sha512-L/skwIGnt5xQZHb0UfTu9uAUKbis3ehKypOuJKi20QvG7UStV6C8IC3myGYHcdiF4kms/bAvOJ9UqqNWqi8x/Q==}
+  openai@6.36.0:
+    resolution: {integrity: sha512-Has2YbIusMq9wQEierFsgf9c783dy1y9arX459LmphNacEkkM5yxi2RIyXP0LmkOroQyW19iTwALHL8Yf26UKA==}
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
@@ -4341,16 +4367,12 @@ packages:
     resolution: {integrity: sha512-E1sbAYg3aEbXrq0n1ojJkRHQJGE1kaE/O6GLA94y8rnJBfgvOPTOd1b9hOceQK1FFZI9qMh1vBERCyO2ifubcw==}
     engines: {node: '>=18'}
 
-  protobufjs@7.5.5:
-    resolution: {integrity: sha512-3wY1AxV+VBNW8Yypfd1yQY9pXnqTAN+KwQxL8iYm3/BjKYMNg4i0owhEe26PWDOMaIrzeeF98Lqd5NGz4omiIg==}
-    engines: {node: '>=12.0.0'}
-
   protobufjs@7.5.6:
     resolution: {integrity: sha512-M71sTMB146U3u0di3yup8iM+zv8yPRNQVr1KK4tyBitl3qFvEGucq/rGDRShD2rsJhtN02RJaJ7j5X5hmy8SJg==}
     engines: {node: '>=12.0.0'}
 
-  protobufjs@8.0.3:
-    resolution: {integrity: sha512-LBYnMWkKLB8fE/ljROPDbCl7mgLSlI+oBe1fAAr5MTqFg4TIi0tYrVVurJvQggOjnUYMQtEZBjrej59ojMNTHQ==}
+  protobufjs@8.0.1:
+    resolution: {integrity: sha512-NWWCCscLjs+cOKF/s/XVNFRW7Yih0fdH+9brffR5NZCy8k42yRdl5KlWKMVXuI1vfCoy4o1z80XR/W/QUb3V3w==}
     engines: {node: '>=12.0.0'}
 
   proxy-addr@2.0.7:
@@ -4619,6 +4641,9 @@ packages:
   stack-utils@2.0.6:
     resolution: {integrity: sha512-XlkWvfIm6RmsWtNJx+uqtKLS8eqFbxUg0ZzLXqY0caEy9l7hruX8IpiDnjsLavoBgqCCR71TqWO8MaXYheJ3RQ==}
     engines: {node: '>=10'}
+
+  standardwebhooks@1.0.0:
+    resolution: {integrity: sha512-BbHGOQK9olHPMvQNHWul6MYlrRTAOKn03rOe4A8O3CLWhNf4YHBqq2HJKKC+sfqpxiBY52pNeesD6jIiLDz8jg==}
 
   statuses@2.0.1:
     resolution: {integrity: sha512-RwNA9Z/7PrK06rYLIzFMlaF+l73iwpzsqRIFgbMLbTcLD6cOao82TaWefPXQvB2fOC4AjuYSEndS7N/mTCbkdQ==}
@@ -4948,6 +4973,7 @@ packages:
 
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuid@11.1.0:
@@ -4960,6 +4986,7 @@ packages:
 
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   v8-compile-cache-lib@3.0.1:
@@ -5085,8 +5112,8 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.3.6:
-    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
@@ -5097,11 +5124,12 @@ snapshots:
       '@grpc/grpc-js': 1.14.3
       express: 4.21.2
 
-  '@anthropic-ai/sdk@0.91.1(zod@4.3.6)':
+  '@anthropic-ai/sdk@0.95.0(zod@4.4.3)':
     dependencies:
       json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.0.0
     optionalDependencies:
-      zod: 4.3.6
+      zod: 4.4.3
 
   '@aws-crypto/crc32@5.2.0':
     dependencies:
@@ -5135,25 +5163,25 @@ snapshots:
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-bedrock-runtime@3.1038.0':
+  '@aws-sdk/client-bedrock-runtime@3.1044.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/credential-provider-node': 3.972.37
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/credential-provider-node': 3.972.39
       '@aws-sdk/eventstream-handler-node': 3.972.14
       '@aws-sdk/middleware-eventstream': 3.972.10
       '@aws-sdk/middleware-host-header': 3.972.10
       '@aws-sdk/middleware-logger': 3.972.10
       '@aws-sdk/middleware-recursion-detection': 3.972.11
-      '@aws-sdk/middleware-user-agent': 3.972.36
+      '@aws-sdk/middleware-user-agent': 3.972.38
       '@aws-sdk/middleware-websocket': 3.972.16
       '@aws-sdk/region-config-resolver': 3.972.13
-      '@aws-sdk/token-providers': 3.1038.0
+      '@aws-sdk/token-providers': 3.1044.0
       '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.996.8
       '@aws-sdk/util-user-agent-browser': 3.972.10
-      '@aws-sdk/util-user-agent-node': 3.973.22
+      '@aws-sdk/util-user-agent-node': 3.973.24
       '@smithy/config-resolver': 4.4.17
       '@smithy/core': 3.23.17
       '@smithy/eventstream-serde-browser': 4.2.14
@@ -5180,7 +5208,7 @@ snapshots:
       '@smithy/util-defaults-mode-node': 4.2.54
       '@smithy/util-endpoints': 3.4.2
       '@smithy/util-middleware': 4.2.14
-      '@smithy/util-retry': 4.3.6
+      '@smithy/util-retry': 4.3.8
       '@smithy/util-stream': 4.5.25
       '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
@@ -5191,17 +5219,17 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/credential-provider-node': 3.972.37
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/credential-provider-node': 3.972.39
       '@aws-sdk/middleware-host-header': 3.972.10
       '@aws-sdk/middleware-logger': 3.972.10
       '@aws-sdk/middleware-recursion-detection': 3.972.11
-      '@aws-sdk/middleware-user-agent': 3.972.36
+      '@aws-sdk/middleware-user-agent': 3.972.38
       '@aws-sdk/region-config-resolver': 3.972.13
       '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.996.8
       '@aws-sdk/util-user-agent-browser': 3.972.10
-      '@aws-sdk/util-user-agent-node': 3.973.22
+      '@aws-sdk/util-user-agent-node': 3.973.24
       '@smithy/config-resolver': 4.4.17
       '@smithy/core': 3.23.17
       '@smithy/fetch-http-handler': 5.3.17
@@ -5225,7 +5253,7 @@ snapshots:
       '@smithy/util-defaults-mode-node': 4.2.54
       '@smithy/util-endpoints': 3.4.2
       '@smithy/util-middleware': 4.2.14
-      '@smithy/util-retry': 4.3.6
+      '@smithy/util-retry': 4.3.8
       '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
     transitivePeerDependencies:
@@ -5235,17 +5263,17 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/credential-provider-node': 3.972.37
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/credential-provider-node': 3.972.39
       '@aws-sdk/middleware-host-header': 3.972.10
       '@aws-sdk/middleware-logger': 3.972.10
       '@aws-sdk/middleware-recursion-detection': 3.972.11
-      '@aws-sdk/middleware-user-agent': 3.972.36
+      '@aws-sdk/middleware-user-agent': 3.972.38
       '@aws-sdk/region-config-resolver': 3.972.13
       '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.996.8
       '@aws-sdk/util-user-agent-browser': 3.972.10
-      '@aws-sdk/util-user-agent-node': 3.973.22
+      '@aws-sdk/util-user-agent-node': 3.973.24
       '@smithy/config-resolver': 4.4.17
       '@smithy/core': 3.23.17
       '@smithy/fetch-http-handler': 5.3.17
@@ -5269,17 +5297,17 @@ snapshots:
       '@smithy/util-defaults-mode-node': 4.2.54
       '@smithy/util-endpoints': 3.4.2
       '@smithy/util-middleware': 4.2.14
-      '@smithy/util-retry': 4.3.6
+      '@smithy/util-retry': 4.3.8
       '@smithy/util-utf8': 4.2.2
       '@smithy/util-waiter': 4.2.15
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/core@3.974.6':
+  '@aws-sdk/core@3.974.8':
     dependencies:
       '@aws-sdk/types': 3.973.8
-      '@aws-sdk/xml-builder': 3.972.21
+      '@aws-sdk/xml-builder': 3.972.22
       '@smithy/core': 3.23.17
       '@smithy/node-config-provider': 4.3.14
       '@smithy/property-provider': 4.2.14
@@ -5289,13 +5317,13 @@ snapshots:
       '@smithy/types': 4.14.1
       '@smithy/util-base64': 4.3.2
       '@smithy/util-middleware': 4.2.14
-      '@smithy/util-retry': 4.3.6
+      '@smithy/util-retry': 4.3.8
       '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-cognito-identity@3.972.22':
     dependencies:
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/types': 4.14.1
@@ -5305,15 +5333,15 @@ snapshots:
 
   '@aws-sdk/credential-provider-env@3.972.25':
     dependencies:
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/types': 4.14.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-env@3.972.32':
+  '@aws-sdk/credential-provider-env@3.972.34':
     dependencies:
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/types': 4.14.1
@@ -5321,7 +5349,7 @@ snapshots:
 
   '@aws-sdk/credential-provider-http@3.972.27':
     dependencies:
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/types': 3.973.8
       '@smithy/fetch-http-handler': 5.3.17
       '@smithy/node-http-handler': 4.6.1
@@ -5332,9 +5360,9 @@ snapshots:
       '@smithy/util-stream': 4.5.25
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-http@3.972.34':
+  '@aws-sdk/credential-provider-http@3.972.36':
     dependencies:
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/types': 3.973.8
       '@smithy/fetch-http-handler': 5.3.17
       '@smithy/node-http-handler': 4.6.1
@@ -5347,14 +5375,14 @@ snapshots:
 
   '@aws-sdk/credential-provider-ini@3.972.29':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/credential-provider-env': 3.972.32
-      '@aws-sdk/credential-provider-http': 3.972.34
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/credential-provider-env': 3.972.34
+      '@aws-sdk/credential-provider-http': 3.972.36
       '@aws-sdk/credential-provider-login': 3.972.29
-      '@aws-sdk/credential-provider-process': 3.972.32
-      '@aws-sdk/credential-provider-sso': 3.972.36
-      '@aws-sdk/credential-provider-web-identity': 3.972.36
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/credential-provider-process': 3.972.34
+      '@aws-sdk/credential-provider-sso': 3.972.38
+      '@aws-sdk/credential-provider-web-identity': 3.972.38
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/credential-provider-imds': 4.2.14
       '@smithy/property-provider': 4.2.14
@@ -5364,16 +5392,16 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/credential-provider-ini@3.972.36':
+  '@aws-sdk/credential-provider-ini@3.972.38':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/credential-provider-env': 3.972.32
-      '@aws-sdk/credential-provider-http': 3.972.34
-      '@aws-sdk/credential-provider-login': 3.972.36
-      '@aws-sdk/credential-provider-process': 3.972.32
-      '@aws-sdk/credential-provider-sso': 3.972.36
-      '@aws-sdk/credential-provider-web-identity': 3.972.36
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/credential-provider-env': 3.972.34
+      '@aws-sdk/credential-provider-http': 3.972.36
+      '@aws-sdk/credential-provider-login': 3.972.38
+      '@aws-sdk/credential-provider-process': 3.972.34
+      '@aws-sdk/credential-provider-sso': 3.972.38
+      '@aws-sdk/credential-provider-web-identity': 3.972.38
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/credential-provider-imds': 4.2.14
       '@smithy/property-provider': 4.2.14
@@ -5385,8 +5413,8 @@ snapshots:
 
   '@aws-sdk/credential-provider-login@3.972.29':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/protocol-http': 5.3.14
@@ -5396,10 +5424,10 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/credential-provider-login@3.972.36':
+  '@aws-sdk/credential-provider-login@3.972.38':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/protocol-http': 5.3.14
@@ -5409,14 +5437,14 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/credential-provider-node@3.972.37':
+  '@aws-sdk/credential-provider-node@3.972.39':
     dependencies:
-      '@aws-sdk/credential-provider-env': 3.972.32
-      '@aws-sdk/credential-provider-http': 3.972.34
-      '@aws-sdk/credential-provider-ini': 3.972.36
-      '@aws-sdk/credential-provider-process': 3.972.32
-      '@aws-sdk/credential-provider-sso': 3.972.36
-      '@aws-sdk/credential-provider-web-identity': 3.972.36
+      '@aws-sdk/credential-provider-env': 3.972.34
+      '@aws-sdk/credential-provider-http': 3.972.36
+      '@aws-sdk/credential-provider-ini': 3.972.38
+      '@aws-sdk/credential-provider-process': 3.972.34
+      '@aws-sdk/credential-provider-sso': 3.972.38
+      '@aws-sdk/credential-provider-web-identity': 3.972.38
       '@aws-sdk/types': 3.973.8
       '@smithy/credential-provider-imds': 4.2.14
       '@smithy/property-provider': 4.2.14
@@ -5428,16 +5456,16 @@ snapshots:
 
   '@aws-sdk/credential-provider-process@3.972.25':
     dependencies:
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
       '@smithy/types': 4.14.1
       tslib: 2.8.1
 
-  '@aws-sdk/credential-provider-process@3.972.32':
+  '@aws-sdk/credential-provider-process@3.972.34':
     dependencies:
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
@@ -5446,8 +5474,8 @@ snapshots:
 
   '@aws-sdk/credential-provider-sso@3.972.29':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/token-providers': 3.1026.0
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
@@ -5457,11 +5485,11 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/credential-provider-sso@3.972.36':
+  '@aws-sdk/credential-provider-sso@3.972.38':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/nested-clients': 3.997.4
-      '@aws-sdk/token-providers': 3.1038.0
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
+      '@aws-sdk/token-providers': 3.1041.0
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
@@ -5472,8 +5500,8 @@ snapshots:
 
   '@aws-sdk/credential-provider-web-identity@3.972.29':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
@@ -5482,10 +5510,10 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/credential-provider-web-identity@3.972.36':
+  '@aws-sdk/credential-provider-web-identity@3.972.38':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
@@ -5497,13 +5525,13 @@ snapshots:
   '@aws-sdk/credential-providers@3.1030.0':
     dependencies:
       '@aws-sdk/client-cognito-identity': 3.1030.0
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/credential-provider-cognito-identity': 3.972.22
       '@aws-sdk/credential-provider-env': 3.972.25
       '@aws-sdk/credential-provider-http': 3.972.27
       '@aws-sdk/credential-provider-ini': 3.972.29
       '@aws-sdk/credential-provider-login': 3.972.29
-      '@aws-sdk/credential-provider-node': 3.972.37
+      '@aws-sdk/credential-provider-node': 3.972.39
       '@aws-sdk/credential-provider-process': 3.972.25
       '@aws-sdk/credential-provider-sso': 3.972.29
       '@aws-sdk/credential-provider-web-identity': 3.972.29
@@ -5554,9 +5582,9 @@ snapshots:
       '@smithy/types': 4.14.1
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-sdk-s3@3.972.35':
+  '@aws-sdk/middleware-sdk-s3@3.972.37':
     dependencies:
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-arn-parser': 3.972.3
       '@smithy/core': 3.23.17
@@ -5571,15 +5599,15 @@ snapshots:
       '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
 
-  '@aws-sdk/middleware-user-agent@3.972.36':
+  '@aws-sdk/middleware-user-agent@3.972.38':
     dependencies:
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.996.8
       '@smithy/core': 3.23.17
       '@smithy/protocol-http': 5.3.14
       '@smithy/types': 4.14.1
-      '@smithy/util-retry': 4.3.6
+      '@smithy/util-retry': 4.3.8
       tslib: 2.8.1
 
   '@aws-sdk/middleware-websocket@3.972.16':
@@ -5601,16 +5629,16 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/middleware-host-header': 3.972.10
       '@aws-sdk/middleware-logger': 3.972.10
       '@aws-sdk/middleware-recursion-detection': 3.972.11
-      '@aws-sdk/middleware-user-agent': 3.972.36
+      '@aws-sdk/middleware-user-agent': 3.972.38
       '@aws-sdk/region-config-resolver': 3.972.13
       '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.996.8
       '@aws-sdk/util-user-agent-browser': 3.972.10
-      '@aws-sdk/util-user-agent-node': 3.973.22
+      '@aws-sdk/util-user-agent-node': 3.973.24
       '@smithy/config-resolver': 4.4.17
       '@smithy/core': 3.23.17
       '@smithy/fetch-http-handler': 5.3.17
@@ -5634,27 +5662,27 @@ snapshots:
       '@smithy/util-defaults-mode-node': 4.2.54
       '@smithy/util-endpoints': 3.4.2
       '@smithy/util-middleware': 4.2.14
-      '@smithy/util-retry': 4.3.6
+      '@smithy/util-retry': 4.3.8
       '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/nested-clients@3.997.4':
+  '@aws-sdk/nested-clients@3.997.6':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.974.6
+      '@aws-sdk/core': 3.974.8
       '@aws-sdk/middleware-host-header': 3.972.10
       '@aws-sdk/middleware-logger': 3.972.10
       '@aws-sdk/middleware-recursion-detection': 3.972.11
-      '@aws-sdk/middleware-user-agent': 3.972.36
+      '@aws-sdk/middleware-user-agent': 3.972.38
       '@aws-sdk/region-config-resolver': 3.972.13
-      '@aws-sdk/signature-v4-multi-region': 3.996.23
+      '@aws-sdk/signature-v4-multi-region': 3.996.25
       '@aws-sdk/types': 3.973.8
       '@aws-sdk/util-endpoints': 3.996.8
       '@aws-sdk/util-user-agent-browser': 3.972.10
-      '@aws-sdk/util-user-agent-node': 3.973.22
+      '@aws-sdk/util-user-agent-node': 3.973.24
       '@smithy/config-resolver': 4.4.17
       '@smithy/core': 3.23.17
       '@smithy/fetch-http-handler': 5.3.17
@@ -5678,7 +5706,7 @@ snapshots:
       '@smithy/util-defaults-mode-node': 4.2.54
       '@smithy/util-endpoints': 3.4.2
       '@smithy/util-middleware': 4.2.14
-      '@smithy/util-retry': 4.3.6
+      '@smithy/util-retry': 4.3.8
       '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
     transitivePeerDependencies:
@@ -5692,9 +5720,9 @@ snapshots:
       '@smithy/types': 4.14.1
       tslib: 2.8.1
 
-  '@aws-sdk/signature-v4-multi-region@3.996.23':
+  '@aws-sdk/signature-v4-multi-region@3.996.25':
     dependencies:
-      '@aws-sdk/middleware-sdk-s3': 3.972.35
+      '@aws-sdk/middleware-sdk-s3': 3.972.37
       '@aws-sdk/types': 3.973.8
       '@smithy/protocol-http': 5.3.14
       '@smithy/signature-v4': 5.3.14
@@ -5703,8 +5731,8 @@ snapshots:
 
   '@aws-sdk/token-providers@3.1026.0':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
@@ -5713,10 +5741,22 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/token-providers@3.1038.0':
+  '@aws-sdk/token-providers@3.1041.0':
     dependencies:
-      '@aws-sdk/core': 3.974.6
-      '@aws-sdk/nested-clients': 3.997.4
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
+      '@aws-sdk/types': 3.973.8
+      '@smithy/property-provider': 4.2.14
+      '@smithy/shared-ini-file-loader': 4.4.9
+      '@smithy/types': 4.14.1
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@aws-sdk/token-providers@3.1044.0':
+    dependencies:
+      '@aws-sdk/core': 3.974.8
+      '@aws-sdk/nested-clients': 3.997.6
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
@@ -5760,16 +5800,16 @@ snapshots:
       bowser: 2.14.1
       tslib: 2.8.1
 
-  '@aws-sdk/util-user-agent-node@3.973.22':
+  '@aws-sdk/util-user-agent-node@3.973.24':
     dependencies:
-      '@aws-sdk/middleware-user-agent': 3.972.36
+      '@aws-sdk/middleware-user-agent': 3.972.38
       '@aws-sdk/types': 3.973.8
       '@smithy/node-config-provider': 4.3.14
       '@smithy/types': 4.14.1
       '@smithy/util-config-provider': 4.2.2
       tslib: 2.8.1
 
-  '@aws-sdk/xml-builder@3.972.21':
+  '@aws-sdk/xml-builder@3.972.22':
     dependencies:
       '@nodable/entities': 2.1.0
       '@smithy/types': 4.14.1
@@ -5784,7 +5824,7 @@ snapshots:
       js-tokens: 4.0.0
       picocolors: 1.1.1
 
-  '@babel/compat-data@7.29.0': {}
+  '@babel/compat-data@7.29.3': {}
 
   '@babel/core@7.29.0':
     dependencies:
@@ -5820,13 +5860,13 @@ snapshots:
 
   '@babel/helper-compilation-targets@7.28.6':
     dependencies:
-      '@babel/compat-data': 7.29.0
+      '@babel/compat-data': 7.29.3
       '@babel/helper-validator-option': 7.27.1
       browserslist: 4.28.2
       lru-cache: 5.1.1
       semver: 6.3.1
 
-  '@babel/helper-create-class-features-plugin@7.28.6(@babel/core@7.29.0)':
+  '@babel/helper-create-class-features-plugin@7.29.3(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-annotate-as-pure': 7.27.3
@@ -5953,6 +5993,14 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
+
+  '@babel/plugin-bugfix-safari-rest-destructuring-rhs-array@7.29.3(@babel/core@7.29.0)':
+    dependencies:
+      '@babel/core': 7.29.0
+      '@babel/helper-plugin-utils': 7.28.6
+      '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
+    transitivePeerDependencies:
+      - supports-color
 
   '@babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -6107,7 +6155,7 @@ snapshots:
   '@babel/plugin-transform-class-properties@7.28.6(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
+      '@babel/helper-create-class-features-plugin': 7.29.3(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
     transitivePeerDependencies:
       - supports-color
@@ -6115,7 +6163,7 @@ snapshots:
   '@babel/plugin-transform-class-static-block@7.28.6(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
+      '@babel/helper-create-class-features-plugin': 7.29.3(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
     transitivePeerDependencies:
       - supports-color
@@ -6239,7 +6287,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/plugin-transform-modules-systemjs@7.29.0(@babel/core@7.29.0)':
+  '@babel/plugin-transform-modules-systemjs@7.29.4(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.0)
@@ -6318,7 +6366,7 @@ snapshots:
   '@babel/plugin-transform-private-methods@7.28.6(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
+      '@babel/helper-create-class-features-plugin': 7.29.3(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
     transitivePeerDependencies:
       - supports-color
@@ -6327,7 +6375,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-annotate-as-pure': 7.27.3
-      '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
+      '@babel/helper-create-class-features-plugin': 7.29.3(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
     transitivePeerDependencies:
       - supports-color
@@ -6404,9 +6452,9 @@ snapshots:
       '@babel/helper-create-regexp-features-plugin': 7.28.5(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
 
-  '@babel/preset-env@7.29.2(@babel/core@7.29.0)':
+  '@babel/preset-env@7.29.5(@babel/core@7.29.0)':
     dependencies:
-      '@babel/compat-data': 7.29.0
+      '@babel/compat-data': 7.29.3
       '@babel/core': 7.29.0
       '@babel/helper-compilation-targets': 7.28.6
       '@babel/helper-plugin-utils': 7.28.6
@@ -6414,6 +6462,7 @@ snapshots:
       '@babel/plugin-bugfix-firefox-class-in-computed-class-key': 7.28.5(@babel/core@7.29.0)
       '@babel/plugin-bugfix-safari-class-field-initializer-scope': 7.27.1(@babel/core@7.29.0)
       '@babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression': 7.27.1(@babel/core@7.29.0)
+      '@babel/plugin-bugfix-safari-rest-destructuring-rhs-array': 7.29.3(@babel/core@7.29.0)
       '@babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining': 7.27.1(@babel/core@7.29.0)
       '@babel/plugin-bugfix-v8-static-class-fields-redefine-readonly': 7.28.6(@babel/core@7.29.0)
       '@babel/plugin-proposal-private-property-in-object': 7.21.0-placeholder-for-preset-env.2(@babel/core@7.29.0)
@@ -6445,7 +6494,7 @@ snapshots:
       '@babel/plugin-transform-member-expression-literals': 7.27.1(@babel/core@7.29.0)
       '@babel/plugin-transform-modules-amd': 7.27.1(@babel/core@7.29.0)
       '@babel/plugin-transform-modules-commonjs': 7.28.6(@babel/core@7.29.0)
-      '@babel/plugin-transform-modules-systemjs': 7.29.0(@babel/core@7.29.0)
+      '@babel/plugin-transform-modules-systemjs': 7.29.4(@babel/core@7.29.0)
       '@babel/plugin-transform-modules-umd': 7.27.1(@babel/core@7.29.0)
       '@babel/plugin-transform-named-capturing-groups-regex': 7.29.0(@babel/core@7.29.0)
       '@babel/plugin-transform-new-target': 7.27.1(@babel/core@7.29.0)
@@ -6567,30 +6616,30 @@ snapshots:
       '@shikijs/types': 3.23.0
       '@shikijs/vscode-textmate': 10.0.2
 
-  '@google-cloud/aiplatform@6.6.0':
+  '@google-cloud/aiplatform@6.7.0':
     dependencies:
       google-gax: 5.0.6
     transitivePeerDependencies:
       - supports-color
 
-  '@google-cloud/opentelemetry-cloud-trace-exporter@3.0.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)':
+  '@google-cloud/opentelemetry-cloud-trace-exporter@3.0.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(supports-color@10.2.2)':
     dependencies:
-      '@google-cloud/opentelemetry-resource-util': 3.0.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
+      '@google-cloud/opentelemetry-resource-util': 3.0.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
       '@grpc/grpc-js': 1.14.3
       '@grpc/proto-loader': 0.8.0
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.7.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
       google-auth-library: 9.15.1(supports-color@10.2.2)
     transitivePeerDependencies:
       - encoding
       - supports-color
 
-  '@google-cloud/opentelemetry-resource-util@3.0.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)':
+  '@google-cloud/opentelemetry-resource-util@3.0.0(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(supports-color@10.2.2)':
     dependencies:
       '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.40.0
       gcp-metadata: 6.1.1(supports-color@10.2.2)
     transitivePeerDependencies:
@@ -6616,9 +6665,9 @@ snapshots:
       protobufjs: 7.5.6
       yargs: 17.7.2
 
-  '@helicone/helpers@1.8.3(openai@6.35.0(ws@8.20.0)(zod@4.3.6))':
+  '@helicone/helpers@1.8.3(openai@6.36.0(ws@8.20.0)(zod@4.4.3))':
     dependencies:
-      openai: 6.35.0(ws@8.20.0)(zod@4.3.6)
+      openai: 6.36.0(ws@8.20.0)(zod@4.4.3)
 
   '@hono/node-server@1.19.14(hono@4.12.14)':
     dependencies:
@@ -6881,7 +6930,7 @@ snapshots:
 
   '@js-sdsl/ordered-map@4.4.2': {}
 
-  '@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)':
+  '@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@standard-schema/spec': 1.1.0
@@ -6889,11 +6938,11 @@ snapshots:
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+      langsmith: 0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0)
       mustache: 4.2.0
       p-queue: 6.6.2
       uuid: 11.1.1
-      zod: 4.3.6
+      zod: 4.4.3
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - '@opentelemetry/exporter-trace-otlp-proto'
@@ -6901,18 +6950,18 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/openai@0.6.17(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(ws@8.20.0)':
+  '@langchain/openai@0.6.17(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))(ws@8.20.0)':
     dependencies:
-      '@langchain/core': 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+      '@langchain/core': 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0)
       js-tiktoken: 1.0.21
       openai: 5.12.2(ws@8.20.0)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
       - ws
 
-  '@langchain/textsplitters@0.1.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))':
+  '@langchain/textsplitters@0.1.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))':
     dependencies:
-      '@langchain/core': 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+      '@langchain/core': 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0)
       js-tiktoken: 1.0.21
 
   '@microsoft/tsdoc-config@0.18.1':
@@ -6924,7 +6973,7 @@ snapshots:
 
   '@microsoft/tsdoc@0.16.0': {}
 
-  '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)':
+  '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.14)
       ajv: 8.18.0
@@ -6941,8 +6990,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.3.6
-      zod-to-json-schema: 3.25.2(zod@4.3.6)
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.2(zod@4.4.3)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
@@ -6981,7 +7030,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
 
-  '@opentelemetry/api-logs@0.215.0':
+  '@opentelemetry/api-logs@0.217.0':
     dependencies:
       '@opentelemetry/api': 1.9.1
 
@@ -7001,6 +7050,11 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.40.0
 
   '@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/semantic-conventions': 1.40.0
+
+  '@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/semantic-conventions': 1.40.0
@@ -7093,14 +7147,14 @@ snapshots:
       '@opentelemetry/resources': 2.0.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.0.1(@opentelemetry/api@1.9.1)
 
-  '@opentelemetry/exporter-trace-otlp-http@0.215.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/exporter-trace-otlp-http@0.217.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/otlp-exporter-base': 0.215.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/otlp-transformer': 0.215.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.7.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/otlp-exporter-base': 0.217.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/otlp-transformer': 0.217.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -7134,11 +7188,11 @@ snapshots:
       '@opentelemetry/core': 2.0.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/otlp-transformer': 0.203.0(@opentelemetry/api@1.9.1)
 
-  '@opentelemetry/otlp-exporter-base@0.215.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/otlp-exporter-base@0.217.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/otlp-transformer': 0.215.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/otlp-transformer': 0.217.0(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/otlp-grpc-exporter-base@0.203.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -7159,16 +7213,16 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.0.1(@opentelemetry/api@1.9.1)
       protobufjs: 7.5.6
 
-  '@opentelemetry/otlp-transformer@0.215.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/otlp-transformer@0.217.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/api-logs': 0.215.0
-      '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-logs': 0.215.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-metrics': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.7.0(@opentelemetry/api@1.9.1)
-      protobufjs: 8.0.3
+      '@opentelemetry/api-logs': 0.217.0
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-logs': 0.217.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-metrics': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
+      protobufjs: 8.0.1
 
   '@opentelemetry/propagator-b3@2.0.1(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -7192,6 +7246,12 @@ snapshots:
       '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.40.0
 
+  '@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/semantic-conventions': 1.40.0
+
   '@opentelemetry/sdk-logs@0.203.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
@@ -7199,12 +7259,12 @@ snapshots:
       '@opentelemetry/core': 2.0.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.0.1(@opentelemetry/api@1.9.1)
 
-  '@opentelemetry/sdk-logs@0.215.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/sdk-logs@0.217.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/api-logs': 0.215.0
-      '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/api-logs': 0.217.0
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.40.0
 
   '@opentelemetry/sdk-metrics@2.0.1(@opentelemetry/api@1.9.1)':
@@ -7213,11 +7273,11 @@ snapshots:
       '@opentelemetry/core': 2.0.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.0.1(@opentelemetry/api@1.9.1)
 
-  '@opentelemetry/sdk-metrics@2.7.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/sdk-metrics@2.7.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.7.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/sdk-node@0.203.0(@opentelemetry/api@1.9.1)(supports-color@10.2.2)':
     dependencies:
@@ -7261,6 +7321,13 @@ snapshots:
       '@opentelemetry/resources': 2.7.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.40.0
 
+  '@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/semantic-conventions': 1.40.0
+
   '@opentelemetry/sdk-trace-node@2.0.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
@@ -7288,8 +7355,6 @@ snapshots:
 
   '@protobufjs/base64@1.1.2': {}
 
-  '@protobufjs/codegen@2.0.4': {}
-
   '@protobufjs/codegen@2.0.5': {}
 
   '@protobufjs/eventemitter@1.1.0': {}
@@ -7297,19 +7362,15 @@ snapshots:
   '@protobufjs/fetch@1.1.0':
     dependencies:
       '@protobufjs/aspromise': 1.1.2
-      '@protobufjs/inquire': 1.1.0
+      '@protobufjs/inquire': 1.1.1
 
   '@protobufjs/float@1.0.2': {}
-
-  '@protobufjs/inquire@1.1.0': {}
 
   '@protobufjs/inquire@1.1.1': {}
 
   '@protobufjs/path@1.1.2': {}
 
   '@protobufjs/pool@1.1.0': {}
-
-  '@protobufjs/utf8@1.1.0': {}
 
   '@protobufjs/utf8@1.1.1': {}
 
@@ -7471,7 +7532,7 @@ snapshots:
       '@smithy/smithy-client': 4.12.13
       '@smithy/types': 4.14.1
       '@smithy/util-middleware': 4.2.14
-      '@smithy/util-retry': 4.3.6
+      '@smithy/util-retry': 4.3.8
       '@smithy/uuid': 1.1.2
       tslib: 2.8.1
 
@@ -7643,7 +7704,7 @@ snapshots:
       '@smithy/types': 4.14.1
       tslib: 2.8.1
 
-  '@smithy/util-retry@4.3.6':
+  '@smithy/util-retry@4.3.8':
     dependencies:
       '@smithy/service-error-classification': 4.3.1
       '@smithy/types': 4.14.1
@@ -7682,6 +7743,8 @@ snapshots:
   '@smithy/uuid@1.1.2':
     dependencies:
       tslib: 2.8.1
+
+  '@stablelib/base64@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
 
@@ -7750,9 +7813,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@traceloop/instrumentation-langchain@0.26.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(supports-color@10.2.2)':
+  '@traceloop/instrumentation-langchain@0.26.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))(supports-color@10.2.2)':
     dependencies:
-      '@langchain/core': 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+      '@langchain/core': 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.203.0(@opentelemetry/api@1.9.1)(supports-color@10.2.2)
@@ -7850,16 +7913,16 @@ snapshots:
       - encoding
       - supports-color
 
-  '@traceloop/node-server-sdk@0.26.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))':
+  '@traceloop/node-server-sdk@0.26.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@google-cloud/opentelemetry-cloud-trace-exporter': 3.0.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
+      '@google-cloud/opentelemetry-cloud-trace-exporter': 3.0.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-proto': 0.203.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.203.0(@opentelemetry/api@1.9.1)(supports-color@10.2.2)
-      '@opentelemetry/resources': 2.7.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-node': 0.203.0(@opentelemetry/api@1.9.1)(supports-color@10.2.2)
-      '@opentelemetry/sdk-trace-base': 2.7.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-node': 2.7.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.40.0
       '@traceloop/ai-semantic-conventions': 0.26.0
@@ -7868,7 +7931,7 @@ snapshots:
       '@traceloop/instrumentation-chromadb': 0.26.0(supports-color@10.2.2)
       '@traceloop/instrumentation-cohere': 0.26.0(supports-color@10.2.2)
       '@traceloop/instrumentation-google-generativeai': 0.26.0(supports-color@10.2.2)
-      '@traceloop/instrumentation-langchain': 0.26.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(supports-color@10.2.2)
+      '@traceloop/instrumentation-langchain': 0.26.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))(supports-color@10.2.2)
       '@traceloop/instrumentation-llamaindex': 0.26.0(supports-color@10.2.2)
       '@traceloop/instrumentation-mcp': 0.26.0(supports-color@10.2.2)
       '@traceloop/instrumentation-openai': 0.26.0(supports-color@10.2.2)
@@ -8410,7 +8473,7 @@ snapshots:
 
   axe-core@4.11.3: {}
 
-  axios@1.15.2:
+  axios@1.16.0:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.5
@@ -8479,7 +8542,7 @@ snapshots:
 
   babel-plugin-polyfill-corejs2@0.4.17(@babel/core@7.29.0):
     dependencies:
-      '@babel/compat-data': 7.29.0
+      '@babel/compat-data': 7.29.3
       '@babel/core': 7.29.0
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.0)
       semver: 6.3.1
@@ -8538,7 +8601,7 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  baseline-browser-mapping@2.10.19: {}
+  baseline-browser-mapping@2.10.27: {}
 
   bignumber.js@9.3.1: {}
 
@@ -8594,10 +8657,10 @@ snapshots:
 
   browserslist@4.28.2:
     dependencies:
-      baseline-browser-mapping: 2.10.19
-      caniuse-lite: 1.0.30001788
-      electron-to-chromium: 1.5.336
-      node-releases: 2.0.37
+      baseline-browser-mapping: 2.10.27
+      caniuse-lite: 1.0.30001792
+      electron-to-chromium: 1.5.352
+      node-releases: 2.0.38
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
 
   bs-logger@0.2.6:
@@ -8642,7 +8705,7 @@ snapshots:
 
   camelcase@6.3.0: {}
 
-  caniuse-lite@1.0.30001788: {}
+  caniuse-lite@1.0.30001792: {}
 
   chalk@4.1.2:
     dependencies:
@@ -8873,7 +8936,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  electron-to-chromium@1.5.336: {}
+  electron-to-chromium@1.5.352: {}
 
   emittery@0.13.1: {}
 
@@ -9368,16 +9431,18 @@ snapshots:
 
   fast-safe-stringify@2.1.1: {}
 
+  fast-sha256@1.3.0: {}
+
   fast-uri@3.1.0: {}
 
-  fast-xml-builder@1.1.5:
+  fast-xml-builder@1.1.9:
     dependencies:
       path-expression-matcher: 1.5.0
 
   fast-xml-parser@5.7.2:
     dependencies:
       '@nodable/entities': 2.1.0
-      fast-xml-builder: 1.1.5
+      fast-xml-builder: 1.1.9
       path-expression-matcher: 1.5.0
       strnum: 2.2.3
 
@@ -9684,7 +9749,7 @@ snapshots:
       node-fetch: 3.3.2
       object-hash: 3.0.0
       proto3-json-serializer: 3.0.4
-      protobufjs: 7.5.5
+      protobufjs: 7.5.6
       retry-request: 8.0.2
       rimraf: 5.0.10
     transitivePeerDependencies:
@@ -10438,22 +10503,22 @@ snapshots:
 
   kleur@3.0.3: {}
 
-  langchain@0.3.37(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(axios@1.15.2)(handlebars@4.7.9)(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0):
+  langchain@0.3.37(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(axios@1.16.0)(handlebars@4.7.9)(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0):
     dependencies:
-      '@langchain/core': 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
-      '@langchain/openai': 0.6.17(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(ws@8.20.0)
-      '@langchain/textsplitters': 0.1.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))
+      '@langchain/core': 1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0)
+      '@langchain/openai': 0.6.17(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))(ws@8.20.0)
+      '@langchain/textsplitters': 0.1.0(@langchain/core@1.1.40(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0))
       js-tiktoken: 1.0.21
       js-yaml: 4.1.1
       jsonpointer: 5.0.1
-      langsmith: 0.3.87(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))
+      langsmith: 0.3.87(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))
       openapi-types: 12.1.3
       p-retry: 4.6.2
       uuid: 10.0.0
       yaml: 2.8.3
       zod: 3.25.76
     optionalDependencies:
-      axios: 1.15.2
+      axios: 1.16.0
       handlebars: 4.7.9
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -10462,7 +10527,7 @@ snapshots:
       - openai
       - ws
 
-  langsmith@0.3.87(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6)):
+  langsmith@0.3.87(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3)):
     dependencies:
       '@types/uuid': 10.0.0
       chalk: 4.1.2
@@ -10473,18 +10538,18 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/exporter-trace-otlp-proto': 0.203.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.7.0(@opentelemetry/api@1.9.1)
-      openai: 6.35.0(ws@8.20.0)(zod@4.3.6)
+      '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
+      openai: 6.36.0(ws@8.20.0)(zod@4.4.3)
 
-  langsmith@0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(openai@6.35.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0):
+  langsmith@0.5.19(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.203.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(openai@6.36.0(ws@8.20.0)(zod@4.4.3))(ws@8.20.0):
     dependencies:
       p-queue: 6.6.2
       uuid: 10.0.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/exporter-trace-otlp-proto': 0.203.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.7.0(@opentelemetry/api@1.9.1)
-      openai: 6.35.0(ws@8.20.0)(zod@4.3.6)
+      '@opentelemetry/sdk-trace-base': 2.7.1(@opentelemetry/api@1.9.1)
+      openai: 6.36.0(ws@8.20.0)(zod@4.4.3)
       ws: 8.20.0
 
   language-subtag-registry@0.3.23: {}
@@ -10657,7 +10722,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-releases@2.0.37: {}
+  node-releases@2.0.38: {}
 
   normalize-path@3.0.0: {}
 
@@ -10732,10 +10797,10 @@ snapshots:
       ws: 8.20.0
       zod: 3.25.76
 
-  openai@6.35.0(ws@8.20.0)(zod@4.3.6):
+  openai@6.36.0(ws@8.20.0)(zod@4.4.3):
     optionalDependencies:
       ws: 8.20.0
-      zod: 4.3.6
+      zod: 4.4.3
 
   openapi-types@12.1.3: {}
 
@@ -10871,22 +10936,7 @@ snapshots:
 
   proto3-json-serializer@3.0.4:
     dependencies:
-      protobufjs: 7.5.5
-
-  protobufjs@7.5.5:
-    dependencies:
-      '@protobufjs/aspromise': 1.1.2
-      '@protobufjs/base64': 1.1.2
-      '@protobufjs/codegen': 2.0.4
-      '@protobufjs/eventemitter': 1.1.0
-      '@protobufjs/fetch': 1.1.0
-      '@protobufjs/float': 1.0.2
-      '@protobufjs/inquire': 1.1.0
-      '@protobufjs/path': 1.1.2
-      '@protobufjs/pool': 1.1.0
-      '@protobufjs/utf8': 1.1.0
-      '@types/node': 20.19.39
-      long: 5.3.2
+      protobufjs: 7.5.6
 
   protobufjs@7.5.6:
     dependencies:
@@ -10903,8 +10953,18 @@ snapshots:
       '@types/node': 20.19.39
       long: 5.3.2
 
-  protobufjs@8.0.3:
+  protobufjs@8.0.1:
     dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/base64': 1.1.2
+      '@protobufjs/codegen': 2.0.5
+      '@protobufjs/eventemitter': 1.1.0
+      '@protobufjs/fetch': 1.1.0
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/inquire': 1.1.1
+      '@protobufjs/path': 1.1.2
+      '@protobufjs/pool': 1.1.0
+      '@protobufjs/utf8': 1.1.1
       '@types/node': 20.19.39
       long: 5.3.2
 
@@ -11248,6 +11308,11 @@ snapshots:
   stack-utils@2.0.6:
     dependencies:
       escape-string-regexp: 2.0.0
+
+  standardwebhooks@1.0.0:
+    dependencies:
+      '@stablelib/base64': 1.0.1
+      fast-sha256: 1.3.0
 
   statuses@2.0.1: {}
 
@@ -11763,10 +11828,10 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-to-json-schema@3.25.2(zod@4.3.6):
+  zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:
-      zod: 4.3.6
+      zod: 4.4.3
 
   zod@3.25.76: {}
 
-  zod@4.3.6: {}
+  zod@4.4.3: {}
