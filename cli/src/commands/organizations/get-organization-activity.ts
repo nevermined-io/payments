@@ -13,7 +13,7 @@ export default class GetOrganizationActivity extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    'filters': Flags.string({ required: false }),
+
   }
 
   static override args = {
@@ -30,7 +30,7 @@ export default class GetOrganizationActivity extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.organizations.getOrganizationActivity(args.org, flags['filters'])
+      const result = await payments.organizations.getOrganizationActivity(args.org)
 
       this.formatter.output(result)
     } catch (error) {
