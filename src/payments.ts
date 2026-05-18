@@ -266,7 +266,15 @@ export class Payments extends BasePaymentsAPI {
     this.contracts?.setOrganizationId(organizationId)
     this.facilitator?.setOrganizationId(organizationId)
     this.x402?.setOrganizationId(organizationId)
-    this._delegation?.setOrganizationId(organizationId)
+    if (!this._delegation) {
+      this._delegation = DelegationAPI.getInstance({
+        nvmApiKey: this.nvmApiKey,
+        environment: this.environment,
+        organizationId,
+      })
+    } else {
+      this._delegation.setOrganizationId(organizationId)
+    }
   }
 
   /**
