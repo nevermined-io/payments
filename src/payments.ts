@@ -93,13 +93,17 @@ export class Payments extends BasePaymentsAPI {
 
   /**
    * Returns the Delegation API for listing enrolled payment methods.
-   * The instance is lazily initialized on first access.
+   * The instance is lazily initialized on first access — the current
+   * organization pin (set via `setOrganizationId` or the constructor
+   * option) is forwarded so the first call carries the right
+   * `X-Current-Org-Id` header.
    */
   public get delegation(): DelegationAPI {
     if (!this._delegation) {
       this._delegation = DelegationAPI.getInstance({
         nvmApiKey: this.nvmApiKey,
         environment: this.environmentName,
+        organizationId: this.currentOrganizationId ?? undefined,
       })
     }
     return this._delegation
@@ -266,15 +270,10 @@ export class Payments extends BasePaymentsAPI {
     this.contracts?.setOrganizationId(organizationId)
     this.facilitator?.setOrganizationId(organizationId)
     this.x402?.setOrganizationId(organizationId)
-    if (!this._delegation) {
-      this._delegation = DelegationAPI.getInstance({
-        nvmApiKey: this.nvmApiKey,
-        environment: this.environment,
-        organizationId,
-      })
-    } else {
-      this._delegation.setOrganizationId(organizationId)
-    }
+    // `_delegation` is lazy — the getter forwards `currentOrganizationId`
+    // on first access, so only propagate to an already-built instance.
+    // (Eagerly constructing it here would change the lazy contract.)
+    this._delegation?.setOrganizationId(organizationId)
   }
 
   /**
