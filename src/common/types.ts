@@ -44,6 +44,22 @@ export interface PaymentOptions {
    * The version of the API to use.
    */
   version?: string
+
+  /**
+   * Optional organization ID to use as the active workspace for every
+   * authenticated backend request. When set, the SDK sends an
+   * `X-Current-Org-Id` header so the backend scopes published agents,
+   * plans, and other resources to this organization.
+   *
+   * If omitted the backend falls back to the API key's org tag or to the
+   * caller's most-recent active membership (see `CurrentOrgContextGuard`
+   * in nvm-monorepo).
+   *
+   * Override per-call via the `organizationId` option on create methods.
+   *
+   * @see Payments.setOrganizationId
+   */
+  organizationId?: string
 }
 
 export interface Endpoint {

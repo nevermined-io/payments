@@ -15,7 +15,7 @@ import {
 } from '../common/types.js'
 import { ZeroAddress } from '../environments.js'
 import { getRandomBigInt, isEthereumAddress } from '../utils.js'
-import { BasePaymentsAPI } from './base-payments.js'
+import { BasePaymentsAPI, PublicationOptions, resolvePublicationHeaders } from './base-payments.js'
 import * as Plans from '../plans.js'
 import { ContractsAPI } from './contracts-api.js'
 import {
@@ -269,6 +269,7 @@ export class PlansAPI extends BasePaymentsAPI {
     creditsConfig: PlanCreditsConfig,
     nonce = getRandomBigInt(),
     accessLimit?: 'credits' | 'time',
+    publicationOptions?: PublicationOptions,
   ): Promise<{ planId: string }> {
     if (accessLimit && !['credits', 'time'].includes(accessLimit)) {
       throw new PaymentsError(
@@ -288,7 +289,11 @@ export class PlansAPI extends BasePaymentsAPI {
       accessLimit,
       ...(priceConfig.currency && { currency: priceConfig.currency }),
     }
-    const options = this.getBackendHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions(
+      'POST',
+      body,
+      resolvePublicationHeaders(publicationOptions),
+    )
     const url = new URL(API_URL_REGISTER_PLAN, this.environment.backend)
 
     const response = await fetch(url, options)
@@ -333,6 +338,7 @@ export class PlansAPI extends BasePaymentsAPI {
     planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
+    publicationOptions?: PublicationOptions,
   ): Promise<{ planId: string }> {
     // Credits plans must have durationSecs = 0 (non-expirable) and either fixed or dynamic redemption
     if (BigInt(creditsConfig.durationSecs) !== 0n)
@@ -345,7 +351,14 @@ export class PlansAPI extends BasePaymentsAPI {
         'The creditsConfig.minAmount can not be more than creditsConfig.maxAmount',
       )
 
-    return this.registerPlan(planMetadata, priceConfig, creditsConfig, undefined, 'credits')
+    return this.registerPlan(
+      planMetadata,
+      priceConfig,
+      creditsConfig,
+      undefined,
+      'credits',
+      publicationOptions,
+    )
   }
 
   /**
@@ -382,6 +395,7 @@ export class PlansAPI extends BasePaymentsAPI {
     planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
+    publicationOptions?: PublicationOptions,
   ): Promise<{ planId: string }> {
     // Time plans must have durationSecs > 0 (expirable) and isRedemptionAmountFixed = false
     if (BigInt(creditsConfig.durationSecs) === 0n)
@@ -394,7 +408,14 @@ export class PlansAPI extends BasePaymentsAPI {
         'The creditsConfig.isRedemptionAmountFixed must be false for time plans',
       )
 
-    return this.registerPlan(planMetadata, priceConfig, creditsConfig, undefined, 'time')
+    return this.registerPlan(
+      planMetadata,
+      priceConfig,
+      creditsConfig,
+      undefined,
+      'time',
+      publicationOptions,
+    )
   }
 
   /**
@@ -429,9 +450,10 @@ export class PlansAPI extends BasePaymentsAPI {
     planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
+    publicationOptions?: PublicationOptions,
   ): Promise<{ planId: string }> {
     planMetadata.isTrialPlan = true
-    return this.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
+    return this.registerCreditsPlan(planMetadata, priceConfig, creditsConfig, publicationOptions)
   }
 
   /**
@@ -466,9 +488,10 @@ export class PlansAPI extends BasePaymentsAPI {
     planMetadata: PlanMetadata,
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
+    publicationOptions?: PublicationOptions,
   ): Promise<{ planId: string }> {
     planMetadata.isTrialPlan = true
-    return this.registerTimePlan(planMetadata, priceConfig, creditsConfig)
+    return this.registerTimePlan(planMetadata, priceConfig, creditsConfig, publicationOptions)
   }
 
   /**

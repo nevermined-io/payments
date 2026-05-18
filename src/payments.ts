@@ -236,6 +236,40 @@ export class Payments extends BasePaymentsAPI {
   }
 
   /**
+   * Pins (or clears) the active organization workspace used by every
+   * subsequent authenticated request. The SDK forwards the choice as the
+   * `X-Current-Org-Id` header so the backend scopes publications and
+   * other org-aware queries to the requested organization.
+   *
+   * Pass `null` to clear the pin and let the backend fall back to the
+   * API key's org tag or the caller's most-recent active membership.
+   *
+   * For one-off targeting (e.g. publish a single agent into Org B without
+   * leaving Org B as the active workspace) prefer the per-call
+   * `{ organizationId }` option on `agents.registerAgent` /
+   * `plans.registerPlan` / similar.
+   *
+   * @param organizationId - Org ID to pin (e.g. `org-…`) or `null` to clear.
+   * @example
+   * ```ts
+   * payments.setOrganizationId('org-abc123')
+   * await payments.agents.registerAgent(metadata, api, [planId]) // lands in org-abc123
+   * ```
+   */
+  public override setOrganizationId(organizationId: string | null): void {
+    super.setOrganizationId(organizationId)
+    this.plans?.setOrganizationId(organizationId)
+    this.agents?.setOrganizationId(organizationId)
+    this.requests?.setOrganizationId(organizationId)
+    this.observability?.setOrganizationId(organizationId)
+    this.organizations?.setOrganizationId(organizationId)
+    this.contracts?.setOrganizationId(organizationId)
+    this.facilitator?.setOrganizationId(organizationId)
+    this.x402?.setOrganizationId(organizationId)
+    this._delegation?.setOrganizationId(organizationId)
+  }
+
+  /**
    * Checks if a user is logged in.
    * @example
    * ```

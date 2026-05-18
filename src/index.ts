@@ -8,6 +8,20 @@ export * from './api/query-api.js'
 export * from './api/observability-api/observability-api.js'
 export type { BackendApiOptions } from './api/nvm-api.js'
 export { ContractsAPI } from './api/contracts-api.js'
+export { CURRENT_ORG_ID_HEADER } from './api/base-payments.js'
+export type { PublicationOptions } from './api/base-payments.js'
+export { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
+export {
+  OrganizationMemberRole,
+  OrganizationType,
+  OrganizationActivityEventType,
+} from './api/organizations-api/types.js'
+export type {
+  MyMembership,
+  OrganizationActivityEvent,
+  OrganizationActivityFilters,
+  OrganizationActivityPage,
+} from './api/organizations-api/types.js'
 
 // x402 utilities and types
 export { buildPaymentRequired, resolveNetwork, resolveScheme } from './x402/facilitator-api.js'

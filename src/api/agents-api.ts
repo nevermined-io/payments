@@ -9,7 +9,7 @@ import {
   PlanMetadata,
   PlanPriceConfig,
 } from '../common/types.js'
-import { BasePaymentsAPI } from './base-payments.js'
+import { BasePaymentsAPI, PublicationOptions, resolvePublicationHeaders } from './base-payments.js'
 import {
   API_URL_ADD_PLAN_AGENT,
   API_URL_GET_AGENT,
@@ -19,6 +19,8 @@ import {
   API_URL_REMOVE_PLAN_AGENT,
   API_URL_UPDATE_AGENT,
 } from './nvm-api.js'
+
+export type { PublicationOptions } from './base-payments.js'
 
 /**
  * The AgentsAPI class provides methods to register and interact with AI Agents on Nevermined.
@@ -65,6 +67,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     agentMetadata: AgentMetadata,
     agentApi: AgentAPIAttributes,
     paymentPlans: string[],
+    publicationOptions?: PublicationOptions,
   ): Promise<{ agentId: string }> {
     const body = {
       metadataAttributes: agentMetadata,
@@ -72,7 +75,11 @@ export class AgentsAPI extends BasePaymentsAPI {
       plans: paymentPlans,
     }
 
-    const options = this.getBackendHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions(
+      'POST',
+      body,
+      resolvePublicationHeaders(publicationOptions),
+    )
     const url = new URL(API_URL_REGISTER_AGENT, this.environment.backend)
 
     const response = await fetch(url, options)
@@ -124,6 +131,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     priceConfig: PlanPriceConfig,
     creditsConfig: PlanCreditsConfig,
     accessLimit?: 'credits' | 'time',
+    publicationOptions?: PublicationOptions,
   ): Promise<{
     agentId: string
     planId: string
@@ -150,7 +158,11 @@ export class AgentsAPI extends BasePaymentsAPI {
         agentApiAttributes: agentApi,
       },
     }
-    const options = this.getBackendHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions(
+      'POST',
+      body,
+      resolvePublicationHeaders(publicationOptions),
+    )
     const url = new URL(API_URL_REGISTER_AGENTS_AND_PLAN, this.environment.backend)
 
     const response = await fetch(url, options)

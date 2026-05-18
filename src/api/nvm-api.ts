@@ -26,6 +26,8 @@ export const API_URL_SETTLE_PERMISSIONS = '/api/v1/x402/settle'
 export const API_URL_STRIPE_CHECKOUT = '/api/v1/fiat/stripe/payment'
 export const API_URL_CREATE_USER = '/api/v1/organizations/account'
 export const API_URL_GET_MEMBERS = '/api/v1/organizations/members'
+export const API_URL_MY_MEMBERSHIPS = '/api/v1/organizations/my-memberships'
+export const API_URL_ORG_ACTIVITY = '/api/v1/organizations/:orgId/activity'
 export const API_URL_CONNECT_STRIPE_ACCOUNT = '/api/v1/fiat/stripe/account'
 
 export interface BackendApiOptions {
