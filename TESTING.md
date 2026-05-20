@@ -260,20 +260,32 @@ describe('X402 Token Flow', () => {
 })
 ```
 
-## Visa e2e fixture
+## Visa e2e fixture (local only, not for CI)
+
+> **Do not enable this suite in CI.** The fixture is a real Visa Agentic delegation with a finite `durationSecs`, and refreshing it requires a manual browser flow. If CI ran it on every PR the delegation would eventually expire mid-week and start blocking unrelated work. The suite is gated by two env vars and is `describe.skip`'d when they aren't set, so the default CI behavior is "skipped, exit 0" — that's intentional.
 
 The Visa Agentic-Tokens flow involves two browser-only steps that the SDK cannot perform programmatically:
 
 1. **Card enrolment** — PAN entry through the VGS Collect iframe in the Nevermined webapp.
 2. **Delegation creation** — WebAuthn/passkey device-binding ceremony embedded by Visa VTS, producing a single-use `assuranceData` blob.
 
-To keep the Visa surface covered by automated tests, the e2e suite (`tests/e2e/test_x402_card_delegation_visa_e2e.test.ts`) reads a pre-provisioned delegation from environment variables. The suite is skipped when those variables are unset, so dev machines and OSS contributors without staging access stay green.
+To keep the SDK's Visa consume-side surface exercisable against the real backend, the e2e suite (`tests/e2e/test_x402_card_delegation_visa_e2e.test.ts`) reads a pre-provisioned delegation from environment variables and runs locally.
+
+### What the suite asserts (and what it deliberately omits)
+
+| Step | Asserted? | Notes |
+|---|---|---|
+| Plan creation | ✅ | Builder account creates a fiat credits plan |
+| `listPaymentMethods` returns the visa PM | ✅ | |
+| `getX402AccessToken` mints against `delegationId` | ✅ | |
+| `verifyPermissions` returns `isValid=true`, `network='visa'` | ✅ | Read-only — does not charge the card |
+| `settlePermissions` returning `creditsRedeemed='2'` | ❌ | Omitted on purpose — the sandbox card providers (Stripe sandbox, Visa sandbox CMP) do not actually charge. A truthful `creditsRedeemed === '2'` assertion isn't possible here. Settlement is validated separately at the platform level. |
 
 ### One-time provisioning
 
 1. Open the Nevermined webapp against staging (`https://nevermined.dev`) and sign in as the SDK test subscriber.
 2. On `/payment-methods`, click **Enroll with Visa** and enter a VTS-registered sandbox PAN — e.g. `4622943123121387`, CVC `123`, expiry `12/27`.
-3. From the same card row, click **Create delegation**. Pick any spending limit and duration ≥ 1 hour. Complete the WebAuthn ceremony with sandbox OTP `456789`.
+3. From the same card row, click **Create delegation**. Pick any spending limit and a duration that matches how long you intend to keep the fixture alive. Complete the WebAuthn ceremony with sandbox OTP `456789`.
 4. From the response (or the DB, or DevTools network panel) capture:
    - `delegationId` — UUID returned by `POST /api/v1/delegation/create`.
    - `paymentMethodId` — Visa Agentic token id, format `vat_…`, returned by `POST /api/v1/delegation/enroll-visa`.
@@ -284,13 +296,13 @@ To keep the Visa surface covered by automated tests, the e2e suite (`tests/e2e/t
    export NVM_TEST_VISA_PAYMENT_METHOD_ID=…   # from /delegation/enroll-visa
    ```
 
-### Running the e2e suite
+### Running the suite locally
 
 ```bash
 pnpm test:e2e -- --testPathPattern=test_x402_card_delegation_visa_e2e
 ```
 
-If the env vars are unset the suite reports `1 skipped` and exits with code 0.
+If the env vars are unset the suite reports `1 skipped` and exits with code 0 — same behavior CI sees.
 
 ### Refreshing the fixture
 

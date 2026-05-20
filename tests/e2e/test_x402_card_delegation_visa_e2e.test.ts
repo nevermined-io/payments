@@ -2,23 +2,27 @@
  * End-to-end tests for the X402 card-delegation flow against a Visa
  * Agentic-Tokens delegation.
  *
- * Visa card enrolment and Visa delegation creation both require a browser
- * (VGS Collect iframe + WebAuthn passkey ceremony), so the SDK cannot do
- * either step programmatically. This suite covers the *consume* side of
- * the flow — i.e. how a real external agent would use an already-created
- * Visa delegation:
+ * Intended to run **locally only**. The Visa delegation backing the
+ * fixture has a finite `durationSecs` and refreshing it requires a manual
+ * browser flow (VGS Collect iframe + WebAuthn passkey ceremony), so this
+ * suite is not safe to enable in CI — once the delegation expires it
+ * would start failing and block unrelated PRs. The suite is gated on two
+ * env vars and is `describe.skip`'d when they aren't set, so CI without
+ * the fixture stays green by default.
+ *
+ * Visa card enrolment and Visa delegation creation both require a real
+ * browser, so the SDK cannot do either step programmatically. This suite
+ * covers the *consume* side of the flow:
  *
  *   1. listPaymentMethods → find the visa-provider card.
  *   2. getX402AccessToken with the pre-created delegationId.
- *   3. verifyPermissions + settlePermissions against the real backend.
+ *   3. verifyPermissions against the real backend.
  *
- * The two test fixtures (delegationId + the payment method's id) must
- * exist in the staging environment before the suite runs. See
- * TESTING.md → "Visa e2e fixture" for the one-time provisioning runbook.
- *
- * The suite is skipped automatically when the fixture env vars are
- * unset so dev machines and OSS contributors without staging access stay
- * green.
+ * Settlement is intentionally NOT exercised: the sandbox card providers
+ * (Stripe sandbox, Visa sandbox CMP) do not actually charge, so a real
+ * settle assertion like `creditsRedeemed === '2'` cannot be made
+ * truthful in this environment. End-to-end settlement is validated
+ * separately at the platform level.
  *
  * Required env vars:
  *   - NVM_TEST_VISA_DELEGATION_ID       (uuid returned by /delegation/create)
@@ -26,13 +30,16 @@
  *
  * Optional env vars (inherited from fixtures.ts):
  *   - TEST_SUBSCRIBER_API_KEY, TEST_BUILDER_API_KEY, TEST_ENVIRONMENT
+ *
+ * See TESTING.md → "Visa e2e fixture" for the one-time provisioning
+ * runbook and a description of when to refresh the fixture.
  */
 
 import type { Address, PlanMetadata } from '../../src/common/types.js'
 import { Payments } from '../../src/payments.js'
 import type { PaymentMethodSummary } from '../../src/x402/delegation-api.js'
 import { getFiatPriceConfig, getDynamicCreditsConfig } from '../../src/plans.js'
-import { retryWithBackoff, waitForCondition } from '../utils.js'
+import { retryWithBackoff } from '../utils.js'
 import { createPaymentsBuilder, createPaymentsSubscriber } from './fixtures.js'
 
 const TEST_TIMEOUT = 90_000
@@ -131,48 +138,5 @@ describeIfVisa('X402 Card Delegation Flow (Visa)', () => {
     expect(response.isValid).toBe(true)
     expect(response.network).toBe('visa')
     console.log(`Visa verify: isValid=${response.isValid}, network=${response.network}`)
-  })
-
-  test('should settle (burn credits) via Visa', async () => {
-    const paymentRequired = {
-      x402Version: 2,
-      resource: { url: '/test/endpoint' },
-      accepts: [{ scheme: 'nvm:card-delegation', network: 'visa', planId }],
-      extensions: {},
-    }
-
-    const response = await retryWithBackoff(
-      () =>
-        paymentsAgent.facilitator.settlePermissions({
-          paymentRequired,
-          x402AccessToken,
-          maxAmount: 2n,
-        }),
-      { label: 'Visa Delegation Settle', attempts: 3 },
-    )
-
-    expect(response).toBeDefined()
-    expect(response.success).toBe(true)
-    expect(response.creditsRedeemed).toBe('2')
-    expect(response.network).toBe('visa')
-    console.log(`Visa settle: creditsRedeemed=${response.creditsRedeemed}`)
-
-    await waitForCondition(
-      async () => {
-        try {
-          const balance = await paymentsSubscriber.plans.getPlanBalance(planId)
-          if (!balance) return false
-          const bal = BigInt(balance.balance)
-          console.log(`Balance after Visa settle: ${bal}`)
-          return bal === 8n
-        } catch (e) {
-          console.log(`Error checking balance: ${e}`)
-          return false
-        }
-      },
-      'Balance After Visa Settlement',
-      20_000,
-      1_000,
-    )
   })
 })
