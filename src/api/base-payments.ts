@@ -29,15 +29,9 @@ export abstract class BasePaymentsAPI {
     this.appId = options.appId
     this.version = options.version
 
-    if (this.scheme === 'visa') {
-      // Visa scheme does not use JWT-based NVM API keys
-      this.accountAddress = ''
-      this.heliconeApiKey = ''
-    } else {
-      const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
-      this.accountAddress = accountAddress
-      this.heliconeApiKey = heliconeApiKey
-    }
+    const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
+    this.accountAddress = accountAddress
+    this.heliconeApiKey = heliconeApiKey
   }
 
   /**

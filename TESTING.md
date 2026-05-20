@@ -260,6 +260,42 @@ describe('X402 Token Flow', () => {
 })
 ```
 
+## Visa e2e fixture
+
+The Visa Agentic-Tokens flow involves two browser-only steps that the SDK cannot perform programmatically:
+
+1. **Card enrolment** — PAN entry through the VGS Collect iframe in the Nevermined webapp.
+2. **Delegation creation** — WebAuthn/passkey device-binding ceremony embedded by Visa VTS, producing a single-use `assuranceData` blob.
+
+To keep the Visa surface covered by automated tests, the e2e suite (`tests/e2e/test_x402_card_delegation_visa_e2e.test.ts`) reads a pre-provisioned delegation from environment variables. The suite is skipped when those variables are unset, so dev machines and OSS contributors without staging access stay green.
+
+### One-time provisioning
+
+1. Open the Nevermined webapp against staging (`https://nevermined.dev`) and sign in as the SDK test subscriber.
+2. On `/payment-methods`, click **Enroll with Visa** and enter a VTS-registered sandbox PAN — e.g. `4622943123121387`, CVC `123`, expiry `12/27`.
+3. From the same card row, click **Create delegation**. Pick any spending limit and duration ≥ 1 hour. Complete the WebAuthn ceremony with sandbox OTP `456789`.
+4. From the response (or the DB, or DevTools network panel) capture:
+   - `delegationId` — UUID returned by `POST /api/v1/delegation/create`.
+   - `paymentMethodId` — Visa Agentic token id, format `vat_…`, returned by `POST /api/v1/delegation/enroll-visa`.
+5. Export both:
+
+   ```bash
+   export NVM_TEST_VISA_DELEGATION_ID=…       # from /delegation/create
+   export NVM_TEST_VISA_PAYMENT_METHOD_ID=…   # from /delegation/enroll-visa
+   ```
+
+### Running the e2e suite
+
+```bash
+pnpm test:e2e -- --testPathPattern=test_x402_card_delegation_visa_e2e
+```
+
+If the env vars are unset the suite reports `1 skipped` and exits with code 0.
+
+### Refreshing the fixture
+
+The delegation expires after the configured `durationSecs`. When the suite starts failing with VGS rejections that mention an expired delegation, re-run the one-time provisioning steps above. The `assuranceData` is single-use per intent, but it lives inside the delegation record — once captured, the SDK can keep replaying the same `delegationId` against the backend until expiry.
+
 ## Testing MCP Server Endpoints
 
 ```typescript

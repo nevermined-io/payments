@@ -44,10 +44,14 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_SETTLE_PERMISSIONS, API_URL_VERIFY_PERMISSIONS } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions, StartAgentRequest, X402SchemeType, getDefaultNetwork } from '../common/types.js'
+import {
+  PaymentOptions,
+  StartAgentRequest,
+  X402SchemeType,
+  getDefaultNetwork,
+} from '../common/types.js'
 import type { EnvironmentName } from '../environments.js'
 import type { Payments } from '../payments.js'
-import type { VisaPaymentRequired } from './visa-facilitator-api.js'
 
 /**
  * x402 Resource information
@@ -127,8 +131,8 @@ export interface X402PaymentAccepted {
  * Parameters for verifying permissions
  */
 export interface VerifyPermissionsParams {
-  /** The server's 402 PaymentRequired response (NVM or Visa flavored) */
-  paymentRequired: X402PaymentRequired | VisaPaymentRequired
+  /** The server's 402 PaymentRequired response */
+  paymentRequired: X402PaymentRequired
   /** The X402 access token (base64-encoded) */
   x402AccessToken: string
   /** Maximum credits to verify (optional) */
@@ -160,8 +164,8 @@ export interface VerifyPermissionsResult {
  * Parameters for settling permissions
  */
 export interface SettlePermissionsParams {
-  /** The server's 402 PaymentRequired response (NVM or Visa flavored) */
-  paymentRequired: X402PaymentRequired | VisaPaymentRequired
+  /** The server's 402 PaymentRequired response */
+  paymentRequired: X402PaymentRequired
   /** The X402 access token (base64-encoded) */
   x402AccessToken: string
   /** Number of credits to burn (optional) */
@@ -297,8 +301,7 @@ async function fetchPlanMetadata(
     const isCrypto = plan.registry?.price?.isCrypto
     // fiatPaymentProvider is in plan.metadata.plan, not in registry.price
     const fiatProvider = (plan as any).metadata?.plan?.fiatPaymentProvider
-    const scheme: X402SchemeType =
-      isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
+    const scheme: X402SchemeType = isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
     planMetadataCache.set(planId, { scheme, fiatProvider, cachedAt: Date.now() })
     return { scheme }
   } catch {

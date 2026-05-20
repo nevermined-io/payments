@@ -7,13 +7,17 @@
 
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { CreateDelegationPayload, CreateDelegationResponse, PaymentOptions } from '../common/types.js'
+import {
+  CreateDelegationPayload,
+  CreateDelegationResponse,
+  PaymentOptions,
+} from '../common/types.js'
 
 /**
  * Summary of a user's enrolled payment method.
  */
 export interface PaymentMethodSummary {
-  /** Payment method ID (Stripe 'pm_...' or Braintree vault token) */
+  /** Payment method ID (Stripe 'pm_...', Braintree vault token, or Visa Agentic token id) */
   id: string
   /** Payment method type (e.g., 'card', 'paypal') */
   type: string
@@ -27,7 +31,7 @@ export interface PaymentMethodSummary {
   expYear: number
   /** Human-readable alias, if set */
   alias?: string | null
-  /** Payment provider: 'stripe' or 'braintree' */
+  /** Payment provider: 'stripe' | 'braintree' | 'visa' */
   provider?: string
   /** Current status ('Active' or 'Revoked') */
   status?: string
@@ -142,7 +146,13 @@ export class DelegationAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Create a new delegation for either stripe or erc4337 provider.
+   * Create a new delegation for any supported provider (stripe, braintree,
+   * visa, or erc4337).
+   *
+   * Note: Visa delegations require a per-delegation device-binding ceremony
+   * (FIDO/passkey + assuranceData) that must be performed in the browser
+   * via the Nevermined webapp. The SDK can list and consume an already-
+   * created Visa delegation but cannot create one programmatically.
    *
    * @param payload - The delegation creation parameters
    * @returns The created delegation ID (and token for card delegations)
@@ -165,12 +175,7 @@ export class DelegationAPI extends BasePaymentsAPI {
 
   // --- Private helpers ---
 
-  private async fetchJSON<T>(
-    url: URL,
-    method: string,
-    action: string,
-    body?: unknown,
-  ): Promise<T> {
+  private async fetchJSON<T>(url: URL, method: string, action: string, body?: unknown): Promise<T> {
     const options = this.getBackendHTTPOptions(method, body)
     try {
       const response = await fetch(url, options)
