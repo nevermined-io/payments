@@ -26,6 +26,7 @@ export type {
 // Delegation exports
 export { DelegationAPI } from './delegation-api.js'
 export type {
+  CardProvider,
   PaymentMethodSummary,
   UpdatePaymentMethodDto,
   DelegationSummary,

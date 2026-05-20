@@ -150,7 +150,7 @@ export interface VerifyPermissionsResult {
   invalidReason?: string
   /** Address of the payer's wallet */
   payer?: string
-  /** Network identifier (e.g., 'stripe', 'braintree', 'eip155:84532') */
+  /** Network identifier (e.g., 'stripe', 'braintree', 'visa', 'eip155:84532') */
   network?: string
   /** Agent request ID for observability tracking (Nevermined extension) */
   agentRequestId?: string
@@ -396,15 +396,18 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       const response = await fetch(url, options)
       if (!response.ok) {
         let errorMessage = 'Permission verification failed'
+        let errorCode = `http_${response.status}`
         try {
           const errorData = await response.json()
-          errorMessage = errorData.message || errorMessage
+          if (errorData.message) errorMessage = errorData.message
+          if (errorData.code) errorCode = errorData.code
+          if (errorData.hint) errorMessage = `${errorMessage} — ${errorData.hint}`
         } catch {
           // Use default error message
         }
         throw PaymentsError.fromBackend(errorMessage, {
           message: errorMessage,
-          code: `HTTP ${response.status}`,
+          code: errorCode,
         })
       }
       return await response.json()
@@ -468,15 +471,18 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       const response = await fetch(url, options)
       if (!response.ok) {
         let errorMessage = 'Permission settlement failed'
+        let errorCode = `http_${response.status}`
         try {
           const errorData = await response.json()
-          errorMessage = errorData.message || errorMessage
+          if (errorData.message) errorMessage = errorData.message
+          if (errorData.code) errorCode = errorData.code
+          if (errorData.hint) errorMessage = `${errorMessage} — ${errorData.hint}`
         } catch {
           // Use default error message
         }
         throw PaymentsError.fromBackend(errorMessage, {
           message: errorMessage,
-          code: `HTTP ${response.status}`,
+          code: errorCode,
         })
       }
       return await response.json()

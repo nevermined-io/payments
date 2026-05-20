@@ -48,7 +48,30 @@ jest.setTimeout(TEST_TIMEOUT)
 const VISA_DELEGATION_ID = process.env.NVM_TEST_VISA_DELEGATION_ID
 const VISA_PAYMENT_METHOD_ID = process.env.NVM_TEST_VISA_PAYMENT_METHOD_ID
 
-const describeIfVisa = VISA_DELEGATION_ID && VISA_PAYMENT_METHOD_ID ? describe : describe.skip
+// Truthiness alone is not enough: silently skipping when only one of the
+// two env vars is set hides developer typos. Same for malformed values
+// like `NVM_TEST_VISA_DELEGATION_ID=TODO` — those would slip through and
+// fail on the API call instead of at gate time.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const VAT_RE = /^vat_/
+
+const partial = Boolean(VISA_DELEGATION_ID) !== Boolean(VISA_PAYMENT_METHOD_ID)
+if (partial) {
+  console.warn(
+    '[visa e2e] only one of NVM_TEST_VISA_DELEGATION_ID / NVM_TEST_VISA_PAYMENT_METHOD_ID is set — both are required. Skipping.',
+  )
+}
+
+const delegationLooksValid = !!VISA_DELEGATION_ID && UUID_RE.test(VISA_DELEGATION_ID)
+const paymentMethodLooksValid = !!VISA_PAYMENT_METHOD_ID && VAT_RE.test(VISA_PAYMENT_METHOD_ID)
+if (VISA_DELEGATION_ID && !delegationLooksValid) {
+  console.warn(`[visa e2e] NVM_TEST_VISA_DELEGATION_ID is not a UUID — skipping.`)
+}
+if (VISA_PAYMENT_METHOD_ID && !paymentMethodLooksValid) {
+  console.warn(`[visa e2e] NVM_TEST_VISA_PAYMENT_METHOD_ID does not start with 'vat_' — skipping.`)
+}
+
+const describeIfVisa = delegationLooksValid && paymentMethodLooksValid ? describe : describe.skip
 
 function findVisaCard(
   methods: PaymentMethodSummary[],

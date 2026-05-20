@@ -14,6 +14,13 @@ import {
 } from '../common/types.js'
 
 /**
+ * Card-delegation providers exposed by the SDK. Kept symmetric with the
+ * input side ({@link CreateDelegationPayload.provider}). If the backend
+ * surfaces a new provider, the SDK release should be bumped accordingly.
+ */
+export type CardProvider = 'stripe' | 'braintree' | 'visa'
+
+/**
  * Summary of a user's enrolled payment method.
  */
 export interface PaymentMethodSummary {
@@ -32,7 +39,7 @@ export interface PaymentMethodSummary {
   /** Human-readable alias, if set */
   alias?: string | null
   /** Payment provider: 'stripe' | 'braintree' | 'visa' */
-  provider?: string
+  provider?: CardProvider
   /** Current status ('Active' or 'Revoked') */
   status?: string
   /** NVM API Key IDs allowed to use this payment method, or null if unrestricted */
@@ -181,13 +188,16 @@ export class DelegationAPI extends BasePaymentsAPI {
       const response = await fetch(url, options)
       if (!response.ok) {
         let msg = `Failed to ${action}`
+        let code = `http_${response.status}`
         try {
           const err = await response.json()
-          msg = err.message || msg
+          if (err.message) msg = err.message
+          if (err.code) code = err.code
+          if (err.hint) msg = `${msg} — ${err.hint}`
         } catch {
           // use default
         }
-        throw PaymentsError.internal(`${msg} (HTTP ${response.status})`)
+        throw new PaymentsError(`${msg} (HTTP ${response.status})`, code)
       }
       return await response.json()
     } catch (error) {

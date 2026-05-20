@@ -13,6 +13,7 @@
  *      using the standard nvm:card-delegation scheme with network='visa'.
  */
 import { Payments } from '../../src/payments.js'
+import { PaymentsError } from '../../src/common/payments.error.js'
 import type { PaymentMethodSummary } from '../../src/x402/delegation-api.js'
 
 const TEST_API_KEY =
@@ -169,5 +170,74 @@ describe('Visa provider surface', () => {
     expect(result.success).toBe(true)
     expect(result.network).toBe('visa')
     expect(result.creditsRedeemed).toBe('5')
+  })
+
+  test('createDelegation surfaces backend NVMException code + message on 4xx', async () => {
+    // Mirrors the real envelope nvm-monorepo emits when consumerPrompt /
+    // assuranceData are missing for a Visa delegation (BCK.VISA.0014).
+    installFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            code: 'BCK.VISA.0014',
+            httpStatus: 400,
+            message: 'Visa delegation creation requires consumerPrompt and assuranceData',
+            category: 'business',
+            retryable: false,
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+
+    let caught: PaymentsError | undefined
+    try {
+      await payments.delegation.createDelegation({
+        provider: 'visa',
+        providerPaymentMethodId: 'vat_1abc23def45',
+        spendingLimitCents: 1_000,
+        durationSecs: 3_600,
+      })
+    } catch (err) {
+      caught = err as PaymentsError
+    }
+
+    expect(caught).toBeInstanceOf(PaymentsError)
+    expect(caught!.message).toContain(
+      'Visa delegation creation requires consumerPrompt and assuranceData',
+    )
+    expect(caught!.message).toContain('HTTP 400')
+    expect(caught!.code).toBe('BCK.VISA.0014')
+  })
+
+  test('all backend calls carry the Bearer authorization header', async () => {
+    installFetch(() => jsonResponse([]))
+
+    await payments.delegation.listPaymentMethods()
+    await payments.delegation
+      .createDelegation({
+        provider: 'visa',
+        providerPaymentMethodId: 'vat_1abc23def45',
+        spendingLimitCents: 1_000,
+        durationSecs: 3_600,
+      })
+      .catch(() => undefined)
+
+    for (const call of calls) {
+      const auth = (call.init?.headers as Record<string, string> | undefined)?.Authorization
+      expect(auth).toMatch(/^Bearer /)
+    }
+  })
+
+  test("getInstance rejects scheme:'visa' with a migration message", () => {
+    expect(() =>
+      Payments.getInstance({
+        nvmApiKey: TEST_API_KEY,
+        environment: 'staging_sandbox',
+        // @ts-expect-error — scheme:'visa' is intentionally removed from
+        // PaymentScheme. The test guards JS callers pinned to an older
+        // .d.ts that might still pass it at runtime.
+        scheme: 'visa',
+      }),
+    ).toThrow(/scheme 'visa' is no longer supported/)
   })
 })
