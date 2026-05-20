@@ -275,25 +275,30 @@ To keep the SDK's Visa consume-side surface exercisable against the real backend
 
 | Step | Asserted? | Notes |
 |---|---|---|
-| Plan creation | ✅ | Builder account creates a fiat credits plan |
+| Plan creation | ❌ | Plan must pre-exist. A Visa delegation is bound to a single plan at creation time (backend rejects with `BCK.VISA.0015` otherwise), so creating a fresh plan per run would mint the access token against a planId the delegation isn't bound to and the verify step would fail. |
 | `listPaymentMethods` returns the visa PM | ✅ | |
-| `getX402AccessToken` mints against `delegationId` | ✅ | |
+| `getX402AccessToken` mints against `delegationId` + `planId` | ✅ | |
 | `verifyPermissions` returns `isValid=true`, `network='visa'` | ✅ | Read-only — does not charge the card |
 | `settlePermissions` returning `creditsRedeemed='2'` | ❌ | Omitted on purpose — the sandbox card providers (Stripe sandbox, Visa sandbox CMP) do not actually charge. A truthful `creditsRedeemed === '2'` assertion isn't possible here. Settlement is validated separately at the platform level. |
 
 ### One-time provisioning
 
-1. Open the Nevermined webapp against staging (`https://nevermined.dev`) and sign in as the SDK test subscriber.
-2. On `/payment-methods`, click **Enroll with Visa** and enter a VTS-registered sandbox PAN — e.g. `4622943123121387`, CVC `123`, expiry `12/27`.
-3. From the same card row, click **Create delegation**. Pick any spending limit and a duration that matches how long you intend to keep the fixture alive. Complete the WebAuthn ceremony with sandbox OTP `456789`.
-4. From the response (or the DB, or DevTools network panel) capture:
-   - `delegationId` — UUID returned by `POST /api/v1/delegation/create`.
-   - `paymentMethodId` — Visa Agentic token id, format `vat_…`, returned by `POST /api/v1/delegation/enroll-visa`.
-5. Export both:
+> All three of plan, card, and delegation are committed to a single `(subscriber, planId)` pair on the backend, so the accounts and ordering matter:
+> - **Plan** must be created by the builder whose key is set as `TEST_BUILDER_API_KEY` in `tests/e2e/fixtures.ts` (or via the env var override). That builder ends up as the seller of the plan and is also the account the e2e's `verifyPermissions` runs as.
+> - **Card + delegation** must be enrolled by the subscriber whose key is `TEST_SUBSCRIBER_API_KEY`.
+
+1. **Create the plan** — as the builder, register a fiat credits plan (e.g. via the webapp builder UI, the `payments` CLI, or a one-shot script using `payments.plans.registerCreditsPlan({...}, getFiatPriceConfig(1_000_000n, builderAddress), getDynamicCreditsConfig(10n, 1n, 2n))`). Capture the returned `planId` (a long decimal uint256 string).
+
+2. **Enrol the Visa card** — open the Nevermined webapp against staging (`https://nevermined.dev`) and sign in as the SDK test subscriber. On `/payment-methods`, click **Enroll with Visa** and enter a VTS-registered sandbox PAN — e.g. `4622943123121387`, CVC `123`, expiry `12/27`. Capture the `paymentMethodId` (`vat_…`) from `POST /api/v1/delegation/enroll-visa` in the network panel.
+
+3. **Create the delegation** — from the same card row, click **Create delegation**, pick the plan from step 1 (the dropdown lists the subscriber's accessible plans), set any spending limit + a duration that matches how long you intend to keep the fixture alive, then complete the WebAuthn ceremony with sandbox OTP `456789`. Capture the `delegationId` (UUID) from `POST /api/v1/delegation/create`.
+
+4. **Export all three**:
 
    ```bash
-   export NVM_TEST_VISA_DELEGATION_ID=…       # from /delegation/create
-   export NVM_TEST_VISA_PAYMENT_METHOD_ID=…   # from /delegation/enroll-visa
+   export NVM_TEST_VISA_PLAN_ID=…             # uint256 decimal string from step 1
+   export NVM_TEST_VISA_DELEGATION_ID=…       # uuid from step 3
+   export NVM_TEST_VISA_PAYMENT_METHOD_ID=…   # vat_… from step 2
    ```
 
 ### Running the suite locally
@@ -302,11 +307,11 @@ To keep the SDK's Visa consume-side surface exercisable against the real backend
 pnpm test:e2e -- --testPathPattern=test_x402_card_delegation_visa_e2e
 ```
 
-If the env vars are unset the suite reports `1 skipped` and exits with code 0 — same behavior CI sees.
+If any of the three env vars are unset (or malformed) the suite reports `1 skipped` and exits with code 0 — same behavior CI sees. A `console.warn` at module load names the missing/malformed var so typos surface immediately.
 
 ### Refreshing the fixture
 
-The delegation expires after the configured `durationSecs`. When the suite starts failing with VGS rejections that mention an expired delegation, re-run the one-time provisioning steps above. The `assuranceData` is single-use per intent, but it lives inside the delegation record — once captured, the SDK can keep replaying the same `delegationId` against the backend until expiry.
+The delegation expires after the configured `durationSecs`. When the suite starts failing with VGS rejections that mention an expired delegation, re-run **step 3** (the delegation-create with WebAuthn ceremony) — the plan from step 1 and the enrolled card from step 2 can be reused as long as they're still active. The `assuranceData` is single-use per intent, but it lives inside the delegation record — once captured, the SDK can keep replaying the same `delegationId` against the backend until expiry.
 
 ## Testing MCP Server Endpoints
 

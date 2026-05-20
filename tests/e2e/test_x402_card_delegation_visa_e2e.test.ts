@@ -6,16 +6,21 @@
  * fixture has a finite `durationSecs` and refreshing it requires a manual
  * browser flow (VGS Collect iframe + WebAuthn passkey ceremony), so this
  * suite is not safe to enable in CI — once the delegation expires it
- * would start failing and block unrelated PRs. The suite is gated on two
- * env vars and is `describe.skip`'d when they aren't set, so CI without
- * the fixture stays green by default.
+ * would start failing and block unrelated PRs. The suite is gated on the
+ * three env vars below and is `describe.skip`'d when any are missing, so
+ * CI without the fixture stays green by default.
  *
  * Visa card enrolment and Visa delegation creation both require a real
- * browser, so the SDK cannot do either step programmatically. This suite
- * covers the *consume* side of the flow:
+ * browser, so the SDK cannot do either step programmatically. The plan
+ * itself also has to exist beforehand — the backend binds each Visa
+ * delegation to a single plan at creation time (BCK.VISA.0015) and
+ * rejects a mismatch between delegation.planId and the planId used to
+ * mint or verify the access token. So the suite creates nothing: it
+ * exercises only the *consume* side of an already-provisioned plan +
+ * card + delegation triple:
  *
  *   1. listPaymentMethods → find the visa-provider card.
- *   2. getX402AccessToken with the pre-created delegationId.
+ *   2. getX402AccessToken using the pre-created delegationId + planId.
  *   3. verifyPermissions against the real backend.
  *
  * Settlement is intentionally NOT exercised: the sandbox card providers
@@ -25,6 +30,9 @@
  * separately at the platform level.
  *
  * Required env vars:
+ *   - NVM_TEST_VISA_PLAN_ID             (plan id the delegation is bound
+ *                                        to, created by the builder
+ *                                        whose key is TEST_BUILDER_API_KEY)
  *   - NVM_TEST_VISA_DELEGATION_ID       (uuid returned by /delegation/create)
  *   - NVM_TEST_VISA_PAYMENT_METHOD_ID   (Visa Agentic token id, format vat_…)
  *
@@ -32,38 +40,43 @@
  *   - TEST_SUBSCRIBER_API_KEY, TEST_BUILDER_API_KEY, TEST_ENVIRONMENT
  *
  * See TESTING.md → "Visa e2e fixture" for the one-time provisioning
- * runbook and a description of when to refresh the fixture.
+ * runbook and when to refresh the fixture.
  */
 
-import type { Address, PlanMetadata } from '../../src/common/types.js'
 import { Payments } from '../../src/payments.js'
 import type { PaymentMethodSummary } from '../../src/x402/delegation-api.js'
-import { getFiatPriceConfig, getDynamicCreditsConfig } from '../../src/plans.js'
 import { retryWithBackoff } from '../utils.js'
 import { createPaymentsBuilder, createPaymentsSubscriber } from './fixtures.js'
 
 const TEST_TIMEOUT = 90_000
 jest.setTimeout(TEST_TIMEOUT)
 
+const VISA_PLAN_ID = process.env.NVM_TEST_VISA_PLAN_ID
 const VISA_DELEGATION_ID = process.env.NVM_TEST_VISA_DELEGATION_ID
 const VISA_PAYMENT_METHOD_ID = process.env.NVM_TEST_VISA_PAYMENT_METHOD_ID
 
-// Truthiness alone is not enough: silently skipping when only one of the
-// two env vars is set hides developer typos. Same for malformed values
+// Truthiness alone is not enough: silently skipping when only some of
+// the env vars are set hides developer typos. Same for malformed values
 // like `NVM_TEST_VISA_DELEGATION_ID=TODO` — those would slip through and
 // fail on the API call instead of at gate time.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VAT_RE = /^vat_/
+const PLAN_ID_RE = /^[0-9]+$/
 
-const partial = Boolean(VISA_DELEGATION_ID) !== Boolean(VISA_PAYMENT_METHOD_ID)
-if (partial) {
+const allOrNone = [VISA_PLAN_ID, VISA_DELEGATION_ID, VISA_PAYMENT_METHOD_ID]
+const setCount = allOrNone.filter(Boolean).length
+if (setCount > 0 && setCount < allOrNone.length) {
   console.warn(
-    '[visa e2e] only one of NVM_TEST_VISA_DELEGATION_ID / NVM_TEST_VISA_PAYMENT_METHOD_ID is set — both are required. Skipping.',
+    '[visa e2e] only some of NVM_TEST_VISA_{PLAN_ID,DELEGATION_ID,PAYMENT_METHOD_ID} are set — all three are required. Skipping.',
   )
 }
 
+const planLooksValid = !!VISA_PLAN_ID && PLAN_ID_RE.test(VISA_PLAN_ID)
 const delegationLooksValid = !!VISA_DELEGATION_ID && UUID_RE.test(VISA_DELEGATION_ID)
 const paymentMethodLooksValid = !!VISA_PAYMENT_METHOD_ID && VAT_RE.test(VISA_PAYMENT_METHOD_ID)
+if (VISA_PLAN_ID && !planLooksValid) {
+  console.warn(`[visa e2e] NVM_TEST_VISA_PLAN_ID is not a decimal uint256 — skipping.`)
+}
 if (VISA_DELEGATION_ID && !delegationLooksValid) {
   console.warn(`[visa e2e] NVM_TEST_VISA_DELEGATION_ID is not a UUID — skipping.`)
 }
@@ -71,7 +84,8 @@ if (VISA_PAYMENT_METHOD_ID && !paymentMethodLooksValid) {
   console.warn(`[visa e2e] NVM_TEST_VISA_PAYMENT_METHOD_ID does not start with 'vat_' — skipping.`)
 }
 
-const describeIfVisa = delegationLooksValid && paymentMethodLooksValid ? describe : describe.skip
+const describeIfVisa =
+  planLooksValid && delegationLooksValid && paymentMethodLooksValid ? describe : describe.skip
 
 function findVisaCard(
   methods: PaymentMethodSummary[],
@@ -83,35 +97,11 @@ function findVisaCard(
 describeIfVisa('X402 Card Delegation Flow (Visa)', () => {
   let paymentsSubscriber: Payments
   let paymentsAgent: Payments
-  let agentAddress: Address
-  let planId: string
   let x402AccessToken: string
 
   beforeAll(() => {
     paymentsSubscriber = createPaymentsSubscriber()
     paymentsAgent = createPaymentsBuilder()
-    agentAddress = paymentsAgent.getAccountAddress() as Address
-  })
-
-  test('should create a fiat credits plan', async () => {
-    const timestamp = new Date().toISOString()
-    const planMetadata: PlanMetadata = {
-      name: `E2E Visa Card Delegation Plan ${timestamp}`,
-      description: 'Test plan for Visa card delegation integration',
-    }
-
-    const priceConfig = getFiatPriceConfig(1_000_000n, agentAddress)
-    const creditsConfig = getDynamicCreditsConfig(10n, 1n, 2n)
-
-    const response = await retryWithBackoff(
-      () => paymentsAgent.plans.registerCreditsPlan(planMetadata, priceConfig, creditsConfig),
-      { label: 'Visa Card Delegation Plan Registration', attempts: 6 },
-    )
-
-    expect(response).toBeDefined()
-    planId = response.planId
-    expect(planId).not.toBeNull()
-    console.log(`Created Visa card delegation plan with ID: ${planId}`)
   })
 
   test('should list the pre-provisioned Visa payment method', async () => {
@@ -125,7 +115,7 @@ describeIfVisa('X402 Card Delegation Flow (Visa)', () => {
   test('should generate X402 access token against the pre-created Visa delegation', async () => {
     const response = await retryWithBackoff(
       () =>
-        paymentsSubscriber.x402.getX402AccessToken(planId, undefined, {
+        paymentsSubscriber.x402.getX402AccessToken(VISA_PLAN_ID!, undefined, {
           scheme: 'nvm:card-delegation',
           network: 'visa',
           delegationConfig: { delegationId: VISA_DELEGATION_ID! },
@@ -143,7 +133,7 @@ describeIfVisa('X402 Card Delegation Flow (Visa)', () => {
     const paymentRequired = {
       x402Version: 2,
       resource: { url: '/test/endpoint' },
-      accepts: [{ scheme: 'nvm:card-delegation', network: 'visa', planId }],
+      accepts: [{ scheme: 'nvm:card-delegation', network: 'visa', planId: VISA_PLAN_ID! }],
       extensions: {},
     }
 
