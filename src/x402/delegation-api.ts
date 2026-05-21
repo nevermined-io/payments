@@ -14,23 +14,39 @@ import {
 } from '../common/types.js'
 
 /**
- * Card-delegation providers exposed by the SDK. Kept symmetric with the
- * input side ({@link CreateDelegationPayload.provider}). If the backend
- * surfaces a new provider, the SDK release should be bumped accordingly.
+ * Card-delegation providers exposed by the SDK. Use this when you want to
+ * restrict to card-shape entries only (e.g., filtering the heterogeneous
+ * list returned by {@link DelegationAPI.listPaymentMethods}).
  */
 export type CardProvider = 'stripe' | 'braintree' | 'visa'
 
 /**
+ * All delegation providers, including the crypto path. Matches the
+ * server-side union and aligns with {@link CreateDelegationPayload.provider}.
+ */
+export type DelegationProvider = CardProvider | 'erc4337'
+
+/**
  * Summary of a user's enrolled payment method.
+ *
+ * The list returned by {@link DelegationAPI.listPaymentMethods} is
+ * heterogeneous: it includes enrolled cards (`provider` in
+ * `stripe` / `braintree` / `visa`) AND, when the user has a smart account
+ * configured, an entry for the user's ERC-4337 wallet
+ * (`provider: 'erc4337'`, `type: 'crypto_wallet'`, `brand: 'ethereum'`).
+ * Filter on `provider` when callers only want one shape.
  */
 export interface PaymentMethodSummary {
-  /** Payment method ID (Stripe 'pm_...', Braintree vault token, or Visa Agentic token id) */
+  /** Payment method ID (Stripe 'pm_...', Braintree vault token, Visa Agentic
+   *  token id, or — for the erc4337 entry — the smart-account address) */
   id: string
-  /** Payment method type (e.g., 'card', 'paypal') */
+  /** Payment method type ('card' | 'crypto_wallet' | 'paypal' | …) */
   type: string
-  /** Card brand (e.g., 'visa', 'mastercard') or payment method type ('paypal', 'venmo') */
+  /** Card brand (e.g., 'visa', 'mastercard'), 'ethereum' for the erc4337
+   *  entry, or payment method type ('paypal', 'venmo') */
   brand: string
-  /** Last 4 digits (cards) or email/username (PayPal/Venmo) */
+  /** Last 4 digits (cards), trailing 4 chars of the wallet address
+   *  (erc4337), or email/username (PayPal/Venmo) */
   last4: string
   /** Expiration month (0 for non-card methods) */
   expMonth: number
@@ -38,8 +54,8 @@ export interface PaymentMethodSummary {
   expYear: number
   /** Human-readable alias, if set */
   alias?: string | null
-  /** Payment provider: 'stripe' | 'braintree' | 'visa' */
-  provider?: CardProvider
+  /** One of 'stripe' | 'braintree' | 'visa' | 'erc4337' */
+  provider?: DelegationProvider
   /** Current status ('Active' or 'Revoked') */
   status?: string
   /** NVM API Key IDs allowed to use this payment method, or null if unrestricted */
