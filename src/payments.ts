@@ -91,13 +91,17 @@ export class Payments extends BasePaymentsAPI {
 
   /**
    * Returns the Delegation API for listing enrolled payment methods.
-   * The instance is lazily initialized on first access.
+   * The instance is lazily initialized on first access — the current
+   * organization pin (set via `setOrganizationId` or the constructor
+   * option) is forwarded so the first call carries the right
+   * `X-Current-Org-Id` header.
    */
   public get delegation(): DelegationAPI {
     if (!this._delegation) {
       this._delegation = DelegationAPI.getInstance({
         nvmApiKey: this.nvmApiKey,
         environment: this.environmentName,
+        organizationId: this.currentOrganizationId ?? undefined,
       })
     }
     return this._delegation
@@ -226,6 +230,43 @@ export class Payments extends BasePaymentsAPI {
    */
   public logout() {
     this.nvmApiKey = ''
+  }
+
+  /**
+   * Pins (or clears) the active organization workspace used by every
+   * subsequent authenticated request. The SDK forwards the choice as the
+   * `X-Current-Org-Id` header so the backend scopes publications and
+   * other org-aware queries to the requested organization.
+   *
+   * Pass `null` to clear the pin and let the backend fall back to the
+   * API key's org tag or the caller's most-recent active membership.
+   *
+   * For one-off targeting (e.g. publish a single agent into Org B without
+   * leaving Org B as the active workspace) prefer the per-call
+   * `{ organizationId }` option on `agents.registerAgent` /
+   * `plans.registerPlan` / similar.
+   *
+   * @param organizationId - Org ID to pin (e.g. `org-…`) or `null` to clear.
+   * @example
+   * ```ts
+   * payments.setOrganizationId('org-abc123')
+   * await payments.agents.registerAgent(metadata, api, [planId]) // lands in org-abc123
+   * ```
+   */
+  public override setOrganizationId(organizationId: string | null): void {
+    super.setOrganizationId(organizationId)
+    this.plans?.setOrganizationId(organizationId)
+    this.agents?.setOrganizationId(organizationId)
+    this.requests?.setOrganizationId(organizationId)
+    this.observability?.setOrganizationId(organizationId)
+    this.organizations?.setOrganizationId(organizationId)
+    this.contracts?.setOrganizationId(organizationId)
+    this.facilitator?.setOrganizationId(organizationId)
+    this.x402?.setOrganizationId(organizationId)
+    // `_delegation` is lazy — the getter forwards `currentOrganizationId`
+    // on first access, so only propagate to an already-built instance.
+    // (Eagerly constructing it here would change the lazy contract.)
+    this._delegation?.setOrganizationId(organizationId)
   }
 
   /**

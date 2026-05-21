@@ -5,6 +5,51 @@ import { PaymentOptions, PaymentScheme } from '../common/types.js'
 import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.js'
 
 /**
+ * Header used by the Nevermined backend to resolve the active organization
+ * context for an authenticated request. Resolution priority is:
+ * path `:orgId` &gt; this header &gt; API-key tag &gt; fallback membership &gt; personal.
+ * See `apps/api/src/common/guards/current-org-context.guard.ts` in nvm-monorepo.
+ */
+export const CURRENT_ORG_ID_HEADER = 'X-Current-Org-Id'
+
+/**
+ * Set of header names that callers can pass to `getBackendHTTPOptions` via
+ * `extraHeaders`. Anything outside this set is dropped silently so a stray
+ * `Authorization` or `Content-Type` override can't clobber the SDK's
+ * transport security headers.
+ */
+const ALLOWED_EXTRA_HEADERS = new Set<string>([CURRENT_ORG_ID_HEADER])
+
+/**
+ * Options accepted by publication methods (`registerAgent`,
+ * `registerAgentAndPlan`, `registerPlan`, …) that want to override the
+ * active organization workspace for a single call.
+ */
+export type PublicationOptions = {
+  /**
+   * Organization id (e.g. `org-…`) to publish into. When set, the SDK
+   * sends an `X-Current-Org-Id` header for this call only — the caller's
+   * instance-level pin (set via `Payments.setOrganizationId`) is not
+   * affected.
+   */
+  organizationId?: string
+}
+
+/**
+ * Builds the `extraHeaders` argument for `getBackendHTTPOptions` from
+ * publication options. Returns `undefined` when no override is requested
+ * so existing callers receive identical request shapes.
+ */
+export function resolvePublicationHeaders(
+  options?: PublicationOptions,
+): Record<string, string> | undefined {
+  if (options?.organizationId) {
+    return { [CURRENT_ORG_ID_HEADER]: options.organizationId }
+  }
+  return undefined
+}
+
+/**
  * Base class extended by all Payments API classes.
  * It provides common functionality such as parsing the NVM API Key and getting the account address.
  */
@@ -18,6 +63,7 @@ export abstract class BasePaymentsAPI {
   protected version?: string
   protected accountAddress: string
   protected heliconeApiKey: string
+  protected currentOrganizationId: string | null
   public isBrowserInstance = true
 
   constructor(options: PaymentOptions) {
@@ -39,6 +85,7 @@ export abstract class BasePaymentsAPI {
     this.environmentName = options.environment
     this.appId = options.appId
     this.version = options.version
+    this.currentOrganizationId = options.organizationId ?? null
 
     const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
     this.accountAddress = accountAddress
@@ -80,20 +127,64 @@ export abstract class BasePaymentsAPI {
   }
 
   /**
+   * Returns the current organization context applied to every authenticated
+   * backend request via the `X-Current-Org-Id` header.
+   *
+   * `null` means "no pinned workspace" — the backend falls back to the
+   * caller's API-key tag or most-recent active membership.
+   */
+  public getOrganizationId(): string | null {
+    return this.currentOrganizationId
+  }
+
+  /**
+   * Sets the organization context applied to every subsequent authenticated
+   * backend request via the `X-Current-Org-Id` header.
+   *
+   * Pass `null` to clear the pin and fall back to the backend default.
+   *
+   * @param organizationId - Org ID (e.g. `org-…`) or `null` to clear.
+   */
+  public setOrganizationId(organizationId: string | null): void {
+    this.currentOrganizationId = organizationId
+  }
+
+  /**
    * Returns the HTTP options required to query the backend.
    * @param method - HTTP method.
    * @param body - Optional request body.
+   * @param extraHeaders - Optional per-call header overrides. Use
+   *   `{ 'X-Current-Org-Id': orgId }` to target a specific workspace for
+   *   one call without mutating the instance-level pin.
    * @returns HTTP options object.
    * @internal
    */
-  protected getBackendHTTPOptions(method: string, body?: any) {
+  protected getBackendHTTPOptions(
+    method: string,
+    body?: any,
+    extraHeaders?: Record<string, string>,
+  ) {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${this.nvmApiKey}`,
+    }
+    if (this.currentOrganizationId) {
+      headers[CURRENT_ORG_ID_HEADER] = this.currentOrganizationId
+    }
+    if (extraHeaders) {
+      // Allowlist callers' header overrides so a passed-in `Authorization`
+      // or `Content-Type` can't clobber the SDK's transport security
+      // headers. Today only `X-Current-Org-Id` is allowed through.
+      for (const [name, value] of Object.entries(extraHeaders)) {
+        if (ALLOWED_EXTRA_HEADERS.has(name)) {
+          headers[name] = value
+        }
+      }
+    }
     return {
       method,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.nvmApiKey}`,
-      },
+      headers,
       ...(body && { body: JSON.stringify(body, jsonReplacer) }),
     }
   }

@@ -371,7 +371,9 @@ ${runMethod}
     }
 
     // Types ending with Config, Metadata, Options, Attributes, etc. are likely interfaces
-    if (/(Config|Metadata|Options|Settings|Params|Attributes)$/.test(baseType)) {
+    // `Filters` covers paginated-list query DTOs (e.g. `OrganizationActivityFilters`);
+    // `Dto` covers request/response DTOs that some SDK methods take directly.
+    if (/(Config|Metadata|Options|Settings|Params|Attributes|Filters|Dto)$/.test(baseType)) {
       return true
     }
 
