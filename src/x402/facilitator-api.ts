@@ -44,10 +44,14 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_SETTLE_PERMISSIONS, API_URL_VERIFY_PERMISSIONS } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions, StartAgentRequest, X402SchemeType, getDefaultNetwork } from '../common/types.js'
+import {
+  PaymentOptions,
+  StartAgentRequest,
+  X402SchemeType,
+  getDefaultNetwork,
+} from '../common/types.js'
 import type { EnvironmentName } from '../environments.js'
 import type { Payments } from '../payments.js'
-import type { VisaPaymentRequired } from './visa-facilitator-api.js'
 
 /**
  * x402 Resource information
@@ -127,8 +131,8 @@ export interface X402PaymentAccepted {
  * Parameters for verifying permissions
  */
 export interface VerifyPermissionsParams {
-  /** The server's 402 PaymentRequired response (NVM or Visa flavored) */
-  paymentRequired: X402PaymentRequired | VisaPaymentRequired
+  /** The server's 402 PaymentRequired response */
+  paymentRequired: X402PaymentRequired
   /** The X402 access token (base64-encoded) */
   x402AccessToken: string
   /** Maximum credits to verify (optional) */
@@ -146,7 +150,7 @@ export interface VerifyPermissionsResult {
   invalidReason?: string
   /** Address of the payer's wallet */
   payer?: string
-  /** Network identifier (e.g., 'stripe', 'braintree', 'eip155:84532') */
+  /** Network identifier (e.g., 'stripe', 'braintree', 'visa', 'eip155:84532') */
   network?: string
   /** Agent request ID for observability tracking (Nevermined extension) */
   agentRequestId?: string
@@ -160,8 +164,8 @@ export interface VerifyPermissionsResult {
  * Parameters for settling permissions
  */
 export interface SettlePermissionsParams {
-  /** The server's 402 PaymentRequired response (NVM or Visa flavored) */
-  paymentRequired: X402PaymentRequired | VisaPaymentRequired
+  /** The server's 402 PaymentRequired response */
+  paymentRequired: X402PaymentRequired
   /** The X402 access token (base64-encoded) */
   x402AccessToken: string
   /** Number of credits to burn (optional) */
@@ -297,8 +301,7 @@ async function fetchPlanMetadata(
     const isCrypto = plan.registry?.price?.isCrypto
     // fiatPaymentProvider is in plan.metadata.plan, not in registry.price
     const fiatProvider = (plan as any).metadata?.plan?.fiatPaymentProvider
-    const scheme: X402SchemeType =
-      isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
+    const scheme: X402SchemeType = isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
     planMetadataCache.set(planId, { scheme, fiatProvider, cachedAt: Date.now() })
     return { scheme }
   } catch {
@@ -393,15 +396,18 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       const response = await fetch(url, options)
       if (!response.ok) {
         let errorMessage = 'Permission verification failed'
+        let errorCode = `http_${response.status}`
         try {
           const errorData = await response.json()
-          errorMessage = errorData.message || errorMessage
+          if (errorData.message) errorMessage = errorData.message
+          if (errorData.code) errorCode = errorData.code
+          if (errorData.hint) errorMessage = `${errorMessage} — ${errorData.hint}`
         } catch {
           // Use default error message
         }
         throw PaymentsError.fromBackend(errorMessage, {
           message: errorMessage,
-          code: `HTTP ${response.status}`,
+          code: errorCode,
         })
       }
       return await response.json()
@@ -465,15 +471,18 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       const response = await fetch(url, options)
       if (!response.ok) {
         let errorMessage = 'Permission settlement failed'
+        let errorCode = `http_${response.status}`
         try {
           const errorData = await response.json()
-          errorMessage = errorData.message || errorMessage
+          if (errorData.message) errorMessage = errorData.message
+          if (errorData.code) errorCode = errorData.code
+          if (errorData.hint) errorMessage = `${errorMessage} — ${errorData.hint}`
         } catch {
           // Use default error message
         }
         throw PaymentsError.fromBackend(errorMessage, {
           message: errorMessage,
-          code: `HTTP ${response.status}`,
+          code: errorCode,
         })
       }
       return await response.json()

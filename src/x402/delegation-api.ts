@@ -7,19 +7,46 @@
 
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { CreateDelegationPayload, CreateDelegationResponse, PaymentOptions } from '../common/types.js'
+import {
+  CreateDelegationPayload,
+  CreateDelegationResponse,
+  PaymentOptions,
+} from '../common/types.js'
+
+/**
+ * Card-delegation providers exposed by the SDK. Use this when you want to
+ * restrict to card-shape entries only (e.g., filtering the heterogeneous
+ * list returned by {@link DelegationAPI.listPaymentMethods}).
+ */
+export type CardProvider = 'stripe' | 'braintree' | 'visa'
+
+/**
+ * All delegation providers, including the crypto path. Matches the
+ * server-side union and aligns with {@link CreateDelegationPayload.provider}.
+ */
+export type DelegationProvider = CardProvider | 'erc4337'
 
 /**
  * Summary of a user's enrolled payment method.
+ *
+ * The list returned by {@link DelegationAPI.listPaymentMethods} is
+ * heterogeneous: it includes enrolled cards (`provider` in
+ * `stripe` / `braintree` / `visa`) AND, when the user has a smart account
+ * configured, an entry for the user's ERC-4337 wallet
+ * (`provider: 'erc4337'`, `type: 'crypto_wallet'`, `brand: 'ethereum'`).
+ * Filter on `provider` when callers only want one shape.
  */
 export interface PaymentMethodSummary {
-  /** Payment method ID (Stripe 'pm_...' or Braintree vault token) */
+  /** Payment method ID (Stripe 'pm_...', Braintree vault token, Visa Agentic
+   *  token id, or — for the erc4337 entry — the smart-account address) */
   id: string
-  /** Payment method type (e.g., 'card', 'paypal') */
+  /** Payment method type ('card' | 'crypto_wallet' | 'paypal' | …) */
   type: string
-  /** Card brand (e.g., 'visa', 'mastercard') or payment method type ('paypal', 'venmo') */
+  /** Card brand (e.g., 'visa', 'mastercard'), 'ethereum' for the erc4337
+   *  entry, or payment method type ('paypal', 'venmo') */
   brand: string
-  /** Last 4 digits (cards) or email/username (PayPal/Venmo) */
+  /** Last 4 digits (cards), trailing 4 chars of the wallet address
+   *  (erc4337), or email/username (PayPal/Venmo) */
   last4: string
   /** Expiration month (0 for non-card methods) */
   expMonth: number
@@ -27,8 +54,8 @@ export interface PaymentMethodSummary {
   expYear: number
   /** Human-readable alias, if set */
   alias?: string | null
-  /** Payment provider: 'stripe' or 'braintree' */
-  provider?: string
+  /** One of 'stripe' | 'braintree' | 'visa' | 'erc4337' */
+  provider?: DelegationProvider
   /** Current status ('Active' or 'Revoked') */
   status?: string
   /** NVM API Key IDs allowed to use this payment method, or null if unrestricted */
@@ -142,7 +169,13 @@ export class DelegationAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Create a new delegation for either stripe or erc4337 provider.
+   * Create a new delegation for any supported provider (stripe, braintree,
+   * visa, or erc4337).
+   *
+   * Note: Visa delegations require a per-delegation device-binding ceremony
+   * (FIDO/passkey + assuranceData) that must be performed in the browser
+   * via the Nevermined webapp. The SDK can list and consume an already-
+   * created Visa delegation but cannot create one programmatically.
    *
    * @param payload - The delegation creation parameters
    * @returns The created delegation ID (and token for card delegations)
@@ -165,24 +198,22 @@ export class DelegationAPI extends BasePaymentsAPI {
 
   // --- Private helpers ---
 
-  private async fetchJSON<T>(
-    url: URL,
-    method: string,
-    action: string,
-    body?: unknown,
-  ): Promise<T> {
+  private async fetchJSON<T>(url: URL, method: string, action: string, body?: unknown): Promise<T> {
     const options = this.getBackendHTTPOptions(method, body)
     try {
       const response = await fetch(url, options)
       if (!response.ok) {
         let msg = `Failed to ${action}`
+        let code = `http_${response.status}`
         try {
           const err = await response.json()
-          msg = err.message || msg
+          if (err.message) msg = err.message
+          if (err.code) code = err.code
+          if (err.hint) msg = `${msg} — ${err.hint}`
         } catch {
           // use default
         }
-        throw PaymentsError.internal(`${msg} (HTTP ${response.status})`)
+        throw new PaymentsError(`${msg} (HTTP ${response.status})`, code)
       }
       return await response.json()
     } catch (error) {

@@ -2,10 +2,11 @@ import { EnvironmentName } from '../environments.js'
 
 /**
  * The payment scheme to use.
- * - 'nvm' (default): Nevermined credit-based payments via ERC-4337 smart accounts.
- * - 'visa': Visa Token Service fiat payments via x402 HTTP transport.
+ * - 'nvm' (default): Nevermined-issued x402 access tokens covering both
+ *   credit-based ERC-4337 payments and fiat card delegations (Stripe,
+ *   Braintree, Visa).
  */
-export type PaymentScheme = 'nvm' | 'visa'
+export type PaymentScheme = 'nvm'
 
 export interface PaymentOptions {
   /**
@@ -18,15 +19,12 @@ export interface PaymentOptions {
   /**
    * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
    * You can get your API key by logging in to the Nevermined App.
-   * Required for 'nvm' scheme. Optional for 'visa' scheme.
    * @see https://nevermined.ai/docs/tutorials/integration/nvm-api-keys
    */
   nvmApiKey: string
 
   /**
    * The payment scheme to use. Defaults to 'nvm'.
-   * - 'nvm': Nevermined credit-based payments
-   * - 'visa': Visa Token Service fiat payments
    */
   scheme?: PaymentScheme
 
@@ -571,9 +569,9 @@ export interface DelegationConfig {
  * Payload for creating a new delegation via POST /api/v1/delegation/create.
  */
 export interface CreateDelegationPayload {
-  /** Delegation provider: 'stripe' or 'braintree' for card, 'erc4337' for crypto */
-  provider: 'stripe' | 'braintree' | 'erc4337'
-  /** Payment method ID from the provider (Stripe 'pm_...' or Braintree vault token). Required for stripe/braintree providers. */
+  /** Delegation provider: 'stripe' | 'braintree' | 'visa' for card, 'erc4337' for crypto */
+  provider: 'stripe' | 'braintree' | 'visa' | 'erc4337'
+  /** Payment method ID from the provider (Stripe 'pm_...', Braintree vault token, or Visa Agentic token id). Required for card providers. */
   providerPaymentMethodId?: string
   /** Maximum spending limit in cents */
   spendingLimitCents: number

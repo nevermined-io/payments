@@ -67,6 +67,17 @@ export abstract class BasePaymentsAPI {
   public isBrowserInstance = true
 
   constructor(options: PaymentOptions) {
+    // Type-level narrowing of PaymentScheme to 'nvm' won't protect callers
+    // pinned to an older .d.ts that still has 'visa' in the union — they
+    // would silently fall through to the standard pipeline and hit a
+    // misleading 'Invalid NVM API Key' from parseNvmApiKey when the
+    // legacy Visa path tolerated a non-JWT key. Reject up front with a
+    // clear migration message.
+    if (options.scheme && options.scheme !== 'nvm') {
+      throw new PaymentsError(
+        `scheme '${options.scheme}' is no longer supported. Visa is now exposed as provider:'visa' on createDelegation; construct Payments without a scheme override.`,
+      )
+    }
     this.nvmApiKey = options.nvmApiKey
     this.scheme = options.scheme || 'nvm'
     this.returnUrl = options.returnUrl || ''
@@ -76,15 +87,9 @@ export abstract class BasePaymentsAPI {
     this.version = options.version
     this.currentOrganizationId = options.organizationId ?? null
 
-    if (this.scheme === 'visa') {
-      // Visa scheme does not use JWT-based NVM API keys
-      this.accountAddress = ''
-      this.heliconeApiKey = ''
-    } else {
-      const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
-      this.accountAddress = accountAddress
-      this.heliconeApiKey = heliconeApiKey
-    }
+    const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
+    this.accountAddress = accountAddress
+    this.heliconeApiKey = heliconeApiKey
   }
 
   /**
