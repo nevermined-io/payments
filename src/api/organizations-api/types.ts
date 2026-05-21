@@ -5,15 +5,21 @@ export enum OrganizationMemberRole {
 }
 
 /**
- * Tier of an organization. Mirrors the backend `OrganizationType` enum
- * (`@nevermined-io/commons`). Free orgs were retired (Epic #1339) but the
- * value is kept here for backwards compatibility with historical rows.
+ * Tier of an organization. Mirrors the backend `OrganizationType` enum at
+ * `libs/commons/src/lib/types/types.ts` in nvm-monorepo.
+ *
+ * - `Premium` / `Enterprise` — the paid tiers from Epic #1339.
+ * - `Lapsed` — an org whose paid subscription has expired; replaces the
+ *   retired `Free` bucket (the backend never emits `Free` for new rows).
+ * - `Other` — legacy pre-tiered-pricing bucket still returned for orgs that
+ *   pre-date the tier system; inherits Premium-equivalent caps and features
+ *   server-side.
  */
 export enum OrganizationType {
-  Free = 'Free',
   Premium = 'Premium',
   Enterprise = 'Enterprise',
   Lapsed = 'Lapsed',
+  Other = 'Other',
 }
 
 export type CreateUserResponse = {
