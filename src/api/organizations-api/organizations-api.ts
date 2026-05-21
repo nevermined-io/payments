@@ -105,7 +105,7 @@ export class OrganizationsAPI extends BasePaymentsAPI {
    * ```ts
    * const memberships = await payments.organizations.getMyMemberships()
    * for (const m of memberships) {
-   *   console.log(`${m.organizationName} — ${m.role}`)
+   *   console.log(`${m.orgName} — ${m.role}`)
    * }
    * ```
    */
@@ -138,7 +138,7 @@ export class OrganizationsAPI extends BasePaymentsAPI {
    * const page = await payments.organizations.getOrganizationActivity(orgId, {
    *   eventType: OrganizationActivityEventType.MemberInvited,
    *   page: 1,
-   *   offset: 25,
+   *   limit: 25,
    * })
    * ```
    */
@@ -150,12 +150,17 @@ export class OrganizationsAPI extends BasePaymentsAPI {
       throw new PaymentsError('orgId is required')
     }
     const params = new URLSearchParams()
-    if (filters.eventType) params.set('eventType', String(filters.eventType))
+    if (filters.eventType !== undefined) {
+      const eventType = Array.isArray(filters.eventType)
+        ? filters.eventType.map(String).join(',')
+        : String(filters.eventType)
+      if (eventType.length > 0) params.set('eventType', eventType)
+    }
     if (filters.actorUserId) params.set('actorUserId', filters.actorUserId)
     if (filters.from) params.set('from', filters.from)
     if (filters.to) params.set('to', filters.to)
     if (filters.page !== undefined) params.set('page', String(filters.page))
-    if (filters.offset !== undefined) params.set('offset', String(filters.offset))
+    if (filters.limit !== undefined) params.set('limit', String(filters.limit))
 
     const path = API_URL_ORG_ACTIVITY.replace(':orgId', encodeURIComponent(orgId))
     const queryString = params.toString()
@@ -166,7 +171,11 @@ export class OrganizationsAPI extends BasePaymentsAPI {
       const error = await response.json().catch(() => ({ message: 'Unknown error' }))
       throw PaymentsError.fromBackend('Unable to fetch organization activity', error)
     }
-    return (await response.json()) as OrganizationActivityPage
+    const data = (await response.json()) as Partial<OrganizationActivityPage>
+    return {
+      items: Array.isArray(data.items) ? data.items : [],
+      total: typeof data.total === 'number' ? data.total : 0,
+    }
   }
 
   /**
@@ -177,7 +186,11 @@ export class OrganizationsAPI extends BasePaymentsAPI {
    * @returns The Stripe checkout result including the stripe account link, stripe account id, user id, user country code, link created at and link expires at.
    * The stripe account link is the link that the user needs to click to connect with Stripe.
    */
-  async connectStripeAccount(userEmail: string, userCountryCode: string, returnUrl: string): Promise<StripeCheckoutResult> {
+  async connectStripeAccount(
+    userEmail: string,
+    userCountryCode: string,
+    returnUrl: string,
+  ): Promise<StripeCheckoutResult> {
     const body = {
       userEmail,
       userCountryCode,
@@ -194,10 +207,10 @@ export class OrganizationsAPI extends BasePaymentsAPI {
     return {
       stripeAccountLink: data.stripeAccountLink,
       stripeAccountId: data.stripeAccountId,
-      userId: data.userId, userCountryCode:
-      data.userCountryCode,
+      userId: data.userId,
+      userCountryCode: data.userCountryCode,
       linkCreatedAt: data.linkCreatedAt,
-      linkExpiresAt: data.linkExpiresAt
+      linkExpiresAt: data.linkExpiresAt,
     }
   }
 }

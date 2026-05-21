@@ -65,19 +65,19 @@ describe('OrganizationsAPI — workspace surface', () => {
       const body = [
         {
           orgId: 'org-aaa',
-          organizationName: 'Acme',
-          organizationType: OrganizationType.Premium,
+          orgName: 'Acme',
           role: OrganizationMemberRole.Admin,
-          userIsActive: true,
-          organizationIsActive: true,
+          orgType: OrganizationType.Premium,
+          isAdmin: true,
+          hasSubscriptionHistory: true,
         },
         {
           orgId: 'org-bbb',
-          organizationName: 'Beta',
-          organizationType: OrganizationType.Enterprise,
+          orgName: 'Beta',
           role: OrganizationMemberRole.Member,
-          userIsActive: true,
-          organizationIsActive: true,
+          orgType: OrganizationType.Enterprise,
+          isAdmin: false,
+          hasSubscriptionHistory: true,
         },
       ]
       const calls = installFetchStub(() => ({ ok: true, body }))
@@ -112,7 +112,7 @@ describe('OrganizationsAPI — workspace surface', () => {
   describe('getOrganizationActivity', () => {
     test('encodes filters in the query string and targets the org path', async () => {
       const payments = makePayments()
-      const body = { items: [], total: 0, page: 1, offset: 25 }
+      const body = { items: [], total: 0 }
       const calls = installFetchStub(() => ({ ok: true, body }))
 
       await payments.organizations.getOrganizationActivity('org-xyz', {
@@ -121,26 +121,40 @@ describe('OrganizationsAPI — workspace surface', () => {
         from: '2026-01-01T00:00:00Z',
         to: '2026-12-31T23:59:59Z',
         page: 2,
-        offset: 25,
+        limit: 25,
       })
 
       expect(calls).toHaveLength(1)
       const { url, init } = calls[0]
       expect(url.pathname).toBe('/api/v1/organizations/org-xyz/activity')
-      expect(url.searchParams.get('eventType')).toBe('MEMBER_INVITED')
+      expect(url.searchParams.get('eventType')).toBe('member.invited')
       expect(url.searchParams.get('actorUserId')).toBe('us-1')
       expect(url.searchParams.get('from')).toBe('2026-01-01T00:00:00Z')
       expect(url.searchParams.get('to')).toBe('2026-12-31T23:59:59Z')
       expect(url.searchParams.get('page')).toBe('2')
-      expect(url.searchParams.get('offset')).toBe('25')
+      expect(url.searchParams.get('limit')).toBe('25')
       expect(init.method).toBe('GET')
+    })
+
+    test('joins an array eventType filter into a comma-separated list', async () => {
+      const payments = makePayments()
+      const calls = installFetchStub(() => ({ ok: true, body: { items: [], total: 0 } }))
+
+      await payments.organizations.getOrganizationActivity('org-xyz', {
+        eventType: [
+          OrganizationActivityEventType.PlanCreated,
+          OrganizationActivityEventType.AgentCreated,
+        ],
+      })
+
+      expect(calls[0].url.searchParams.get('eventType')).toBe('plan.created,agent.created')
     })
 
     test('omits empty filters from the query string', async () => {
       const payments = makePayments()
       const calls = installFetchStub(() => ({
         ok: true,
-        body: { items: [], total: 0, page: 1, offset: 10 },
+        body: { items: [], total: 0 },
       }))
 
       await payments.organizations.getOrganizationActivity('org-xyz')
@@ -164,9 +178,9 @@ describe('OrganizationsAPI — workspace surface', () => {
         body: { errorCode: 'BCK.AUTH.0004', message: 'not a member' },
       }))
 
-      await expect(
-        payments.organizations.getOrganizationActivity('org-forbidden'),
-      ).rejects.toThrow(/Unable to fetch organization activity/)
+      await expect(payments.organizations.getOrganizationActivity('org-forbidden')).rejects.toThrow(
+        /Unable to fetch organization activity/,
+      )
     })
   })
 
