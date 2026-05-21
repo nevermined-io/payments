@@ -502,7 +502,7 @@ interface GetPlanResponse {
     plan?: {
       accessLimit?: 'credits' | 'time'
       currency?: string
-      fiatPaymentProvider?: 'stripe' | 'braintree'
+      fiatPaymentProvider?: 'stripe' | 'braintree' | 'visa'
     }
   }
   registry?: {
