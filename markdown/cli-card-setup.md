@@ -216,9 +216,13 @@ const server = createServer(async (req, res) => {
     return
   }
   const received = url.searchParams.get('state') ?? ''
+  // Validate hex shape FIRST so we never feed UTF-8 buffers of unequal
+  // byte length into timingSafeEqual (it throws on length mismatch).
+  // Both sides are 32-char hex (16 random bytes) by construction.
+  const HEX_32 = /^[0-9a-f]{32}$/i
   if (
-    received.length !== state.length ||
-    !timingSafeEqual(Buffer.from(received), Buffer.from(state))
+    !HEX_32.test(received) ||
+    !timingSafeEqual(Buffer.from(received, 'hex'), Buffer.from(state, 'hex'))
   ) {
     res.writeHead(400, { 'Content-Type': 'text/html' }).end(
       '<h2>State mismatch</h2><p>Close this tab and re-run the command.</p>',

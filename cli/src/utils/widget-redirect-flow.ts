@@ -1,19 +1,9 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, timingSafeEqual } from 'crypto'
-import { execFile } from 'child_process'
+
+import { openBrowser } from './browser.js'
 
 const SELF_MINT_FETCH_TIMEOUT_MS = 15_000
-
-/**
- * Constant-time string equality for the CSRF state nonce. Both sides are
- * 32 hex chars (16 random bytes), so a length mismatch alone is enough to
- * reject. timingSafeEqual then compares the bytes without an early
- * short-circuit — closes a (tiny, loopback-only) timing oracle.
- */
-function safeEqualString(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  return timingSafeEqual(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'))
-}
 
 /**
  * Default timeout for a redirect-mode CLI flow. Mirrors the existing
@@ -23,18 +13,40 @@ function safeEqualString(a: string, b: string): boolean {
  */
 const REDIRECT_TIMEOUT_MS = 5 * 60 * 1000
 
+/**
+ * Constant-time string equality for the CSRF `state` nonce. The state we
+ * issue is a 32-char hex string (`randomBytes(16).toString('hex')`), so
+ * we ALWAYS allocate fixed 16-byte buffers from `hex` regardless of the
+ * caller-supplied value's encoding. Computing buffer length from string
+ * length would diverge on non-ASCII input (`a.length` is UTF-16 code
+ * units; `Buffer.from(a, 'utf8').length` is byte count), and a crafted
+ * non-hex `received` could otherwise throw inside `timingSafeEqual`.
+ *
+ * Inputs must already have been verified to be 32 hex chars by the
+ * caller (or we reject up front).
+ */
+function safeEqualHexState(received: string, expected: string): boolean {
+  if (!/^[0-9a-f]{32}$/i.test(received) || !/^[0-9a-f]{32}$/i.test(expected)) return false
+  return timingSafeEqual(Buffer.from(received, 'hex'), Buffer.from(expected, 'hex'))
+}
+
 export interface WidgetRedirectFlowOptions {
-  /** Backend base URL — e.g. `Environments[env].backend`. */
-  backendUrl: string
   /** Frontend base URL — e.g. `Environments[env].frontend`. */
   frontendUrl: string
-  /** The session token already minted via `/widgets/session/self`. */
-  sessionToken: string
   /**
    * Relative embed path the CLI wants to open, e.g.
    * `/embed/cards/setup` or `/embed/cards/enroll`.
    */
   embedPath: string
+  /**
+   * Called once the local callback server is listening, with the bound
+   * `returnUrl`. The caller mints a widget session against that URL and
+   * returns the resulting `sessionToken`. Splitting it this way lets
+   * the backend validate `returnUrl` at session-creation time (the
+   * spec'd contract) — minting before the port is known would leave
+   * the backend's pre-flight allow-list check with no URL to verify.
+   */
+  mintSession: (args: { returnUrl: string }) => Promise<{ sessionToken: string }>
   /** Extra query params to forward to the embed page (e.g. `provider=stripe`, `paymentMethodId=pm_x`). */
   extraSearchParams?: Record<string, string>
   /** If true, prints the URL instead of opening the browser. */
@@ -43,6 +55,8 @@ export interface WidgetRedirectFlowOptions {
   log: (msg: string) => void
   /** Suggested success-page wording — keeps the wording aligned with whichever command is calling. */
   successPageTitle?: string
+  /** Suggested timeout-error wording — keeps it specific to the calling command instead of "Card setup ..." for everything. */
+  timeoutMessage?: string
 }
 
 export interface WidgetRedirectFlowResult {
@@ -56,15 +70,19 @@ export interface WidgetRedirectFlowResult {
  * Shared redirect-mode handshake for any CLI command that hands the user
  * off to an `/embed/*` page and waits for a localhost callback.
  *
- * The flow mirrors `nvm login`: start an ephemeral HTTP server on a
- * random localhost port, build the embed URL with `sessionToken`,
- * `returnUrl`, and `state`, open the browser (or print the URL with
- * `--no-browser`), and resolve when the embed page redirects to
- * `/callback?<params>&state=<state>`. The helper verifies the echoed
- * state to bind the callback to this CLI invocation.
+ * Flow:
+ *   1. Bind a one-shot HTTP server on `127.0.0.1:0` (the OS picks a free port).
+ *   2. Compute `returnUrl = http://localhost:<port>/callback` and hand it
+ *      to `opts.mintSession`. The caller mints a widget session bound to
+ *      that exact returnUrl (which the backend can validate against the
+ *      session-specific allow-list at creation time).
+ *   3. Open the browser at `{frontend}/embed/<path>?sessionToken=…&returnUrl=…&state=<rand>`.
+ *   4. Resolve when the embed page redirects to `/callback?…&state=<echo>`.
+ *      `state` is compared in constant time.
  *
- * Returns when the callback fires; rejects on timeout (5 min) or on
- * server bind failure.
+ * Rejects on bind failure, mint failure, 5-minute timeout, or
+ * state-mismatched callback (the bad request gets a styled error page
+ * and the server stays alive — the legitimate callback can still land).
  */
 export async function runWidgetRedirectFlow(
   opts: WidgetRedirectFlowOptions,
@@ -73,6 +91,16 @@ export async function runWidgetRedirectFlow(
 
   return new Promise<WidgetRedirectFlowResult>((resolve, reject) => {
     let resolved = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+
+    const finalize = (err?: Error, value?: WidgetRedirectFlowResult): void => {
+      if (resolved) return
+      resolved = true
+      if (timeout) clearTimeout(timeout)
+      server.close()
+      if (err) reject(err)
+      else if (value) resolve(value)
+    }
 
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = new URL(req.url || '/', 'http://localhost')
@@ -82,7 +110,7 @@ export async function runWidgetRedirectFlow(
       }
 
       const receivedState = url.searchParams.get('state')
-      if (!receivedState || !safeEqualString(receivedState, state)) {
+      if (!receivedState || !safeEqualHexState(receivedState, state)) {
         res.writeHead(400, { 'Content-Type': 'text/html' }).end(
           errorHtml(
             'Callback rejected',
@@ -106,72 +134,63 @@ export async function runWidgetRedirectFlow(
           'You can close this tab and return to your terminal.',
         ),
       )
-      // Symmetry with the other rejection paths below — also stops the
-      // 5-minute timer from keeping the process alive after we resolve
-      // (#1 in the reviewer's punch list).
-
-      if (resolved) return
-      resolved = true
-      clearTimeout(timeout)
-      server.close()
-      resolve({ state, query })
+      finalize(undefined, { state, query })
     })
 
-    const timeout = setTimeout(() => {
-      if (resolved) return
-      resolved = true
-      // Clear our own handle for symmetry with the other rejection
-      // paths — leaves Jest with no dangling timers (the test runner
-      // would otherwise wait one full tick before exiting).
-      clearTimeout(timeout)
-      server.close()
-      reject(new Error('Browser flow timed out after 5 minutes. Please try again.'))
+    timeout = setTimeout(() => {
+      finalize(new Error(opts.timeoutMessage ?? 'Browser flow timed out after 5 minutes. Please try again.'))
     }, REDIRECT_TIMEOUT_MS)
 
     server.on('error', (err) => {
-      if (resolved) return
-      resolved = true
-      clearTimeout(timeout)
-      server.close()
-      reject(new Error(`Failed to start local callback server: ${err.message}`))
+      finalize(new Error(`Failed to start local callback server: ${err.message}`))
     })
 
     server.listen(0, '127.0.0.1', () => {
       const addr = server.address()
       if (!addr || typeof addr === 'string') {
-        if (resolved) return
-        resolved = true
-        clearTimeout(timeout)
-        server.close()
-        reject(new Error('Failed to obtain local callback port'))
+        finalize(new Error('Failed to obtain local callback port'))
         return
       }
-
       const returnUrl = `http://localhost:${addr.port}/callback`
-      const browserUrl = buildEmbedUrl({
-        frontendUrl: opts.frontendUrl,
-        embedPath: opts.embedPath,
-        sessionToken: opts.sessionToken,
-        returnUrl,
-        state,
-        extra: opts.extraSearchParams,
-      })
 
-      if (opts.noBrowser) {
-        opts.log('Open this URL in your browser to continue:')
-        opts.log('')
-        opts.log(browserUrl)
-        opts.log('')
-        opts.log('Waiting for completion...')
-      } else {
-        opts.log('Opening browser...')
-        openBrowser(browserUrl).catch(() => {
-          opts.log('Could not open the browser automatically. Open this URL manually:')
+      // Mint the session now that returnUrl is known. The backend's
+      // allow-list check at session creation can validate the URL the
+      // browser will actually be redirected to.
+      void (async () => {
+        let sessionToken: string
+        try {
+          const minted = await opts.mintSession({ returnUrl })
+          sessionToken = minted.sessionToken
+        } catch (mintErr) {
+          finalize(mintErr instanceof Error ? mintErr : new Error(String(mintErr)))
+          return
+        }
+
+        const browserUrl = buildEmbedUrl({
+          frontendUrl: opts.frontendUrl,
+          embedPath: opts.embedPath,
+          sessionToken,
+          returnUrl,
+          state,
+          extra: opts.extraSearchParams,
+        })
+
+        if (opts.noBrowser) {
+          opts.log('Open this URL in your browser to continue:')
           opts.log('')
           opts.log(browserUrl)
-        })
-        opts.log('Waiting for completion...')
-      }
+          opts.log('')
+          opts.log('Waiting for completion...')
+        } else {
+          opts.log('Opening browser...')
+          openBrowser(browserUrl).catch(() => {
+            opts.log('Could not open the browser automatically. Open this URL manually:')
+            opts.log('')
+            opts.log(browserUrl)
+          })
+          opts.log('Waiting for completion...')
+        }
+      })()
     })
   })
 }
@@ -238,32 +257,10 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function openBrowser(url: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const platform = process.platform
-    let cmd: string
-    let args: string[]
-    if (platform === 'darwin') {
-      cmd = 'open'
-      args = [url]
-    } else if (platform === 'win32') {
-      cmd = 'cmd'
-      args = ['/c', 'start', '""', url]
-    } else {
-      cmd = 'xdg-open'
-      args = [url]
-    }
-    execFile(cmd, args, (err) => {
-      if (err) reject(err)
-      else resolve()
-    })
-  })
-}
-
 /**
- * POST to the new `/widgets/session/self` endpoint with the caller's
- * NVM API key. Lives here (not in the SDK) because v1 only wires this
- * up for the CLI redirect flow — when the SDK exposes
+ * POST to the `/widgets/session/self` endpoint with the caller's NVM
+ * API key. Lives here (not in the SDK) because v1 only wires this up
+ * for the CLI redirect flow — when the SDK exposes
  * `payments.widgets.createSelfSession()` we can swap this for the SDK
  * call without touching command callers.
  */
@@ -286,10 +283,8 @@ export async function mintSelfWidgetSession(args: {
 
   // 15s ceiling for the request — without it, an unreachable backend
   // (DNS failure, TLS handshake hang, network partition) leaves the CLI
-  // frozen with no output. The localhost-callback server's own 5-min
-  // timer doesn't cover this pre-server call.
-  const controller = new AbortController()
-  const abortHandle = setTimeout(() => controller.abort(), SELF_MINT_FETCH_TIMEOUT_MS)
+  // frozen with no output. `AbortSignal.timeout` (Node 17.3+) is the
+  // idiomatic replacement for a hand-rolled `AbortController` + setTimeout.
   let response: Response
   try {
     response = await fetch(url, {
@@ -302,17 +297,15 @@ export async function mintSelfWidgetSession(args: {
         orgId: args.orgId,
         ...(args.returnUrl ? { returnUrl: args.returnUrl } : {}),
       }),
-      signal: controller.signal,
+      signal: AbortSignal.timeout(SELF_MINT_FETCH_TIMEOUT_MS),
     })
   } catch (cause) {
-    if (controller.signal.aborted) {
+    if (cause instanceof Error && (cause.name === 'TimeoutError' || cause.name === 'AbortError')) {
       throw new Error(
         `Self-mint widget session request timed out after ${SELF_MINT_FETCH_TIMEOUT_MS / 1000}s — check that ${args.backendUrl} is reachable.`,
       )
     }
     throw cause
-  } finally {
-    clearTimeout(abortHandle)
   }
 
   if (!response.ok) {

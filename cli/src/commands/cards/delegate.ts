@@ -1,5 +1,5 @@
 import { Flags } from '@oclif/core'
-import { Environments, EnvironmentName } from '@nevermined-io/payments'
+import { Environments } from '@nevermined-io/payments'
 import { BaseCommand } from '../../base-command.js'
 import { resolveOrgIdInteractive } from '../../utils/orgs.js'
 import {
@@ -25,6 +25,7 @@ export default class CardsDelegate extends BaseCommand {
   static override examples = [
     '<%= config.bin %> cards delegate --card pm_1234',
     '<%= config.bin %> cards delegate --card pm_1234 --org org-abc-123',
+    '<%= config.bin %> cards delegate --card pm_1234 --no-browser',
   ]
 
   static override flags = {
@@ -55,32 +56,35 @@ export default class CardsDelegate extends BaseCommand {
         log: (msg: string) => this.log(msg),
       })
 
-      const profileName = flags.profile || (await this.configManager.getActiveProfile()) || 'default'
-      const profileCfg = await this.configManager.get(undefined, profileName)
-      const environment = (profileCfg?.environment as EnvironmentName) || 'sandbox'
+      const environment = this.resolvedEnvironment!
+      const nvmApiKey = this.resolvedNvmApiKey!
       const env = Environments[environment]
       if (!env) {
         this.error(`Unknown environment: ${String(environment)}`, { exit: 1 })
       }
-      const nvmApiKey = profileCfg?.nvmApiKey || process.env.NVM_API_KEY
-      if (!nvmApiKey) {
-        this.error('No NVM API key in the active profile. Run `nvm login` first.', { exit: 1 })
-      }
-      const session = await mintSelfWidgetSession({
-        backendUrl: env.backend,
-        nvmApiKey,
-        orgId,
-      })
 
       const result = await runWidgetRedirectFlow({
-        backendUrl: env.backend,
         frontendUrl: env.frontend,
-        sessionToken: session.sessionToken,
         embedPath: '/embed/cards/delegate',
+        mintSession: async ({ returnUrl }) => {
+          const session = await mintSelfWidgetSession({
+            backendUrl: env.backend,
+            nvmApiKey,
+            orgId,
+            returnUrl,
+          })
+          if (session.isReturnUrlAllowed === false) {
+            throw new Error(
+              `Backend rejected returnUrl ${returnUrl} — check the widget key's allowedOrigins or fall back to a localhost callback.`,
+            )
+          }
+          return { sessionToken: session.sessionToken }
+        },
         extraSearchParams: { paymentMethodId: flags.card as string },
         noBrowser: flags['no-browser'],
         log: (msg: string) => this.log(msg),
         successPageTitle: 'Delegation created',
+        timeoutMessage: 'Delegation creation timed out after 5 minutes. Please try again.',
       })
 
       const delegationId = result.query.delegationId

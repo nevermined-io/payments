@@ -1,5 +1,5 @@
 import { Flags } from '@oclif/core'
-import { Environments, EnvironmentName } from '@nevermined-io/payments'
+import { Environments } from '@nevermined-io/payments'
 import { BaseCommand } from '../../base-command.js'
 import { resolveOrgIdInteractive } from '../../utils/orgs.js'
 import {
@@ -67,49 +67,45 @@ export default class CardsSetup extends BaseCommand {
         this.formatter.info(`Using organization: ${orgId}`)
       }
 
-      // Read the environment + key from local config (the Payments
-      // instance keeps them as protected fields). `initPayments()` in the
-      // base command has already validated them — these reads are safe.
-      const profileName = flags.profile || (await this.configManager.getActiveProfile()) || 'default'
-      const profileCfg = await this.configManager.get(undefined, profileName)
-      const environment = (profileCfg?.environment as EnvironmentName) || 'sandbox'
+      // initPayments() has already resolved env+key with the canonical
+      // env-var-first precedence (NVM_API_KEY / NVM_ENVIRONMENT → config
+      // file → defaults). Re-using its decision here keeps the SDK
+      // instance and the direct `mintSelfWidgetSession` call targeting
+      // the same backend + user.
+      const environment = this.resolvedEnvironment!
+      const nvmApiKey = this.resolvedNvmApiKey!
       const env = Environments[environment]
       if (!env) {
         this.error(`Unknown environment: ${String(environment)}`, { exit: 1 })
       }
-      const nvmApiKey = profileCfg?.nvmApiKey || process.env.NVM_API_KEY
-      if (!nvmApiKey) {
-        this.error('No NVM API key in the active profile. Run `nvm login` first.', { exit: 1 })
-      }
-
-      // Self-mint the widget session against the logged-in API key.
-      // Backend gates this on `OrganizationsService.isOrganizationMember`
-      // — a 403 here means either the flag-supplied orgId doesn't match
-      // a membership or the user has none at all (already caught above
-      // for the interactive path, but the membership check is the
-      // ground truth).
-      const session = await mintSelfWidgetSession({
-        backendUrl: env.backend,
-        nvmApiKey,
-        orgId,
-      })
-
-      // Note: we pass `returnUrl` to `runWidgetRedirectFlow` later (the
-      // helper builds it from the actual port it binds to). The session
-      // we just minted didn't include a returnUrl in the body, so the
-      // server returns `isReturnUrlAllowed: null`; the embed page's
-      // own `/widgets/session/validate` call (with the
-      // `X-Nvm-Widget-Return-Url` header) is the real allow-list check.
 
       const result = await runWidgetRedirectFlow({
-        backendUrl: env.backend,
         frontendUrl: env.frontend,
-        sessionToken: session.sessionToken,
         embedPath: '/embed/cards/setup',
+        // Mint AFTER the local server binds — `runWidgetRedirectFlow`
+        // gives us the actual returnUrl so the backend can validate it
+        // at session-creation time (per the documented `isReturnUrlAllowed`
+        // contract). A 403 here means either the flag-supplied orgId
+        // doesn't match a membership or the user has none at all.
+        mintSession: async ({ returnUrl }) => {
+          const session = await mintSelfWidgetSession({
+            backendUrl: env.backend,
+            nvmApiKey,
+            orgId,
+            returnUrl,
+          })
+          if (session.isReturnUrlAllowed === false) {
+            throw new Error(
+              `Backend rejected returnUrl ${returnUrl} — check the widget key's allowedOrigins or fall back to a localhost callback.`,
+            )
+          }
+          return { sessionToken: session.sessionToken }
+        },
         extraSearchParams: { provider: flags.provider as string },
         noBrowser: flags['no-browser'],
         log: (msg: string) => this.log(msg),
         successPageTitle: 'Card setup complete',
+        timeoutMessage: 'Card setup timed out after 5 minutes. Please try again.',
       })
 
       const paymentMethodId = result.query.paymentMethodId
