@@ -9,25 +9,17 @@
  * regardless of how the handler responds.
  */
 
-import { EventEmitter } from 'events'
 import express from 'express'
 import type { Request, Response } from 'express'
 import http from 'http'
-import {
-  paymentMiddleware,
-  X402_HEADERS,
-} from '../../src/x402/express/index.js'
+import { paymentMiddleware, X402_HEADERS } from '../../src/x402/express/index.js'
 
 // Use the same mock token shape the rest of the test suite uses so the
 // middleware's verify call gets past the shape checks.
 const MOCK_TOKEN = 'mock-x402-token'
 
 // Minimal stub of the Payments API surface the middleware reaches into.
-function buildMockPayments(opts: {
-  scheme?: string
-  settleSpy: jest.Mock
-  verifySpy?: jest.Mock
-}) {
+function buildMockPayments(opts: { settleSpy: jest.Mock; verifySpy?: jest.Mock }) {
   const verify =
     opts.verifySpy ??
     jest.fn().mockResolvedValue({ isValid: true, agentRequest: undefined, agentRequestId: 'req-1' })
@@ -89,7 +81,8 @@ async function postWithToken(port: number): Promise<{
           resolve({
             status: res.statusCode ?? 0,
             body: Buffer.concat(chunks).toString(),
-            paymentResponseHeader: (res.headers[X402_HEADERS.PAYMENT_RESPONSE] as string) ?? undefined,
+            paymentResponseHeader:
+              (res.headers[X402_HEADERS.PAYMENT_RESPONSE] as string) ?? undefined,
           })
         })
       },

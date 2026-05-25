@@ -400,7 +400,7 @@ export function paymentMiddleware(
                   }
                   if (onAfterSettle) {
                     return Promise.resolve(onAfterSettle(req, creditsToSettle, settlement)).then(
-                      () => {},
+                      () => undefined,
                     )
                   }
                   return undefined
