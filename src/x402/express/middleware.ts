@@ -360,57 +360,84 @@ export function paymentMiddleware(
         // Attach to request for potential use by route handler
         ;(req as Request & { paymentContext?: PaymentContext }).paymentContext = paymentContext
 
-        // Override res.json to settle BEFORE sending response
-        // This ensures credits are burned and payment-response header is included
-        const originalJson = res.json.bind(res)
-        res.json = function (body: unknown) {
-          // Re-evaluate dynamic credits now that the handler has run and
-          // res.locals is populated. For fixed (numeric) credits this is a no-op.
-          const settlePromise = (
+        // Wrap res.end so settlement runs no matter how the handler responds
+        // (res.json, res.send, res.sendFile, res.end, res.pipe → res.end).
+        // Previously only res.json was intercepted, so any other response
+        // method would deliver the resource without burning credits and
+        // without emitting the payment-response receipt header (#1728).
+        const originalEnd = res.end.bind(res) as (...args: Parameters<Response['end']>) => Response
+        let settlementStarted = false
+
+        const runSettlement = (): Promise<void> => {
+          return (
             typeof credits === 'function'
               ? Promise.resolve(credits(req, res))
               : Promise.resolve(creditsToVerify)
-          ).then((creditsToSettle) => {
-            // Update payment context so downstream consumers see the actual value
-            paymentContext.creditsToSettle = creditsToSettle
-
-            // Settle credits before sending response
-            // Pass agentRequestId to enable observability updates
-            return payments.facilitator
-              .settlePermissions({
-                paymentRequired,
-                x402AccessToken: token,
-                maxAmount: BigInt(creditsToSettle),
-                agentRequestId: paymentContext.agentRequestId,
-              })
-              .then((settlement) => {
-                // Add settlement response header (base64-encoded per x402 spec)
-                const settlementBase64 = Buffer.from(JSON.stringify(settlement)).toString('base64')
-                res.setHeader(X402_HEADERS.PAYMENT_RESPONSE, settlementBase64)
-
-                // Hook: after settlement
-                if (onAfterSettle) {
-                  return Promise.resolve(onAfterSettle(req, creditsToSettle, settlement)).then(
-                    () => settlement,
-                  )
-                }
-                return settlement
-              })
-          })
-
-          settlePromise
+          )
+            .then((creditsToSettle) => {
+              paymentContext.creditsToSettle = creditsToSettle
+              return payments.facilitator
+                .settlePermissions({
+                  paymentRequired,
+                  x402AccessToken: token,
+                  maxAmount: BigInt(creditsToSettle),
+                  agentRequestId: paymentContext.agentRequestId,
+                })
+                .then((settlement) => {
+                  // Only attach the receipt header if headers haven't flushed
+                  // yet — streaming responses fire writeHead on the first
+                  // chunk and may have already sent them by the time we land
+                  // here.
+                  if (!res.headersSent) {
+                    const settlementBase64 = Buffer.from(JSON.stringify(settlement)).toString(
+                      'base64',
+                    )
+                    res.setHeader(X402_HEADERS.PAYMENT_RESPONSE, settlementBase64)
+                  } else {
+                    console.warn(
+                      '[paymentMiddleware] headers already flushed; payment-response receipt not attached',
+                    )
+                  }
+                  if (onAfterSettle) {
+                    return Promise.resolve(onAfterSettle(req, creditsToSettle, settlement)).then(
+                      () => {},
+                    )
+                  }
+                  return undefined
+                })
+            })
             .catch((settleError) => {
               console.error('Payment settlement failed:', settleError)
-              // Still send response even if settlement fails
             })
-            .finally(() => {
-              // Send the actual response after settlement completes
-              originalJson(body)
-            })
-
-          // Return res for chaining (Express pattern)
-          return res
         }
+
+        ;(res as unknown as { end: Response['end'] }).end = function (
+          this: Response,
+          ...args: Parameters<Response['end']>
+        ): Response {
+          // Don't bill for client/server error responses. The handler is
+          // signalling failure, and `payment-required` errors return a 4xx
+          // through sendPaymentRequired which also lands here.
+          if (settlementStarted || res.statusCode >= 400) {
+            return originalEnd(...args)
+          }
+          settlementStarted = true
+
+          // If the handler streamed before calling end, headers were already
+          // flushed. Settle anyway (so we still charge the card) but accept
+          // we cannot inject the receipt header.
+          if (res.headersSent) {
+            void runSettlement()
+            return originalEnd(...args)
+          }
+
+          // Buffered response path: defer the real `end` until settlement
+          // finishes so the receipt header makes it into the same response.
+          runSettlement().finally(() => {
+            originalEnd(...args)
+          })
+          return res
+        } as Response['end']
 
         // Continue to route handler
         next()

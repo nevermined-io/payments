@@ -1,3 +1,4 @@
+import { safeParseJson } from '../common/helper.js'
 import { PaymentsError } from '../common/payments.error.js'
 import {
   AgentAPIAttributes,
@@ -84,7 +85,7 @@ export class AgentsAPI extends BasePaymentsAPI {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to register agent', await response.json())
+      throw PaymentsError.fromBackend('Unable to register agent', await safeParseJson(response))
     }
     const agentData = await response.json()
     return { agentId: agentData.data.agentId }
@@ -167,7 +168,7 @@ export class AgentsAPI extends BasePaymentsAPI {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to register agent & plan', await response.json())
+      throw PaymentsError.fromBackend('Unable to register agent & plan', await safeParseJson(response))
     }
     const result = await response.json()
     return {
@@ -193,7 +194,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_GET_AGENT.replace(':agentId', agentId), this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Agent not found', await response.json())
+      throw PaymentsError.fromBackend('Agent not found', await safeParseJson(response))
     }
     return response.json()
   }
@@ -228,7 +229,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const options = this.getBackendHTTPOptions('PUT', body)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Error updating agent', await response.json())
+      throw PaymentsError.fromBackend('Error updating agent', await safeParseJson(response))
     }
     return response.json()
   }
@@ -258,7 +259,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(query, this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Agent not found', await response.json())
+      throw PaymentsError.fromBackend('Agent not found', await safeParseJson(response))
     }
     return response.json()
   }
@@ -290,7 +291,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to add plan to agent', await response.json())
+      throw PaymentsError.fromBackend('Unable to add plan to agent', await safeParseJson(response))
     }
 
     return response.json()
@@ -326,7 +327,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to remove plan from agent', await response.json())
+      throw PaymentsError.fromBackend('Unable to remove plan from agent', await safeParseJson(response))
     }
 
     return response.json()

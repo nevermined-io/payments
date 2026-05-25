@@ -1,3 +1,4 @@
+import { safeParseJson } from '../common/helper.js'
 import { PaymentsError } from '../common/payments.error.js'
 import {
   Address,
@@ -44,7 +45,11 @@ export class PlansAPI extends BasePaymentsAPI {
   /**
    * Builds a Fiat price configuration for a plan.
    *
-   * @param amount - Amount to charge in minor units (e.g., cents) as bigint.
+   * `amount` is in **6-decimal units** (USDC convention, NOT cents). To
+   * charge $2.00, pass `2_000_000n`. Minimum is `1_000_000n` ($1.00) —
+   * lower values are rejected server-side with `BCK.PROTOCOL.0047`.
+   *
+   * @param amount - Amount to charge in 6-decimal units (e.g. `2_000_000n` for $2.00) as bigint.
    * @param receiver - Wallet address that will receive the payment.
    * @param currency - Fiat currency code (default: 'USD'). Any ISO 4217 code accepted by Stripe.
    * @returns The PlanPriceConfig representing a fiat price.
@@ -510,7 +515,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(query, this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Plan not found', await response.json())
+      throw PaymentsError.fromBackend('Plan not found', await safeParseJson(response))
     }
     return response.json()
   }
@@ -532,7 +537,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const options = this.getBackendHTTPOptions('GET')
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to get plans', await response.json())
+      throw PaymentsError.fromBackend('Unable to get plans', await safeParseJson(response))
     }
 
     const data = await response.json()
@@ -565,7 +570,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(query, this.environment.backend)
     const response = await fetch(url)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Plan not found', await response.json())
+      throw PaymentsError.fromBackend('Plan not found', await safeParseJson(response))
     }
     return response.json()
   }
@@ -615,7 +620,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(balanceUrl, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to get balance', await response.json())
+      throw PaymentsError.fromBackend('Unable to get balance', await safeParseJson(response))
     }
 
     return response.json()
@@ -645,7 +650,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to order plan', await response.json())
+      throw PaymentsError.fromBackend('Unable to order plan', await safeParseJson(response))
     }
 
     return response.json()
@@ -677,7 +682,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to order fiat plan', await response.json())
+      throw PaymentsError.fromBackend('Unable to order fiat plan', await safeParseJson(response))
     }
 
     return response.json()
@@ -714,7 +719,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to mint plan credits', await response.json())
+      throw PaymentsError.fromBackend('Unable to mint plan credits', await safeParseJson(response))
     }
 
     return response.json()
@@ -758,7 +763,10 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to mint expirable credits', await response.json())
+      throw PaymentsError.fromBackend(
+        'Unable to mint expirable credits',
+        await safeParseJson(response),
+      )
     }
 
     return response.json()

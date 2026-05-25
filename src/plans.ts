@@ -14,6 +14,30 @@ export const ONE_WEEK_DURATION = 604_800n // 7 * 24 * 60 * 60 seconds
 export const ONE_MONTH_DURATION = 2_629_746n // (365.25 days/year ÷ 12 months/year) × 24 × 60 × 60 ≈ 2,629,746 seconds
 export const ONE_YEAR_DURATION = 31_557_600n // 365.25 * 24 * 60 * 60 seconds
 
+/**
+ * Builds a price configuration for fiat-denominated plans (Stripe / Braintree).
+ *
+ * `amount` is in **6-decimal units** (the USDC convention used across the
+ * Nevermined protocol — NOT cents). To charge $2.00, pass `2_000_000n`;
+ * `200n` would be read as $0.0002 and rejected by the backend.
+ *
+ * Minimum charge enforced server-side is **$1.00** (`1_000_000n`) — fiat
+ * processor fixed fees make smaller amounts uneconomic. Passing below the
+ * minimum surfaces as `BCK.PROTOCOL.0047`.
+ *
+ * @param amount - Amount in 6-decimal units (e.g. `2_000_000n` for $2.00)
+ * @param receiver - Wallet address that will receive the settled funds
+ * @param currency - ISO currency code (defaults to `USD`)
+ *
+ * @example
+ * ```ts
+ * // Charge $9.99 in USD
+ * getFiatPriceConfig(9_990_000n, sellerWallet)
+ *
+ * // Charge €29.00 in EUR
+ * getFiatPriceConfig(29_000_000n, sellerWallet, Currency.EUR)
+ * ```
+ */
 export const getFiatPriceConfig = (
   amount: bigint,
   receiver: Address,
