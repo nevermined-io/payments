@@ -72,10 +72,14 @@ export interface WidgetRedirectFlowResult {
  *
  * Flow:
  *   1. Bind a one-shot HTTP server on `127.0.0.1:0` (the OS picks a free port).
- *   2. Compute `returnUrl = http://localhost:<port>/callback` and hand it
+ *   2. Compute `returnUrl = http://127.0.0.1:<port>/callback` and hand it
  *      to `opts.mintSession`. The caller mints a widget session bound to
  *      that exact returnUrl (which the backend can validate against the
- *      session-specific allow-list at creation time).
+ *      session-specific allow-list at creation time). We use the literal
+ *      `127.0.0.1` rather than `localhost` because the server binds to
+ *      `127.0.0.1` and Node 17+ resolves `localhost` to `::1` first on
+ *      modern hosts — the browser would stall on the IPv6 attempt before
+ *      falling back to IPv4.
  *   3. Open the browser at `{frontend}/embed/<path>?sessionToken=…&returnUrl=…&state=<rand>`.
  *   4. Resolve when the embed page redirects to `/callback?…&state=<echo>`.
  *      `state` is compared in constant time.
@@ -111,6 +115,12 @@ export async function runWidgetRedirectFlow(
 
       const receivedState = url.searchParams.get('state')
       if (!receivedState || !safeEqualHexState(receivedState, state)) {
+        // INTENTIONALLY do NOT close the server here. The state nonce
+        // is 128 bits of randomness, so brute-forcing one bad callback
+        // per request is infeasible. Closing on first 400 would let an
+        // attacker (or a misconfigured redirect) DoS the legitimate
+        // browser callback that's about to arrive. The 5-minute timer
+        // is the upper bound on how long we'll wait either way.
         res.writeHead(400, { 'Content-Type': 'text/html' }).end(
           errorHtml(
             'Callback rejected',
@@ -151,7 +161,11 @@ export async function runWidgetRedirectFlow(
         finalize(new Error('Failed to obtain local callback port'))
         return
       }
-      const returnUrl = `http://localhost:${addr.port}/callback`
+      // Symmetric with the server bind above (`127.0.0.1` only). Using
+      // the `localhost` alias here would cause an IPv6 stall on modern
+      // Linux/macOS where Node's `dns.lookup` prefers `::1`. The backend
+      // returnUrl allow-list accepts both forms.
+      const returnUrl = `http://127.0.0.1:${addr.port}/callback`
 
       // Mint the session now that returnUrl is known. The backend's
       // allow-list check at session creation can validate the URL the
@@ -273,6 +287,21 @@ export interface SelfMintSessionResponse {
   isReturnUrlAllowed?: boolean | null
 }
 
+/**
+ * Hosts a request to `mintSelfWidgetSession` may be sent over plaintext
+ * without warning. Loopback addresses are always safe; every other host
+ * must use `https:` because we're about to send the user's NVM API key
+ * in the `Authorization` header. The `custom` environment variable
+ * (`NVM_BACKEND_URL`) is the only realistic way a user could accidentally
+ * point this at a plaintext non-localhost URL.
+ */
+const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set([
+  'localhost',
+  '127.0.0.1',
+  '::1',
+  '[::1]',
+])
+
 export async function mintSelfWidgetSession(args: {
   backendUrl: string
   nvmApiKey: string
@@ -280,6 +309,20 @@ export async function mintSelfWidgetSession(args: {
   returnUrl?: string
 }): Promise<SelfMintSessionResponse> {
   const url = new URL('/api/v1/widgets/session/self', args.backendUrl)
+
+  // Refuse to send the API key over plaintext to a non-loopback host.
+  // All four built-in environments are `https://`, so this only bites
+  // when a user has set `NVM_BACKEND_URL` to a custom plaintext
+  // endpoint — exactly the case where they'd otherwise leak the key
+  // without realising.
+  if (
+    url.protocol === 'http:' &&
+    !LOOPBACK_HOSTNAMES.has(url.hostname.toLowerCase())
+  ) {
+    throw new Error(
+      `Refusing to send the NVM API key over plaintext to ${url.host}. Set NVM_BACKEND_URL to an https:// endpoint, or use a loopback host (localhost / 127.0.0.1 / [::1]).`,
+    )
+  }
 
   // 15s ceiling for the request — without it, an unreachable backend
   // (DNS failure, TLS handshake hang, network partition) leaves the CLI

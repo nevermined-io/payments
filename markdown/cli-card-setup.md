@@ -55,7 +55,7 @@ Card setup is **organization-scoped**. Self-mint callers must be members of at l
    │ open browser at                      │                                           │                                     │
    │ {frontend}/embed/cards/setup         │                                           │                                     │
    │  ?sessionToken=...                   │                                           │                                     │
-   │  &returnUrl=http://localhost:<port>  │                                           │                                     │
+   │  &returnUrl=http://127.0.0.1:<port>  │                                           │                                     │
    │  &state=<rand>  &provider=stripe     │                                           │                                     │
    ├──────────────────────────────────────────────────────────────────────────────────▶ navigate                            │
    │                                      │                                           │                                     │
@@ -144,7 +144,7 @@ Content-Type: application/json
 
 {
   "orgId": "org-abc-123",
-  "returnUrl": "http://localhost:54321/callback"
+  "returnUrl": "http://127.0.0.1:54321/callback"
 }
 ```
 
@@ -240,7 +240,10 @@ const server = createServer(async (req, res) => {
 
 server.listen(0, '127.0.0.1', async () => {
   const port = (server.address() as { port: number }).port
-  const returnUrl = `http://localhost:${port}/callback`
+  // Use 127.0.0.1 (not the `localhost` alias) to match the server bind
+  // above. Node 17+ prefers ::1 for `localhost` on IPv6-capable hosts
+  // and the browser would stall on the IPv6 attempt before falling back.
+  const returnUrl = `http://127.0.0.1:${port}/callback`
 
   // Mint a session token bound to one of the user's orgs.
   const mint = await fetch('https://api.sandbox.nevermined.app/api/v1/widgets/session/self', {
