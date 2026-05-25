@@ -26,6 +26,16 @@ export abstract class BaseCommand extends Command {
   protected configManager!: ConfigManager
   protected formatter!: OutputFormatter
   protected payments?: Payments
+  /**
+   * Environment + API key resolved by `initPayments()`. Stored here so
+   * subclasses that need to talk to the backend directly (e.g. commands
+   * that POST to endpoints the SDK does not yet wrap) don't have to
+   * re-implement the env-var-first → config-file fallback and
+   * accidentally diverge from the precedence the Payments instance was
+   * actually constructed with.
+   */
+  protected resolvedEnvironment?: EnvironmentName
+  protected resolvedNvmApiKey?: string
 
   async init(): Promise<void> {
     await super.init()
@@ -75,6 +85,10 @@ export abstract class BaseCommand extends Command {
       nvmApiKey,
       environment: environment as EnvironmentName,
     })
+    // Expose for subclasses that need to talk to backend endpoints the
+    // SDK does not yet wrap — see `nvm cards setup/enroll/delegate`.
+    this.resolvedEnvironment = environment as EnvironmentName
+    this.resolvedNvmApiKey = nvmApiKey
 
     return this.payments
   }

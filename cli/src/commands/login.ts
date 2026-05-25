@@ -1,6 +1,6 @@
 import { Flags } from '@oclif/core'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
-import { execFile } from 'child_process'
+import { openBrowser } from '../utils/browser.js'
 import { BaseCommand } from '../base-command.js'
 import { Environments, EnvironmentName } from '@nevermined-io/payments'
 
@@ -141,24 +141,3 @@ export default class Login extends BaseCommand {
   }
 }
 
-function openBrowser(url: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const platform = process.platform
-    let cmd: string
-    let args: string[]
-    if (platform === 'darwin') {
-      cmd = 'open'
-      args = [url]
-    } else if (platform === 'win32') {
-      cmd = 'cmd'
-      args = ['/c', 'start', '""', url]
-    } else {
-      cmd = 'xdg-open'
-      args = [url]
-    }
-    execFile(cmd, args, (err) => {
-      if (err) reject(err)
-      else resolve()
-    })
-  })
-}
