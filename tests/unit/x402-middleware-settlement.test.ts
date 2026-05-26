@@ -183,4 +183,22 @@ describe('paymentMiddleware settlement coverage (#1728)', () => {
       await close()
     }
   })
+
+  test('does NOT settle when handler redirects (3xx)', async () => {
+    // Regression for #359 review: the old res.json-only interception never
+    // fired on res.redirect(...); the res.end wrapper must keep that
+    // behaviour and skip 3xx so a redirect doesn't burn credits.
+    const settleSpy = jest.fn().mockResolvedValue(baseSettlement)
+    const { port, close } = await startServer((req, res) => {
+      res.redirect(302, '/elsewhere')
+    }, settleSpy)
+
+    try {
+      const result = await postWithToken(port)
+      expect(result.status).toBe(302)
+      expect(settleSpy).not.toHaveBeenCalled()
+    } finally {
+      await close()
+    }
+  })
 })

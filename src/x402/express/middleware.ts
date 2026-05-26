@@ -415,10 +415,12 @@ export function paymentMiddleware(
           this: Response,
           ...args: Parameters<Response['end']>
         ): Response {
-          // Don't bill for client/server error responses. The handler is
-          // signalling failure, and `payment-required` errors return a 4xx
-          // through sendPaymentRequired which also lands here.
-          if (settlementStarted || res.statusCode >= 400) {
+          // Only bill on 2xx success. Skipping 3xx avoids charging when the
+          // handler redirects (e.g. `res.redirect(...)`), 304 Not Modified,
+          // etc. Skipping 4xx/5xx avoids charging when the handler signals
+          // failure — including `sendPaymentRequired`'s 402 which lands here.
+          const isSuccess = res.statusCode >= 200 && res.statusCode < 300
+          if (settlementStarted || !isSuccess) {
             return originalEnd(...args)
           }
           settlementStarted = true
