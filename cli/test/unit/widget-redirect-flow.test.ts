@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
-import { runWidgetRedirectFlow } from '../../src/utils/widget-redirect-flow.js'
+import {
+  resolveEmbedNetwork,
+  runWidgetRedirectFlow,
+} from '../../src/utils/widget-redirect-flow.js'
 
 /**
  * Unit-test the redirect-flow helper end to end against an actual
@@ -63,6 +66,7 @@ describe('runWidgetRedirectFlow', () => {
    */
   function startFlow(opts: {
     embedPath?: string
+    network?: 'sandbox' | 'live'
     mintSession?: (args: { returnUrl: string }) => Promise<{ sessionToken: string }>
   } = {}) {
     const logs: string[] = []
@@ -77,6 +81,7 @@ describe('runWidgetRedirectFlow', () => {
     flow.promise = runWidgetRedirectFlow({
       embedUrl: 'http://embed.test',
       embedPath: opts.embedPath ?? '/cards/setup',
+      network: opts.network ?? 'sandbox',
       mintSession: opts.mintSession ?? (async () => ({ sessionToken: 'tok_abc' })),
       log: (msg: string) => logs.push(msg),
       noBrowser: true,
@@ -185,5 +190,41 @@ describe('runWidgetRedirectFlow', () => {
       },
     })
     await expect(flow.promise).rejects.toThrow(/Backend rejected returnUrl/)
+  })
+
+  test('forwards the network as ?network= on the embed URL (#362)', async () => {
+    const flow = startFlow({ network: 'live' })
+    await flow.returnUrlPromise
+    const embedUrl = flow.logs.find((l) => l.startsWith('http://embed.test')) as string
+    expect(embedUrl).toBeDefined()
+    expect(new URL(embedUrl).searchParams.get('network')).toBe('live')
+    // afterEach cleans up via the good callback.
+  })
+})
+
+describe('resolveEmbedNetwork', () => {
+  test('maps sandbox/staging_sandbox to sandbox and live/staging_live to live', () => {
+    expect(resolveEmbedNetwork('sandbox')).toBe('sandbox')
+    expect(resolveEmbedNetwork('staging_sandbox')).toBe('sandbox')
+    expect(resolveEmbedNetwork('live')).toBe('live')
+    expect(resolveEmbedNetwork('staging_live')).toBe('live')
+  })
+
+  test('custom sniffs NVM_BACKEND_URL (live host → live, otherwise sandbox)', () => {
+    const original = process.env.NVM_BACKEND_URL
+    try {
+      process.env.NVM_BACKEND_URL = 'https://api.live.nevermined.app/'
+      expect(resolveEmbedNetwork('custom')).toBe('live')
+      process.env.NVM_BACKEND_URL = 'https://api.sandbox.nevermined.app/'
+      expect(resolveEmbedNetwork('custom')).toBe('sandbox')
+      process.env.NVM_BACKEND_URL = 'http://localhost:3001'
+      expect(resolveEmbedNetwork('custom')).toBe('sandbox')
+      // "live" only matches as a host segment, never inside another word.
+      process.env.NVM_BACKEND_URL = 'https://api.alive.example.com/'
+      expect(resolveEmbedNetwork('custom')).toBe('sandbox')
+    } finally {
+      if (original === undefined) delete process.env.NVM_BACKEND_URL
+      else process.env.NVM_BACKEND_URL = original
+    }
   })
 })
