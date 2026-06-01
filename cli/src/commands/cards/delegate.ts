@@ -9,7 +9,8 @@ import {
 
 /**
  * Single-purpose delegation creation. Opens the chromeless
- * `/embed/cards/delegate?paymentMethodId=<id>` page where the user
+ * `/cards/delegate?paymentMethodId=<id>` page of the standalone embed
+ * app (`embed.<tier>`) where the user
  * fills in spending limit / duration / max-transactions and submits;
  * the resulting `delegationId` is redirected back to a localhost
  * callback.
@@ -64,8 +65,8 @@ export default class CardsDelegate extends BaseCommand {
       }
 
       const result = await runWidgetRedirectFlow({
-        frontendUrl: env.frontend,
-        embedPath: '/embed/cards/delegate',
+        embedUrl: env.embed,
+        embedPath: '/cards/delegate',
         mintSession: async ({ returnUrl }) => {
           const session = await mintSelfWidgetSession({
             backendUrl: env.backend,

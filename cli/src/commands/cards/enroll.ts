@@ -9,7 +9,8 @@ import {
 
 /**
  * Single-purpose card enrolment. Opens the chromeless
- * `/embed/cards/enroll` page in the browser, completes the
+ * `/cards/enroll` page of the standalone embed app (`embed.<tier>`)
+ * in the browser, completes the
  * tokenization step against the chosen provider, and redirects the
  * resulting `paymentMethodId` back to a localhost callback.
  *
@@ -65,8 +66,8 @@ export default class CardsEnroll extends BaseCommand {
       }
 
       const result = await runWidgetRedirectFlow({
-        frontendUrl: env.frontend,
-        embedPath: '/embed/cards/enroll',
+        embedUrl: env.embed,
+        embedPath: '/cards/enroll',
         mintSession: async ({ returnUrl }) => {
           const session = await mintSelfWidgetSession({
             backendUrl: env.backend,

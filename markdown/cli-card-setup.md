@@ -6,7 +6,7 @@ icon: "browser"
 
 # CLI Card Setup (Top-Level Redirect Flow)
 
-The Nevermined webapp ships a chromeless **card setup** page at `/embed/cards/setup` that walks a user through:
+Nevermined ships a standalone embed app (served at `embed.<tier>` — e.g. `embed.nevermined.app`) with a chromeless **card setup** page at `/cards/setup` that walks a user through:
 
 1. Enrolling a credit / debit card (via Stripe Elements — sensitive data never touches your servers).
 2. Creating a spending delegation against that card (a per-card budget the user pre-authorises for agent spend).
@@ -21,7 +21,7 @@ The official `nvm` CLI ships three commands implementing this flow out of the bo
 - You want a **white-labeled** card setup page that respects the parent organisation's branding (logo, panel colours, button colours), but you do not want to host an iframe.
 - You need both the `paymentMethodId` and the `delegationId` in one round-trip — the combined `setup` flow emits both in a single callback.
 
-For the classic iframe integration (a website embedding `/embed/cards/enroll` etc. inside an `<iframe>` and listening for `postMessage`), see the `@nevermined-io/ui-widgets` package instead.
+For the classic iframe integration (a website embedding `/cards/enroll` etc. inside an `<iframe>` and listening for `postMessage`), see the `@nevermined-io/ui-widgets` package instead.
 
 ## Two Authentication Paths
 
@@ -53,7 +53,7 @@ Card setup is **organization-scoped**. Self-mint callers must be members of at l
    │◀────────────────────────────────────┤ { sessionToken, isReturnUrlAllowed }      │                                     │
    │                                      │                                           │                                     │
    │ open browser at                      │                                           │                                     │
-   │ {frontend}/embed/cards/setup         │                                           │                                     │
+   │ {embed}/cards/setup                  │                                           │                                     │
    │  ?sessionToken=...                   │                                           │                                     │
    │  &returnUrl=http://127.0.0.1:<port>  │                                           │                                     │
    │  &state=<rand>  &provider=stripe     │                                           │                                     │
@@ -170,8 +170,10 @@ For the **widget-key** path, see the existing `POST /widgets/session` documentat
 Construct the URL and open it (`xdg-open` / `open` / `start`):
 
 ```
-{frontend}/embed/cards/setup?sessionToken=<token>&returnUrl=<urlEncoded callback>&state=<random>&provider=stripe
+{embed}/cards/setup?sessionToken=<token>&returnUrl=<urlEncoded callback>&state=<random>&provider=stripe
 ```
+
+`{embed}` is the standalone embed app origin for your environment (`https://embed.nevermined.app` for live/sandbox, `https://embed.nevermined.dev` for staging) — formed by prepending `embed.` to the webapp host.
 
 Required query parameters:
 - `sessionToken` — from step 2.
@@ -183,9 +185,9 @@ Three other routes exist if you only need one step of the flow:
 
 | Route | Result fields in the callback |
 |-------|--------------------------------|
-| `/embed/cards/setup` | `paymentMethodId`, `delegationId` |
-| `/embed/cards/enroll` | `paymentMethodId` |
-| `/embed/cards/delegate?paymentMethodId=<id>` | `delegationId` |
+| `/cards/setup` | `paymentMethodId`, `delegationId` |
+| `/cards/enroll` | `paymentMethodId` |
+| `/cards/delegate?paymentMethodId=<id>` | `delegationId` |
 
 ### 4. Wait for the callback
 
@@ -252,7 +254,7 @@ server.listen(0, '127.0.0.1', async () => {
     body: JSON.stringify({ orgId, returnUrl }),
   }).then((r) => r.json())
 
-  const setupUrl = new URL('/embed/cards/setup', 'https://nevermined.app')
+  const setupUrl = new URL('/cards/setup', 'https://embed.nevermined.app')
   setupUrl.searchParams.set('sessionToken', mint.sessionToken)
   setupUrl.searchParams.set('returnUrl', returnUrl)
   setupUrl.searchParams.set('state', state)
