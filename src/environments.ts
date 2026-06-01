@@ -63,7 +63,12 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
    */
   custom: {
     frontend: process.env.NVM_FRONTEND_URL || 'http://localhost:4200',
-    embed: process.env.NVM_EMBED_URL || process.env.NVM_FRONTEND_URL || 'http://localhost:4200',
+    // No fallback to NVM_FRONTEND_URL: the webapp host no longer serves
+    // the card pages post-#1787 cutover, so silently reusing it would
+    // reintroduce a dead-route footgun. The embed app runs on its own
+    // port (4250, matching nvm-monorepo#1824); set NVM_EMBED_URL to
+    // override.
+    embed: process.env.NVM_EMBED_URL || 'http://localhost:4250',
     backend: process.env.NVM_BACKEND_URL || 'http://localhost:3001',
     proxy: process.env.NVM_PROXY_URL || 'https://localhost:443',
     heliconeUrl: process.env.HELICONE_URL || 'http://localhost:8585',
