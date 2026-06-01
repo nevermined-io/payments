@@ -75,8 +75,8 @@ describe('runWidgetRedirectFlow', () => {
       resolved: false,
     }
     flow.promise = runWidgetRedirectFlow({
-      frontendUrl: 'http://frontend.test',
-      embedPath: opts.embedPath ?? '/embed/cards/setup',
+      embedUrl: 'http://embed.test',
+      embedPath: opts.embedPath ?? '/cards/setup',
       mintSession: opts.mintSession ?? (async () => ({ sessionToken: 'tok_abc' })),
       log: (msg: string) => logs.push(msg),
       noBrowser: true,
@@ -169,7 +169,7 @@ describe('runWidgetRedirectFlow', () => {
   })
 
   test('returns 404 for any path other than /callback (server is single-purpose)', async () => {
-    const flow = startFlow({ embedPath: '/embed/cards/enroll' })
+    const flow = startFlow({ embedPath: '/cards/enroll' })
     const { returnUrl } = await flow.returnUrlPromise
     const notCallback = new URL(returnUrl)
     notCallback.pathname = '/other'

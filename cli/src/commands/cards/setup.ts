@@ -9,7 +9,8 @@ import {
 
 /**
  * Combined "set up a card for agent spend" flow. Opens the user's
- * browser at the chromeless `/embed/cards/setup` page, where they
+ * browser at the chromeless `/cards/setup` page of the standalone embed
+ * app (`embed.<tier>`), where they
  * enrol a card and create a spending delegation in one session, and
  * receives `paymentMethodId` + `delegationId` back at a localhost
  * callback the CLI starts for the duration of the flow.
@@ -80,8 +81,8 @@ export default class CardsSetup extends BaseCommand {
       }
 
       const result = await runWidgetRedirectFlow({
-        frontendUrl: env.frontend,
-        embedPath: '/embed/cards/setup',
+        embedUrl: env.embed,
+        embedPath: '/cards/setup',
         // Mint AFTER the local server binds — `runWidgetRedirectFlow`
         // gives us the actual returnUrl so the backend can validate it
         // at session-creation time (per the documented `isReturnUrlAllowed`

@@ -31,11 +31,11 @@ function safeEqualHexState(received: string, expected: string): boolean {
 }
 
 export interface WidgetRedirectFlowOptions {
-  /** Frontend base URL — e.g. `Environments[env].frontend`. */
-  frontendUrl: string
+  /** Embed app base URL — e.g. `Environments[env].embed` (`embed.<tier>`). */
+  embedUrl: string
   /**
-   * Relative embed path the CLI wants to open, e.g.
-   * `/embed/cards/setup` or `/embed/cards/enroll`.
+   * Relative path on the embed app the CLI wants to open, e.g.
+   * `/cards/setup` or `/cards/enroll`.
    */
   embedPath: string
   /**
@@ -68,7 +68,8 @@ export interface WidgetRedirectFlowResult {
 
 /**
  * Shared redirect-mode handshake for any CLI command that hands the user
- * off to an `/embed/*` page and waits for a localhost callback.
+ * off to a `/cards/*` page on the standalone embed app (`embed.<tier>`)
+ * and waits for a localhost callback.
  *
  * Flow:
  *   1. Bind a one-shot HTTP server on `127.0.0.1:0` (the OS picks a free port).
@@ -80,7 +81,7 @@ export interface WidgetRedirectFlowResult {
  *      `127.0.0.1` and Node 17+ resolves `localhost` to `::1` first on
  *      modern hosts — the browser would stall on the IPv6 attempt before
  *      falling back to IPv4.
- *   3. Open the browser at `{frontend}/embed/<path>?sessionToken=…&returnUrl=…&state=<rand>`.
+ *   3. Open the browser at `{embed}/<path>?sessionToken=…&returnUrl=…&state=<rand>`.
  *   4. Resolve when the embed page redirects to `/callback?…&state=<echo>`.
  *      `state` is compared in constant time.
  *
@@ -181,7 +182,7 @@ export async function runWidgetRedirectFlow(
         }
 
         const browserUrl = buildEmbedUrl({
-          frontendUrl: opts.frontendUrl,
+          embedUrl: opts.embedUrl,
           embedPath: opts.embedPath,
           sessionToken,
           returnUrl,
@@ -210,7 +211,7 @@ export async function runWidgetRedirectFlow(
 }
 
 interface BuildEmbedUrlOptions {
-  frontendUrl: string
+  embedUrl: string
   embedPath: string
   sessionToken: string
   returnUrl: string
@@ -219,7 +220,7 @@ interface BuildEmbedUrlOptions {
 }
 
 function buildEmbedUrl(opts: BuildEmbedUrlOptions): string {
-  const url = new URL(opts.embedPath, opts.frontendUrl)
+  const url = new URL(opts.embedPath, opts.embedUrl)
   url.searchParams.set('sessionToken', opts.sessionToken)
   url.searchParams.set('returnUrl', opts.returnUrl)
   url.searchParams.set('state', opts.state)
