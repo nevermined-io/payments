@@ -23,6 +23,12 @@ export type EmbedNetwork = 'sandbox' | 'live'
  * `custom` has no fixed tier, so we sniff `NVM_BACKEND_URL`: a backend
  * host containing `live` selects `live`, otherwise we fall back to
  * `sandbox` (matching the embed app's own default).
+ *
+ * NOTE: `live` is only matched as a dot/slash-bounded segment (the
+ * `api.live.<host>` convention), so a hyphenated host like
+ * `https://api-live.example.com` would fall through to `sandbox`. That's
+ * intentional given the naming convention; a `custom` deployment that
+ * doesn't follow it should set `NVM_BACKEND_URL` to a conforming host.
  */
 export function resolveEmbedNetwork(environment: EnvironmentName): EmbedNetwork {
   switch (environment) {
@@ -269,14 +275,15 @@ function buildEmbedUrl(opts: BuildEmbedUrlOptions): string {
   url.searchParams.set('sessionToken', opts.sessionToken)
   url.searchParams.set('returnUrl', opts.returnUrl)
   url.searchParams.set('state', opts.state)
-  // Set BEFORE `extra` so a caller can never accidentally clobber the
-  // network the embed app keys its backend selection off of.
-  url.searchParams.set('network', opts.network)
   if (opts.extra) {
     for (const [k, v] of Object.entries(opts.extra)) {
       url.searchParams.set(k, v)
     }
   }
+  // Set AFTER `extra` so a caller can never accidentally clobber the
+  // network the embed app keys its backend selection off of —
+  // `URLSearchParams.set` overwrites, so writing it last makes it win.
+  url.searchParams.set('network', opts.network)
   return url.toString()
 }
 

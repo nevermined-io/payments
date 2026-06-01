@@ -67,6 +67,7 @@ describe('runWidgetRedirectFlow', () => {
   function startFlow(opts: {
     embedPath?: string
     network?: 'sandbox' | 'live'
+    extraSearchParams?: Record<string, string>
     mintSession?: (args: { returnUrl: string }) => Promise<{ sessionToken: string }>
   } = {}) {
     const logs: string[] = []
@@ -82,6 +83,7 @@ describe('runWidgetRedirectFlow', () => {
       embedUrl: 'http://embed.test',
       embedPath: opts.embedPath ?? '/cards/setup',
       network: opts.network ?? 'sandbox',
+      extraSearchParams: opts.extraSearchParams,
       mintSession: opts.mintSession ?? (async () => ({ sessionToken: 'tok_abc' })),
       log: (msg: string) => logs.push(msg),
       noBrowser: true,
@@ -197,6 +199,17 @@ describe('runWidgetRedirectFlow', () => {
     await flow.returnUrlPromise
     const embedUrl = flow.logs.find((l) => l.startsWith('http://embed.test')) as string
     expect(embedUrl).toBeDefined()
+    expect(new URL(embedUrl).searchParams.get('network')).toBe('live')
+    // afterEach cleans up via the good callback.
+  })
+
+  test('network from opts wins over an attempted override in extraSearchParams', async () => {
+    // The money-path guard: a future caller dropping `network` into
+    // extraSearchParams must not silently downgrade a live flow to
+    // sandbox. `buildEmbedUrl` writes `network` after the extra loop.
+    const flow = startFlow({ network: 'live', extraSearchParams: { network: 'sandbox' } })
+    await flow.returnUrlPromise
+    const embedUrl = flow.logs.find((l) => l.startsWith('http://embed.test')) as string
     expect(new URL(embedUrl).searchParams.get('network')).toBe('live')
     // afterEach cleans up via the good callback.
   })
