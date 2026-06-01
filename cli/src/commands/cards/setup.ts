@@ -4,6 +4,7 @@ import { BaseCommand } from '../../base-command.js'
 import { resolveOrgIdInteractive } from '../../utils/orgs.js'
 import {
   mintSelfWidgetSession,
+  resolveEmbedNetwork,
   runWidgetRedirectFlow,
 } from '../../utils/widget-redirect-flow.js'
 
@@ -83,6 +84,7 @@ export default class CardsSetup extends BaseCommand {
       const result = await runWidgetRedirectFlow({
         embedUrl: env.embed,
         embedPath: '/cards/setup',
+        network: resolveEmbedNetwork(environment),
         // Mint AFTER the local server binds — `runWidgetRedirectFlow`
         // gives us the actual returnUrl so the backend can validate it
         // at session-creation time (per the documented `isReturnUrlAllowed`

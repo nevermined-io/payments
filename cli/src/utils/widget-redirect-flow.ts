@@ -1,7 +1,49 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, timingSafeEqual } from 'crypto'
+import type { EnvironmentName } from '@nevermined-io/payments'
 
 import { openBrowser } from './browser.js'
+
+/**
+ * The network the embed app resolves its active backend from. The embed
+ * app reads `?network=` on mount and defaults to `sandbox` when absent
+ * (it never decodes the session token to infer it), so a CLI flow that
+ * omits this lands a live-minted session on the sandbox backend and
+ * fails. We always forward it explicitly. See issue #362.
+ */
+export type EmbedNetwork = 'sandbox' | 'live'
+
+/**
+ * Map a CLI environment name to the embed app's `network` value. The
+ * `embed` origin is shared across the sandbox/live pair within a tier
+ * (`embed.nevermined.app` for both `sandbox` and `live`), differentiated
+ * only by the backend the session is validated against — so the embed
+ * app cannot infer the network from the origin and we must pass it.
+ *
+ * `custom` has no fixed tier, so we sniff `NVM_BACKEND_URL`: a backend
+ * host containing `live` selects `live`, otherwise we fall back to
+ * `sandbox` (matching the embed app's own default).
+ *
+ * NOTE: `live` is only matched as a dot/slash-bounded segment (the
+ * `api.live.<host>` convention), so a hyphenated host like
+ * `https://api-live.example.com` would fall through to `sandbox`. That's
+ * intentional given the naming convention; a `custom` deployment that
+ * doesn't follow it should set `NVM_BACKEND_URL` to a conforming host.
+ */
+export function resolveEmbedNetwork(environment: EnvironmentName): EmbedNetwork {
+  switch (environment) {
+    case 'live':
+    case 'staging_live':
+      return 'live'
+    case 'sandbox':
+    case 'staging_sandbox':
+      return 'sandbox'
+    case 'custom':
+      return /(^|[.\/])live([.\/]|$)/.test((process.env.NVM_BACKEND_URL || '').toLowerCase())
+        ? 'live'
+        : 'sandbox'
+  }
+}
 
 const SELF_MINT_FETCH_TIMEOUT_MS = 15_000
 
@@ -38,6 +80,13 @@ export interface WidgetRedirectFlowOptions {
    * `/cards/setup` or `/cards/enroll`.
    */
   embedPath: string
+  /**
+   * Embed-app network (`sandbox` / `live`). Forwarded as `?network=` so
+   * the embed app validates the session against the matching backend —
+   * derive it from the active environment via `resolveEmbedNetwork`.
+   * Required: omitting it lets live flows silently hit sandbox (#362).
+   */
+  network: EmbedNetwork
   /**
    * Called once the local callback server is listening, with the bound
    * `returnUrl`. The caller mints a widget session against that URL and
@@ -187,6 +236,7 @@ export async function runWidgetRedirectFlow(
           sessionToken,
           returnUrl,
           state,
+          network: opts.network,
           extra: opts.extraSearchParams,
         })
 
@@ -216,6 +266,7 @@ interface BuildEmbedUrlOptions {
   sessionToken: string
   returnUrl: string
   state: string
+  network: EmbedNetwork
   extra?: Record<string, string>
 }
 
@@ -229,6 +280,10 @@ function buildEmbedUrl(opts: BuildEmbedUrlOptions): string {
       url.searchParams.set(k, v)
     }
   }
+  // Set AFTER `extra` so a caller can never accidentally clobber the
+  // network the embed app keys its backend selection off of —
+  // `URLSearchParams.set` overwrites, so writing it last makes it win.
+  url.searchParams.set('network', opts.network)
   return url.toString()
 }
 

@@ -56,7 +56,8 @@ Card setup is **organization-scoped**. Self-mint callers must be members of at l
    │ {embed}/cards/setup                  │                                           │                                     │
    │  ?sessionToken=...                   │                                           │                                     │
    │  &returnUrl=http://127.0.0.1:<port>  │                                           │                                     │
-   │  &state=<rand>  &provider=stripe     │                                           │                                     │
+   │  &state=<rand>  &network=<net>       │                                           │                                     │
+   │  &provider=stripe                    │                                           │                                     │
    ├──────────────────────────────────────────────────────────────────────────────────▶ navigate                            │
    │                                      │                                           │                                     │
    │                                      │ GET /widgets/session/validate            │                                     │
@@ -170,7 +171,7 @@ For the **widget-key** path, see the existing `POST /widgets/session` documentat
 Construct the URL and open it (`xdg-open` / `open` / `start`):
 
 ```
-{embed}/cards/setup?sessionToken=<token>&returnUrl=<urlEncoded callback>&state=<random>&provider=stripe
+{embed}/cards/setup?sessionToken=<token>&returnUrl=<urlEncoded callback>&state=<random>&network=<sandbox|live>&provider=stripe
 ```
 
 `{embed}` is the standalone embed app origin for your environment (`https://embed.nevermined.app` for live/sandbox, `https://embed.nevermined.dev` for staging) — formed by prepending `embed.` to the webapp host.
@@ -179,6 +180,7 @@ Required query parameters:
 - `sessionToken` — from step 2.
 - `returnUrl` — your localhost callback URL.
 - `state` — a cryptographically random nonce (16+ bytes, hex-encoded). The browser echoes it back in the redirect; you reject any callback that doesn't echo this value (CSRF binding).
+- `network` — `sandbox` or `live`, matching the environment you minted the session against. **The embed app reads its active backend solely from this param and defaults to `sandbox` when it is absent** — omitting it on a `live` session makes the embed validate the token against the sandbox backend, where it doesn't exist, and the flow fails. Always set it explicitly.
 - `provider` — `stripe`, `braintree`, or `visa`.
 
 Three other routes exist if you only need one step of the flow:
@@ -258,6 +260,11 @@ server.listen(0, '127.0.0.1', async () => {
   setupUrl.searchParams.set('sessionToken', mint.sessionToken)
   setupUrl.searchParams.set('returnUrl', returnUrl)
   setupUrl.searchParams.set('state', state)
+  // Match the network you minted the session against (sandbox here). The
+  // embed app defaults to 'sandbox' if this is omitted, so a 'live'
+  // session would otherwise be validated against the sandbox backend and
+  // fail. Always set it explicitly.
+  setupUrl.searchParams.set('network', 'sandbox')
   setupUrl.searchParams.set('provider', 'stripe')
 
   console.log('Open this URL in your browser:\n')

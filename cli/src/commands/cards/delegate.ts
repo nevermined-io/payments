@@ -4,6 +4,7 @@ import { BaseCommand } from '../../base-command.js'
 import { resolveOrgIdInteractive } from '../../utils/orgs.js'
 import {
   mintSelfWidgetSession,
+  resolveEmbedNetwork,
   runWidgetRedirectFlow,
 } from '../../utils/widget-redirect-flow.js'
 
@@ -67,6 +68,7 @@ export default class CardsDelegate extends BaseCommand {
       const result = await runWidgetRedirectFlow({
         embedUrl: env.embed,
         embedPath: '/cards/delegate',
+        network: resolveEmbedNetwork(environment),
         mintSession: async ({ returnUrl }) => {
           const session = await mintSelfWidgetSession({
             backendUrl: env.backend,
