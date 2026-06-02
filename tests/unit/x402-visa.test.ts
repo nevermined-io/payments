@@ -271,6 +271,32 @@ describe('Visa provider surface', () => {
     expect(auth).toBe(`Bearer ${TEST_API_KEY}`)
   })
 
+  // Switching to the authed HTTP options means an org-pinned caller now also
+  // sends X-Current-Org-Id, so the money-adjacent settle becomes org-scoped.
+  // See nevermined-io/nvm-monorepo#1570.
+  test('settlePermissions sends X-Current-Org-Id for an org-pinned caller', async () => {
+    installFetch(() => jsonResponse({ success: true }))
+
+    payments.setOrganizationId('org-123')
+
+    await payments.facilitator.settlePermissions({
+      paymentRequired: {
+        x402Version: 2,
+        resource: { url: '/tools/echo' },
+        accepts: [{ scheme: 'nvm:card-delegation', network: 'visa', planId: 'plan-123' }],
+        extensions: {},
+      },
+      x402AccessToken: 'eyJ.visa.token',
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toContain('/api/v1/x402/settle')
+    const headers = calls[0].init?.headers as Record<string, string> | undefined
+    expect(headers?.['X-Current-Org-Id']).toBe('org-123')
+    // Authorization is still the Bearer key alongside the org scope.
+    expect(headers?.Authorization).toBe(`Bearer ${TEST_API_KEY}`)
+  })
+
   test("getInstance rejects scheme:'visa' with a migration message", () => {
     expect(() =>
       Payments.getInstance({
