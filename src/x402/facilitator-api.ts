@@ -390,7 +390,11 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       body.maxAmount = maxAmount.toString()
     }
 
-    const options = this.getPublicHTTPOptions('POST', body)
+    // Send the NVM API-key auth header (Authorization: Bearer <nvmApiKey>).
+    // The backend /verify endpoint runs an OPTIONAL guard that tolerates the
+    // header's absence today, so this is non-breaking; it pre-positions for
+    // the later strict-guard flip. See nevermined-io/nvm-monorepo#1570.
+    const options = this.getBackendHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
@@ -465,7 +469,11 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       body.marginPercent = marginPercent
     }
 
-    const options = this.getPublicHTTPOptions('POST', body)
+    // Send the NVM API-key auth header (Authorization: Bearer <nvmApiKey>).
+    // The backend /settle endpoint runs an OPTIONAL guard that tolerates the
+    // header's absence today, so this is non-breaking; it pre-positions for
+    // the later strict-guard flip. See nevermined-io/nvm-monorepo#1570.
+    const options = this.getBackendHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
