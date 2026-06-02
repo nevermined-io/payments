@@ -114,6 +114,13 @@ export interface UpdatePaymentMethodDto {
 export interface ListOptions {
   /** When true, return only items accessible to the requesting API key */
   accessible?: boolean
+  /**
+   * Restrict the result to payment methods backed by this provider
+   * (e.g. `'stripe'`). Server-side filter for
+   * {@link DelegationAPI.listPaymentMethods}; omit to return methods from every
+   * provider (default). Has no effect on {@link DelegationAPI.listDelegations}.
+   */
+  provider?: DelegationProvider
 }
 
 /**
@@ -127,10 +134,13 @@ export class DelegationAPI extends BasePaymentsAPI {
   /**
    * List the user's enrolled payment methods for card delegation.
    * When `accessible: true`, only cards accessible to the requesting API key are returned.
+   * When `provider` is set, only methods backed by that provider are returned
+   * (server-side filter); omit it to return methods from every provider.
    */
   async listPaymentMethods(options?: ListOptions): Promise<PaymentMethodSummary[]> {
     const url = new URL('/api/v1/payment-methods', this.environment.backend)
     if (options?.accessible) url.searchParams.set('accessible', 'true')
+    if (options?.provider) url.searchParams.set('provider', options.provider)
     return this.fetchJSON(url, 'GET', 'list payment methods')
   }
 
