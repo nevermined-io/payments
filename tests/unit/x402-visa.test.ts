@@ -228,6 +228,49 @@ describe('Visa provider surface', () => {
     }
   })
 
+  // The facilitator verify/settle endpoints carry money side effects
+  // (Stripe/VGS/Braintree on settle), so the SDK now authenticates them with
+  // the NVM API key instead of calling them unauthenticated. The backend's
+  // optional guard tolerates the header today; this pre-positions for the
+  // later strict-guard flip. See nevermined-io/nvm-monorepo#1570.
+  test('verifyPermissions sends the NVM API-key authorization header', async () => {
+    installFetch(() => jsonResponse({ isValid: true }))
+
+    await payments.facilitator.verifyPermissions({
+      paymentRequired: {
+        x402Version: 2,
+        resource: { url: '/tools/echo' },
+        accepts: [{ scheme: 'nvm:card-delegation', network: 'visa', planId: 'plan-123' }],
+        extensions: {},
+      },
+      x402AccessToken: 'eyJ.visa.token',
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toContain('/api/v1/x402/verify')
+    const auth = (calls[0].init?.headers as Record<string, string> | undefined)?.Authorization
+    expect(auth).toBe(`Bearer ${TEST_API_KEY}`)
+  })
+
+  test('settlePermissions sends the NVM API-key authorization header', async () => {
+    installFetch(() => jsonResponse({ success: true }))
+
+    await payments.facilitator.settlePermissions({
+      paymentRequired: {
+        x402Version: 2,
+        resource: { url: '/tools/echo' },
+        accepts: [{ scheme: 'nvm:card-delegation', network: 'visa', planId: 'plan-123' }],
+        extensions: {},
+      },
+      x402AccessToken: 'eyJ.visa.token',
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toContain('/api/v1/x402/settle')
+    const auth = (calls[0].init?.headers as Record<string, string> | undefined)?.Authorization
+    expect(auth).toBe(`Bearer ${TEST_API_KEY}`)
+  })
+
   test("getInstance rejects scheme:'visa' with a migration message", () => {
     expect(() =>
       Payments.getInstance({
