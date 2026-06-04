@@ -50,6 +50,15 @@ import {
   type VerifyPermissionsResult,
   type SettlePermissionsResult,
 } from '../facilitator-api.js'
+import {
+  activeRunTree,
+  addMetadata,
+  buildSettleMetadata,
+  buildVerifyMetadata,
+  redactMetadataKeys,
+  settlementSpan,
+  verifySpan,
+} from '../langsmith/spans.js'
 
 /**
  * Context passed to a dynamic credits function after tool execution.
@@ -187,7 +196,6 @@ function storeInConfigurable(config: unknown, key: string, value: unknown): void
 
   const configurable = (config as Record<string, unknown>).configurable
   if (configurable == null || typeof configurable !== 'object') return
-
   ;(configurable as Record<string, unknown>)[key] = value
 }
 
@@ -253,12 +261,49 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       agentId,
       network,
     })
+    // The scheme/network the verify span advertises come from the resolved
+    // X402 scheme so the span metadata matches what the buyer paid against.
+    const accepted = paymentRequired.accepts[0]
+    const planIds = paymentRequired.accepts
+      .map((a) => a.planId)
+      .filter((p): p is string => Boolean(p))
+    const resolvedScheme = accepted?.scheme
+    const resolvedNetwork = network ?? accepted?.network
+
+    // LangChain auto-captures every key in config.configurable into the parent
+    // tool span's metadata, and child spans inherit it at construction time.
+    // Strip the full x402 access token from the parent BEFORE opening the verify
+    // span so neither the parent nor the child carries the raw credential — only
+    // the abbreviated nvm.payment_token remains for correlation.
+    const parentRunTree = await activeRunTree()
+    redactMetadataKeys(parentRunTree, 'payment_token')
+
+    const verifyStarted = Date.now()
+    // Open the verify span BEFORE the token-presence check so failed probes
+    // (no payment_token in config) still produce a clearly-named span with the
+    // static nvm.* attrs attached to both the span and the parent tool span.
+    const vspan = await verifySpan({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+    })
+    // Pre-verify metadata is best-effort and static-only.
+    const preVerifyMd = buildVerifyMetadata({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+    })
+    vspan.addMetadata(preVerifyMd)
+    addMetadata(parentRunTree, preVerifyMd)
 
     // Extract token from config.configurable.payment_token
     const token = extractPaymentToken(config)
     if (!token) {
+      await vspan.end(new Error('missing payment_token in config.configurable'))
       throw new PaymentRequiredError(
-        "Payment required: missing payment_token in config.configurable",
+        'Payment required: missing payment_token in config.configurable',
         paymentRequired,
       )
     }
@@ -275,18 +320,37 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
         maxAmount: BigInt(creditsToVerify),
       })
     } catch (error) {
+      await vspan.end(error)
       throw new PaymentRequiredError(
         `Payment verification failed: ${error instanceof Error ? error.message : String(error)}`,
         paymentRequired,
       )
     }
 
+    // Augment span metadata with verification results + timing (both span and
+    // parent), then close the verify span. Best-effort: a metadata failure must
+    // not mask the PaymentRequiredError that may follow.
+    const verifyMd = buildVerifyMetadata({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+      verification,
+      durationMs: Date.now() - verifyStarted,
+      token,
+    })
+    vspan.addMetadata(verifyMd)
+    addMetadata(parentRunTree, verifyMd)
+
     if (!verification.isValid) {
+      await vspan.end(new Error(verification.invalidReason || 'verification failed'))
       throw new PaymentRequiredError(
         `Payment verification failed: ${verification.invalidReason || 'Insufficient credits or invalid token'}`,
         paymentRequired,
       )
     }
+
+    await vspan.end()
 
     // Store payment context
     const paymentContext: PaymentContext = {
@@ -308,7 +372,11 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
         ? credits({ args: args as Record<string, unknown>, result })
         : credits
 
-    // Settle credits
+    // Settle credits, wrapped in an nvm:settlement span (mirrors Python's
+    // settlement_span around settle_permissions).
+    const settleParentRunTree = await activeRunTree()
+    const settleStarted = Date.now()
+    const sspan = await settlementSpan({ planIds, agentId })
     try {
       const settlement = await payments.facilitator.settlePermissions({
         paymentRequired,
@@ -325,8 +393,20 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       // the receipt — LangGraph copies config.configurable per node, hiding the
       // line above from the buyer's outer scope.
       lastSettlementReceipt = settlement
+
+      const settleMd = buildSettleMetadata({
+        settlement,
+        planIds,
+        agentId,
+        durationMs: Date.now() - settleStarted,
+        token,
+      })
+      sspan.addMetadata(settleMd)
+      addMetadata(settleParentRunTree, settleMd)
+      await sspan.end()
     } catch (settleError) {
       console.error('Payment settlement failed:', settleError)
+      await sspan.end(settleError)
       // Still return result even if settlement fails
     }
 
