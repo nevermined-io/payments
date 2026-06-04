@@ -51,6 +51,7 @@ import {
   type SettlePermissionsResult,
 } from '../facilitator-api.js'
 import {
+  abbreviateToken,
   activeRunTree,
   addMetadata,
   buildSettleMetadata,
@@ -308,6 +309,15 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       )
     }
 
+    // Abbreviate/redact the token ONCE here (mirrors Python's
+    // attach_metadata_safely pre-abbreviation) and pass the result into the
+    // metadata builders. abbreviateToken is idempotent, so the builders leave
+    // it unchanged — this means the short-token warning fires at most once per
+    // call (not once per verify AND once per settle), and the raw token never
+    // reaches the builders' frame locals (defense against exception enrichers
+    // that capture locals).
+    const abbreviatedToken = abbreviateToken(token)
+
     // Resolve pre-execution credits (static only; callable deferred to post-execution)
     const creditsToVerify = typeof credits === 'number' ? credits : 1
 
@@ -337,7 +347,7 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       agentId,
       verification,
       durationMs: Date.now() - verifyStarted,
-      token,
+      token: abbreviatedToken,
     })
     vspan.addMetadata(verifyMd)
     addMetadata(parentRunTree, verifyMd)
@@ -399,7 +409,7 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
         planIds,
         agentId,
         durationMs: Date.now() - settleStarted,
-        token,
+        token: abbreviatedToken,
       })
       sspan.addMetadata(settleMd)
       addMetadata(settleParentRunTree, settleMd)

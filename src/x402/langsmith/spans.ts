@@ -35,9 +35,24 @@ export const NVM_SETTLEMENT_SPAN = 'nvm:settlement'
 /**
  * Marker appended to a redacted short token. The joining character is the
  * single Unicode ellipsis `…` (U+2026), matching the Python implementation
- * and the spec, NOT three ASCII dots.
+ * and the spec, NOT three ASCII dots. (`…` is one UTF-16 code unit, so this
+ * string has length 8.)
  */
 const SHORT_TOKEN_MARKER = '…(short)'
+
+/**
+ * A redacted short token is exactly `<prefix><marker>` where `prefix` is either
+ * empty (raw length 4 or fewer) or the first 4 chars (raw length over 4) — so a genuine
+ * marker only ever has one of these two lengths. Recognising it by both suffix
+ * AND an exact length stops a raw ≤20-char value that merely *ends* in the
+ * marker (e.g. `"x…(short)"`) from slipping through verbatim.
+ */
+const REDACTED_MARKER_LENGTHS = new Set([SHORT_TOKEN_MARKER.length, 4 + SHORT_TOKEN_MARKER.length])
+
+/** True if `token` is already a value produced by the short-token branch. */
+function isRedactedMarker(token: string): boolean {
+  return token.endsWith(SHORT_TOKEN_MARKER) && REDACTED_MARKER_LENGTHS.has(token.length)
+}
 
 /**
  * Cached result of the lazy `langsmith` import.
@@ -51,13 +66,35 @@ type LangsmithModule = {
 }
 let cachedLangsmith: LangsmithModule | null | undefined
 
+/** True when the dynamic-import error means the package is simply not installed. */
+function isModuleNotFound(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code
+  return code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
+}
+
 async function loadLangsmith(): Promise<LangsmithModule | null> {
   if (cachedLangsmith !== undefined) return cachedLangsmith
   try {
     const mod = (await import('langsmith')) as unknown as LangsmithModule
-    cachedLangsmith = typeof mod?.getCurrentRunTree === 'function' ? mod : null
-  } catch {
+    if (typeof mod?.getCurrentRunTree === 'function') {
+      cachedLangsmith = mod
+    } else {
+      // Installed but missing the API we rely on — a real, diagnosable problem,
+      // distinct from "not installed". Warn once (cached null prevents repeats).
+      cachedLangsmith = null
+      console.warn(
+        'nvm-langsmith: `langsmith` is installed but does not export ' +
+          'getCurrentRunTree; Nevermined spans are disabled.',
+      )
+    }
+  } catch (err) {
     cachedLangsmith = null
+    // "Not installed" is the expected optional-peer path → stay silent. Any
+    // other failure (a broken install, a transitive load error) disables all
+    // spans with no other signal, so surface it once.
+    if (!isModuleNotFound(err)) {
+      console.warn('nvm-langsmith: failed to load `langsmith`; spans disabled', err)
+    }
   }
   return cachedLangsmith
 }
@@ -74,7 +111,8 @@ export async function activeRunTree(): Promise<RunTree | undefined> {
     // there is no active run, mirroring Python's `get_current_run_tree()` used
     // behind a try/except.
     return ls.getCurrentRunTree(true)
-  } catch {
+  } catch (err) {
+    console.debug('nvm-langsmith: getCurrentRunTree failed (ignored)', err)
     return undefined
   }
 }
@@ -90,8 +128,9 @@ export function addMetadata(runTree: RunTree | undefined, metadata: SpanMetadata
   if (!runTree || !metadata || Object.keys(metadata).length === 0) return
   try {
     runTree.metadata = metadata
-  } catch {
+  } catch (err) {
     // observability hygiene must never disrupt the payment flow
+    console.debug('nvm-langsmith: addMetadata failed (ignored)', err)
   }
 }
 
@@ -104,8 +143,12 @@ export function addMetadata(runTree: RunTree | undefined, metadata: SpanMetadata
  * the full `payment_token` from the parent tool span's metadata, since the raw
  * access token grants access to the protected tool until it expires.
  *
- * No-op when `runTree` is absent or no keys are provided. All errors are
- * swallowed.
+ * No-op when `runTree` is absent or no keys are provided. Errors are swallowed
+ * so observability never disrupts the payment flow — but, unlike the other
+ * swallow paths, a failure here is **security-sensitive**: if the parent run
+ * tree still holds the raw `payment_token`, that credential rides into the
+ * parent tree and the inherited verify/settle child spans. So this path warns
+ * (not just debug) to keep the leak diagnosable.
  */
 export function redactMetadataKeys(runTree: RunTree | undefined, ...keys: string[]): void {
   if (!runTree || keys.length === 0) return
@@ -115,32 +158,40 @@ export function redactMetadataKeys(runTree: RunTree | undefined, ...keys: string
     if (metadata && typeof metadata === 'object') {
       for (const key of keys) delete metadata[key]
     }
-  } catch {
-    // best-effort
+  } catch (err) {
+    console.warn(
+      `nvm-langsmith: failed to redact metadata keys [${keys.join(', ')}] from ` +
+        'the parent run tree — a raw credential may remain in the trace',
+      err,
+    )
   }
 }
 
 /**
  * Return a short, non-functional reference to a payment token for span
- * metadata. Mirrors `payments_py/langsmith/spans.py::abbreviate_token` incl.
- * the redact-and-warn behavior finalized in nvm-monorepo#1747
- * (payments-py PR #217).
+ * metadata. Mirrors `payments_py/langsmith/spans.py::abbreviate_token` and the
+ * redaction contract in nvm-monorepo#1746 §4 (short-token hardening from
+ * nvm-monorepo#1747, tracked in payments-py PR #217).
  *
  * - `undefined`/empty input → `undefined` (and silent — no token at all is not
  *   a "wrong token" mistake).
- * - Already-redacted input (ends with the `…(short)` marker) → returned
+ * - Already-redacted input (a genuine `<prefix>…(short)` marker) → returned
  *   unchanged and silent, so the helper stays idempotent (the decorator path
- *   abbreviates the same token more than once).
+ *   abbreviates the same token more than once). A raw value that merely *ends*
+ *   in the marker is NOT treated as redacted (see {@link isRedactedMarker}).
  * - A token of length ≤ 20 is almost always a misconfiguration (a plan id, an
  *   opaque handle, etc. passed where the JWT was expected). Because this helper
  *   exists to keep credentials out of a durable trace store, such tokens are
- *   **redacted, not exported**: only `<first 4>…(short)` is returned and a
- *   warning is emitted. The full short value never leaves this function.
+ *   **redacted, not exported**: at most the first 4 chars are revealed (to aid
+ *   debugging the misconfig), followed by the `…(short)` marker — and for a
+ *   token of 4 chars or fewer **nothing** is revealed (the whole value would
+ *   otherwise be the "prefix"), so it collapses to just `…(short)`. A warning
+ *   is emitted. The full short value never leaves this function.
  * - Otherwise (a normal JWT, more than 20 chars) → `<first 16>…<last 4>`.
  */
 export function abbreviateToken(token: string | undefined | null): string | undefined {
   if (!token) return undefined
-  if (token.endsWith(SHORT_TOKEN_MARKER)) {
+  if (isRedactedMarker(token)) {
     // Already redacted (re-applied on the decorator path); re-slicing would let
     // the marker drift, so return unchanged and stay silent — the original
     // short value already triggered the warning.
@@ -152,7 +203,10 @@ export function abbreviateToken(token: string | undefined | null): string | unde
         'access token passed? Short/non-JWT tokens are almost always a ' +
         'misconfiguration and are redacted (not exported).',
     )
-    return `${token.slice(0, 4)}${SHORT_TOKEN_MARKER}`
+    // Reveal at most 4 chars; for a ≤4-char token reveal nothing, since
+    // token.slice(0, 4) would be the entire value — defeating the redaction.
+    const prefix = token.length > 4 ? token.slice(0, 4) : ''
+    return `${prefix}${SHORT_TOKEN_MARKER}`
   }
   return `${token.slice(0, 16)}…${token.slice(-4)}`
 }
@@ -249,8 +303,9 @@ async function openNvmSpan(name: string, inputs: SpanMetadata): Promise<NvmSpan>
   let child: RunTree
   try {
     child = parent.createChild({ name, run_type: 'tool', inputs })
-  } catch {
+  } catch (err) {
     // span setup is pure observability — never let it disrupt the payment flow
+    console.debug(`nvm-langsmith: createChild(${name}) failed (ignored)`, err)
     return inactiveSpan()
   }
   return {
@@ -265,8 +320,9 @@ async function openNvmSpan(name: string, inputs: SpanMetadata): Promise<NvmSpan>
           error === undefined ? undefined : error instanceof Error ? error.message : String(error),
         )
         await child.postRun()
-      } catch {
+      } catch (err) {
         // best-effort flush
+        console.debug(`nvm-langsmith: ${name} span flush failed (ignored)`, err)
       }
     },
   }

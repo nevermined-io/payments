@@ -191,4 +191,24 @@ describe('requiresPayment LangSmith wiring', () => {
     expect(mockPayments.facilitator.verifyPermissions).toHaveBeenCalledTimes(1)
     expect(mockPayments.facilitator.settlePermissions).toHaveBeenCalledTimes(1)
   })
+
+  it('warns once (not per build) for a misconfigured short token', async () => {
+    // The decorator pre-abbreviates the token ONCE (mirrors Python's
+    // attach_metadata_safely), so a short token warns a single time even though
+    // the verify + settle builders both surface nvm.payment_token.
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const parent = new FakeRunTree({ name: 'tool' })
+    setActiveRun(parent)
+    const fn = protectedFn(makeMockPayments())
+
+    await fn({ topic: 'x' }, { configurable: { payment_token: 'short-token' } })
+
+    const shortWarns = warn.mock.calls.filter((c) =>
+      String(c[0]).includes('20 characters or fewer'),
+    )
+    expect(shortWarns).toHaveLength(1)
+    // And the redacted form (never the raw value) reached the spans.
+    expect(parent.children[0].metadata['nvm.payment_token']).toBe('shor…(short)')
+    expect(JSON.stringify(parent.children[1].metadata)).not.toContain('short-token')
+  })
 })

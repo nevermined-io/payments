@@ -148,10 +148,41 @@ describe('abbreviateToken', () => {
     expect(abbreviateToken('a'.repeat(20))).toBe('aaaa…(short)')
   })
 
-  it('is idempotent on an already-redacted value and stays silent', () => {
+  it('collapses a <=4-char token to just the marker (reveals nothing)', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
-    const redacted = 'aaaa…(short)'
-    expect(abbreviateToken(redacted)).toBe(redacted)
+    // A 1–4 char token: revealing the first 4 would reveal the WHOLE value, so
+    // nothing is revealed — it collapses to just the marker. (Regression guard
+    // for the pre-#217 behavior where `abbreviateToken('abcd')` leaked 'abcd'.)
+    expect(abbreviateToken('abcd')).toBe('…(short)')
+    expect(abbreviateToken('a')).toBe('…(short)')
+    expect(abbreviateToken('xy')).toBe('…(short)')
+    expect(warn).toHaveBeenCalledTimes(3)
+  })
+
+  it('is idempotent on a genuine redacted marker and stays silent', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    // Both valid marker lengths: 8 (collapsed) and 12 (<first4> + marker).
+    expect(abbreviateToken('…(short)')).toBe('…(short)') // length 8
+    expect(abbreviateToken('aaaa…(short)')).toBe('aaaa…(short)') // length 12
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('redacts a raw value that merely ENDS in the marker (wrong length)', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    // A raw secret that happens to end in the marker but is NOT length 8/12 must
+    // be redacted, not returned verbatim (classifier-bypass guard, #217).
+    const sneaky = 'secret-x…(short)' // length 16, ends in marker
+    const result = abbreviateToken(sneaky)
+    expect(result).toBe('secr…(short)')
+    expect(result).not.toBe(sneaky)
+    expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('is idempotent on an already-abbreviated long token', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const tok = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.sig-XYZ'
+    const once = abbreviateToken(tok)
+    expect(abbreviateToken(once)).toBe(once)
     expect(warn).not.toHaveBeenCalled()
   })
 })
