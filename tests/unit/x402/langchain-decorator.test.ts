@@ -282,6 +282,56 @@ describe('lastSettlement', () => {
     expect(result).toBe('insight for x')
     expect(mod.lastSettlement()).toBeUndefined()
   })
+
+  it('returns undefined after a prior successful settle is followed by a failed settle', async () => {
+    // Regression for the stale-receipt bug: tool A settles, then tool B's
+    // settle throws (swallowed). Without resetting the slot on each invocation,
+    // lastSettlement() would still return A's receipt and misattribute it to B.
+    // The wrapper resets the slot at the START of every invocation, so a failed
+    // settle after a prior success leaves it undefined — matching the JSDoc.
+    const mod = await freshLangchain()
+    const mockPayments = makeMockPayments()
+    const myTool = makeProtectedTool(mod, mockPayments)
+
+    // First invocation settles successfully and populates the slot.
+    await myTool.invoke({ topic: 'a' }, { configurable: { payment_token: 'tok' } })
+    expect(mod.lastSettlement()?.creditsRedeemed).toBe('1')
+
+    // Second invocation's settle throws (swallowed); the slot must not retain A.
+    mockPayments.facilitator.settlePermissions.mockRejectedValue(new Error('boom'))
+    const result = await myTool.invoke(
+      { topic: 'b' },
+      { configurable: { payment_token: 'tok' } },
+    )
+
+    expect(result).toBe('insight for b')
+    expect(mod.lastSettlement()).toBeUndefined()
+  })
+
+  it('returns undefined after a prior successful settle is followed by a verify failure', async () => {
+    // A verify failure raises PaymentRequiredError before reaching settle. The
+    // start-of-invocation reset must clear a prior invocation's receipt so the
+    // slot is undefined for ANY pre-settle failure, not just settle failures.
+    const mod = await freshLangchain()
+    const mockPayments = makeMockPayments()
+    const myTool = makeProtectedTool(mod, mockPayments)
+
+    // First invocation settles successfully and populates the slot.
+    await myTool.invoke({ topic: 'a' }, { configurable: { payment_token: 'tok' } })
+    expect(mod.lastSettlement()?.creditsRedeemed).toBe('1')
+
+    // Second invocation fails verification before reaching settle.
+    mockPayments.facilitator.verifyPermissions.mockResolvedValue({
+      isValid: false,
+      invalidReason: 'Insufficient credits',
+    } satisfies VerifyPermissionsResult)
+
+    await expect(
+      myTool.invoke({ topic: 'b' }, { configurable: { payment_token: 'tok' } }),
+    ).rejects.toBeInstanceOf(mod.PaymentRequiredError)
+
+    expect(mod.lastSettlement()).toBeUndefined()
+  })
 })
 
 describe('createPaidReactAgent', () => {

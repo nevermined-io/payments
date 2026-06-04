@@ -14,7 +14,7 @@
  *
  * The `credits` option accepts two forms:
  *   - **Static number**: `credits: 1` — always charges 1 credit
- *   - **Function**: `credits: (ctx) => Math.max(1, ctx.result.length / 100)` — dynamic
+ *   - **Function**: `credits: (ctx) => Math.max(1, Math.floor(ctx.result.length / 100))` — dynamic
  *
  * When `credits` is a function, it receives `{ args, result }` after tool execution.
  *
@@ -134,8 +134,12 @@ export interface PaymentContext {
 // `config.configurable.payment_settlement` is not visible to the buyer's outer
 // scope. A module-level slot is the simplest reliable signal. It is
 // intentionally single-tenant — if the same process runs multiple concurrent
-// settlements, the last writer wins. For multi-tenant use cases, surface the
-// receipt via a callback or via observability (see Sprint 1 of the LangChain epic).
+// settlements, the last writer wins. This race is not limited to multi-tenant
+// servers: a single `createPaidReactAgent` run can also hit it, because a ReAct
+// agent may execute several paid tools in parallel within one LLM turn via
+// `ToolNode`, and this single slot only retains the last writer. For
+// multi-tenant or parallel-tool use cases, surface the receipt via a callback
+// or via observability (see Sprint 1 of the LangChain epic).
 let lastSettlementReceipt: SettlePermissionsResult | undefined
 
 /**
@@ -235,6 +239,14 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
   const { payments, planId, credits = 1, agentId, network } = options
 
   return async (args: TArgs, config?: unknown): Promise<TResult> => {
+    // Reset the module-level slot at the START of every invocation, before
+    // verify. Any failure that does not reach the settle-success write (a
+    // verify failure / PaymentRequiredError, or a swallowed settle failure)
+    // then leaves lastSettlement() returning `undefined` rather than a stale
+    // receipt from a previous invocation — matching the JSDoc contract on
+    // lastSettlement().
+    lastSettlementReceipt = undefined
+
     // Build payment required object
     const paymentRequired = buildPaymentRequired(planId, {
       endpoint: fn.name || 'tool',
@@ -301,7 +313,11 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       const settlement = await payments.facilitator.settlePermissions({
         paymentRequired,
         x402AccessToken: token,
-        maxAmount: BigInt(finalCredits),
+        // A dynamic `credits` callable can return a float (e.g. length/100).
+        // `BigInt(1.5)` throws RangeError, which the surrounding try/catch
+        // swallows — credits are never burned and the caller is never told.
+        // Floor to keep the settle on the money path.
+        maxAmount: BigInt(Math.floor(finalCredits)),
         agentRequestId: paymentContext.agentRequestId,
       })
       storeInConfigurable(config, 'payment_settlement', settlement)
