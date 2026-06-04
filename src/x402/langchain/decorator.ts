@@ -14,7 +14,7 @@
  *
  * The `credits` option accepts two forms:
  *   - **Static number**: `credits: 1` — always charges 1 credit
- *   - **Function**: `credits: (ctx) => Math.max(1, ctx.result.length / 100)` — dynamic
+ *   - **Function**: `credits: (ctx) => Math.max(1, Math.floor(ctx.result.length / 100))` — dynamic
  *
  * When `credits` is a function, it receives `{ args, result }` after tool execution.
  *
@@ -48,6 +48,7 @@ import {
   buildPaymentRequired,
   type X402PaymentRequired,
   type VerifyPermissionsResult,
+  type SettlePermissionsResult,
 } from '../facilitator-api.js'
 
 /**
@@ -74,7 +75,18 @@ export interface RequiresPaymentOptions {
   payments: Payments
   /** Single plan ID to accept */
   planId: string
-  /** Number of credits to charge, or a function for dynamic pricing (default: 1) */
+  /**
+   * Number of credits to charge, or a function for dynamic pricing (default: 1).
+   *
+   * This value is sent as `maxAmount` to the facilitator. The amount actually
+   * redeemed depends on the plan's server-side credit configuration:
+   *
+   * - **Fixed plans** (`plan.credits.minAmount === plan.credits.maxAmount`)
+   *   always burn `plan.credits.maxAmount` — this value is then effectively a
+   *   no-op (see nevermined-io/nvm-monorepo#1568).
+   * - **Range plans** clamp this value into
+   *   `[plan.credits.minAmount, plan.credits.maxAmount]`.
+   */
   credits?: number | CreditsCallable
   /** Optional agent identifier */
   agentId?: string
@@ -115,6 +127,40 @@ export interface PaymentContext {
   agentRequestId?: string
   /** Agent request context for observability */
   agentRequest?: unknown
+}
+
+// Module-level holder for the most recent settlement receipt. LangGraph copies
+// `RunnableConfig.configurable` per node, so the in-place write to
+// `config.configurable.payment_settlement` is not visible to the buyer's outer
+// scope. A module-level slot is the simplest reliable signal. It is
+// intentionally single-tenant — if the same process runs multiple concurrent
+// settlements, the last writer wins. This race is not limited to multi-tenant
+// servers: a single `createPaidReactAgent` run can also hit it, because a ReAct
+// agent may execute several paid tools in parallel within one LLM turn via
+// `ToolNode`, and this single slot only retains the last writer. For
+// multi-tenant or parallel-tool use cases, surface the receipt via a callback
+// or via observability (see Sprint 1 of the LangChain epic).
+let lastSettlementReceipt: SettlePermissionsResult | undefined
+
+/**
+ * Return the most recent settlement receipt produced by {@link requiresPayment}.
+ *
+ * Use this after invoking a LangChain/LangGraph runnable whose tool is wrapped
+ * with {@link requiresPayment} to recover the settlement receipt
+ * (`creditsRedeemed`, `remainingBalance`, `transaction`, `network`, `payer`)
+ * without threading it back through the runnable config (which LangGraph copies
+ * per node, so the in-place write is invisible to the outer scope).
+ *
+ * Returns `undefined` if no settlement has happened yet in this process, or if
+ * the most recent invocation raised before reaching the settle phase.
+ *
+ * @remarks
+ * This accessor reads from a module-level slot. In multi-tenant processes (e.g.
+ * a server handling concurrent settlements), the value reflects whichever
+ * invocation settled most recently — there is no per-call isolation.
+ */
+export function lastSettlement(): SettlePermissionsResult | undefined {
+  return lastSettlementReceipt
 }
 
 /**
@@ -193,6 +239,14 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
   const { payments, planId, credits = 1, agentId, network } = options
 
   return async (args: TArgs, config?: unknown): Promise<TResult> => {
+    // Reset the module-level slot at the START of every invocation, before
+    // verify. Any failure that does not reach the settle-success write (a
+    // verify failure / PaymentRequiredError, or a swallowed settle failure)
+    // then leaves lastSettlement() returning `undefined` rather than a stale
+    // receipt from a previous invocation — matching the JSDoc contract on
+    // lastSettlement().
+    lastSettlementReceipt = undefined
+
     // Build payment required object
     const paymentRequired = buildPaymentRequired(planId, {
       endpoint: fn.name || 'tool',
@@ -259,10 +313,18 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       const settlement = await payments.facilitator.settlePermissions({
         paymentRequired,
         x402AccessToken: token,
-        maxAmount: BigInt(finalCredits),
+        // A dynamic `credits` callable can return a float (e.g. length/100).
+        // `BigInt(1.5)` throws RangeError, which the surrounding try/catch
+        // swallows — credits are never burned and the caller is never told.
+        // Floor to keep the settle on the money path.
+        maxAmount: BigInt(Math.floor(finalCredits)),
         agentRequestId: paymentContext.agentRequestId,
       })
       storeInConfigurable(config, 'payment_settlement', settlement)
+      // Also publish to the module-level slot so lastSettlement() can recover
+      // the receipt — LangGraph copies config.configurable per node, hiding the
+      // line above from the buyer's outer scope.
+      lastSettlementReceipt = settlement
     } catch (settleError) {
       console.error('Payment settlement failed:', settleError)
       // Still return result even if settlement fails
