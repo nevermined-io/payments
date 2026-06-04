@@ -19,6 +19,10 @@
  * `requiresPayment` wrapper do not need LangGraph installed. Install it
  * yourself (`pnpm add @langchain/langgraph`) to use this helper.
  *
+ * Unlike Python's synchronous `create_paid_react_agent`, this helper is
+ * **`async`** — that is a deliberate consequence of the lazy `import()` that
+ * keeps `@langchain/langgraph` an optional peer, not a parity break. `await` it.
+ *
  * @example
  * ```typescript
  * import { tool } from '@langchain/core/tools'
@@ -39,7 +43,7 @@
  *   { name: 'get_market_insight', description: 'Paid market insight', schema: z.object({ topic: z.string() }) },
  * )
  *
- * const agent = createPaidReactAgent(
+ * const agent = await createPaidReactAgent(
  *   new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0 }),
  *   [getMarketInsight],
  *   { prompt: '...' },
@@ -95,6 +99,21 @@ export async function createPaidReactAgent(
   tools: readonly unknown[],
   options: CreatePaidReactAgentOptions = {},
 ): Promise<unknown> {
+  // `llm` and `tools` are owned by this helper — `tools` carries the
+  // handleToolErrors:false ToolNode that makes PaymentRequiredError propagate,
+  // and overriding either would silently defeat the whole point of the helper
+  // (a caller-supplied `tools` re-enables the default handleToolErrors:true and
+  // the X402 payload is stringified away). Reject them up front, mirroring how
+  // Python's positional `create_paid_react_agent(model, tools, **kwargs)` raises
+  // a TypeError if `llm`/`tools` are passed again via kwargs.
+  if ('llm' in options || 'tools' in options) {
+    throw new Error(
+      'createPaidReactAgent: `llm` and `tools` are set from the `model` and ' +
+        '`tools` arguments and must not be passed in `options` (they would ' +
+        'override the handleToolErrors:false ToolNode and break x402 discovery).',
+    )
+  }
+
   let prebuilt: typeof import('@langchain/langgraph/prebuilt')
   try {
     prebuilt = await import('@langchain/langgraph/prebuilt')
@@ -112,5 +131,12 @@ export async function createPaidReactAgent(
   // them into a ToolMessage, so PaymentRequiredError reaches agent.invoke()'s
   // caller with its X402PaymentRequired payload intact.
   const toolNode = new ToolNode(tools as never, { handleToolErrors: false })
-  return createReactAgent({ llm: model as never, tools: toolNode, ...options } as never)
+  // `createReactAgent` is the current prebuilt entry point in
+  // @langchain/langgraph@1.2.0. It is marked @deprecated in favour of
+  // `createAgent`, but that replacement lives in the separate `langchain`
+  // package (out of scope for this SDK's optional langgraph peer), so the
+  // prebuilt `createReactAgent` is the deliberate, only in-package choice here.
+  // Spread `...options` FIRST so the protected `llm`/`tools` keys (set last)
+  // always win, even though the guard above already forbids them in `options`.
+  return createReactAgent({ ...options, llm: model as never, tools: toolNode } as never)
 }

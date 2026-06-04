@@ -16,9 +16,26 @@
  * tree that Jest cannot load through the helper's dynamic `import()`, and these
  * unit tests assert OUR wiring (that `createPaidReactAgent` builds a `ToolNode`
  * with `handleToolErrors: false` and forwards it as `createReactAgent`'s
- * `tools`), not LangGraph's internals. The real API contract these doubles
- * mirror is exercised against the published package at build time via
- * `agent.ts`'s `typeof import(...)` type references.
+ * `tools`), not LangGraph's internals.
+ *
+ * CAVEAT — these doubles are NOT verified against the real runtime by this
+ * suite, and NOT by the build either: `tsconfig.json` excludes `tests/`, so
+ * `tsc` never type-checks this file. A double that drifts from the real shape
+ * (e.g. renaming `handleToolErrors` → `handle_tool_errors`, or the compiled
+ * graph moving the ToolNode off `nodes.tools.data`) would pass green here while
+ * the real `createPaidReactAgent` is broken. The shape encoded below was
+ * confirmed by a one-off runtime probe against `@langchain/langgraph@1.2.0`
+ * (`new ToolNode([t], { handleToolErrors: false }).handleToolErrors === false`;
+ * `createReactAgent({ llm, tools: node }).getGraph().nodes.tools.data === node`).
+ *
+ * TODO(#1717): add a real-graph test that does NOT mock `@langchain/langgraph`
+ * — the introspection assertion below IS readable on the real compiled graph;
+ * the only blocker is Jest/ESM, because `@langchain/langgraph-checkpoint`
+ * pulls in `uuid@14`, which is ESM-only with no CJS build. Loading it needs a
+ * dedicated ESM Jest project (CommonJS ts-jest module + `customExportConditions:
+ * ["require"]`) plus a `^uuid$` → CJS-uuid `moduleNameMapper` shim, scoped so it
+ * does not perturb the 170+ tests in the shared config. Deferred to keep this
+ * PR additive and avoid destabilising the existing suite.
  */
 
 // Captures the args createPaidReactAgent passes through to the real LangGraph
@@ -153,7 +170,7 @@ describe('requiresPayment', () => {
   it('verifies and settles on success', async () => {
     const mod = await freshLangchain()
     const mockPayments = makeMockPayments()
-    const myTool = makeProtectedTool(mod, mockPayments)
+    const myTool = makeProtectedTool(mod, mockPayments, 3)
 
     const result = await myTool.invoke(
       { topic: 'evs' },
@@ -163,6 +180,19 @@ describe('requiresPayment', () => {
     expect(result).toBe('insight for evs')
     expect(mockPayments.facilitator.verifyPermissions).toHaveBeenCalledTimes(1)
     expect(mockPayments.facilitator.settlePermissions).toHaveBeenCalledTimes(1)
+
+    // Pin the wire payload: the configured plan + credits and the token must
+    // reach the facilitator. A wrong-plan / wrong-amount regression would pass
+    // a bare call-count assertion but fail here.
+    const verifyArgs = mockPayments.facilitator.verifyPermissions.mock.calls[0][0]
+    expect(verifyArgs.x402AccessToken).toBe('tok-abc')
+    expect(verifyArgs.maxAmount).toBe(3n)
+    expect(verifyArgs.paymentRequired.accepts[0].planId).toBe('plan-123')
+
+    const settleArgs = mockPayments.facilitator.settlePermissions.mock.calls[0][0]
+    expect(settleArgs.x402AccessToken).toBe('tok-abc')
+    expect(settleArgs.maxAmount).toBe(3n)
+    expect(settleArgs.paymentRequired.accepts[0].planId).toBe('plan-123')
   })
 
   it('does not break the result when settlement fails', async () => {
@@ -235,6 +265,23 @@ describe('lastSettlement', () => {
 
     expect(mod.lastSettlement()).toBeUndefined()
   })
+
+  it('stays undefined when settlement throws', async () => {
+    // The slot is only written after settlePermissions resolves — a settle
+    // failure (which the tool swallows) must not publish a receipt.
+    const mod = await freshLangchain()
+    const mockPayments = makeMockPayments()
+    mockPayments.facilitator.settlePermissions.mockRejectedValue(new Error('boom'))
+    const myTool = makeProtectedTool(mod, mockPayments)
+
+    const result = await myTool.invoke(
+      { topic: 'x' },
+      { configurable: { payment_token: 'tok' } },
+    )
+
+    expect(result).toBe('insight for x')
+    expect(mod.lastSettlement()).toBeUndefined()
+  })
 })
 
 describe('createPaidReactAgent', () => {
@@ -282,5 +329,56 @@ describe('createPaidReactAgent', () => {
     const toolsNode = agent.getGraph().nodes['tools']
     const underlying = (toolsNode?.data ?? toolsNode) as { handleToolErrors?: boolean }
     expect(underlying.handleToolErrors).toBe(false)
+  })
+
+  it('forwards extra options without letting them override llm/tools', async () => {
+    const mod = await freshLangchain()
+    const mockPayments = makeMockPayments()
+    const myTool = makeProtectedTool(mod, mockPayments)
+    const model = stubModel()
+
+    const agent = (await mod.createPaidReactAgent(model, [myTool], {
+      prompt: 'be terse',
+    })) as {
+      __params: { llm: unknown; tools: { handleToolErrors?: boolean }; prompt?: string }
+    }
+
+    // Pass-through option survives…
+    expect(agent.__params.prompt).toBe('be terse')
+    // …and the protected keys still win.
+    expect(agent.__params.llm).toBe(model)
+    expect(agent.__params.tools.handleToolErrors).toBe(false)
+  })
+
+  it('rejects an options object that tries to override tools or llm', async () => {
+    // Guard against the silent-defeat footgun: a caller-supplied `tools`/`llm`
+    // would re-enable handleToolErrors:true and strip the X402 payload. The
+    // helper must throw rather than build a broken agent.
+    const mod = await freshLangchain()
+    const mockPayments = makeMockPayments()
+    const myTool = makeProtectedTool(mod, mockPayments)
+
+    await expect(
+      mod.createPaidReactAgent(stubModel(), [myTool], { tools: [] }),
+    ).rejects.toThrow(/`llm` and `tools`.*must not be passed in `options`/)
+    await expect(
+      mod.createPaidReactAgent(stubModel(), [myTool], { llm: stubModel() }),
+    ).rejects.toThrow(/`llm` and `tools`.*must not be passed in `options`/)
+  })
+
+  it('throws a helpful error when @langchain/langgraph cannot be imported', async () => {
+    // Simulate the optional peer being absent: make the lazy import reject.
+    jest.resetModules()
+    jest.doMock('@langchain/langgraph/prebuilt', () => {
+      throw new Error("Cannot find module '@langchain/langgraph/prebuilt'")
+    })
+    const { createPaidReactAgent } = (await import(
+      '../../../src/x402/langchain/agent.js'
+    )) as { createPaidReactAgent: typeof CreatePaidReactAgent }
+
+    await expect(createPaidReactAgent(stubModel(), [])).rejects.toThrow(
+      /createPaidReactAgent requires @langchain\/langgraph/,
+    )
+    jest.dontMock('@langchain/langgraph/prebuilt')
   })
 })
