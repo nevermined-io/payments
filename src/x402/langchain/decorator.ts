@@ -384,7 +384,16 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
 
     // Settle credits, wrapped in an nvm:settlement span (mirrors Python's
     // settlement_span around settle_permissions).
+    //
+    // Re-fetch the active run tree: the verify-side redaction at the top of this
+    // function stripped `payment_token` from the run tree active BEFORE `fn()`,
+    // but `fn()` may have opened nested traced runs, so `activeRunTree()` can now
+    // return a different RunTree that LangChain auto-populated with the raw
+    // `payment_token` from `config.configurable`. Redact it again here, BEFORE
+    // opening the settlement span, so the credential never rides into the settle
+    // child span or the (possibly new) parent tree.
     const settleParentRunTree = await activeRunTree()
+    redactMetadataKeys(settleParentRunTree, 'payment_token')
     const settleStarted = Date.now()
     const sspan = await settlementSpan({ planIds, agentId })
     try {

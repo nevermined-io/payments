@@ -77,7 +77,12 @@ class FakeRunTree {
 // `jest.mock` factories are hoisted above imports and may not close over
 // outer `let`/`const`, so the mutable "active run" handle lives on the mock
 // module itself and is read back via the imported mock in each test.
-jest.mock('langsmith', () => {
+//
+// Mock the `langsmith/singletons/traceable` SUB-PATH, not the `langsmith` root:
+// that is where `getCurrentRunTree` actually lives and what `loadLangsmith()`
+// imports. Mocking the root here would leave the real sub-path import in place
+// and the wiring untested (see `langsmith-real-sdk.test.ts`).
+jest.mock('langsmith/singletons/traceable', () => {
   const state: { current: unknown } = { current: undefined }
   return {
     __esModule: true,
@@ -90,7 +95,7 @@ jest.mock('langsmith', () => {
   }
 })
 
-import * as langsmithMock from 'langsmith'
+import * as langsmithMock from 'langsmith/singletons/traceable'
 import {
   abbreviateToken,
   activeRunTree,

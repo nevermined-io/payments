@@ -75,7 +75,14 @@ function isModuleNotFound(err: unknown): boolean {
 async function loadLangsmith(): Promise<LangsmithModule | null> {
   if (cachedLangsmith !== undefined) return cachedLangsmith
   try {
-    const mod = (await import('langsmith')) as unknown as LangsmithModule
+    // `getCurrentRunTree` is NOT exported from the `langsmith` root entry point —
+    // it lives exclusively at the `langsmith/singletons/traceable` sub-path (true
+    // across every published 0.x). Importing the root and reading
+    // `mod.getCurrentRunTree` always yields `undefined`, which would disable
+    // every span in production while the mocked unit tests stay green. Import the
+    // sub-path directly. (See the un-mocked smoke test in
+    // `langsmith-real-sdk.test.ts`, which fails loudly if this ever moves again.)
+    const mod = (await import('langsmith/singletons/traceable')) as unknown as LangsmithModule
     if (typeof mod?.getCurrentRunTree === 'function') {
       cachedLangsmith = mod
     } else {
@@ -83,8 +90,8 @@ async function loadLangsmith(): Promise<LangsmithModule | null> {
       // distinct from "not installed". Warn once (cached null prevents repeats).
       cachedLangsmith = null
       console.warn(
-        'nvm-langsmith: `langsmith` is installed but does not export ' +
-          'getCurrentRunTree; Nevermined spans are disabled.',
+        'nvm-langsmith: `langsmith` is installed but `langsmith/singletons/traceable` ' +
+          'does not export getCurrentRunTree; Nevermined spans are disabled.',
       )
     }
   } catch (err) {
@@ -119,15 +126,24 @@ export async function activeRunTree(): Promise<RunTree | undefined> {
 
 /**
  * Merge `metadata` into `runTree`, swallowing any error. No-op if `runTree` is
- * absent or `metadata` is empty.
+ * absent or `metadata` is empty. Matches Python's `run_tree.add_metadata`.
  *
- * The langsmith `RunTree` `metadata` setter merges into `extra.metadata`
- * (`{ ...existing, ...new }`), so this matches Python's `run_tree.add_metadata`.
+ * The merge is performed on THIS side of the boundary — we read the existing
+ * `extra.metadata`, spread the new keys over it, then assign — rather than
+ * relying on the langsmith `RunTree.metadata` setter to merge. In `langsmith@0.7`
+ * the setter does merge (`extra.metadata = { ...existing, ...new }`), but that is
+ * an implementation detail of `run_trees.js`, not a documented contract: a future
+ * release that flips it to plain assignment would silently drop the static
+ * `nvm.*` keys attached on the pre-verify pass once the post-verify pass runs.
+ * Reading+merging here keeps the double-pass accumulation correct regardless, and
+ * mirrors how {@link redactMetadataKeys} already reaches into `extra.metadata`.
  */
 export function addMetadata(runTree: RunTree | undefined, metadata: SpanMetadata): void {
   if (!runTree || !metadata || Object.keys(metadata).length === 0) return
   try {
-    runTree.metadata = metadata
+    const rt = runTree as unknown as { extra?: Record<string, unknown> }
+    const existing = (rt.extra?.metadata as Record<string, unknown> | undefined) ?? {}
+    runTree.metadata = { ...existing, ...metadata }
   } catch (err) {
     // observability hygiene must never disrupt the payment flow
     console.debug('nvm-langsmith: addMetadata failed (ignored)', err)

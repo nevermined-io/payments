@@ -18,6 +18,11 @@ class FakeRunTree {
   extra: { metadata?: Record<string, unknown> } & Record<string, unknown>
   children: FakeRunTree[] = []
   ended = false
+  // Captures the error string passed to `end(outputs, error)` so the wiring
+  // tests can assert the span was closed WITH the verify/settle failure reason
+  // (the production `openNvmSpan.end()` calls `child.end(undefined, message)`).
+  // Mirrors the `FakeRunTree` in `langsmith-spans.test.ts`.
+  endError: string | undefined
 
   constructor(config: {
     name?: string
@@ -51,13 +56,17 @@ class FakeRunTree {
     return child
   }
 
-  async end(): Promise<void> {
+  async end(_outputs?: unknown, error?: string): Promise<void> {
     this.ended = true
+    this.endError = error
   }
   async postRun(): Promise<void> {}
 }
 
-jest.mock('langsmith', () => {
+// Mock the `langsmith/singletons/traceable` SUB-PATH — that is the specifier
+// `loadLangsmith()` imports and where `getCurrentRunTree` lives. Mocking the
+// `langsmith` root would no-op the wiring under test.
+jest.mock('langsmith/singletons/traceable', () => {
   const state: { current: unknown } = { current: undefined }
   return {
     __esModule: true,
@@ -69,8 +78,8 @@ jest.mock('langsmith', () => {
   }
 })
 
-import * as langsmithMock from 'langsmith'
-import { requiresPayment } from '../../../src/x402/langchain/decorator.js'
+import * as langsmithMock from 'langsmith/singletons/traceable'
+import { requiresPayment, lastSettlement } from '../../../src/x402/langchain/decorator.js'
 import type {
   VerifyPermissionsResult,
   SettlePermissionsResult,
@@ -210,5 +219,64 @@ describe('requiresPayment LangSmith wiring', () => {
     // And the redacted form (never the raw value) reached the spans.
     expect(parent.children[0].metadata['nvm.payment_token']).toBe('shor…(short)')
     expect(JSON.stringify(parent.children[1].metadata)).not.toContain('short-token')
+  })
+
+  it('ends the verify span with invalidReason and skips settlement on isValid=false', async () => {
+    const parent = new FakeRunTree({ name: 'tool' })
+    setActiveRun(parent)
+    const mockPayments = makeMockPayments()
+    mockPayments.facilitator.verifyPermissions.mockResolvedValue({
+      isValid: false,
+      invalidReason: 'Insufficient credits',
+    })
+    const fn = protectedFn(mockPayments)
+
+    await expect(
+      fn({ topic: 'x' }, { configurable: { payment_token: LONG_TOKEN } }),
+    ).rejects.toThrow(/Insufficient credits/)
+
+    // Only the verify span opened; it closed WITH the invalid reason; no settle.
+    expect(parent.children.map((c) => c.name)).toEqual(['nvm:verify'])
+    expect(parent.children[0].ended).toBe(true)
+    expect(parent.children[0].endError).toBe('Insufficient credits')
+    expect(mockPayments.facilitator.settlePermissions).not.toHaveBeenCalled()
+  })
+
+  it('ends the verify span and skips settlement when verifyPermissions throws', async () => {
+    const parent = new FakeRunTree({ name: 'tool' })
+    setActiveRun(parent)
+    const mockPayments = makeMockPayments()
+    mockPayments.facilitator.verifyPermissions.mockRejectedValue(new Error('network timeout'))
+    const fn = protectedFn(mockPayments)
+
+    await expect(
+      fn({ topic: 'x' }, { configurable: { payment_token: LONG_TOKEN } }),
+    ).rejects.toThrow(/network timeout/)
+
+    expect(parent.children.map((c) => c.name)).toEqual(['nvm:verify'])
+    expect(parent.children[0].ended).toBe(true)
+    expect(parent.children[0].endError).toBe('network timeout')
+    expect(mockPayments.facilitator.settlePermissions).not.toHaveBeenCalled()
+  })
+
+  it('ends the settlement span WITH the error (and still returns) when settle throws', async () => {
+    const parent = new FakeRunTree({ name: 'tool' })
+    setActiveRun(parent)
+    const mockPayments = makeMockPayments()
+    mockPayments.facilitator.settlePermissions.mockRejectedValue(new Error('settle boom'))
+    // settlement failure is swallowed — the tool result still comes back.
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const fn = protectedFn(mockPayments)
+
+    const result = await fn({ topic: 'evs' }, { configurable: { payment_token: LONG_TOKEN } })
+
+    expect(result).toBe('insight evs')
+    // Both spans opened; the settlement span closed WITH the settle error.
+    expect(parent.children.map((c) => c.name)).toEqual(['nvm:verify', 'nvm:settlement'])
+    expect(parent.children[1].ended).toBe(true)
+    expect(parent.children[1].endError).toBe('settle boom')
+    // And the stale-receipt guard holds: a failed settle leaves no receipt.
+    expect(lastSettlement()).toBeUndefined()
+    errSpy.mockRestore()
   })
 })
