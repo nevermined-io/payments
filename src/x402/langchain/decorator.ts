@@ -125,7 +125,17 @@ export class PaymentRequiredError extends Error {
  * Payment context stored in `config.configurable.payment_context` after verification.
  */
 export interface PaymentContext {
-  /** The x402 access token */
+  /**
+   * Abbreviated, non-functional reference to the x402 access token — the SAME
+   * redacted form surfaced as `nvm.payment_token` (`<first 16>…<last 4>`, or a
+   * `…(short)` marker for a too-short token). The **full token is deliberately
+   * not persisted here**: this object is written into
+   * `config.configurable.payment_context`, and tracing frameworks (e.g.
+   * LangChain) can capture `config.configurable` into span metadata, so storing
+   * the raw credential would let it ride into any traced run opened during or
+   * after the tool body. Settlement uses the token read from
+   * `config.configurable.payment_token`, never this field.
+   */
   token: string
   /** The payment required object */
   paymentRequired: X402PaymentRequired
@@ -362,9 +372,16 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
 
     await vspan.end()
 
-    // Store payment context
+    // Store payment context. The `token` field carries the ABBREVIATED
+    // reference, never the raw credential: `payment_context` is written into
+    // `config.configurable`, which LangChain can capture into span metadata, so
+    // persisting the full token here would reopen the very leak the parent-tree
+    // `redactMetadataKeys('payment_token')` calls close — and a child run opened
+    // *during* the tool body would capture it before any post-hoc redaction
+    // could run. `abbreviatedToken` is always defined past the `!token` guard
+    // above; `?? ''` is a belt-and-suspenders that can never fall back to raw.
     const paymentContext: PaymentContext = {
-      token,
+      token: abbreviatedToken ?? '',
       paymentRequired,
       creditsToSettle: creditsToVerify,
       verified: true,

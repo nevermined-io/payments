@@ -259,6 +259,27 @@ describe('requiresPayment LangSmith wiring', () => {
     expect(mockPayments.facilitator.settlePermissions).not.toHaveBeenCalled()
   })
 
+  it('persists only the ABBREVIATED token in config.configurable.payment_context (never the raw credential)', async () => {
+    const parent = new FakeRunTree({ name: 'tool' })
+    setActiveRun(parent)
+    // Hold a reference to the same configurable bag the decorator mutates, so we
+    // can read payment_context back after invocation.
+    const config: { configurable: Record<string, unknown> } = {
+      configurable: { payment_token: LONG_TOKEN },
+    }
+    const fn = protectedFn(makeMockPayments())
+
+    await fn({ topic: 'evs' }, config)
+
+    const ctx = config.configurable.payment_context as { token: string }
+    expect(ctx).toBeDefined()
+    // The stored token is the abbreviated reference, not the raw credential —
+    // so LangChain capturing config.configurable into a nested span can't leak
+    // the full token (the gap aaitor flagged on the nested payment_context.token).
+    expect(ctx.token).toBe(`${'j'.repeat(16)}…jjjj`)
+    expect(JSON.stringify(config.configurable.payment_context)).not.toContain(LONG_TOKEN)
+  })
+
   it('ends the settlement span WITH the error (and still returns) when settle throws', async () => {
     const parent = new FakeRunTree({ name: 'tool' })
     setActiveRun(parent)
