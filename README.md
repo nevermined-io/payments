@@ -19,16 +19,15 @@ The Nevermined Payments Library is a TypeScript SDK that allows AI Builders and 
 
 The Payments Library enables:
 
-* Easy registration and discovery of AI agents and the payment plans required to access them. All agents registered in Nevermined expose their metadata in a generic way, making them searchable and discoverable for specific purposes.
-* Flexible definition of pricing options and how AI agents can be queried. This is achieved through payment plans (based on time or credits) and consumption costs (fixed per request or dynamic). All of this can be defined by the AI builder or agent during the registration process.
-* Subscribers (humans or other agents) to purchase credits that grant access to AI agent services. Payments can be made in crypto or fiat via Stripe integration. The protocol registers the payment and credits distribution settlement on-chain.
-* Agents or users with access credits to query other AI agents. Nevermined authorizes only users with sufficient balance and keeps track of their credit usage.
-
+- Easy registration and discovery of AI agents and the payment plans required to access them. All agents registered in Nevermined expose their metadata in a generic way, making them searchable and discoverable for specific purposes.
+- Flexible definition of pricing options and how AI agents can be queried. This is achieved through payment plans (based on time or credits) and consumption costs (fixed per request or dynamic). All of this can be defined by the AI builder or agent during the registration process.
+- Subscribers (humans or other agents) to purchase credits that grant access to AI agent services. Payments can be made in crypto or fiat via Stripe integration. The protocol registers the payment and credits distribution settlement on-chain.
+- Agents or users with access credits to query other AI agents. Nevermined authorizes only users with sufficient balance and keeps track of their credit usage.
 
 The library is designed for use in browser environments or as part of AI Agents:
 
-* In a browser, the library provides a simple way to connect to the Nevermined protocol, allowing users to query AI Agents or publish their own.
-* As part of an AI Agent, the library allows the agent to query other agents programmatically. Additionally, agents can use the library to expose their own services and make them available to other agents or humans.
+- In a browser, the library provides a simple way to connect to the Nevermined protocol, allowing users to query AI Agents or publish their own.
+- As part of an AI Agent, the library allows the agent to query other agents programmatically. Additionally, agents can use the library to expose their own services and make them available to other agents or humans.
 
 ## Quickstart
 
@@ -41,6 +40,7 @@ npm install @nevermined-io/payments@^1.1
 ```
 
 > Pin the major version (or rely on a committed lockfile) so SDK upgrades are explicit. Always commit `package-lock.json` / `pnpm-lock.yaml`.
+
 ## A2A Integration (Agents‑to‑Agents)
 
 Nevermined Payments integrates with the A2A protocol to authorize and charge per request between agents:
@@ -78,19 +78,28 @@ Add a payment extension under `capabilities.extensions` carrying Nevermined meta
 ```
 
 Important notes:
+
 - The `url` must match exactly the URL registered in Nevermined for the agent/plan.
 - The final streaming event must include `metadata.creditsUsed` with the consumed cost.
 
-
 ## Requirements
 
-To use the Nevermined Payments Library, you need to get your Nevermined API key. You can get yours freely from the  [Nevermined App](https://nevermined.app).
+To use the Nevermined Payments Library, you need to get your Nevermined API key. You can get yours freely from the [Nevermined App](https://nevermined.app).
 
 ### Environments
 
 - Available environments: `sandbox`, `live`.
 
 Pick the environment that matches where your agent and plans are registered. The agent card `url` must belong to that environment.
+
+### Optional peer dependencies
+
+The core SDK has no required runtime peers. Some integrations are gated behind optional peer dependencies you install only if you use them:
+
+- **LangChain tool protection** (`@nevermined-io/payments/langchain`) — requires `@langchain/core` and `@langchain/langgraph >=1.0.0 <2`.
+- **LangSmith observability** (`@nevermined-io/payments/langsmith`, and the spans the `requiresPayment` wrapper emits when `LANGSMITH_TRACING=true`) — requires **`langsmith >=0.7`**. The spans rely on `getCurrentRunTree` (exported from `langsmith/singletons/traceable`) and the merging `RunTree.metadata` setter, both of which are only reliably present from `0.7` onward. Install it yourself: `pnpm add langsmith`.
+
+These are declared as optional peers, so npm/pnpm will not pull them in automatically and the SDK no-ops cleanly when they are absent.
 
 ### Initialize the Payments library in the Browser
 
@@ -124,7 +133,7 @@ export default function Home() {
 ### Initialize the Payments library in an AI Agent
 
 ```typescript
-import { Payments } from "@nevermined-io/payments";
+import { Payments } from '@nevermined-io/payments'
 
 const payments = Payments.getInstance({
   nvmApiKey,
@@ -138,19 +147,29 @@ Once the app is initialized we can create a payment plan:
 
 ```typescript
 const planMetadata: PlanMetadata = {
-    name: 'E2E test Payments Plan',
-  }
+  name: 'E2E test Payments Plan',
+}
 const priceConfig = payments.plans.getERC20PriceConfig(20n, ERC20_ADDRESS, builderAddress)
 const creditsConfig = payments.plans.getFixedCreditsConfig(100n)
-const { planId } = await payments.plans.registerCreditsPlan(planMetadata, priceConfig, creditsConfig)
+const { planId } = await payments.plans.registerCreditsPlan(
+  planMetadata,
+  priceConfig,
+  creditsConfig,
+)
 ```
 
 Or register a plan limited by time:
 
 ```typescript
 const priceConfig = payments.plans.getERC20PriceConfig(50n, ERC20_ADDRESS, builderAddress)
-const expirablePlanConfig = payments.plans.getExpirableDurationConfig(payments.plans.ONE_DAY_DURATION) // 1 day
-const response = await payments.plans.registerTimePlan(planMetadata, priceConfig, expirablePlanConfig)
+const expirablePlanConfig = payments.plans.getExpirableDurationConfig(
+  payments.plans.ONE_DAY_DURATION,
+) // 1 day
+const response = await payments.plans.registerTimePlan(
+  planMetadata,
+  priceConfig,
+  expirablePlanConfig,
+)
 ```
 
 You can also create trial plans (free plans that can only be purchased once):
@@ -166,7 +185,7 @@ const trialCreditsConfig = payments.plans.getFixedCreditsConfig(10n)
 const trialPlan = await payments.plans.registerCreditsTrialPlan(
   trialPlanMetadata,
   freePriceConfig,
-  trialCreditsConfig
+  trialCreditsConfig,
 )
 
 // Time-based trial plan
@@ -174,7 +193,7 @@ const timeTrialConfig = payments.plans.getExpirableDurationConfig(ONE_DAY_DURATI
 const timeTrialPlan = await payments.plans.registerTimeTrialPlan(
   trialPlanMetadata,
   freePriceConfig,
-  timeTrialConfig
+  timeTrialConfig,
 )
 ```
 
@@ -192,12 +211,13 @@ const agentMetadata = {
 // The API that the agent will expose
 const agentApi = {
   endpoints: [
-    { 'POST': `https://example.com/api/v1/agents/:agentId/tasks` },
-    { 'GET': `https://example.com/api/v1/agents/:agentId/tasks/invoke` }
-]}
+    { POST: `https://example.com/api/v1/agents/:agentId/tasks` },
+    { GET: `https://example.com/api/v1/agents/:agentId/tasks/invoke` },
+  ],
+}
 
 // This is the list of payment plans that the agent will accept
-const paymentPlans = [ creditsPlanId, expirablePlanId ]
+const paymentPlans = [creditsPlanId, expirablePlanId]
 const result = await payments.agents.registerAgent(agentMetadata, agentApi, paymentPlans)
 ```
 
@@ -212,9 +232,7 @@ const agentMetadata = {
 }
 
 const agentApi = {
-  endpoints: [
-    { 'POST': 'https://example.com/api/v1/agents/:agentId/tasks' }
-  ]
+  endpoints: [{ POST: 'https://example.com/api/v1/agents/:agentId/tasks' }],
 }
 
 const planMetadata = { name: 'Basic Plan' }
@@ -228,11 +246,12 @@ const { agentId, planId, txHash } = await payments.agents.registerAgentAndPlan(
   planMetadata,
   priceConfig,
   creditsConfig,
-  'time' // Optionally set access limit to 'time' or 'credits'
+  'time', // Optionally set access limit to 'time' or 'credits'
 )
 ```
 
 The `accessLimit` parameter is optional. If not specified, it's automatically inferred:
+
 - `'credits'` if `creditsConfig.durationSecs === 0n` (non-expirable)
 - `'time'` if `creditsConfig.durationSecs > 0n` (expirable)
 
@@ -261,7 +280,7 @@ const agentHTTPOptions = {
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    'payment-signature': accessToken
+    'payment-signature': accessToken,
   },
 }
 const response = await fetch(new URL(agentURL), agentHTTPOptions)
@@ -281,7 +300,7 @@ MCP servers expose handlers (tools/resources/prompts) with their logical URLs, s
 
 ### Why Nevermined Payments?
 
-While MCP defines *what* an agent can do, it doesn't specify *who* can access it or *how* to charge for it. **Nevermined Payments** adds:
+While MCP defines _what_ an agent can do, it doesn't specify _who_ can access it or _how_ to charge for it. **Nevermined Payments** adds:
 
 - **Authentication**: Validates user tokens via `Authorization` header
 - **Credit System**: Checks and deducts credits per request
@@ -292,77 +311,77 @@ While MCP defines *what* an agent can do, it doesn't specify *who* can access it
 #### 1. Initialize Nevermined Payments
 
 ```typescript
-import { Payments, EnvironmentName } from "@nevermined-io/payments";
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
 
 const payments = Payments.getInstance({
   nvmApiKey: process.env.NVM_API_KEY!,
   environment: process.env.NVM_ENVIRONMENT! as EnvironmentName,
-});
+})
 ```
 
 #### 2. Register Protected Tools
 
 ```typescript
-import { z } from "zod";
+import { z } from 'zod'
 
 const schema = z.object({
-  city: z.string().describe("City name"),
-}) as any;
+  city: z.string().describe('City name'),
+}) as any
 
 payments.mcp.registerTool(
-  "weather.today",
+  'weather.today',
   {
     title: "Today's Weather",
-    description: "Get weather for a city",
+    description: 'Get weather for a city',
     inputSchema: schema,
   },
   async (args) => {
-    const { city } = args as { city: string };
+    const { city } = args as { city: string }
     return {
-      content: [{ type: "text", text: `Weather for ${city}: Sunny, 25C` }],
-    };
+      content: [{ type: 'text', text: `Weather for ${city}: Sunny, 25C` }],
+    }
   },
-  { credits: 1n }
-);
+  { credits: 1n },
+)
 ```
 
 #### 3. Register Protected Resources
 
 ```typescript
 payments.mcp.registerResource(
-  "Weather Data",
-  "weather://today",
+  'Weather Data',
+  'weather://today',
   {
     title: "Today's Weather",
-    description: "JSON weather data",
-    mimeType: "application/json",
+    description: 'JSON weather data',
+    mimeType: 'application/json',
   },
   async (uri) => {
     return {
-      contents: [{ uri: uri.href, text: "{...}", mimeType: "application/json" }],
-    };
+      contents: [{ uri: uri.href, text: '{...}', mimeType: 'application/json' }],
+    }
   },
-  { credits: 5n }
-);
+  { credits: 5n },
+)
 ```
 
 #### 4. Register Protected Prompts
 
 ```typescript
 payments.mcp.registerPrompt(
-  "weather.ensureCity",
+  'weather.ensureCity',
   {
-    title: "Ensure city",
-    description: "Guide to call weather.today",
+    title: 'Ensure city',
+    description: 'Guide to call weather.today',
     argsSchema: schema,
   },
   (args) => {
     return {
-      messages: [{ role: "user", content: { type: "text", text: "..." } }],
-    };
+      messages: [{ role: 'user', content: { type: 'text', text: '...' } }],
+    }
   },
-  { credits: (ctx) => ctx.result.length > 100 ? 2n : 1n }  // Dynamic credits
-);
+  { credits: (ctx) => (ctx.result.length > 100 ? 2n : 1n) }, // Dynamic credits
+)
 ```
 
 #### 5. Start the Server
@@ -371,9 +390,9 @@ payments.mcp.registerPrompt(
 const { info, stop } = await payments.mcp.start({
   port: 3002,
   agentId: process.env.NVM_AGENT_ID!,
-  serverName: "weather-mcp",
-  version: "0.1.0",
-});
+  serverName: 'weather-mcp',
+  version: '0.1.0',
+})
 ```
 
 ### Credit Configuration
@@ -382,22 +401,32 @@ All registration functions support fixed or dynamic credits:
 
 ```typescript
 // Fixed credits
-{ credits: 1n }
-{ credits: 5n }
+{
+  credits: 1n
+}
+{
+  credits: 5n
+}
 
 // Dynamic credits based on input
-{ credits: (ctx) => ctx.args.premium ? 5n : 1n }
+{
+  credits: (ctx) => (ctx.args.premium ? 5n : 1n)
+}
 
 // Dynamic credits based on result
-{ credits: (ctx) => ctx.result.length > 1000 ? 3n : 1n }
+{
+  credits: (ctx) => (ctx.result.length > 1000 ? 3n : 1n)
+}
 
 // Tiered pricing
-{ credits: (ctx) => {
-  const size = JSON.stringify(ctx.result).length;
-  if (size > 1000) return 5n;
-  if (size > 500) return 3n;
-  return 1n;
-}}
+{
+  credits: (ctx) => {
+    const size = JSON.stringify(ctx.result).length
+    if (size > 1000) return 5n
+    if (size > 500) return 3n
+    return 1n
+  }
+}
 ```
 
 ### Client Usage
@@ -405,55 +434,54 @@ All registration functions support fixed or dynamic credits:
 #### Get Access Token
 
 ```typescript
-import { Payments } from "@nevermined-io/payments";
+import { Payments } from '@nevermined-io/payments'
 
 const payments = Payments.getInstance({
   nvmApiKey: process.env.NVM_API_KEY!,
-  environment: "sandbox",
-});
+  environment: 'sandbox',
+})
 
 const { accessToken } = await payments.x402.getX402AccessToken(
   process.env.NVM_PLAN_ID!,
-  process.env.NVM_AGENT_ID!
-);
+  process.env.NVM_AGENT_ID!,
+)
 ```
 
 #### Call Protected Tools
 
 ```typescript
-import { Client } from "@modelcontextprotocol/sdk/client";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp";
+import { Client } from '@modelcontextprotocol/sdk/client'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp'
 
-const transport = new StreamableHTTPClientTransport(
-  new URL("http://localhost:3002/mcp"),
-  { requestInit: { headers: { Authorization: `Bearer ${accessToken}` } } }
-);
+const transport = new StreamableHTTPClientTransport(new URL('http://localhost:3002/mcp'), {
+  requestInit: { headers: { Authorization: `Bearer ${accessToken}` } },
+})
 
-const client = new Client({ name: "my-client" });
-await client.connect(transport);
+const client = new Client({ name: 'my-client' })
+await client.connect(transport)
 
 const result = await client.callTool({
-  name: "weather.today",
-  arguments: { city: "London" },
-});
+  name: 'weather.today',
+  arguments: { city: 'London' },
+})
 ```
 
 ### Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `POST /mcp` | MCP JSON-RPC requests |
-| `GET /mcp` | SSE stream for notifications |
-| `DELETE /mcp` | Session termination |
-| `GET /health` | Health check |
-| `GET /` | Server info |
+| Endpoint      | Description                  |
+| ------------- | ---------------------------- |
+| `POST /mcp`   | MCP JSON-RPC requests        |
+| `GET /mcp`    | SSE stream for notifications |
+| `DELETE /mcp` | Session termination          |
+| `GET /health` | Health check                 |
+| `GET /`       | Server info                  |
 
 ### Error Codes
 
-| Code | Description |
-|------|-------------|
+| Code     | Description                                                      |
+| -------- | ---------------------------------------------------------------- |
 | `-32003` | Authorization required / Payment required / Insufficient credits |
-| `-32002` | Server error |
+| `-32002` | Server error                                                     |
 
 ### Notes
 

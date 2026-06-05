@@ -50,6 +50,16 @@ import {
   type VerifyPermissionsResult,
   type SettlePermissionsResult,
 } from '../facilitator-api.js'
+import {
+  abbreviateToken,
+  activeRunTree,
+  addMetadata,
+  buildSettleMetadata,
+  buildVerifyMetadata,
+  redactMetadataKeys,
+  settlementSpan,
+  verifySpan,
+} from '../langsmith/spans.js'
 
 /**
  * Context passed to a dynamic credits function after tool execution.
@@ -115,7 +125,17 @@ export class PaymentRequiredError extends Error {
  * Payment context stored in `config.configurable.payment_context` after verification.
  */
 export interface PaymentContext {
-  /** The x402 access token */
+  /**
+   * Abbreviated, non-functional reference to the x402 access token — the SAME
+   * redacted form surfaced as `nvm.payment_token` (`<first 16>…<last 4>`, or a
+   * `…(short)` marker for a too-short token). The **full token is deliberately
+   * not persisted here**: this object is written into
+   * `config.configurable.payment_context`, and tracing frameworks (e.g.
+   * LangChain) can capture `config.configurable` into span metadata, so storing
+   * the raw credential would let it ride into any traced run opened during or
+   * after the tool body. Settlement uses the token read from
+   * `config.configurable.payment_token`, never this field.
+   */
   token: string
   /** The payment required object */
   paymentRequired: X402PaymentRequired
@@ -187,7 +207,6 @@ function storeInConfigurable(config: unknown, key: string, value: unknown): void
 
   const configurable = (config as Record<string, unknown>).configurable
   if (configurable == null || typeof configurable !== 'object') return
-
   ;(configurable as Record<string, unknown>)[key] = value
 }
 
@@ -253,15 +272,61 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       agentId,
       network,
     })
+    // The scheme/network the verify span advertises come from the resolved
+    // X402 scheme so the span metadata matches what the buyer paid against.
+    const accepted = paymentRequired.accepts[0]
+    const planIds = paymentRequired.accepts
+      .map((a) => a.planId)
+      .filter((p): p is string => Boolean(p))
+    const resolvedScheme = accepted?.scheme
+    const resolvedNetwork = network ?? accepted?.network
+
+    // LangChain auto-captures every key in config.configurable into the parent
+    // tool span's metadata, and child spans inherit it at construction time.
+    // Strip the full x402 access token from the parent BEFORE opening the verify
+    // span so neither the parent nor the child carries the raw credential — only
+    // the abbreviated nvm.payment_token remains for correlation.
+    const parentRunTree = await activeRunTree()
+    redactMetadataKeys(parentRunTree, 'payment_token')
+
+    const verifyStarted = Date.now()
+    // Open the verify span BEFORE the token-presence check so failed probes
+    // (no payment_token in config) still produce a clearly-named span with the
+    // static nvm.* attrs attached to both the span and the parent tool span.
+    const vspan = await verifySpan({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+    })
+    // Pre-verify metadata is best-effort and static-only.
+    const preVerifyMd = buildVerifyMetadata({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+    })
+    vspan.addMetadata(preVerifyMd)
+    addMetadata(parentRunTree, preVerifyMd)
 
     // Extract token from config.configurable.payment_token
     const token = extractPaymentToken(config)
     if (!token) {
+      await vspan.end(new Error('missing payment_token in config.configurable'))
       throw new PaymentRequiredError(
-        "Payment required: missing payment_token in config.configurable",
+        'Payment required: missing payment_token in config.configurable',
         paymentRequired,
       )
     }
+
+    // Abbreviate/redact the token ONCE here (mirrors Python's
+    // attach_metadata_safely pre-abbreviation) and pass the result into the
+    // metadata builders. abbreviateToken is idempotent, so the builders leave
+    // it unchanged — this means the short-token warning fires at most once per
+    // call (not once per verify AND once per settle), and the raw token never
+    // reaches the builders' frame locals (defense against exception enrichers
+    // that capture locals).
+    const abbreviatedToken = abbreviateToken(token)
 
     // Resolve pre-execution credits (static only; callable deferred to post-execution)
     const creditsToVerify = typeof credits === 'number' ? credits : 1
@@ -275,22 +340,48 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
         maxAmount: BigInt(creditsToVerify),
       })
     } catch (error) {
+      await vspan.end(error)
       throw new PaymentRequiredError(
         `Payment verification failed: ${error instanceof Error ? error.message : String(error)}`,
         paymentRequired,
       )
     }
 
+    // Augment span metadata with verification results + timing (both span and
+    // parent), then close the verify span. Best-effort: a metadata failure must
+    // not mask the PaymentRequiredError that may follow.
+    const verifyMd = buildVerifyMetadata({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+      verification,
+      durationMs: Date.now() - verifyStarted,
+      token: abbreviatedToken,
+    })
+    vspan.addMetadata(verifyMd)
+    addMetadata(parentRunTree, verifyMd)
+
     if (!verification.isValid) {
+      await vspan.end(new Error(verification.invalidReason || 'verification failed'))
       throw new PaymentRequiredError(
         `Payment verification failed: ${verification.invalidReason || 'Insufficient credits or invalid token'}`,
         paymentRequired,
       )
     }
 
-    // Store payment context
+    await vspan.end()
+
+    // Store payment context. The `token` field carries the ABBREVIATED
+    // reference, never the raw credential: `payment_context` is written into
+    // `config.configurable`, which LangChain can capture into span metadata, so
+    // persisting the full token here would reopen the very leak the parent-tree
+    // `redactMetadataKeys('payment_token')` calls close — and a child run opened
+    // *during* the tool body would capture it before any post-hoc redaction
+    // could run. `abbreviatedToken` is always defined past the `!token` guard
+    // above; `?? ''` is a belt-and-suspenders that can never fall back to raw.
     const paymentContext: PaymentContext = {
-      token,
+      token: abbreviatedToken ?? '',
       paymentRequired,
       creditsToSettle: creditsToVerify,
       verified: true,
@@ -308,7 +399,20 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
         ? credits({ args: args as Record<string, unknown>, result })
         : credits
 
-    // Settle credits
+    // Settle credits, wrapped in an nvm:settlement span (mirrors Python's
+    // settlement_span around settle_permissions).
+    //
+    // Re-fetch the active run tree: the verify-side redaction at the top of this
+    // function stripped `payment_token` from the run tree active BEFORE `fn()`,
+    // but `fn()` may have opened nested traced runs, so `activeRunTree()` can now
+    // return a different RunTree that LangChain auto-populated with the raw
+    // `payment_token` from `config.configurable`. Redact it again here, BEFORE
+    // opening the settlement span, so the credential never rides into the settle
+    // child span or the (possibly new) parent tree.
+    const settleParentRunTree = await activeRunTree()
+    redactMetadataKeys(settleParentRunTree, 'payment_token')
+    const settleStarted = Date.now()
+    const sspan = await settlementSpan({ planIds, agentId })
     try {
       const settlement = await payments.facilitator.settlePermissions({
         paymentRequired,
@@ -325,8 +429,20 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       // the receipt — LangGraph copies config.configurable per node, hiding the
       // line above from the buyer's outer scope.
       lastSettlementReceipt = settlement
+
+      const settleMd = buildSettleMetadata({
+        settlement,
+        planIds,
+        agentId,
+        durationMs: Date.now() - settleStarted,
+        token: abbreviatedToken,
+      })
+      sspan.addMetadata(settleMd)
+      addMetadata(settleParentRunTree, settleMd)
+      await sspan.end()
     } catch (settleError) {
       console.error('Payment settlement failed:', settleError)
+      await sspan.end(settleError)
       // Still return result even if settlement fails
     }
 
