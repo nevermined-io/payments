@@ -280,6 +280,30 @@ describe('requiresPayment LangSmith wiring', () => {
     expect(JSON.stringify(config.configurable.payment_context)).not.toContain(LONG_TOKEN)
   })
 
+  it('removes the raw payment_token from config.configurable after extraction (nvm-monorepo#1901)', async () => {
+    const parent = new FakeRunTree({ name: 'tool' })
+    setActiveRun(parent)
+    // Hold the same configurable bag the decorator mutates.
+    const config: { configurable: Record<string, unknown> } = {
+      configurable: { payment_token: LONG_TOKEN },
+    }
+    const mockPayments = makeMockPayments()
+    const fn = protectedFn(mockPayments)
+
+    await fn({ topic: 'evs' }, config)
+
+    // The raw key is gone, so LangChain's ensureConfig can't re-promote it into
+    // a child runnable the tool body spawns. No raw token survives in the bag.
+    expect('payment_token' in config.configurable).toBe(false)
+    expect(JSON.stringify(config.configurable)).not.toContain(LONG_TOKEN)
+    // Settlement still ran with the RAW token (the wrapper reads its local
+    // `token`, not configurable), so removal is non-functional.
+    expect(mockPayments.facilitator.settlePermissions).toHaveBeenCalledTimes(1)
+    expect(mockPayments.facilitator.settlePermissions.mock.calls[0][0].x402AccessToken).toBe(
+      LONG_TOKEN,
+    )
+  })
+
   it('ends the settlement span WITH the error (and still returns) when settle throws', async () => {
     const parent = new FakeRunTree({ name: 'tool' })
     setActiveRun(parent)
