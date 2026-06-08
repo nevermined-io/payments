@@ -211,6 +211,17 @@ function storeInConfigurable(config: unknown, key: string, value: unknown): void
 }
 
 /**
+ * Remove a key from config.configurable if present (no-op otherwise).
+ */
+function removeFromConfigurable(config: unknown, key: string): void {
+  if (config == null || typeof config !== 'object') return
+
+  const configurable = (config as Record<string, unknown>).configurable
+  if (configurable == null || typeof configurable !== 'object') return
+  delete (configurable as Record<string, unknown>)[key]
+}
+
+/**
  * Wraps a LangChain.js tool implementation with x402 payment verification and settlement.
  *
  * This is a higher-order function that takes the tool's implementation function and
@@ -319,6 +330,22 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
       )
     }
 
+    // Drop the raw token from configurable now that we hold it in `token`.
+    // LangChain's `ensureConfig` re-promotes every configurable scalar into a
+    // runnable's `metadata` on EACH invocation, so any traced runnable the tool
+    // body spawns (an LLM call, a sub-chain) sharing this config would otherwise
+    // re-leak the full credential into its own span metadata — and a child run
+    // opened *during* `fn()` would capture it before the settle-side
+    // `redactMetadataKeys` below could run. Removing the key here is the
+    // proactive complement to that reactive redaction. This MUST run after
+    // extraction (deleting earlier would make `extractPaymentToken` return null)
+    // and before `fn()` — guaranteed, since `fn()` is called further down.
+    // Settlement uses the local `token`, never configurable, so removal is
+    // non-functional. On the `tool()`/LangGraph path LangChain hands the wrapper
+    // a per-invocation config copy, so this does not mutate a config the caller
+    // reuses across sibling tools.
+    removeFromConfigurable(config, 'payment_token')
+
     // Abbreviate/redact the token ONCE here (mirrors Python's
     // attach_metadata_safely pre-abbreviation) and pass the result into the
     // metadata builders. abbreviateToken is idempotent, so the builders leave
@@ -402,13 +429,15 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
     // Settle credits, wrapped in an nvm:settlement span (mirrors Python's
     // settlement_span around settle_permissions).
     //
-    // Re-fetch the active run tree: the verify-side redaction at the top of this
-    // function stripped `payment_token` from the run tree active BEFORE `fn()`,
-    // but `fn()` may have opened nested traced runs, so `activeRunTree()` can now
-    // return a different RunTree that LangChain auto-populated with the raw
-    // `payment_token` from `config.configurable`. Redact it again here, BEFORE
-    // opening the settlement span, so the credential never rides into the settle
-    // child span or the (possibly new) parent tree.
+    // Re-fetch the active run tree: `fn()` may have opened nested traced runs, so
+    // `activeRunTree()` can now return a different RunTree than the verify-side
+    // redaction at the top of this function scrubbed. We already removed
+    // `payment_token` from `config.configurable` before `fn()` ran, so newly
+    // opened child runs can no longer re-promote the raw credential — this
+    // re-redaction is now defense-in-depth, covering any RunTree whose metadata
+    // was populated before that removal took effect. Redact BEFORE opening the
+    // settlement span so the credential never rides into the settle child span or
+    // the (possibly new) parent tree.
     const settleParentRunTree = await activeRunTree()
     redactMetadataKeys(settleParentRunTree, 'payment_token')
     const settleStarted = Date.now()
