@@ -101,7 +101,7 @@ const testnetEurcConfig = payments.plans.getEURCPriceConfig(
 ```typescript
 // Fiat pricing in USD (default)
 const priceConfig = payments.plans.getFiatPriceConfig(
-  1000n,          // Amount in cents ($10.00)
+  10_000_000n,    // Amount in 6-decimal units ($10.00) — NOT cents
   builderAddress
 )
 
@@ -109,11 +109,13 @@ const priceConfig = payments.plans.getFiatPriceConfig(
 import { Currency } from '@nevermined-io/payments'
 
 const eurPriceConfig = payments.plans.getFiatPriceConfig(
-  2900n,          // Amount in euro cents (€29.00)
+  29_000_000n,    // Amount in 6-decimal units (€29.00) — NOT cents
   builderAddress,
   Currency.EUR
 )
 ```
+
+> Fiat amounts are in **6-decimal units** (the USDC convention used across the Nevermined protocol), **not** cents — `10_000_000n` = $10.00. The server-side minimum is **$1.00** (`1_000_000n`); smaller amounts are rejected with `BCK.PROTOCOL.0047`.
 
 ### Free Plans
 
