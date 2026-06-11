@@ -85,10 +85,29 @@ describe('getX402AccessToken — create-first deprecation', () => {
     expect(deprecationWarn()).toBeUndefined()
   })
 
-  test('inline create with spending limits (no delegationId) warns', async () => {
-    installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
+  test('delegationId present + leftover inline fields is silent (migration footgun)', async () => {
+    // A caller migrating to create-first may leave the old inline fields in
+    // place alongside the new delegationId. delegationId wins — reuse path,
+    // no warning — so the migration is not punished mid-flight.
+    installFetch(() => jsonResponse({ accessToken: 'tok.reuse' }))
 
     await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:card-delegation',
+      delegationConfig: {
+        delegationId: 'del-1',
+        spendingLimitCents: 1000,
+        durationSecs: 3600,
+        currency: 'usd',
+      },
+    })
+
+    expect(deprecationWarn()).toBeUndefined()
+  })
+
+  test('inline create with spending limits (no delegationId) warns but is NON-FATAL', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
+
+    const res = await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
       scheme: 'nvm:erc4337',
       delegationConfig: { spendingLimitCents: 1000, durationSecs: 3600 },
     })
@@ -97,6 +116,11 @@ describe('getX402AccessToken — create-first deprecation', () => {
     expect(warn).toBeDefined()
     expect(warn).toContain('createDelegation')
     expect(warn).toContain('delegationId')
+    // The warning must NOT short-circuit the request: the token request still
+    // fires and returns. Guards against a regression turning warn -> throw.
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toContain('/api/v1/x402/permissions')
+    expect(res.accessToken).toBe('tok.inline')
   })
 
   test('inline create with providerPaymentMethodId (no delegationId) warns', async () => {

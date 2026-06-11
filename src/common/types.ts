@@ -537,18 +537,29 @@ export function isValidScheme(s: unknown): s is X402SchemeType {
 }
 
 /**
+ * Currency codes accepted for a delegation. Lowercase, mirroring the
+ * backend's `@IsIn(['usd','eur','usdc','eurc'])` constraint on
+ * `POST /api/v1/delegation/create` and the Python SDK's `DelegationCurrency`.
+ * Card providers use `'usd'`/`'eur'`; erc4337 uses `'usdc'`/`'eurc'`.
+ */
+export type DelegationCurrency = 'usd' | 'eur' | 'usdc' | 'eurc'
+
+/**
  * Configuration for delegation-based payments (both crypto and card schemes).
  *
  * The supported flow is **create-first**: create a delegation with
  * {@link DelegationAPI.createDelegation}, then request the access token with
  * `delegationConfig: { delegationId }`.
  *
- * @deprecated The inline create-on-the-fly fields (`providerPaymentMethodId`,
+ * @remarks
+ * The inline create-on-the-fly fields (`providerPaymentMethodId`,
  * `spendingLimitCents`, `durationSecs`, `currency`, `merchantAccountId`,
- * `maxTransactions`, `cardId`) are deprecated. Calling
+ * `maxTransactions`, `cardId`) are individually deprecated. Calling
  * {@link X402TokenAPI.getX402AccessToken} with a `delegationConfig` that lacks
- * `delegationId` emits a runtime deprecation warning; create the delegation
- * first and pass only `delegationId` (optionally `apiKeyId`) here.
+ * `delegationId` but carries one of those fields emits a runtime deprecation
+ * warning; create the delegation first and pass only `delegationId` (optionally
+ * `apiKeyId`) here. The interface itself is NOT deprecated — the
+ * `{ delegationId }` reuse path is the supported way to configure a token request.
  */
 export interface DelegationConfig {
   /**
@@ -574,10 +585,10 @@ export interface DelegationConfig {
    */
   durationSecs?: number
   /**
-   * Currency code (e.g., 'usd', 'usdc').
+   * Currency code (e.g., 'usd' for card providers, 'usdc' for erc4337).
    * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
    */
-  currency?: string
+  currency?: DelegationCurrency
   /**
    * Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId).
    * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
@@ -613,7 +624,7 @@ export interface CreateDelegationPayload {
   /** Duration of the delegation in seconds */
   durationSecs: number
   /** Currency code (e.g., 'usd' for card providers, 'usdc' for erc4337). Required by the backend — no silent default. */
-  currency: string
+  currency: DelegationCurrency
   /**
    * Plan ID to scope the delegation to. Optional and additive: delegations are
    * plan-agnostic by default; supplying `planId` opts into a plan-bound
