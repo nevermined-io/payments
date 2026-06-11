@@ -269,6 +269,7 @@ describe('X402 Delegation Flow', () => {
           delegationConfig: {
             spendingLimitCents: 50000,
             durationSecs: 3600,
+            currency: 'usdc',
           },
         }),
       {
