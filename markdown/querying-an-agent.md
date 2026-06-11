@@ -127,6 +127,8 @@ const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
 
 #### CLI
 
+> ⚠️ Inline create-on-the-fly is deprecated (nevermined-io/nvm-monorepo#1674) — the `--payment-type fiat` / `--payment-method-id` / `--spending-limit-cents` / `--delegation-duration-secs` flags create a delegation on the fly. Prefer creating a delegation first, then requesting the token by its `delegationId`.
+
 ```bash
 # Crypto (default)
 nvm x402token get-x402-access-token <planId>
