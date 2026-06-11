@@ -70,6 +70,7 @@ describe('X402 Card Delegation Flow (Stripe)', () => {
           providerPaymentMethodId: card!.id,
           spendingLimitCents: 10000,
           durationSecs: 604800,
+          currency: 'usd',
         }),
       { label: 'Stripe Delegation Creation', attempts: 3 },
     )

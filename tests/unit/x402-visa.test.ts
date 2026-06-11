@@ -196,6 +196,7 @@ describe('Visa provider surface', () => {
         providerPaymentMethodId: 'vat_1abc23def45',
         spendingLimitCents: 1_000,
         durationSecs: 3_600,
+        currency: 'usd',
       })
     } catch (err) {
       caught = err as PaymentsError
@@ -219,6 +220,7 @@ describe('Visa provider surface', () => {
         providerPaymentMethodId: 'vat_1abc23def45',
         spendingLimitCents: 1_000,
         durationSecs: 3_600,
+        currency: 'usd',
       })
       .catch(() => undefined)
 

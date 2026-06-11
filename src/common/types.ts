@@ -539,29 +539,64 @@ export function isValidScheme(s: unknown): s is X402SchemeType {
 /**
  * Configuration for delegation-based payments (both crypto and card schemes).
  *
- * To reuse an existing delegation supply `delegationId`.
- * To reuse an existing card (PaymentMethod entity) supply `cardId`.
- * When creating a brand-new delegation provide `providerPaymentMethodId`,
- * `spendingLimitCents`, and `durationSecs`.
+ * The supported flow is **create-first**: create a delegation with
+ * {@link DelegationAPI.createDelegation}, then request the access token with
+ * `delegationConfig: { delegationId }`.
+ *
+ * @deprecated The inline create-on-the-fly fields (`providerPaymentMethodId`,
+ * `spendingLimitCents`, `durationSecs`, `currency`, `merchantAccountId`,
+ * `maxTransactions`, `cardId`) are deprecated. Calling
+ * {@link X402TokenAPI.getX402AccessToken} with a `delegationConfig` that lacks
+ * `delegationId` emits a runtime deprecation warning; create the delegation
+ * first and pass only `delegationId` (optionally `apiKeyId`) here.
  */
 export interface DelegationConfig {
-  /** PaymentMethod entity UUID — preferred way to reference an enrolled card */
+  /**
+   * PaymentMethod entity UUID — references an enrolled card.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   cardId?: string
-  /** Existing delegation UUID to reuse instead of creating a new one */
+  /** Existing delegation UUID to reuse instead of creating a new one. The supported (non-deprecated) path. */
   delegationId?: string
-  /** Stripe payment method ID (e.g., 'pm_...'). Required only for new delegations. */
+  /**
+   * Stripe payment method ID (e.g., 'pm_...'). Required only for new delegations.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   providerPaymentMethodId?: string
-  /** Maximum spending limit in cents. Required only for new delegations. */
+  /**
+   * Maximum spending limit in cents. Required only for new delegations.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   spendingLimitCents?: number
-  /** Duration of the delegation in seconds. Required only for new delegations. */
+  /**
+   * Duration of the delegation in seconds. Required only for new delegations.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   durationSecs?: number
-  /** Currency code (default: 'usd') */
+  /**
+   * Currency code (e.g., 'usd', 'usdc').
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   currency?: string
-  /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
+  /**
+   * Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId).
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   merchantAccountId?: string
-  /** Maximum number of transactions allowed */
+  /**
+   * Maximum number of transactions allowed.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   maxTransactions?: number
-  /** NVM API Key ID to scope the delegation to */
+  /**
+   * Plan ID to scope a newly-created delegation to. Optional and additive:
+   * delegations are plan-agnostic by default; supplying `planId` opts into a
+   * plan-bound delegation. (Visa delegations are always plan-specific and
+   * require it server-side.)
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
+  planId?: string
+  /** NVM API Key ID to scope the delegation to. Active (non-deprecated). */
   apiKeyId?: string
 }
 
@@ -577,9 +612,13 @@ export interface CreateDelegationPayload {
   spendingLimitCents: number
   /** Duration of the delegation in seconds */
   durationSecs: number
-  /** Currency code (default: 'usd') */
-  currency?: string
-  /** Plan ID to scope the delegation to */
+  /** Currency code (e.g., 'usd' for card providers, 'usdc' for erc4337). Required by the backend — no silent default. */
+  currency: string
+  /**
+   * Plan ID to scope the delegation to. Optional and additive: delegations are
+   * plan-agnostic by default; supplying `planId` opts into a plan-bound
+   * delegation. (Visa delegations are always plan-specific and require it.)
+   */
   planId?: string
   /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
   merchantAccountId?: string

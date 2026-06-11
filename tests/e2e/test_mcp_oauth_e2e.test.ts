@@ -513,6 +513,7 @@ describe('MCP OAuth E2E Tests', () => {
         provider: 'erc4337',
         spendingLimitCents: 100000,
         durationSecs: 604800,
+        currency: 'usdc',
       })
       const accessParams = await retryWithBackoff(
         () =>
