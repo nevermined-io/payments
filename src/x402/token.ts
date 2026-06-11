@@ -83,10 +83,22 @@ export class X402TokenAPI extends BasePaymentsAPI {
 
     // Deprecation: the supported flow is create-first — create the delegation
     // with createDelegation(), then request the token with { delegationId }.
-    // A delegationConfig without delegationId triggers inline create-on-the-fly,
-    // which the backend has deprecated (auto-select and providerPaymentMethodId/
-    // cardId creation). Warn once per call; the { delegationId } path is silent.
-    if (!tokenOptions.delegationConfig.delegationId) {
+    // A delegationConfig that carries an inline-create signal instead of a
+    // delegationId triggers inline create-on-the-fly, which the backend has
+    // deprecated (auto-select and providerPaymentMethodId/cardId creation).
+    // Warn once per call; the { delegationId } (± apiKeyId) path is silent.
+    // Predicate mirrors the Python SDK (payments-py#224): no delegationId AND
+    // at least one creation field present — a bare/invalid config is left to
+    // fail downstream rather than warned.
+    const { delegationId, cardId, providerPaymentMethodId, spendingLimitCents, durationSecs } =
+      tokenOptions.delegationConfig
+    const isInlineCreate =
+      !delegationId &&
+      (cardId !== undefined ||
+        providerPaymentMethodId !== undefined ||
+        spendingLimitCents !== undefined ||
+        durationSecs !== undefined)
+    if (isInlineCreate) {
       console.warn(
         '[DEPRECATED] getX402AccessToken: inline create-on-the-fly delegationConfig ' +
           '(no delegationId) is deprecated and will be removed in a future release. ' +

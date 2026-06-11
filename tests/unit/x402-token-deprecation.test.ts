@@ -6,9 +6,12 @@
  * Mirrors the backend contract from nevermined-io/nvm-monorepo#1549
  * (#1534 plan-agnostic + additive planId, #1677 currency-required, #1674
  * deprecate inline create-on-the-fly): the supported flow is create-first
- * (createDelegation -> { delegationId }); a delegationConfig without a
- * delegationId is inline create-on-the-fly and must emit a runtime
- * deprecation warning, while the { delegationId } path stays silent.
+ * (createDelegation -> { delegationId }); a delegationConfig that carries an
+ * inline-create signal (cardId / providerPaymentMethodId / spendingLimitCents
+ * / durationSecs) but no delegationId is inline create-on-the-fly and must
+ * emit a runtime deprecation warning. The { delegationId } path — and a bare
+ * config with neither a delegationId nor a creation field — stay silent.
+ * Predicate aligned with the Python SDK (payments-py#224).
  */
 import { Payments } from '../../src/payments.js'
 
@@ -118,7 +121,7 @@ describe('getX402AccessToken — create-first deprecation', () => {
     expect(deprecationWarn()).toBeDefined()
   })
 
-  test('identifier-less auto-select shape (no delegationId) warns', async () => {
+  test('identifier-less auto-select shape (spending limits, no delegationId) warns', async () => {
     installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
 
     await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
@@ -127,6 +130,30 @@ describe('getX402AccessToken — create-first deprecation', () => {
     })
 
     expect(deprecationWarn()).toBeDefined()
+  })
+
+  test('bare delegationConfig (no delegationId, no creation fields) does NOT warn', async () => {
+    // Mirrors the Python SDK predicate: warn only when an inline-create signal
+    // is present. A bare/invalid config is left to fail downstream, not warned.
+    installFetch(() => jsonResponse({ accessToken: 'tok.bare' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:card-delegation',
+      delegationConfig: {},
+    })
+
+    expect(deprecationWarn()).toBeUndefined()
+  })
+
+  test('apiKeyId-only delegationConfig (no delegationId, no creation fields) does NOT warn', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'tok.bare' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:card-delegation',
+      delegationConfig: { apiKeyId: 'key-1' },
+    })
+
+    expect(deprecationWarn()).toBeUndefined()
   })
 
   test('missing delegationConfig throws (does not warn)', async () => {
