@@ -40,6 +40,7 @@ export type {
 export type {
   X402SchemeType,
   DelegationConfig,
+  DelegationCurrency,
   CreateDelegationPayload,
   CreateDelegationResponse,
   X402TokenOptions,

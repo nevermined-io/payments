@@ -79,6 +79,7 @@ describe('X402 Card Delegation Flow (Braintree)', () => {
           providerPaymentMethodId: pm!.id,
           spendingLimitCents: 10000,
           durationSecs: 604800,
+          currency: 'usd',
         }),
       { label: 'Braintree Delegation Creation', attempts: 3 },
     )

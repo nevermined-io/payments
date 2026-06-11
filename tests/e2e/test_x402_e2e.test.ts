@@ -123,6 +123,7 @@ describe('X402 Delegation Flow', () => {
           provider: 'erc4337',
           spendingLimitCents: 100000, // $1000 USDC
           durationSecs: 604800, // 1 week
+          currency: 'usdc',
         }),
       {
         label: 'Crypto Delegation Creation',
@@ -268,6 +269,7 @@ describe('X402 Delegation Flow', () => {
           delegationConfig: {
             spendingLimitCents: 50000,
             durationSecs: 3600,
+            currency: 'usdc',
           },
         }),
       {

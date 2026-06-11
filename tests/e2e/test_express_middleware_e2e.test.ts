@@ -213,6 +213,7 @@ describe('Express Payment Middleware E2E', () => {
           provider: 'erc4337',
           spendingLimitCents: 100000,
           durationSecs: 604800,
+          currency: 'usdc',
         }),
       {
         label: 'Delegation Creation',

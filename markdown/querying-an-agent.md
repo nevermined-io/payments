@@ -41,21 +41,26 @@ console.log('Access token generated')
 
 ### Token Parameters
 
-The `getX402AccessToken` method accepts several optional parameters:
+The `getX402AccessToken` method takes the plan id plus two optional arguments:
 
 ```typescript
 const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
   planId,
-  agentId,              // Optional: Restrict to specific agent
-  redemptionLimit,      // Optional: Max credits this token can burn (BigInt)
-  orderLimit,           // Optional: Order limit (string)
-  expiration            // Optional: Token expiration date (ISO string)
+  agentId,       // Optional: restrict the token to a specific agent
+  tokenOptions,  // Optional: X402TokenOptions (scheme, network, delegationConfig)
 )
 ```
 
+Both schemes require `tokenOptions.delegationConfig` — pass
+`{ delegationId }` for a delegation created via
+[`createDelegation`](#card-delegation-tokens-fiat).
+
 ### Card-Delegation Tokens (Fiat)
 
-For plans that accept fiat payments, generate tokens using the `nvm:card-delegation` scheme. Pass `X402TokenOptions` with a `CardDelegationConfig` to specify the payment method and spending limits:
+For plans that accept fiat payments, use the `nvm:card-delegation` scheme.
+Create the delegation once with `createDelegation` (passing the enrolled card's
+`providerPaymentMethodId` and the required `currency`), then request tokens by
+its `delegationId`:
 
 ```typescript
 import { Payments, EnvironmentName, X402TokenOptions } from '@nevermined-io/payments'
@@ -65,27 +70,27 @@ const subscriberPayments = Payments.getInstance({
   environment: 'sandbox' as EnvironmentName,
 })
 
-// List enrolled payment methods
+// 1. List enrolled payment methods and create a delegation once.
 const methods = await subscriberPayments.delegation.listPaymentMethods()
 console.log(`Found ${methods.length} enrolled card(s)`)
 
-// Build token options for card-delegation
+const { delegationId } = await subscriberPayments.delegation.createDelegation({
+  provider: methods[0].provider ?? 'stripe',
+  providerPaymentMethodId: methods[0].id, // or a specific 'pm_...' ID
+  spendingLimitCents: 1000, // max $10.00
+  durationSecs: 3600, // 1 hour delegation
+  currency: 'usd',
+})
+
+// 2. Request a token by delegationId (reuse it for subsequent requests).
 const tokenOptions: X402TokenOptions = {
   scheme: 'nvm:card-delegation',
-  delegationConfig: {
-    providerPaymentMethodId: methods[0].id,  // or a specific 'pm_...' ID
-    spendingLimitCents: 1000,                // max $10.00
-    durationSecs: 3600,                      // 1 hour delegation
-  },
+  delegationConfig: { delegationId },
 }
 
-// Generate fiat access token
 const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
   planId,
   agentId,
-  undefined,  // redemptionLimit
-  undefined,  // orderLimit
-  undefined,  // expiration
   tokenOptions,
 )
 ```
@@ -102,22 +107,27 @@ const scheme = await resolveScheme(subscriberPayments, planId)
 let tokenOptions: X402TokenOptions | undefined
 if (scheme === 'nvm:card-delegation') {
   const methods = await subscriberPayments.delegation.listPaymentMethods()
+  const { delegationId } = await subscriberPayments.delegation.createDelegation({
+    provider: methods[0].provider ?? 'stripe',
+    providerPaymentMethodId: methods[0].id,
+    spendingLimitCents: 1000,
+    durationSecs: 3600,
+    currency: 'usd',
+  })
   tokenOptions = {
     scheme: 'nvm:card-delegation',
-    delegationConfig: {
-      providerPaymentMethodId: methods[0].id,
-      spendingLimitCents: 1000,
-      durationSecs: 3600,
-    },
+    delegationConfig: { delegationId },
   }
 }
 
 const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
-  planId, agentId, undefined, undefined, undefined, tokenOptions,
+  planId, agentId, tokenOptions,
 )
 ```
 
 #### CLI
+
+> ⚠️ Inline create-on-the-fly is deprecated (nevermined-io/nvm-monorepo#1674) — the `--payment-type fiat` / `--payment-method-id` / `--spending-limit-cents` / `--delegation-duration-secs` flags create a delegation on the fly. Prefer creating a delegation first, then requesting the token by its `delegationId`.
 
 ```bash
 # Crypto (default)
