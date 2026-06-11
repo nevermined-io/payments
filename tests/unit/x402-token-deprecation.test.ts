@@ -156,6 +156,34 @@ describe('getX402AccessToken — create-first deprecation', () => {
     expect(deprecationWarn()).toBeDefined()
   })
 
+  test('durationSecs alone (no delegationId) warns — each creation field triggers', async () => {
+    // Standalone single-field trigger: guards against a predicate that drops one
+    // of the inline-create fields from the OR chain.
+    installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:erc4337',
+      delegationConfig: { durationSecs: 3600 },
+    })
+
+    expect(deprecationWarn()).toBeDefined()
+  })
+
+  test('emits the deprecation warning exactly once per call', async () => {
+    // Guards against a double-warn regression (e.g. warning in two places).
+    installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:erc4337',
+      delegationConfig: { spendingLimitCents: 1000, durationSecs: 3600 },
+    })
+
+    const deprecationCalls = warnSpy.mock.calls.filter((args) =>
+      String(args[0]).includes('[DEPRECATED]'),
+    )
+    expect(deprecationCalls).toHaveLength(1)
+  })
+
   test('bare delegationConfig (no delegationId, no creation fields) does NOT warn', async () => {
     // Mirrors the Python SDK predicate: warn only when an inline-create signal
     // is present. A bare/invalid config is left to fail downstream, not warned.
@@ -188,6 +216,21 @@ describe('getX402AccessToken — create-first deprecation', () => {
     ).rejects.toThrow(/delegationConfig is required/)
 
     expect(deprecationWarn()).toBeUndefined()
+  })
+
+  test('empty-string delegationId throws early (not treated as inline-create)', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'unused' }))
+
+    await expect(
+      payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+        scheme: 'nvm:card-delegation',
+        delegationConfig: { delegationId: '   ' },
+      }),
+    ).rejects.toThrow(/delegationId must not be an empty string/)
+
+    // It fails the request entirely — no warning, no fetch.
+    expect(deprecationWarn()).toBeUndefined()
+    expect(calls).toHaveLength(0)
   })
 })
 

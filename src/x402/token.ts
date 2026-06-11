@@ -92,6 +92,15 @@ export class X402TokenAPI extends BasePaymentsAPI {
     // fail downstream rather than warned.
     const { delegationId, cardId, providerPaymentMethodId, spendingLimitCents, durationSecs } =
       tokenOptions.delegationConfig
+    // Reject an explicit empty/blank delegationId early — it is neither a valid
+    // reuse id nor an inline-create signal, and forwarding `delegationId: ''`
+    // would 4xx at the backend. (Symmetric with the Python SDK, payments-py#225.)
+    if (delegationId !== undefined && delegationId.trim() === '') {
+      throw PaymentsError.validation(
+        'delegationConfig.delegationId must not be an empty string. ' +
+          'Pass a valid delegation UUID or omit the field.',
+      )
+    }
     const isInlineCreate =
       !delegationId &&
       (cardId !== undefined ||
@@ -119,10 +128,9 @@ export class X402TokenAPI extends BasePaymentsAPI {
       },
     }
 
-    // Add delegation config for both erc4337 and card-delegation schemes
-    if (tokenOptions?.delegationConfig) {
-      body.delegationConfig = tokenOptions.delegationConfig
-    }
+    // Add delegation config for both erc4337 and card-delegation schemes.
+    // delegationConfig is guaranteed present here (the absence check above throws).
+    body.delegationConfig = tokenOptions.delegationConfig
 
     const options = this.getBackendHTTPOptions('POST', body)
 
