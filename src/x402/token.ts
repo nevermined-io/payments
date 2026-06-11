@@ -28,14 +28,16 @@ export class X402TokenAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Create a delegation and get an X402 access token for the given plan.
+   * Get an X402 access token for the given plan, backed by a delegation.
    *
    * This token allows the agent to verify and settle delegations on behalf
    * of the subscriber.
    *
-   * For erc4337 scheme, you must pass `tokenOptions.delegationConfig` with either:
-   * - `delegationId` to reuse an existing delegation, or
-   * - `spendingLimitCents` + `durationSecs` to auto-create a new one.
+   * The supported flow is **create-first**: create the delegation once with
+   * {@link DelegationAPI.createDelegation}, then pass its `delegationId` in
+   * `tokenOptions.delegationConfig`. Passing inline create-on-the-fly fields
+   * (spending limits / `providerPaymentMethodId` / `cardId`, i.e. no
+   * `delegationId`) is **deprecated** and emits a runtime warning.
    *
    * @param planId - The unique identifier of the payment plan
    * @param agentId - The unique identifier of the AI agent (optional)
@@ -47,14 +49,15 @@ export class X402TokenAPI extends BasePaymentsAPI {
    *
    * @example
    * ```typescript
-   * // Pattern A — auto-create delegation
-   * const result = await payments.x402.getX402AccessToken(planId, agentId, {
-   *   delegationConfig: { spendingLimitCents: 10000, durationSecs: 604800 }
+   * // Supported: create the delegation first, then request the token by id.
+   * const { delegationId } = await payments.delegation.createDelegation({
+   *   provider: 'erc4337',
+   *   spendingLimitCents: 10000,
+   *   durationSecs: 604800,
+   *   currency: 'usdc',
    * })
-   *
-   * // Pattern B — reuse existing delegation
    * const result = await payments.x402.getX402AccessToken(planId, agentId, {
-   *   delegationConfig: { delegationId: 'existing-delegation-uuid' }
+   *   delegationConfig: { delegationId },
    * })
    * ```
    */
@@ -73,8 +76,22 @@ export class X402TokenAPI extends BasePaymentsAPI {
     if (!tokenOptions?.delegationConfig) {
       throw PaymentsError.validation(
         `delegationConfig is required for ${scheme} token generation. ` +
-          'Provide delegationConfig.delegationId to reuse an existing delegation, ' +
-          'or delegationConfig.spendingLimitCents + durationSecs to auto-create one.',
+          'Create a delegation first with payments.delegation.createDelegation(), ' +
+          'then request the token with delegationConfig.delegationId.',
+      )
+    }
+
+    // Deprecation: the supported flow is create-first — create the delegation
+    // with createDelegation(), then request the token with { delegationId }.
+    // A delegationConfig without delegationId triggers inline create-on-the-fly,
+    // which the backend has deprecated (auto-select and providerPaymentMethodId/
+    // cardId creation). Warn once per call; the { delegationId } path is silent.
+    if (!tokenOptions.delegationConfig.delegationId) {
+      console.warn(
+        '[DEPRECATED] getX402AccessToken: inline create-on-the-fly delegationConfig ' +
+          '(no delegationId) is deprecated and will be removed in a future release. ' +
+          'Create the delegation first with payments.delegation.createDelegation(), ' +
+          'then request the token with delegationConfig: { delegationId }.',
       )
     }
 

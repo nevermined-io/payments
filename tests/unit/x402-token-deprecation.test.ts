@@ -1,0 +1,202 @@
+/**
+ * Unit tests for the create-first / inline-create deprecation surface of
+ * getX402AccessToken, plus the additive planId and required currency on
+ * createDelegation.
+ *
+ * Mirrors the backend contract from nevermined-io/nvm-monorepo#1549
+ * (#1534 plan-agnostic + additive planId, #1677 currency-required, #1674
+ * deprecate inline create-on-the-fly): the supported flow is create-first
+ * (createDelegation -> { delegationId }); a delegationConfig without a
+ * delegationId is inline create-on-the-fly and must emit a runtime
+ * deprecation warning, while the { delegationId } path stays silent.
+ */
+import { Payments } from '../../src/payments.js'
+
+const TEST_API_KEY =
+  process.env.TEST_PROXY_BEARER_TOKEN ||
+  'sandbox-staging:eyJhbGciOiJFUzI1NksifQ.eyJpc3MiOiIweDU4MzhCNTUxMmNGOWYxMkZFOWYyYmVjY0IyMGViNDcyMTFGOUIwYmMiLCJzdWIiOiIweDIxRjc5ZjlkM2I2ZDUyZUY4Y2M4QjFhN0YyNjFCY2Y1ZjJFRjM1NGEiLCJqdGkiOiIweGUxMjIwMmRkMzZlZmQ4N2FkMjE1MmRlMjlkM2MwNmE5ZDU5N2M4NWJhOGMxOTQ1YjQ5MjlkYTYyYTRiZjQ1NGYiLCJleHAiOjE3OTEwNDc0OTcsIm8xMXkiOiJzay1oZWxpY29uZS13amUzYXdpLW5ud2V5M2EtdzdndnY3YS1oYmh3bm1pIn0.JI14qfSWHCWRvHOK9TAg3HEXWX7oKEI6fU6gaaWlyDl5btBWLh8FQo1ZnuzixPmgsUR3gc4oRlenLPUuTy-mORw'
+
+interface CapturedCall {
+  url: string
+  init?: RequestInit
+}
+
+const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+describe('getX402AccessToken — create-first deprecation', () => {
+  let originalFetch: typeof fetch
+  let calls: CapturedCall[]
+  let payments: Payments
+  let warnSpy: jest.SpyInstance
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    calls = []
+    payments = Payments.getInstance({
+      nvmApiKey: TEST_API_KEY,
+      environment: 'staging_sandbox',
+    })
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    warnSpy.mockRestore()
+  })
+
+  const installFetch = (handler: (call: CapturedCall) => Response | Promise<Response>): void => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      const call: CapturedCall = { url, init }
+      calls.push(call)
+      return handler(call)
+    }) as unknown as typeof fetch
+  }
+
+  const deprecationWarn = (): string | undefined =>
+    warnSpy.mock.calls.map((args) => String(args[0])).find((msg) => msg.includes('[DEPRECATED]'))
+
+  test('reuse-by-delegationId does NOT emit a deprecation warning', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'tok.reuse' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:card-delegation',
+      delegationConfig: { delegationId: 'del-uuid-1' },
+    })
+
+    expect(deprecationWarn()).toBeUndefined()
+  })
+
+  test('delegationId + apiKeyId is still silent (apiKeyId stays active)', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'tok.reuse' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:card-delegation',
+      delegationConfig: { delegationId: 'del-uuid-1', apiKeyId: 'key-1' },
+    })
+
+    expect(deprecationWarn()).toBeUndefined()
+  })
+
+  test('inline create with spending limits (no delegationId) warns', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:erc4337',
+      delegationConfig: { spendingLimitCents: 1000, durationSecs: 3600 },
+    })
+
+    const warn = deprecationWarn()
+    expect(warn).toBeDefined()
+    expect(warn).toContain('createDelegation')
+    expect(warn).toContain('delegationId')
+  })
+
+  test('inline create with providerPaymentMethodId (no delegationId) warns', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:card-delegation',
+      delegationConfig: { providerPaymentMethodId: 'pm_123', spendingLimitCents: 5000, durationSecs: 3600 },
+    })
+
+    expect(deprecationWarn()).toBeDefined()
+  })
+
+  test('cardId without delegationId warns (cardId is a deprecated inline-create field)', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:card-delegation',
+      delegationConfig: { cardId: 'card-uuid', spendingLimitCents: 5000, durationSecs: 3600 },
+    })
+
+    expect(deprecationWarn()).toBeDefined()
+  })
+
+  test('identifier-less auto-select shape (no delegationId) warns', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'tok.inline' }))
+
+    await payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+      scheme: 'nvm:card-delegation',
+      delegationConfig: { spendingLimitCents: 10000, durationSecs: 2592000 },
+    })
+
+    expect(deprecationWarn()).toBeDefined()
+  })
+
+  test('missing delegationConfig throws (does not warn)', async () => {
+    installFetch(() => jsonResponse({ accessToken: 'unused' }))
+
+    await expect(
+      payments.x402.getX402AccessToken('plan-1', 'agent-1', { scheme: 'nvm:erc4337' }),
+    ).rejects.toThrow(/delegationConfig is required/)
+
+    expect(deprecationWarn()).toBeUndefined()
+  })
+})
+
+describe('createDelegation — required currency + additive planId on the wire', () => {
+  let originalFetch: typeof fetch
+  let calls: CapturedCall[]
+  let payments: Payments
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    calls = []
+    payments = Payments.getInstance({
+      nvmApiKey: TEST_API_KEY,
+      environment: 'staging_sandbox',
+    })
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  const installFetch = (handler: (call: CapturedCall) => Response | Promise<Response>): void => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      calls.push({ url, init })
+      return handler({ url, init })
+    }) as unknown as typeof fetch
+  }
+
+  test('posts currency and the optional planId verbatim', async () => {
+    installFetch(() => jsonResponse({ delegationId: 'del-1' }))
+
+    await payments.delegation.createDelegation({
+      provider: 'stripe',
+      providerPaymentMethodId: 'pm_123',
+      spendingLimitCents: 10000,
+      durationSecs: 604800,
+      currency: 'usd',
+      planId: 'plan-bound-1',
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toContain('/api/v1/delegation/create')
+    const body = JSON.parse(calls[0].init!.body as string)
+    expect(body.currency).toBe('usd')
+    expect(body.planId).toBe('plan-bound-1')
+  })
+
+  test('plan-agnostic by default — planId is omitted when not supplied', async () => {
+    installFetch(() => jsonResponse({ delegationId: 'del-1' }))
+
+    await payments.delegation.createDelegation({
+      provider: 'erc4337',
+      spendingLimitCents: 100000,
+      durationSecs: 604800,
+      currency: 'usdc',
+    })
+
+    const body = JSON.parse(calls[0].init!.body as string)
+    expect(body.currency).toBe('usdc')
+    expect(body.planId).toBeUndefined()
+  })
+})
