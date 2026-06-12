@@ -513,7 +513,7 @@ export class PlansAPI extends BasePaymentsAPI {
   public async getPlan(planId: string) {
     const query = API_URL_GET_PLAN.replace(':planId', planId)
     const url = new URL(query, this.environment.backend)
-    const response = await fetch(url)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
       throw PaymentsError.fromBackend('Plan not found', await safeParseJson(response))
     }
@@ -568,7 +568,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const query =
       API_URL_GET_PLAN_AGENTS.replace(':planId', planId) + '?' + pagination.asQueryParams()
     const url = new URL(query, this.environment.backend)
-    const response = await fetch(url)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
       throw PaymentsError.fromBackend('Plan not found', await safeParseJson(response))
     }

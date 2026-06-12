@@ -78,6 +78,19 @@ The CLI has BigInt-aware JSON parsing (reviver in `cli/src/base-command.ts`) and
 
 The SDK and CLI support four environment values: `sandbox`, `live`, `staging_sandbox`, and `staging_live`. The `staging_*` variants are for **internal development only** and must never appear in public-facing documentation. All docs, examples, and SKILL files must use only `sandbox` and `live`. The CLI defaults to `sandbox` when no environment is set.
 
+### API Version Pinning
+
+Every HTTP call to the Nevermined backend carries a `Nevermined-Version` header pinning the **backend API** version (nvm-monorepo MAJOR.MINOR) this SDK release is built and tested against — this is NOT the SDK package version. Both constants live in `src/common/api-version.ts`:
+
+- `LOCKED_API_VERSION` — the pinned backend contract (currently `1.1`). Resolved as `options.version ?? LOCKED_API_VERSION` in `BasePaymentsAPI.getBackendHTTPOptions()` / `getPublicHTTPOptions()`, so it applies to authenticated and public endpoints alike.
+- `API_VERSION_HEADER` — the header name (`Nevermined-Version`).
+
+**Bump procedure** (deliberate, never automatic): update `LOCKED_API_VERSION` when targeting a newer backend contract, run the e2e suite against a staging backend running that version, then cut a minor SDK release.
+
+**Override path**: per `Payments` instance via the existing `options.version` (e.g. `Payments.getInstance({ ..., version: '1.0' })`). There is intentionally **no per-request override** — `Nevermined-Version` is not in the `ALLOWED_EXTRA_HEADERS` allowlist, so `extraHeaders` cannot clobber it.
+
+See https://docs.nevermined.app/api-reference/versioning and nvm-monorepo#1535/#1938.
+
 ### x402 Protocol and Documentation Standards
 
 When writing examples or documentation:

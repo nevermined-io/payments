@@ -39,7 +39,13 @@ export interface PaymentOptions {
   appId?: string
 
   /**
-   * The version of the API to use.
+   * Pins the Nevermined backend API version (MAJOR.MINOR) sent with every
+   * request via the `Nevermined-Version` header. Defaults to
+   * {@link LOCKED_API_VERSION} — the backend contract this SDK release is
+   * built and tested against. Override only to deliberately target a
+   * different backend contract.
+   *
+   * @see https://docs.nevermined.app/api-reference/versioning
    */
   version?: string
 

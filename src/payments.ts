@@ -93,8 +93,9 @@ export class Payments extends BasePaymentsAPI {
    * Returns the Delegation API for listing enrolled payment methods.
    * The instance is lazily initialized on first access — the current
    * organization pin (set via `setOrganizationId` or the constructor
-   * option) is forwarded so the first call carries the right
-   * `X-Current-Org-Id` header.
+   * option) and the backend API version pin (`options.version`) are
+   * forwarded so the first call carries the right `X-Current-Org-Id`
+   * and `Nevermined-Version` headers.
    */
   public get delegation(): DelegationAPI {
     if (!this._delegation) {
@@ -102,6 +103,7 @@ export class Payments extends BasePaymentsAPI {
         nvmApiKey: this.nvmApiKey,
         environment: this.environmentName,
         organizationId: this.currentOrganizationId ?? undefined,
+        version: this.version,
       })
     }
     return this._delegation
