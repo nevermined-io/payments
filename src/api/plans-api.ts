@@ -610,15 +610,8 @@ export class PlansAPI extends BasePaymentsAPI {
       holderAddress,
     )
 
-    const options = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-    }
     const url = new URL(balanceUrl, this.environment.backend)
-    const response = await fetch(url, options)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
       throw PaymentsError.fromBackend('Unable to get balance', await safeParseJson(response))
     }

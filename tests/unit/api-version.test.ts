@@ -187,10 +187,13 @@ describe('API version pinning — Nevermined-Version header', () => {
 
       await payments.plans.getPlan('plan-123')
       await payments.plans.getAgentsAssociatedToAPlan('plan-123')
+      await payments.plans
+        .getPlanBalance('plan-123', '0x6B16D0b334824581B4a24A49Fd7fcbD6509CE5da')
+        .catch(() => undefined) // stub payload may not satisfy parsing; the wire assertion below is the point
       await payments.agents.getAgent('agent-123')
       await payments.agents.getAgentPlans('agent-123')
 
-      expect(calls).toHaveLength(4)
+      expect(calls).toHaveLength(5)
       for (const call of calls) {
         expect(call.init.headers[API_VERSION_HEADER]).toBe(LOCKED_API_VERSION)
         expect(call.init.headers.Authorization).toBeUndefined()

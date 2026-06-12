@@ -149,7 +149,7 @@ export class Payments extends BasePaymentsAPI {
    *   returnUrl: 'https://mysite.example',
    *   environment: 'sandbox',
    *   appId: 'my-app-id',
-   *   version: '1.0.0'
+   *   version: '1.1'
    * })
    * ```
    * @returns An instance of {@link Payments}
