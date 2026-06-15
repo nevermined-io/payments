@@ -63,6 +63,12 @@ Authenticate with Nevermined via browser login. Opens a browser window to obtain
 ### `/nvm_logout`
 Log out from Nevermined and remove the stored API key.
 
+## API versioning
+
+Every Nevermined-backend call this plugin makes goes through the `@nevermined-io/payments` SDK, which **pins the backend API version** (the platform `MAJOR.MINOR`) via the `Nevermined-Version` header automatically — so OpenClaw-orchestrated agents keep getting a stable wire shape across platform releases without any per-call work. The pinned version is the one the bundled SDK release was built and tested against; it moves only when the plugin upgrades its SDK dependency.
+
+If an agent makes a **direct** REST call to the Nevermined API (outside these tools), send `Nevermined-Version: <MAJOR.MINOR>`, default it to the `current` from `GET /api/v1/meta/versions`, and never silently change a key's stored pin. See <https://docs.nevermined.app/docs/development-guide/api-versioning>.
+
 ## Subscriber Tools
 
 ### `nevermined_checkBalance`
