@@ -114,6 +114,27 @@ describe('API version pinning — Nevermined-Version header', () => {
     })
   })
 
+  describe('options.version validation', () => {
+    test.each(['1.0', '1.1', '2.10'])('accepts canonical MAJOR.MINOR %p', (version) => {
+      expect(() =>
+        Payments.getInstance({ nvmApiKey: TEST_API_KEY, environment: 'staging_sandbox', version }),
+      ).not.toThrow()
+    })
+
+    test.each(['1.0.0', 'v1.1', '1', '1.x', ''])(
+      'rejects a malformed version %p at construction',
+      (version) => {
+        expect(() =>
+          Payments.getInstance({
+            nvmApiKey: TEST_API_KEY,
+            environment: 'staging_sandbox',
+            version,
+          }),
+        ).toThrow(/MAJOR\.MINOR/)
+      },
+    )
+  })
+
   describe('getPublicHTTPOptions', () => {
     test('pins LOCKED_API_VERSION by default', () => {
       const { headers } = makeApi().publicOptions('GET')
@@ -185,11 +206,12 @@ describe('API version pinning — Nevermined-Version header', () => {
       })
       const calls = installFetchStub(() => ({ ok: true, body: {} }))
 
+      // getPlanBalance does no client-side body parsing, so an ok:true stub
+      // with a valid holder address resolves cleanly — assert it directly so
+      // a future pre-fetch throw surfaces here instead of being swallowed.
       await payments.plans.getPlan('plan-123')
       await payments.plans.getAgentsAssociatedToAPlan('plan-123')
-      await payments.plans
-        .getPlanBalance('plan-123', '0x6B16D0b334824581B4a24A49Fd7fcbD6509CE5da')
-        .catch(() => undefined) // stub payload may not satisfy parsing; the wire assertion below is the point
+      await payments.plans.getPlanBalance('plan-123', '0x6B16D0b334824581B4a24A49Fd7fcbD6509CE5da')
       await payments.agents.getAgent('agent-123')
       await payments.agents.getAgentPlans('agent-123')
 

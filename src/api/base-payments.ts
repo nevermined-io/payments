@@ -90,6 +90,15 @@ export abstract class BasePaymentsAPI {
     this.environment = Environments[options.environment as EnvironmentName]
     this.environmentName = options.environment
     this.appId = options.appId
+    // `version` is the backend API pin (MAJOR.MINOR) sent verbatim as
+    // Nevermined-Version. Fail fast on a malformed value rather than shipping
+    // an invalid header (e.g. an SDK package version '1.0.0', 'v1.1', or '')
+    // that the backend rejects with 400 on every call.
+    if (options.version !== undefined && !/^\d+\.\d+$/.test(options.version)) {
+      throw new PaymentsError(
+        `Invalid 'version' option '${options.version}': expected a backend API version as MAJOR.MINOR (e.g. '1.1'). Omit it to use the SDK's default pin.`,
+      )
+    }
     this.version = options.version
     this.currentOrganizationId = options.organizationId ?? null
 
