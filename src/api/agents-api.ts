@@ -168,7 +168,10 @@ export class AgentsAPI extends BasePaymentsAPI {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to register agent & plan', await safeParseJson(response))
+      throw PaymentsError.fromBackend(
+        'Unable to register agent & plan',
+        await safeParseJson(response),
+      )
     }
     const result = await response.json()
     return {
@@ -192,7 +195,7 @@ export class AgentsAPI extends BasePaymentsAPI {
    */
   public async getAgent(agentId: string) {
     const url = new URL(API_URL_GET_AGENT.replace(':agentId', agentId), this.environment.backend)
-    const response = await fetch(url)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
       throw PaymentsError.fromBackend('Agent not found', await safeParseJson(response))
     }
@@ -257,7 +260,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const query =
       API_URL_GET_AGENT_PLANS.replace(':agentId', agentId) + '?' + pagination.asQueryParams()
     const url = new URL(query, this.environment.backend)
-    const response = await fetch(url)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
       throw PaymentsError.fromBackend('Agent not found', await safeParseJson(response))
     }
@@ -327,7 +330,10 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to remove plan from agent', await safeParseJson(response))
+      throw PaymentsError.fromBackend(
+        'Unable to remove plan from agent',
+        await safeParseJson(response),
+      )
     }
 
     return response.json()

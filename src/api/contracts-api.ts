@@ -28,7 +28,7 @@ export class ContractsAPI extends BasePaymentsAPI {
     const infoUrl = new URL('/', this.environment.backend)
 
     try {
-      const response = await fetch(infoUrl, { method: 'GET' })
+      const response = await fetch(infoUrl, this.getPublicHTTPOptions('GET'))
       if (!response.ok) {
         throw new PaymentsError(
           `Failed to fetch deployment info: ${response.status} ${response.statusText}`,

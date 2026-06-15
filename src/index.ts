@@ -1,6 +1,7 @@
 export * from './environments.js'
 export * from './payments.js'
 export * from './utils.js'
+export * from './common/api-version.js'
 export * from './common/types.js'
 export * from './common/payments.error.js'
 export * from './common/helper.js'

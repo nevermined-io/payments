@@ -77,7 +77,9 @@ const payments = Payments.getBrowserInstance({
   returnUrl: 'https://myapp.example/callback',
   environment: 'sandbox',
   appId: 'my-app',
-  version: '1.0.0',
+  // Optional: pin the backend API version (MAJOR.MINOR). Defaults to the
+  // version this SDK release targets — omit unless you must pin an older one.
+  version: '1.1',
 })
 ```
 

@@ -1,4 +1,5 @@
 import { decodeJwt } from 'jose'
+import { API_VERSION_HEADER, LOCKED_API_VERSION } from '../common/api-version.js'
 import { jsonReplacer } from '../common/helper.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { PaymentOptions, PaymentScheme } from '../common/types.js'
@@ -60,6 +61,11 @@ export abstract class BasePaymentsAPI {
   protected environmentName: EnvironmentName
   protected returnUrl: string
   protected appId?: string
+  /**
+   * Backend API version (MAJOR.MINOR) pinned by this instance, set from
+   * `options.version`. When unset, every request defaults to
+   * {@link LOCKED_API_VERSION}.
+   */
   protected version?: string
   protected accountAddress: string
   protected heliconeApiKey: string
@@ -84,6 +90,15 @@ export abstract class BasePaymentsAPI {
     this.environment = Environments[options.environment as EnvironmentName]
     this.environmentName = options.environment
     this.appId = options.appId
+    // `version` is the backend API pin (MAJOR.MINOR) sent verbatim as
+    // Nevermined-Version. Fail fast on a malformed value rather than shipping
+    // an invalid header (e.g. an SDK package version '1.0.0', 'v1.1', or '')
+    // that the backend rejects with 400 on every call.
+    if (options.version !== undefined && !/^\d+\.\d+$/.test(options.version)) {
+      throw new PaymentsError(
+        `Invalid 'version' option '${options.version}': expected a backend API version as MAJOR.MINOR (e.g. '1.1'). Omit it to use the SDK's default pin.`,
+      )
+    }
     this.version = options.version
     this.currentOrganizationId = options.organizationId ?? null
 
@@ -168,6 +183,7 @@ export abstract class BasePaymentsAPI {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.nvmApiKey}`,
+      [API_VERSION_HEADER]: this.version ?? LOCKED_API_VERSION,
     }
     if (this.currentOrganizationId) {
       headers[CURRENT_ORG_ID_HEADER] = this.currentOrganizationId
@@ -201,16 +217,14 @@ export abstract class BasePaymentsAPI {
   protected getPublicHTTPOptions(method: string, body?: any) {
     const options: {
       method: string
-      headers: {
-        Accept: string
-        'Content-Type': string
-      }
+      headers: Record<string, string>
       body?: string
     } = {
       method,
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        [API_VERSION_HEADER]: this.version ?? LOCKED_API_VERSION,
       },
     }
 
