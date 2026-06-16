@@ -78,6 +78,33 @@ export const decodeAccessToken = (accessToken: string): Record<string, any> | nu
 }
 
 /**
+ * Encode a PaymentPayload object into an x402 access token string.
+ *
+ * Inverse of {@link decodeAccessToken}. Used by the MCP transport to turn the
+ * in-band `_meta["x402/payment"]` PaymentPayload object back into the
+ * base64url token string the facilitator's verify/settle APIs consume.
+ *
+ * The base64 envelope is transport-only: the EIP-712 signature lives inside
+ * `payload.authorization` / `payload.signature`, not over the base64 wrapper,
+ * so re-encoding a decoded (or foreign-encoded) payload is byte-safe for the
+ * facilitator — the invariant is semantic recovery, not byte-identity.
+ *
+ * Produces unpadded base64url with compact JSON (no spaces), matching the form
+ * {@link decodeAccessToken} accepts.
+ *
+ * NOTE: `btoa` throws on code points > U+00FF, so this assumes ASCII JSON. x402
+ * PaymentPayloads are ASCII (EIP-712 hex/decimal/signature fields), matching the
+ * Python SDK's equivalent. A future non-ASCII field would need UTF-8 encoding first.
+ *
+ * @param payload - The decoded PaymentPayload object (e.g. from `_meta["x402/payment"]`)
+ * @returns The base64url-encoded access token string (unpadded)
+ */
+export const encodeAccessToken = (payload: Record<string, any>): string => {
+  const json = JSON.stringify(payload)
+  return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
  * It returns the list of endpoints that are used by agents/services implementing the Nevermined Query Protocol
  * @param serverHost - The host of the server where the agents/services are running
  * @returns the list of endpoints

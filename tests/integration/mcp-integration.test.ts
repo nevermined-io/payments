@@ -28,7 +28,6 @@ const mockDecodeToken = (_token: string) => ({
 
 jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
 
-
 class PaymentsMinimal {
   public facilitator: any
   public agents: any
@@ -51,7 +50,12 @@ class PaymentsMinimal {
       }
 
       async settlePermissions(params: any) {
-        return { success: true, transaction: '0x1234567890abcdef', network: 'eip155:84532', creditsRedeemed: String(params.maxAmount) }
+        return {
+          success: true,
+          transaction: '0x1234567890abcdef',
+          network: 'eip155:84532',
+          creditsRedeemed: String(params.maxAmount),
+        }
       }
     }
 
@@ -80,7 +84,12 @@ describe('MCP Integration', () => {
       return { content: [{ type: 'text', text: 'hello' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-123' })
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'test',
+      credits: 1n,
+      planId: 'plan-123',
+    })
     const extra = { requestInfo: { headers: { Authorization: 'Bearer abc' } } }
     const out = await wrapped({ city: 'Madrid' }, extra)
 
@@ -96,13 +105,21 @@ describe('MCP Integration', () => {
       return { content: [{ type: 'text', text: 'hello' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-123' })
-
-    await expect(
-      wrapped({ city: 'Madrid' }, { requestInfo: { headers: { Authorization: 'Bearer tok' } } }),
-    ).rejects.toMatchObject({
-      code: -32003,
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'test',
+      credits: 1n,
+      planId: 'plan-123',
     })
+
+    // For tools, payment-required is surfaced in band as an error tool result
+    // (isError) rather than a thrown JSON-RPC error.
+    const out = await wrapped(
+      { city: 'Madrid' },
+      { requestInfo: { headers: { Authorization: 'Bearer tok' } } },
+    )
+    expect(out.isError).toBe(true)
+    expect(out.structuredContent.x402Version).toBe(2)
   })
 
   test('should provide PaywallContext with realistic agent request data', async () => {
@@ -132,7 +149,12 @@ describe('MCP Integration', () => {
             const hash = `${planId}-${maxAmount}`
               .split('')
               .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-            return { success: true, transaction: `0x${(hash % 1000000000).toString(16)}`, network: 'eip155:84532', creditsRedeemed: String(maxAmount) }
+            return {
+              success: true,
+              transaction: `0x${(hash % 1000000000).toString(16)}`,
+              network: 'eip155:84532',
+              creditsRedeemed: String(maxAmount),
+            }
           }
         }
 
@@ -175,7 +197,6 @@ describe('MCP Integration', () => {
 
       // Simulate business logic using context data
       const city = args.city || 'Unknown'
-
 
       // Generate weather response with metadata
       const weatherData = {
@@ -226,7 +247,6 @@ describe('MCP Integration', () => {
     expect(context.authResult.planId).toBe('plan-123')
     expect(context.authResult.subscriberAddress).toBe('0xSubscriber123')
     expect(context.authResult.logicalUrl).toContain('mcp://weather-service/tools/get-weather')
-
 
     // Verify credits
     expect(context.credits).toBe(5n)

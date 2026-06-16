@@ -5,11 +5,15 @@ import type { Payments } from '../../payments.js'
 import { decodeAccessToken } from '../../utils.js'
 import { getCurrentRequestContext } from '../http/mcp-handler.js'
 import { AuthResult } from '../types/paywall.types.js'
-import { ERROR_CODES, createRpcError } from '../utils/errors.js'
+import { PaymentRequiredError } from '../utils/errors.js'
 import { Address, isValidScheme } from '../../common/types.js'
 import { buildLogicalMetaUrl, buildLogicalUrl } from '../utils/logical-url.js'
 import { extractAuthHeader, stripBearer } from '../utils/request.js'
-import { buildPaymentRequired, type X402PaymentRequired } from '../../x402/facilitator-api.js'
+import {
+  buildPaymentRequired,
+  buildPaymentRequiredForPlans,
+  type X402PaymentRequired,
+} from '../../x402/facilitator-api.js'
 
 interface VerifyContext {
   accessToken: string
@@ -128,24 +132,66 @@ export class PaywallAuthenticator {
       }
     }
 
-    // Both attempts failed — enrich denial with suggested plans (best-effort)
-    let plansMsg = ''
+    // Both attempts failed — surface a spec-shaped PaymentRequired error
+    // (converted in-band to a tool-result error for tools; propagates as a
+    // JSON-RPC error for resources/prompts).
+    throw await this.buildPaymentRequiredError(agentId, logicalUrl)
+  }
+
+  /**
+   * Build a spec-shaped {@link PaymentRequiredError} from the agent's plans.
+   *
+   * Fetches the agent's plans (best-effort) to populate the `accepts` array of
+   * the `PaymentRequired` object and a human-readable list of plan names in the
+   * error message. Falls back to an empty plan id when no plans can be resolved
+   * so the structured shape is still valid.
+   *
+   * @param agentId - Agent identifier used to look up purchasable plans.
+   * @param endpoint - Logical resource URL placed in `PaymentRequired.resource`.
+   * @param message - Leading human-readable message (e.g. "Authorization required.").
+   * @returns A `PaymentRequiredError` carrying the `PaymentRequired` object.
+   */
+  private async buildPaymentRequiredError(
+    agentId: string,
+    endpoint: string,
+    message = 'Payment required.',
+  ): Promise<PaymentRequiredError> {
+    const planIds: string[] = []
+    const names: string[] = []
+    let plansLookupFailed = false
     try {
       const plans = await this.payments.agents.getAgentPlans(agentId)
-      if (plans && Array.isArray(plans.plans) && plans.plans.length > 0) {
-        const top = plans.plans.slice(0, 3)
-        const summary = top
-          .map((p: any) => `${p.planId || p.id || 'plan'}${p.name ? ` (${p.name})` : ''}`)
-          .join(', ')
-        plansMsg = summary ? ` Available plans: ${summary}...` : ''
+      if (plans && Array.isArray(plans.plans)) {
+        for (const p of plans.plans) {
+          const pid = p.planId || p.id
+          if (pid) planIds.push(pid)
+          if (pid) names.push(`${pid}${p.name ? ` (${p.name})` : ''}`)
+        }
       }
-    } catch {
-      // Ignore errors fetching plans - best effort only
+    } catch (error) {
+      // Best-effort: a backend failure must not look like a clean "unpaid".
+      plansLookupFailed = true
+      console.error(
+        `[x402] Failed to fetch agent plans while building payment-required (agentId=${agentId}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
     }
 
-    throw createRpcError(ERROR_CODES.PaymentRequired, `Payment required.${plansMsg}`, {
-      reason: 'invalid',
-    })
+    const plansMsg = names.length > 0 ? ` Available plans: ${names.slice(0, 3).join(', ')}...` : ''
+
+    const paymentRequired = buildPaymentRequiredForPlans(planIds, {
+      endpoint,
+      agentId,
+      httpVerb: 'POST',
+      environment: this.payments.getEnvironmentName(),
+    }) as X402PaymentRequired & { error?: string }
+    // When the plans lookup itself failed (backend outage) the `accepts` array
+    // falls back to an empty plan id; flag it so a client can't mistake the
+    // resulting payment-required for a clean "free / no plan needed" response.
+    paymentRequired.error = plansLookupFailed ? 'plans unavailable' : 'payment required'
+
+    return new PaymentRequiredError(paymentRequired, `${message}${plansMsg}`)
   }
 
   /**
@@ -185,7 +231,9 @@ export class PaywallAuthenticator {
       )
     }
 
-    const scheme = isValidScheme(decodedAccessToken?.accepted?.scheme) ? decodedAccessToken.accepted.scheme : 'nvm:erc4337'
+    const scheme = isValidScheme(decodedAccessToken?.accepted?.scheme)
+      ? decodedAccessToken.accepted.scheme
+      : 'nvm:erc4337'
     const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
       endpoint,
       agentId,
@@ -219,16 +267,16 @@ export class PaywallAuthenticator {
     kind: 'tool' | 'resource' | 'prompt',
     argsOrVars: any,
   ): Promise<AuthResult> {
+    const logicalUrl = buildLogicalUrl({ kind, serverName, name, argsOrVars })
+
     const authHeader = this.extractAuthHeaderFromContext(extra)
     if (!authHeader) {
-      throw createRpcError(ERROR_CODES.PaymentRequired, 'Authorization required', {
-        reason: 'missing',
-      })
+      throw await this.buildPaymentRequiredError(agentId, logicalUrl, 'Authorization required.')
     }
 
     return this.verifyWithFallback({
       accessToken: stripBearer(authHeader),
-      logicalUrl: buildLogicalUrl({ kind, serverName, name, argsOrVars }),
+      logicalUrl,
       httpUrl: this.buildHttpUrlFromContext(),
       maxAmount: options.maxAmount ?? 1n,
       agentId,
@@ -247,16 +295,16 @@ export class PaywallAuthenticator {
     serverName: string,
     method: string,
   ): Promise<AuthResult> {
+    const logicalUrl = buildLogicalMetaUrl(serverName, method)
+
     const authHeader = this.extractAuthHeaderFromContext(extra)
     if (!authHeader) {
-      throw createRpcError(ERROR_CODES.PaymentRequired, 'Authorization required', {
-        reason: 'missing',
-      })
+      throw await this.buildPaymentRequiredError(agentId, logicalUrl, 'Authorization required.')
     }
 
     return this.verifyWithFallback({
       accessToken: stripBearer(authHeader),
-      logicalUrl: buildLogicalMetaUrl(serverName, method),
+      logicalUrl,
       httpUrl: this.buildHttpUrlFromContext(),
       maxAmount: options.maxAmount ?? 1n,
       agentId,

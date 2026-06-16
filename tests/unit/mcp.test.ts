@@ -46,7 +46,8 @@ class PaymentsMock {
       }
 
       async verifyPermissions(input: any) {
-        const planId = typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
+        const planId =
+          typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
         const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
         const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
@@ -61,7 +62,8 @@ class PaymentsMock {
       }
 
       async settlePermissions(input: any) {
-        const planId = typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
+        const planId =
+          typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
         const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
         const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
@@ -149,11 +151,14 @@ describe('MCP Integration', () => {
       expect(out._meta).not.toBeNull()
       expect(typeof out._meta).toBe('object')
 
-      // Verify _meta contains expected fields
-      expect(out._meta.success).toBe(true)
-      expect(out._meta.creditsRedeemed).toBe('3')
+      // Spec settlement receipt is present under the x402 key
+      expect(out._meta['x402/payment-response']).toBeDefined()
+      expect(out._meta['x402/payment-response'].success).toBe(true)
+      // Nevermined observability is namespaced
+      expect(out._meta['nevermined/credits'].success).toBe(true)
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('3')
       // txHash should be undefined since our mock doesn't return it
-      expect(out._meta.txHash).toBeUndefined()
+      expect(out._meta['nevermined/credits'].txHash).toBeUndefined()
     })
 
     test('should add metadata with x402 receipt info including txHash', async () => {
@@ -182,13 +187,14 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify _meta structure
+      // Verify _meta structure (spec receipt + namespaced observability)
       expect(out._meta).toBeDefined()
-      expect(out._meta.txHash).toBe('0x1234567890abcdef')
-      expect(out._meta.creditsRedeemed).toBe('5')
-      expect(out._meta.planId).toBe('plan123')
-      expect(out._meta.subscriberAddress).toBe('0x123subscriber')
-      expect(out._meta.success).toBe(true)
+      expect(out._meta['x402/payment-response'].transaction).toBe('0x1234567890abcdef')
+      expect(out._meta['nevermined/credits'].txHash).toBe('0x1234567890abcdef')
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('5')
+      expect(out._meta['nevermined/credits'].planId).toBe('plan123')
+      expect(out._meta['nevermined/credits'].subscriberAddress).toBe('0x123subscriber')
+      expect(out._meta['nevermined/credits'].success).toBe(true)
     })
 
     test('should not include txHash when transaction is empty', async () => {
@@ -219,10 +225,10 @@ describe('MCP Integration', () => {
 
       // txHash should NOT be present when transaction is empty
       expect(out._meta).toBeDefined()
-      expect(out._meta.txHash).toBeUndefined()
-      expect(out._meta.creditsRedeemed).toBe('5')
-      expect(out._meta.planId).toBe('plan123')
-      expect(out._meta.success).toBe(true)
+      expect(out._meta['nevermined/credits'].txHash).toBeUndefined()
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('5')
+      expect(out._meta['nevermined/credits'].planId).toBe('plan123')
+      expect(out._meta['nevermined/credits'].success).toBe(true)
     })
 
     test('should use creditsRedeemed from x402 settle response', async () => {
@@ -253,10 +259,13 @@ describe('MCP Integration', () => {
       const out = await wrapped({}, extra)
 
       // Should use creditsRedeemed from response, not the requested amount
-      expect(out._meta.creditsRedeemed).toBe('10')
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('10')
     })
 
-    test('should add metadata with success false and errorReason when redemption fails', async () => {
+    test('should suppress tool content and return payment error when settlement fails', async () => {
+      // Post-execution settlement failure: under the x402 v2 MCP transport the
+      // tool content is suppressed and an in-band payment error is returned
+      // (default onRedeemError "ignore" no longer delivers paid content).
       const redeemResult = { success: false, errorReason: 'Insufficient credits' }
       const mockInstance = new PaymentsMock(redeemResult)
       const pm = mockInstance as any as Payments
@@ -276,12 +285,13 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify _meta is present with failure info
-      expect(out._meta).toBeDefined()
-      expect(out._meta.success).toBe(false)
-      expect(out._meta.creditsRedeemed).toBe('0')
-      expect(out._meta.errorReason).toBe('Insufficient credits')
-      expect(out._meta.planId).toBe('plan123')
+      // In-band payment error, not the tool result
+      expect(out.isError).toBe(true)
+      expect(out.structuredContent.x402Version).toBe(2)
+      expect(out.structuredContent.error).toBe('settlement failed')
+      expect(out.content[0].text).toContain('x402Version')
+      // The executed tool's content must NOT be delivered
+      expect(JSON.stringify(out)).not.toContain('"ok"')
     })
 
     test('should reject when authorization header missing', async () => {
@@ -295,9 +305,12 @@ describe('MCP Integration', () => {
       }
 
       const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test', credits: 1n })
-      await expect(wrapped({}, { requestInfo: { headers: {} } })).rejects.toMatchObject({
-        code: -32003,
-      })
+      // For tools, missing auth is surfaced in band as a payment-required tool
+      // result (isError) rather than a thrown JSON-RPC error.
+      const out = await wrapped({}, { requestInfo: { headers: {} } })
+      expect(out.isError).toBe(true)
+      expect(out.structuredContent.x402Version).toBe(2)
+      expect(out.content[0].text).toContain('x402Version')
     })
 
     test('should burn dynamic credits from function', async () => {
@@ -539,11 +552,12 @@ describe('MCP Integration', () => {
       // Last chunk should be _meta with x402 receipt info
       const lastChunk = collected[collected.length - 1]
       expect(lastChunk._meta).toBeDefined()
-      expect(lastChunk._meta.txHash).toBe('0xstream123')
-      expect(lastChunk._meta.creditsRedeemed).toBe('5')
-      expect(lastChunk._meta.planId).toBe('plan123')
-      expect(lastChunk._meta.subscriberAddress).toBe('0x123subscriber')
-      expect(lastChunk._meta.success).toBe(true)
+      expect(lastChunk._meta['x402/payment-response'].transaction).toBe('0xstream123')
+      expect(lastChunk._meta['nevermined/credits'].txHash).toBe('0xstream123')
+      expect(lastChunk._meta['nevermined/credits'].creditsRedeemed).toBe('5')
+      expect(lastChunk._meta['nevermined/credits'].planId).toBe('plan123')
+      expect(lastChunk._meta['nevermined/credits'].subscriberAddress).toBe('0x123subscriber')
+      expect(lastChunk._meta['nevermined/credits'].success).toBe(true)
     })
 
     test('should redeem when consumer stops stream early', async () => {
