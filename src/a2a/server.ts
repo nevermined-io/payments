@@ -4,7 +4,7 @@
  *
  * The server provides a complete A2A protocol implementation with:
  * - JSON-RPC endpoint for A2A messages
- * - Agent Card endpoint (.well-known/agent.json)
+ * - Agent Card endpoint (.well-known/agent-card.json, with .well-known/agent.json legacy alias)
  * - Bearer token extraction and validation
  * - Credit validation and burning
  * - Task execution and streaming
@@ -15,6 +15,7 @@ import http from 'http'
 import { InMemoryTaskStore, JsonRpcTransportHandler, AgentExecutor } from '@a2a-js/sdk/server'
 import type { AgentCard, HttpRequestContext } from './types.js'
 import { PaymentsRequestHandler } from './paymentsRequestHandler.js'
+import { AGENT_CARD_WELL_KNOWN_PATH, LEGACY_AGENT_CARD_WELL_KNOWN_PATH } from './agent-card.js'
 import type { Payments } from '../payments.js'
 import { buildPaymentRequired, resolveNetwork, resolveScheme } from '../x402/facilitator-api.js'
 import { X402_HEADERS } from '../x402/express/middleware.js'
@@ -71,7 +72,7 @@ export interface PaymentsA2AServerOptions {
   taskStore?: any
   /** Base path for all A2A routes (defaults to '/') */
   basePath?: string
-  /** Whether to expose the agent card at .well-known/agent.json */
+  /** Whether to expose the agent card at .well-known/agent-card.json (+ legacy .well-known/agent.json alias) */
   exposeAgentCard?: boolean
   /** Whether to expose default A2A JSON-RPC routes */
   exposeDefaultRoutes?: boolean
@@ -321,11 +322,13 @@ export class PaymentsA2AServer {
     const app = expressApp || express()
 
     if (exposeAgentCard) {
-      const agentCardPath =
-        basePath === '/'
-          ? '/.well-known/agent.json'
-          : `${basePath.replace(/\/$/, '')}/.well-known/agent.json`
-      app.get(agentCardPath, (req, res) => {
+      const prefix = basePath === '/' ? '' : basePath.replace(/\/$/, '')
+      // Serve the canonical path (A2A >= 0.3) and the legacy alias so both
+      // pre-spec and current A2A clients can discover the card.
+      app.get(`${prefix}/${AGENT_CARD_WELL_KNOWN_PATH}`, (req, res) => {
+        res.json(agentCard)
+      })
+      app.get(`${prefix}/${LEGACY_AGENT_CARD_WELL_KNOWN_PATH}`, (req, res) => {
         res.json(agentCard)
       })
     }

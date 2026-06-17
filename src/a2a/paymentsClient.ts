@@ -17,6 +17,10 @@ import {
 import { A2AClient } from '@a2a-js/sdk/client'
 import { v4 as uuidv4 } from 'uuid'
 import type { AgentCard } from './types.js'
+import {
+  AGENT_CARD_WELL_KNOWN_PATH,
+  LEGACY_AGENT_CARD_WELL_KNOWN_PATH,
+} from './agent-card.js'
 
 /**
  * PaymentsClient is a high-level client for A2A agents with payments integration.
@@ -35,7 +39,7 @@ export class PaymentsClient extends A2AClient {
    * @param payments - The Payments object.
    * @param agentId - The ID of the agent.
    * @param planId - The ID of the plan.
-   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent.json').
+   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent-card.json').
    */
   private constructor(
     agentCard: AgentCard,
@@ -61,13 +65,35 @@ export class PaymentsClient extends A2AClient {
     payments: Payments,
     agentId: string,
     planId: string,
-    agentCardPath = '.well-known/agent.json',
+    agentCardPath = AGENT_CARD_WELL_KNOWN_PATH,
     delegationConfig?: DelegationConfig,
   ): Promise<PaymentsClient> {
-    const agentCardUrl = new URL(agentCardPath, agentBaseUrl).toString()
-    const a2a = await A2AClient.fromCardUrl(agentCardUrl)
-    const agentCard = await (a2a as any).getAgentCard()
-    return new PaymentsClient(agentCard as AgentCard, payments, agentId, planId, delegationConfig)
+    const agentCard = await PaymentsClient._fetchAgentCard(agentBaseUrl, agentCardPath)
+    return new PaymentsClient(agentCard, payments, agentId, planId, delegationConfig)
+  }
+
+  /**
+   * Fetches a remote agent card, trying the requested (canonical) path first and
+   * falling back to the legacy '.well-known/agent.json' so updated clients keep
+   * working against agents that have not adopted the canonical path yet.
+   * ponytail: drop the fallback one release after agents are updated.
+   */
+  private static async _fetchAgentCard(
+    agentBaseUrl: string,
+    agentCardPath: string,
+  ): Promise<AgentCard> {
+    const load = async (path: string): Promise<AgentCard> => {
+      const a2a = await A2AClient.fromCardUrl(new URL(path, agentBaseUrl).toString())
+      return (await (a2a as any).getAgentCard()) as AgentCard
+    }
+    try {
+      return await load(agentCardPath)
+    } catch (err) {
+      if (agentCardPath !== LEGACY_AGENT_CARD_WELL_KNOWN_PATH) {
+        return await load(LEGACY_AGENT_CARD_WELL_KNOWN_PATH)
+      }
+      throw err
+    }
   }
 
   /**

@@ -34,7 +34,7 @@ function createNoopExecutor(): AgentExecutor {
     execute: async (_requestContext, eventBus) => {
       eventBus.finished()
     },
-    cancelTask: async () => { },
+    cancelTask: async () => {},
   }
 }
 
@@ -67,7 +67,14 @@ describe('PaymentsA2AServer', () => {
         verifyPermissions: jest.fn().mockResolvedValue({
           isValid: true,
         }),
-        settlePermissions: jest.fn().mockResolvedValue({ success: true, transaction: '0x1234567890abcdef', network: 'eip155:84532', creditsRedeemed: '1' }),
+        settlePermissions: jest
+          .fn()
+          .mockResolvedValue({
+            success: true,
+            transaction: '0x1234567890abcdef',
+            network: 'eip155:84532',
+            creditsRedeemed: '1',
+          }),
       },
       agents: {
         getAgentPlans: jest.fn().mockResolvedValue({ plans: [] }),
@@ -98,13 +105,14 @@ describe('PaymentsA2AServer', () => {
 
       servers.push({ close: result.close })
       const client = request(result.app)
-      const url =
-        basePath !== '/' ? `${basePath}/.well-known/agent.json` : '/.well-known/agent.json'
+      const prefix = basePath !== '/' ? basePath : ''
 
-      const response = await client.get(url)
-
-      expect(response.status).toBe(200)
-      expect(response.body.name).toBe('PyAgent')
+      // Canonical path (A2A >= 0.3) and legacy alias must both serve the card.
+      for (const wellKnown of ['.well-known/agent-card.json', '.well-known/agent.json']) {
+        const response = await client.get(`${prefix}/${wellKnown}`)
+        expect(response.status).toBe(200)
+        expect(response.body.name).toBe('PyAgent')
+      }
     },
     15000,
   )

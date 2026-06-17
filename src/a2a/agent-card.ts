@@ -13,6 +13,21 @@
 import type { AgentCard } from './types.js'
 
 /**
+ * Canonical A2A agent-card discovery path (A2A >= 0.3 and `@a2a-js/sdk`'s own
+ * default, per RFC 8615). Served by Nevermined A2A agents and used as the
+ * default when fetching a remote agent's card.
+ */
+export const AGENT_CARD_WELL_KNOWN_PATH = '.well-known/agent-card.json'
+
+/**
+ * Legacy pre-0.3 discovery path. Still served as a backward-compat alias and
+ * tried as a fetch fallback, so newly-updated clients keep working against
+ * Nevermined agents that have not adopted the canonical path yet.
+ * ponytail: drop the alias + fallback one release after agents are updated.
+ */
+export const LEGACY_AGENT_CARD_WELL_KNOWN_PATH = '.well-known/agent.json'
+
+/**
  * Payment/pricing information to be included in the AgentCard extensions.
  *
  * This interface defines the structure for payment metadata that will be
