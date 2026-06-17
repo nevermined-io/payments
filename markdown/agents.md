@@ -204,7 +204,7 @@ agents.forEach((agent) => {
 })
 
 // Every agent in an organization you belong to
-const orgAgents = await payments.agents.getAgents(1, 100, 'created', 'desc', 'org-acme')
+const { agents: orgAgents } = await payments.agents.getAgents(1, 100, 'created', 'desc', 'org-acme')
 ```
 
 ### Get a Specific Agent

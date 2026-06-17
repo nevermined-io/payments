@@ -59,7 +59,12 @@ describe('user-scoped listing (getPlans / getAgents)', () => {
 
   describe('plans.getPlans', () => {
     test("lists the caller's plans with default pagination and an auth header", async () => {
-      const body = { total: 2, page: 1, offset: 100, plans: [{ id: 'plan-1' }, { id: 'plan-2' }] }
+      const body = {
+        total: 2,
+        page: 1,
+        offset: 100,
+        plans: [{ planId: 'plan-1' }, { planId: 'plan-2' }],
+      }
       installFetch(() => jsonResponse(body))
 
       const result = await payments.plans.getPlans()
@@ -96,7 +101,7 @@ describe('user-scoped listing (getPlans / getAgents)', () => {
 
   describe('agents.getAgents', () => {
     test("lists the caller's agents at /api/v1/protocol/agents", async () => {
-      const body = { total: 1, page: 1, offset: 100, agents: [{ id: 'agent-1' }] }
+      const body = { total: 1, page: 1, offset: 100, agents: [{ agentId: 'agent-1' }] }
       installFetch(() => jsonResponse(body))
 
       const result = await payments.agents.getAgents()

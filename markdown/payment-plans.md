@@ -312,7 +312,7 @@ plans.forEach((plan) => {
 })
 
 // Every plan in an organization you belong to
-const orgPlans = await payments.plans.getPlans(1, 100, 'created', 'desc', 'org-acme')
+const { plans: orgPlans } = await payments.plans.getPlans(1, 100, 'created', 'desc', 'org-acme')
 ```
 
 ### Get Plans for an Agent
