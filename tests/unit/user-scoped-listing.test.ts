@@ -113,12 +113,19 @@ describe('user-scoped listing (getPlans / getAgents)', () => {
       expect(result).toEqual(body)
     })
 
-    test('forwards orgId when provided', async () => {
+    test('forwards pagination and orgId when provided', async () => {
       installFetch(() => jsonResponse({ total: 0, agents: [] }))
 
-      await payments.agents.getAgents(1, 10, 'created', 'desc', 'org-acme')
+      await payments.agents.getAgents(2, 25, 'created', 'asc', 'org-acme')
 
-      expect(new URL(calls[0].url).searchParams.get('orgId')).toBe('org-acme')
+      // getAgents builds its query string independently of getPlans, so assert
+      // every param here too — an arg-order/typo bug wouldn't surface otherwise.
+      const url = new URL(calls[0].url)
+      expect(url.searchParams.get('page')).toBe('2')
+      expect(url.searchParams.get('offset')).toBe('25')
+      expect(url.searchParams.get('sortBy')).toBe('created')
+      expect(url.searchParams.get('sortOrder')).toBe('asc')
+      expect(url.searchParams.get('orgId')).toBe('org-acme')
     })
 
     test('throws on a non-2xx response', async () => {

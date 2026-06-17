@@ -285,9 +285,9 @@ export class AgentsAPI extends BasePaymentsAPI {
     page = 1,
     offset = 100,
     sortBy = 'created',
-    sortOrder = 'desc',
+    sortOrder: 'asc' | 'desc' = 'desc',
     orgId?: string,
-  ) {
+  ): Promise<{ total: number; page: number; offset: number; agents: any[] }> {
     const url = new URL(API_URL_GET_AGENTS, this.environment.backend)
     url.searchParams.set('page', page.toString())
     url.searchParams.set('offset', offset.toString())
