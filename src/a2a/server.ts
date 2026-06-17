@@ -235,7 +235,6 @@ async function bearerTokenMiddleware(
       associate({
         urlRequested: absoluteUrl,
         httpMethodRequested: req.method,
-        validation: undefined as any,
         paymentRequired,
       })
       next()

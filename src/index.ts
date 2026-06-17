@@ -95,6 +95,7 @@ export {
   X402A2AUtils,
   x402A2AUtils,
   X402A2AMetadata,
+  X402_SETTLEMENT_DEFERRED_KEY,
   PaymentStatus as A2APaymentStatus,
 } from './a2a/x402-a2a.js'
 export {

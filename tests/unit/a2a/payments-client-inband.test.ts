@@ -18,7 +18,10 @@ jest.mock('@a2a-js/sdk/client')
 const PAYLOAD = {
   x402Version: 2,
   accepted: { scheme: 'nvm:erc4337', network: 'eip155:84532', planId: '1', extra: {} },
-  payload: { signature: '0xs', authorization: { from: '0xFrom', sessionKeysProvider: 'zerodev', sessionKeys: [] } },
+  payload: {
+    signature: '0xs',
+    authorization: { from: '0xFrom', sessionKeysProvider: 'zerodev', sessionKeys: [] },
+  },
   extensions: {},
 }
 const TOKEN = Buffer.from(JSON.stringify(PAYLOAD)).toString('base64')
@@ -54,7 +57,9 @@ describe('PaymentsClient in-band x402 transport', () => {
   })
 
   test('injects x402.payment.payload metadata in band AND keeps the header fallback', async () => {
-    const mockPostRpc = jest.fn().mockResolvedValue({ result: { kind: 'task', status: { state: 'completed' } } })
+    const mockPostRpc = jest
+      .fn()
+      .mockResolvedValue({ result: { kind: 'task', status: { state: 'completed' } } })
     ;(paymentsClient as any)._postRpcRequestWithHeaders = mockPostRpc
 
     await paymentsClient.sendA2AMessage({
@@ -91,7 +96,9 @@ describe('PaymentsClient in-band x402 transport', () => {
         },
       })
       // Second (follow-up) response: completed.
-      .mockResolvedValueOnce({ result: { kind: 'task', id: 'task-xyz', status: { state: 'completed' } } })
+      .mockResolvedValueOnce({
+        result: { kind: 'task', id: 'task-xyz', status: { state: 'completed' } },
+      })
     ;(paymentsClient as any)._postRpcRequestWithHeaders = mockPostRpc
 
     const res = await paymentsClient.sendA2AMessage({
@@ -112,7 +119,76 @@ describe('PaymentsClient in-band x402 transport', () => {
       .mockResolvedValue({ result: { kind: 'task', id: 't', status: { state: 'completed' } } })
     ;(paymentsClient as any)._postRpcRequestWithHeaders = mockPostRpc
 
-    await paymentsClient.sendA2AMessage({ message: { messageId: 'm', role: 'user', parts: [] } } as any)
+    await paymentsClient.sendA2AMessage({
+      message: { messageId: 'm', role: 'user', parts: [] },
+    } as any)
     expect(mockPostRpc).toHaveBeenCalledTimes(1)
+  })
+
+  test('does NOT resubmit on a NON-payment input-required response (no double-pay)', async () => {
+    // input-required, but WITHOUT x402.payment.status: payment-required — a genuine
+    // input request, not a paywall. The client must send exactly once.
+    const mockPostRpc = jest.fn().mockResolvedValue({
+      result: {
+        kind: 'task',
+        id: 't',
+        status: {
+          state: 'input-required',
+          message: { kind: 'message', messageId: 's', role: 'agent', parts: [], metadata: {} },
+        },
+      },
+    })
+    ;(paymentsClient as any)._postRpcRequestWithHeaders = mockPostRpc
+
+    await paymentsClient.sendA2AMessage({
+      message: { messageId: 'm', role: 'user', parts: [] },
+    } as any)
+    expect(mockPostRpc).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('PaymentsClient agent-card discovery fallback', () => {
+  const card = { capabilities: { extensions: [] } }
+  const clientFor = (c: any) => ({ getAgentCard: jest.fn().mockResolvedValue(c) })
+
+  beforeEach(() => jest.clearAllMocks())
+
+  test('falls back to the legacy path when the canonical path fails (and warns)', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    ;(A2AClient.fromCardUrl as jest.Mock).mockImplementation((url: string) =>
+      url.includes('agent-card.json')
+        ? Promise.reject(new Error('canonical 404'))
+        : Promise.resolve(clientFor(card)),
+    )
+
+    const client = await PaymentsClient.create(
+      'https://agent.example/',
+      new DummyPayments() as any as Payments,
+      'a',
+      '1',
+    )
+    expect(client).toBeInstanceOf(PaymentsClient)
+    expect(warn).toHaveBeenCalled() // silent fallback would be a discovery risk
+    warn.mockRestore()
+  })
+
+  test('throws preserving the canonical-path root cause when both paths fail', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const canonicalErr = new Error('canonical TLS error')
+    ;(A2AClient.fromCardUrl as jest.Mock).mockImplementation((url: string) =>
+      url.includes('agent-card.json')
+        ? Promise.reject(canonicalErr)
+        : Promise.reject(new Error('legacy 404')),
+    )
+
+    await expect(
+      PaymentsClient.create(
+        'https://agent.example/',
+        new DummyPayments() as any as Payments,
+        'a',
+        '1',
+      ),
+    ).rejects.toMatchObject({ cause: canonicalErr })
+    ;(console.warn as jest.Mock).mockRestore()
   })
 })

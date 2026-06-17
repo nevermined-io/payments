@@ -88,10 +88,27 @@ export class PaymentsClient extends A2AClient {
     try {
       return await load(agentCardPath)
     } catch (err) {
-      if (agentCardPath !== LEGACY_AGENT_CARD_WELL_KNOWN_PATH) {
-        return await load(LEGACY_AGENT_CARD_WELL_KNOWN_PATH)
+      if (agentCardPath === LEGACY_AGENT_CARD_WELL_KNOWN_PATH) {
+        throw err
       }
-      throw err
+      // Canonical path failed — fall back to the legacy path. Warn, because a
+      // silent fallback to a typosquattable legacy path is a discovery risk.
+      console.warn(
+        `[PaymentsA2A] agent card not found at '${agentCardPath}', falling back to '${LEGACY_AGENT_CARD_WELL_KNOWN_PATH}':`,
+        err instanceof Error ? err.message : String(err),
+      )
+      try {
+        return await load(LEGACY_AGENT_CARD_WELL_KNOWN_PATH)
+      } catch (legacyErr) {
+        // Both failed. Surface the legacy error but preserve the canonical-path
+        // root cause (a TLS/DNS/5xx there is otherwise masked by a clean 404).
+        const message = legacyErr instanceof Error ? legacyErr.message : String(legacyErr)
+        const wrapped = new Error(
+          `Failed to fetch agent card from '${agentCardPath}' or legacy '${LEGACY_AGENT_CARD_WELL_KNOWN_PATH}': ${message}`,
+        )
+        ;(wrapped as Error & { cause?: unknown }).cause = err
+        throw wrapped
+      }
     }
   }
 
