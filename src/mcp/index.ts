@@ -67,6 +67,7 @@ import { PaywallDecorator } from './core/paywall.js'
 import { PaywallAuthenticator } from './core/auth.js'
 import { CreditsContextProvider } from './core/credits-context.js'
 import { McpServerManager, createServerManager } from './core/server-manager.js'
+import { ERROR_CODES, createRpcError } from './utils/errors.js'
 import type {
   McpToolConfig,
   McpResourceConfig,
@@ -302,6 +303,12 @@ export function buildMcpIntegration(paymentsService: Payments) {
   function withPaywall(handler: any, options?: ToolOptions | PromptOptions | ResourceOptions): any {
     const opts =
       (options as PaywallOptions | undefined) ?? ({ kind: 'tool', name: 'unnamed' } as any)
+    // Fail fast at registration time: a planId must be resolvable from the
+    // per-tool option or the server-level config. Otherwise a misconfiguration
+    // would only surface on the first tool call.
+    if (!opts.planId && !extendedConfig.planId) {
+      throw createRpcError(ERROR_CODES.Misconfiguration, 'Server misconfiguration: missing planId')
+    }
     return (paywallDecorator.protect as any)(handler, opts)
   }
 
@@ -379,6 +386,34 @@ export function buildMcpIntegration(paymentsService: Payments) {
   }
 
   /**
+   * Resolve the effective agentId/serverName/environment for an OAuth transport
+   * from per-call options layered over the server-level config, and configure
+   * the paywall so tools protected via withPaywall settle on the resolved plan
+   * (per-call option wins over a prior configure()). Shared by
+   * createRouter/createApp/startServer.
+   *
+   * agentId is optional under the plan-centric model (informational/OAuth
+   * client_id only); the OAuth router omits client_id when it's absent. planId
+   * is the paywall's concern — the OAuth transports below do not consume it.
+   */
+  function resolveTransportConfig(options: {
+    planId?: string
+    agentId?: string
+    serverName?: string
+  }): { agentId?: string; serverName: string; environment: EnvironmentName } {
+    const agentId = options.agentId || extendedConfig.agentId
+    const serverName = options.serverName || extendedConfig.serverName || 'mcp-server'
+    configure({
+      planId: options.planId ?? extendedConfig.planId,
+      agentId,
+      serverName,
+    })
+    const environment: EnvironmentName =
+      extendedConfig.environment || (paymentsService as any).environmentName || 'staging_sandbox'
+    return { agentId, serverName, environment }
+  }
+
+  /**
    * Create an Express router with OAuth 2.1 endpoints.
    * Use this when you already have an Express app and want to add OAuth support.
    *
@@ -398,27 +433,14 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```
    */
   function createRouter(options: CreateRouterOptions) {
-    // agentId is optional under the plan-centric model (informational/OAuth
-    // client_id only); the OAuth router omits client_id when it's absent.
-    const agentId = options.agentId || extendedConfig.agentId
-    // planId is the paywall's concern (the OAuth router below does not consume it).
-    // Configure the paywall so tools protected via withPaywall settle on this plan;
-    // per-call option wins over a prior configure().
-    configure({
-      planId: options.planId ?? extendedConfig.planId,
-      agentId,
-      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
-    })
-
-    const environment =
-      extendedConfig.environment || (paymentsService as any).environmentName || 'staging_sandbox'
+    const { agentId, serverName, environment } = resolveTransportConfig(options)
 
     return createOAuthRouter({
       payments: paymentsService,
       baseUrl: options.baseUrl,
       agentId,
       environment,
-      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
+      serverName,
       tools: options.tools || extendedConfig.tools || [],
       scopes: extendedConfig.scopes,
       enableOAuthDiscovery: options.enableOAuthDiscovery ?? true,
@@ -455,26 +477,14 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```
    */
   function createApp(options: Omit<CreateRouterOptions, 'agentId'> & { agentId?: string }) {
-    // agentId is optional under the plan-centric model (informational/OAuth
-    // client_id only); the OAuth router omits client_id when it's absent.
-    const agentId = options.agentId || extendedConfig.agentId
-    // planId is the paywall's concern (the OAuth app below does not consume it).
-    // Configure the paywall so tools protected via withPaywall settle on this plan.
-    configure({
-      planId: options.planId ?? extendedConfig.planId,
-      agentId,
-      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
-    })
-
-    const environment =
-      extendedConfig.environment || (paymentsService as any).environmentName || 'staging_sandbox'
+    const { agentId, serverName, environment } = resolveTransportConfig(options)
 
     return createMcpApp({
       payments: paymentsService,
       baseUrl: options.baseUrl,
       agentId,
       environment,
-      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
+      serverName,
       tools: options.tools || extendedConfig.tools || [],
       scopes: extendedConfig.scopes,
       enableOAuthDiscovery: options.enableOAuthDiscovery ?? true,
@@ -509,21 +519,9 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```
    */
   async function startServer(options: StartServerOptions): Promise<HttpServerResult> {
-    // agentId is optional under the plan-centric model (informational/OAuth
-    // client_id only); the OAuth router omits client_id when it's absent.
-    const agentId = options.agentId || extendedConfig.agentId
-    // planId is the paywall's concern (the managed OAuth server below does not
-    // consume it). Configure the paywall so this server's protected tools settle
-    // on this plan; per-call option wins over a prior configure().
-    configure({
-      planId: options.planId ?? extendedConfig.planId,
-      agentId,
-      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
-    })
+    const { agentId, serverName, environment } = resolveTransportConfig(options)
 
     const baseUrl = options.baseUrl || `http://localhost:${options.port}`
-    const environment =
-      extendedConfig.environment || (paymentsService as any).environmentName || 'staging_sandbox'
 
     return startManagedServer({
       payments: paymentsService,
@@ -532,7 +530,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
       baseUrl,
       agentId,
       environment,
-      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
+      serverName,
       tools: options.tools || extendedConfig.tools || [],
       scopes: extendedConfig.scopes,
       enableOAuthDiscovery: options.enableOAuthDiscovery ?? true,
