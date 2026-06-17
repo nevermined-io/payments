@@ -423,6 +423,32 @@ describe('buildPaymentRequiredError: plans-lookup failure', () => {
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
   })
+
+  test('no agentId: accepts is built from the configured planId; getAgentPlans not called', async () => {
+    const payments: any = {
+      getEnvironmentName: () => 'staging_sandbox',
+      agents: { getAgentPlans: jest.fn() },
+    }
+    const auth = new PaywallAuthenticator(payments)
+    // No auth header + NO agentId + a configured planId → payment-required is
+    // built plan-only via the real agentId-absent branch (not a mocked authenticate).
+    const err: any = await auth
+      .authenticate({}, { planId: 'plan-x' }, undefined, 'srv', 'premium', 'tool', {})
+      .then(
+        () => {
+          throw new Error('expected authenticate to reject')
+        },
+        (e) => e,
+      )
+    expect(err).toBeInstanceOf(PaymentRequiredError)
+    expect(err.paymentRequired.accepts).toHaveLength(1)
+    expect(err.paymentRequired.accepts[0].planId).toBe('plan-x')
+    expect(err.paymentRequired.error).toBe('payment required')
+    // agentId is omitted from the scheme extra when absent
+    expect(err.paymentRequired.accepts[0].extra?.agentId).toBeUndefined()
+    // no agentId → no agent-plans lookup
+    expect(payments.agents.getAgentPlans).not.toHaveBeenCalled()
+  })
 })
 
 describe('x402 in-band: real MCP-SDK dispatch', () => {

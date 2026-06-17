@@ -250,8 +250,9 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * @example
    * ```typescript
    * payments.mcp.configure({
-   *   agentId: 'agent_123',
+   *   planId: 'plan_123', // required
    *   serverName: 'my-mcp-server',
+   *   agentId: 'agent_123', // optional
    *   baseUrl: 'http://localhost:5001',
    *   environment: 'staging_sandbox',
    *   tools: ['hello_world', 'weather']
@@ -304,11 +305,17 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * @param method - The MCP method being called
    * @returns Authentication result
    */
-  async function authenticateMeta(extra: any, options: {planId?: string} = {}, method: string) {
+  async function authenticateMeta(extra: any, options: { planId?: string } = {}, method: string) {
     const cfg = extendedConfig
-    const agentId = cfg.agentId || ''
+    const agentId = cfg.agentId || undefined
     const serverName = cfg.serverName || 'mcp-server'
-    return authenticator.authenticateMeta(extra, { planId: options?.planId }, agentId, serverName, method)
+    return authenticator.authenticateMeta(
+      extra,
+      { planId: options?.planId ?? cfg.planId },
+      agentId,
+      serverName,
+      method,
+    )
   }
 
   /**

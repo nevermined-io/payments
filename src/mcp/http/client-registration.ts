@@ -156,9 +156,9 @@ export async function processClientRegistration(
   // Validate the request
   validateClientRegistrationRequest(request)
 
-  // Use agentId as client_id (consistent for this MCP server)
-  // agentId is optional under the plan-centric model; issue a generated
-  // client_id for OAuth dynamic registration when no agentId is configured.
+  // client_id = the configured agentId when present (stable for this server);
+  // agentId is optional under the plan-centric model, so when it's absent we
+  // issue a generated client_id for OAuth dynamic registration.
   const issuedAt = Math.floor(Date.now() / 1000)
   const clientId = config.agentId ?? `nvm-mcp-client-${issuedAt}-${Math.floor(Math.random() * 1e9)}`
 
