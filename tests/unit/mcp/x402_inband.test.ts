@@ -95,12 +95,17 @@ describe('x402 in-band: access token codec', () => {
     )
   })
 
-  test('encode never throws on non-ASCII input (hostile client payload)', () => {
+  test('encode never throws on non-ASCII input; ASCII fields stay recoverable (lossy for non-ASCII)', () => {
     // encodeAccessToken runs on client-supplied _meta["x402/payment"]; it must not
     // throw on code points > U+00FF (btoa would). x402 payloads are ASCII in practice.
-    const nonAscii = { ...SAMPLE_PAYLOAD, note: 'café 日本語 😀' }
-    expect(() => encodeAccessToken(nonAscii)).not.toThrow()
-    // ASCII round-trip is unchanged.
+    const encoded = encodeAccessToken({ ...SAMPLE_PAYLOAD, note: 'café 😀' })
+    const decoded = decodeAccessToken(encoded)
+    // ASCII fields survive the round-trip.
+    expect(decoded?.x402Version).toBe(2)
+    expect(decoded?.accepted?.planId).toBe('plan-123')
+    // note: decoded.note is NOT expected to equal 'café 😀' — decodeAccessToken's
+    // atob is byte-wise, so the non-ASCII round-trip is intentionally lossy.
+    // ASCII round-trip is fully lossless.
     expect(decodeAccessToken(encodeAccessToken(SAMPLE_PAYLOAD))).toEqual(SAMPLE_PAYLOAD)
   })
 })
@@ -123,6 +128,12 @@ describe('x402 in-band: readPaymentPayload', () => {
       readPaymentPayload({ _meta: { [X402_PAYMENT_META_KEY]: [SAMPLE_PAYLOAD] } }),
     ).toBeUndefined()
     expect(readPaymentPayload({ _meta: { [X402_PAYMENT_META_KEY]: null } })).toBeUndefined()
+  })
+
+  test('rejects an oversized payload (defense-in-depth on untrusted input)', () => {
+    // > 64KB serialized → treated as absent (falls back to the header path).
+    const huge = { ...SAMPLE_PAYLOAD, blob: 'x'.repeat(64 * 1024 + 1) }
+    expect(readPaymentPayload({ _meta: { [X402_PAYMENT_META_KEY]: huge } })).toBeUndefined()
   })
 })
 
@@ -367,11 +378,19 @@ describe('buildPaymentRequiredError: plans-lookup failure', () => {
 
     // No auth header → authenticate routes to buildPaymentRequiredError, whose
     // getAgentPlans lookup throws.
-    await expect(
-      auth.authenticate({}, {}, 'agent-9', 'srv', 'premium', 'tool', {}),
-    ).rejects.toMatchObject({
-      paymentRequired: { error: 'plans unavailable', accepts: [{ planId: '' }] },
-    })
+    const err: any = await auth
+      .authenticate({}, {}, 'agent-9', 'srv', 'premium', 'tool', {})
+      .then(
+        () => {
+          throw new Error('expected authenticate to reject')
+        },
+        (e) => e,
+      )
+    expect(err.paymentRequired.error).toBe('plans unavailable')
+    // accepts is exactly one entry with an empty plan id — catches an
+    // empty-accepts regression at the integration point.
+    expect(err.paymentRequired.accepts).toHaveLength(1)
+    expect(err.paymentRequired.accepts[0].planId).toBe('')
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
   })
