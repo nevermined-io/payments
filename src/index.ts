@@ -89,3 +89,17 @@ export type {
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
 } from './a2a/types.js'
+
+// x402 v2 A2A in-band transport utilities (mirrors the Python X402A2AUtils)
+export {
+  X402A2AUtils,
+  x402A2AUtils,
+  X402A2AMetadata,
+  PaymentStatus as A2APaymentStatus,
+} from './a2a/x402-a2a.js'
+export {
+  A2A_X402_EXTENSION_URI,
+  NVM_PAYMENT_EXTENSION_URI,
+  AGENT_CARD_WELL_KNOWN_PATH,
+  LEGACY_AGENT_CARD_WELL_KNOWN_PATH,
+} from './a2a/agent-card.js'

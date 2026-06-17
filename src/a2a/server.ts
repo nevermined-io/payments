@@ -15,10 +15,20 @@ import http from 'http'
 import { InMemoryTaskStore, JsonRpcTransportHandler, AgentExecutor } from '@a2a-js/sdk/server'
 import type { AgentCard, HttpRequestContext } from './types.js'
 import { PaymentsRequestHandler } from './paymentsRequestHandler.js'
-import { AGENT_CARD_WELL_KNOWN_PATH, LEGACY_AGENT_CARD_WELL_KNOWN_PATH } from './agent-card.js'
+import {
+  AGENT_CARD_WELL_KNOWN_PATH,
+  LEGACY_AGENT_CARD_WELL_KNOWN_PATH,
+  A2A_X402_EXTENSION_URI,
+} from './agent-card.js'
 import type { Payments } from '../payments.js'
 import { buildPaymentRequired, resolveNetwork, resolveScheme } from '../x402/facilitator-api.js'
 import { X402_HEADERS } from '../x402/express/middleware.js'
+import { encodeAccessToken } from '../utils.js'
+import { x402A2AUtils } from './x402-a2a.js'
+
+// Emit the payment-signature-header deprecation notice at most once per process
+// to avoid log spam on high-traffic servers still using the legacy header path.
+let a2aHeaderDeprecationWarned = false
 
 /**
  * Checks if a value is an AsyncIterable (used to detect streaming responses)
@@ -122,8 +132,15 @@ export interface PaymentsA2AServerResult {
  * This middleware is applied after A2A routes are set up and extracts authentication
  * information for credit validation.
  *
- * Accepts tokens from:
- * - payment-signature header (x402 HTTP transport spec v2)
+ * Accepts tokens from (in priority order):
+ * - in-band `x402.payment.payload` in the JSON-RPC message metadata (x402 v2
+ *   A2A transport — the standards path)
+ * - `payment-signature` HTTP header (Nevermined's home-grown paywall — kept as
+ *   a deprecated fallback for one release)
+ *
+ * When the request is payment-gated and carries NEITHER, the middleware lets it
+ * reach the handler with `paymentRequired` set so the handler returns an
+ * `input-required` task (in band) instead of an HTTP 402.
  *
  * @param req - Express request object
  * @param res - Express response object
@@ -174,10 +191,56 @@ async function bearerTokenMiddleware(
   })
   const paymentRequiredHeader = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
 
-  // x402 HTTP spec v2: payment-signature header
-  const bearerToken = req.headers['payment-signature'] as string | undefined
+  // x402 v2 A2A transport: prefer the in-band payment payload carried in the
+  // JSON-RPC message metadata, re-encoding it into the access token string the
+  // verify/settle path consumes. Fall back to the deprecated payment-signature
+  // header when no in-band payload is present.
+  const inBandPayload = x402A2AUtils.getPaymentPayloadFromMessage(req.body?.params?.message)
+  let bearerToken: string | undefined
+  let inBand = false
+  if (inBandPayload) {
+    bearerToken = encodeAccessToken(inBandPayload)
+    inBand = true
+  } else {
+    bearerToken = req.headers['payment-signature'] as string | undefined
+    if (bearerToken && !a2aHeaderDeprecationWarned) {
+      a2aHeaderDeprecationWarned = true
+      console.warn(
+        '[x402] No x402.payment.payload on the A2A message; using the ' +
+          'payment-signature header (deprecated under the x402 v2 A2A transport).',
+      )
+    }
+  }
 
+  // Associate context with taskId or messageId
+  const taskId = req.body?.taskId ?? req.body?.params?.message?.taskId
+  const messageId = req.body?.params?.message?.messageId
+  const associate = (context: HttpRequestContext) => {
+    if (taskId) {
+      handler.setHttpRequestContextForTask(taskId, context)
+    } else if (messageId) {
+      handler.setHttpRequestContextForMessage(messageId, context)
+    }
+  }
+
+  // No token at all: don't HTTP-402. Let the request reach the handler so it
+  // returns an `input-required` task carrying the X402PaymentRequired object in
+  // band (x402 v2 A2A transport). The deprecated header path keeps its 402 only
+  // when the agent card does NOT declare the x402 extension (legacy clients).
   if (!bearerToken) {
+    const declaresX402 = agentCard.capabilities?.extensions?.some(
+      (ext) => ext.uri === A2A_X402_EXTENSION_URI,
+    )
+    if (declaresX402) {
+      associate({
+        urlRequested: absoluteUrl,
+        httpMethodRequested: req.method,
+        validation: undefined as any,
+        paymentRequired,
+      })
+      next()
+      return
+    }
     res
       .status(402)
       .set(X402_HEADERS.PAYMENT_REQUIRED, paymentRequiredHeader)
@@ -212,21 +275,13 @@ async function bearerTokenMiddleware(
     return
   }
 
-  const context: HttpRequestContext = {
+  associate({
     bearerToken,
     urlRequested: absoluteUrl,
     httpMethodRequested: req.method,
     validation,
-  }
-  // Try to associate context with taskId or messageId
-  const taskId = req.body?.taskId
-  const messageId = req.body?.params?.message?.messageId
-
-  if (taskId) {
-    handler.setHttpRequestContextForTask(taskId, context)
-  } else if (messageId) {
-    handler.setHttpRequestContextForMessage(messageId, context)
-  }
+    inBand,
+  })
 
   next()
 }

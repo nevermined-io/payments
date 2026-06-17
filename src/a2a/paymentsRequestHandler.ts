@@ -23,7 +23,12 @@ import { PaymentsError } from '../common/payments.error.js'
 import { StartAgentRequest, isValidScheme } from '../common/types.js'
 import { Payments } from '../payments.js'
 import { decodeAccessToken } from '../utils.js'
-import { buildPaymentRequired, type X402PaymentRequired } from '../x402/facilitator-api.js'
+import {
+  buildPaymentRequired,
+  type SettlePermissionsResult,
+  type X402PaymentRequired,
+} from '../x402/facilitator-api.js'
+import { x402A2AUtils } from './x402-a2a.js'
 import type {
   A2AAuthResult,
   A2AStreamEvent,
@@ -184,7 +189,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     }
 
     const agentId = paymentExtension?.params?.agentId as string | undefined
-    const scheme = isValidScheme(decodedAccessToken.accepted?.scheme) ? decodedAccessToken.accepted.scheme : 'nvm:erc4337'
+    const scheme = isValidScheme(decodedAccessToken.accepted?.scheme)
+      ? decodedAccessToken.accepted.scheme
+      : 'nvm:erc4337'
 
     const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
       endpoint: endpoint || '',
@@ -265,7 +272,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw PaymentsError.unauthorized('Plan ID not found in agent card.')
     }
 
-    const scheme = isValidScheme(decodedAccessToken.accepted?.scheme) ? decodedAccessToken.accepted.scheme : 'nvm:erc4337'
+    const scheme = isValidScheme(decodedAccessToken.accepted?.scheme)
+      ? decodedAccessToken.accepted.scheme
+      : 'nvm:erc4337'
 
     // Build paymentRequired using the helper
     const paymentRequired = buildPaymentRequired(planId, {
@@ -394,6 +403,92 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   }
 
   /**
+   * x402 v2 A2A transport: if the request is payment-gated and arrived with no
+   * token (the middleware stored a `paymentRequired` on the HTTP context), build
+   * and return the spec-shaped `input-required` task carrying the
+   * X402PaymentRequired object under `x402.payment.required` — WITHOUT executing
+   * the agent. Returns `undefined` when a token was present (normal flow).
+   *
+   * @param params - The incoming message send parameters
+   * @returns The `input-required` Task to return to the client, or `undefined`
+   */
+  private async buildPaymentRequiredTaskIfNeeded(
+    params: MessageSendParams,
+  ): Promise<Task | undefined> {
+    const message = params.message
+    if (!message) {
+      return undefined
+    }
+    const incomingTaskId = message.taskId
+    const httpContext = incomingTaskId
+      ? this.getHttpRequestContextForTask(incomingTaskId)
+      : this.getHttpRequestContextForMessage(message.messageId)
+
+    if (!httpContext?.paymentRequired) {
+      return undefined
+    }
+
+    // Correlate the input-required task with the incoming taskId when present so
+    // the client's follow-up payment payload (same taskId) maps back to it.
+    const taskId = incomingTaskId || uuidv4()
+    const contextId = message.contextId || uuidv4()
+    const task: Task = {
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: { state: 'submitted', timestamp: new Date().toISOString() },
+      history: [message],
+    }
+    const paymentRequiredTask = x402A2AUtils.createPaymentRequiredTask(
+      task,
+      httpContext.paymentRequired,
+    )
+
+    // Persist the input-required task so the client's follow-up (same taskId)
+    // can correlate to it (otherwise the SDK's _createRequestContext raises
+    // "Task not found"). The follow-up carries the in-band payload, so the
+    // middleware overwrites this taskId's HTTP context with the authorized one.
+    await this.getTaskStore().save(paymentRequiredTask)
+    if (!incomingTaskId) {
+      this.deleteHttpRequestContextForMessage(message.messageId)
+    }
+    return paymentRequiredTask
+  }
+
+  /**
+   * Stamp x402 settlement state onto the final task's metadata, in band, per the
+   * x402 v2 A2A transport. Only applied when the token arrived in band (so the
+   * legacy `payment-signature` header path is unchanged). On success the task
+   * carries `x402.payment.status: payment-completed` + `x402.payment.receipts`;
+   * on failure `payment-failed` + `x402.payment.error` + receipts.
+   *
+   * @param task - The current task (mutated in place)
+   * @param httpContext - The request's HTTP context
+   * @param settlement - The settlement result, or undefined when none ran
+   */
+  private recordInBandSettlement(
+    task: Task | undefined,
+    httpContext: HttpRequestContext | undefined,
+    settlement?: SettlePermissionsResult,
+  ): void {
+    if (!task || !httpContext?.inBand) {
+      return
+    }
+    if (settlement && settlement.success === false) {
+      x402A2AUtils.recordPaymentFailure(
+        task,
+        settlement.errorReason || 'SETTLEMENT_FAILED',
+        settlement,
+      )
+    } else if (settlement) {
+      x402A2AUtils.recordPaymentSuccess(task, settlement)
+    } else {
+      // Verified but no on-chain settlement (free / no-credit call).
+      x402A2AUtils.recordPaymentVerified(task)
+    }
+  }
+
+  /**
    * Processes streaming events with finalization (credits burning and push notifications).
    * Similar to processEventsWithFinalization but yields events for streaming.
    * @param taskId - The task ID
@@ -408,6 +503,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     resultManager: ResultManager,
     eventQueue: ExecutionEventQueue,
     bearerToken: string,
+    requestHttpContext?: HttpRequestContext,
   ): AsyncGenerator<A2AStreamEvent, void, undefined> {
     try {
       for await (const event of eventQueue.events()) {
@@ -429,8 +525,10 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             const redemptionConfig = await this.getRedemptionConfig()
 
             if (!redemptionConfig.useBatch) {
-              // Get HTTP context if available
-              const httpContext = this.getHttpRequestContextForTask(event.taskId)
+              // Prefer the per-request context (in-band flag); fall back to a
+              // per-taskId lookup for executors that mint their own task id.
+              const httpContext =
+                this.getHttpRequestContextForTask(event.taskId) ?? requestHttpContext
               // Execute redemption with server configuration for non-batch requests
               const response = await this.executeRedemption(
                 bearerToken,
@@ -440,10 +538,27 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
 
               // Update event metadata with response data
               if (response && event.metadata) {
-                event.metadata.txHash = response.txHash
+                event.metadata.txHash = response.txHash ?? response.transaction
                 event.metadata.creditsCharged = response.amountOfCredits
                   ? Number(response.amountOfCredits)
                   : event.metadata.creditsUsed
+              }
+
+              // x402 v2 A2A transport: stamp the settlement receipt onto the
+              // persisted task in band. NOTE: a stream cannot retract the event
+              // it already yielded above, so an in-band settlement is reflected
+              // on the saved task (visible via tasks/get + resubscribe) — it
+              // cannot withhold content the way a non-streaming result does.
+              if (httpContext?.inBand) {
+                const task = resultManager.getCurrentTask()
+                if (task) {
+                  this.recordInBandSettlement(
+                    task,
+                    httpContext,
+                    response as SettlePermissionsResult,
+                  )
+                  await resultManager.processEvent(task)
+                }
               }
             }
           } catch (err) {
@@ -497,6 +612,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       firstResultResolver?: (event: any) => void
       firstResultRejector?: (err: any) => void
     },
+    requestHttpContext?: HttpRequestContext,
   ) {
     let firstResultSent = false
     try {
@@ -507,8 +623,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           event.final &&
           terminalStates.includes(event.status?.state)
         ) {
-          // Get HTTP context if available
-          const httpContext = this.getHttpRequestContextForTask(event.taskId)
+          // Prefer the per-request HTTP context (authoritative for this request,
+          // carries the in-band flag). Fall back to a per-taskId lookup for
+          // executors that mint their own task id (the event's taskId may then
+          // differ from the request's generated one).
+          const httpContext = this.getHttpRequestContextForTask(event.taskId) ?? requestHttpContext
           await this.handleTaskFinalization(resultManager, event, bearerToken, httpContext)
         }
 
@@ -543,10 +662,18 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @returns The resulting message or task
    */
   async sendMessage(params: MessageSendParams): Promise<Message | Task> {
+    // x402 v2 A2A transport: a payment-gated request with no token returns an
+    // `input-required` task (in band) instead of executing the agent.
+    const paymentRequiredTask = await this.buildPaymentRequiredTaskIfNeeded(params)
+    if (paymentRequiredTask) {
+      return paymentRequiredTask
+    }
+
     // Create PaymentsRequestContext and related data
     const {
       paymentsRequestContext,
       taskId,
+      httpContext,
       bearerToken,
       validation,
       requestContext,
@@ -607,6 +734,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         eventQueue,
         bearerToken,
         validation,
+        undefined,
+        httpContext,
       )
       const finalResult = resultManager.getFinalResult()
       if (!finalResult) {
@@ -632,6 +761,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             firstResultResolver: resolve,
             firstResultRejector: reject,
           },
+          httpContext,
         )
       })
     }
@@ -661,6 +791,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         typeof creditsToBurn === 'number' ||
         typeof creditsToBurn === 'bigint')
     ) {
+      let settlement: SettlePermissionsResult | undefined
+      let settlementError: unknown
       try {
         // Get redemption configuration from server (not from client metadata)
         const redemptionConfig = await this.getRedemptionConfig()
@@ -672,25 +804,77 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             BigInt(creditsToBurn),
             httpContext,
           )
+          settlement = response as SettlePermissionsResult
 
           // Update event metadata with redemption results
           event.metadata = {
             ...event.metadata,
-            txHash: response.txHash,
+            txHash: response.txHash ?? response.transaction,
             // Store the actual credits charged (especially important for margin-based)
             creditsCharged: response.amountOfCredits
               ? Number(response.amountOfCredits)
               : creditsToBurn,
           }
         }
+      } catch (err) {
+        // Settlement failed AFTER the agent executed. For the in-band x402 v2
+        // A2A path this is surfaced below (payment-failed + suppressed content);
+        // for the legacy header path the prior behavior (swallow) is preserved.
+        settlementError = err
+      }
 
+      // Stamp the in-band x402 state onto the FINAL event so it survives when the
+      // caller processes this event into the task's status (mutating the task
+      // here would be overwritten by the final event). The event carries a Task
+      // shape under `event.status`; the helpers mutate `event.status.message`.
+      if (httpContext?.inBand && settlementError) {
+        // x402 v2 A2A transport: a settlement failure after execution must NOT
+        // deliver paid content — replace the agent's status message with a
+        // failed one carrying payment-failed metadata + an error receipt.
+        const errorReason =
+          settlementError instanceof Error ? settlementError.message : String(settlementError)
+        event.status = {
+          state: 'failed',
+          message: {
+            kind: 'message',
+            messageId: uuidv4(),
+            role: 'agent',
+            parts: [{ kind: 'text', text: `Payment settlement failed: ${errorReason}` }],
+            taskId: event.taskId,
+            contextId: event.contextId,
+            metadata: {},
+          },
+          timestamp: new Date().toISOString(),
+        }
+        this.recordInBandSettlement({ status: event.status } as any, httpContext, {
+          success: false,
+          errorReason,
+          transaction: '',
+          network: settlement?.network || '',
+        })
+      } else if (httpContext?.inBand) {
+        // Stamp in-band settlement state onto the final event's status message.
+        this.recordInBandSettlement({ status: event.status } as any, httpContext, settlement)
+      }
+
+      try {
         // Always update task metadata and process the task
         const task = resultManager.getCurrentTask()
         if (task) {
-          // Update task metadata with current event metadata (from executor or redemption)
+          // Update task metadata with current event metadata (executor / redemption).
           task.metadata = {
             ...task.metadata,
             ...event.metadata,
+          }
+
+          if (httpContext?.inBand && settlementError) {
+            // x402 v2 A2A transport: a settlement failure must never deliver paid
+            // content. The agent's status message was already replaced above; also
+            // drop any artifacts it emitted so the paid result cannot surface there
+            // (mirrors the Python SDK's _apply_inband_settlement). History is rebuilt
+            // by processEvent below from the replaced (failed) status, so it carries
+            // no paid content.
+            task.artifacts = undefined
           }
 
           await resultManager.processEvent(task)
@@ -727,10 +911,19 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
   async *sendMessageStream(
     params: MessageSendParams,
   ): AsyncGenerator<A2AStreamEvent, void, undefined> {
+    // x402 v2 A2A transport: a payment-gated request with no token yields a
+    // single `input-required` task (in band) instead of executing the agent.
+    const paymentRequiredTask = await this.buildPaymentRequiredTaskIfNeeded(params)
+    if (paymentRequiredTask) {
+      yield paymentRequiredTask
+      return
+    }
+
     // Create PaymentsRequestContext and related data
     const {
       paymentsRequestContext,
       taskId,
+      httpContext,
       bearerToken,
       requestContext,
       finalMessageForAgent,
@@ -775,6 +968,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       resultManager,
       eventQueue,
       bearerToken,
+      httpContext,
     )
   }
 

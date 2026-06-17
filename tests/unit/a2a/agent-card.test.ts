@@ -17,9 +17,14 @@ describe('buildPaymentAgentCard', () => {
       costDescription: '5 credits per call',
     } as any as PaymentAgentCardMetadata
     const card = buildPaymentAgentCard(baseCard, metadata)
-    const ext = card.capabilities?.extensions?.[card.capabilities.extensions.length - 1]
+    const ext = card.capabilities?.extensions?.find((e) => e.uri === 'urn:nevermined:payment')
     expect(ext?.uri).toBe('urn:nevermined:payment')
     expect(ext?.params?.agentId).toBe('agent-1')
+    // The official a2a-x402 extension is also declared (additive, for one release).
+    const x402Ext = card.capabilities?.extensions?.find(
+      (e) => e.uri === 'https://github.com/google-agentic-commerce/a2a-x402/blob/main/spec/v0.2',
+    )
+    expect(x402Ext).toBeDefined()
   })
 
   test.each([
