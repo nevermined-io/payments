@@ -1,7 +1,7 @@
 ---
-title: "MCP Integration"
-description: "Build payment-protected MCP servers with OAuth 2.1 authentication and automatic credit management"
-icon: "plug"
+title: 'MCP Integration'
+description: 'Build payment-protected MCP servers with OAuth 2.1 authentication and automatic credit management'
+icon: 'plug'
 ---
 
 # MCP Integration
@@ -11,6 +11,7 @@ The Model Context Protocol (MCP) integration provides a complete payment-protect
 ## Overview of MCP Integration
 
 The MCP integration automatically handles:
+
 - **OAuth 2.1 Discovery**: Auto-configured `.well-known` endpoints
 - **Paywall Protection**: Automatic token verification and credit burning
 - **Streaming Support**: SSE (Server-Sent Events) for streaming responses
@@ -21,12 +22,12 @@ The MCP integration automatically handles:
 
 When you start an MCP server, the library automatically exposes OAuth 2.1 discovery endpoints required by the X402 spec:
 
-| Endpoint | Description |
-|----------|-------------|
-| `/.well-known/oauth-protected-resource` | Protected resource metadata |
+| Endpoint                                  | Description                   |
+| ----------------------------------------- | ----------------------------- |
+| `/.well-known/oauth-protected-resource`   | Protected resource metadata   |
 | `/.well-known/oauth-authorization-server` | Authorization server metadata |
-| `/.well-known/openid-configuration` | OpenID Connect discovery |
-| `POST /register` | Dynamic client registration |
+| `/.well-known/openid-configuration`       | OpenID Connect discovery      |
+| `POST /register`                          | Dynamic client registration   |
 
 These endpoints are generated automatically—no manual configuration required.
 
@@ -58,7 +59,7 @@ import { z } from 'zod'
 
 // Register a tool with fixed credit cost
 payments.mcp.registerTool(
-  'get_weather',                    // Tool name
+  'get_weather', // Tool name
   {
     title: 'Get Weather',
     description: 'Get current weather for a city',
@@ -66,7 +67,8 @@ payments.mcp.registerTool(
       city: z.string().describe('City name'),
     }),
   },
-  async (args) => {                 // Handler function
+  async (args) => {
+    // Handler function
     // Your tool logic here
     const weather = await getWeatherData(args.city)
 
@@ -74,7 +76,7 @@ payments.mcp.registerTool(
       content: [{ type: 'text', text: `Weather in ${args.city}: ${weather}` }],
     }
   },
-  { credits: 1n }                   // Fixed: 1 credit per call
+  { credits: 1n }, // Fixed: 1 credit per call
 )
 ```
 
@@ -103,9 +105,9 @@ payments.mcp.registerTool(
     credits: (ctx) => {
       const { text } = ctx.args as { text: string }
       const textLength = text.length
-      return BigInt(Math.ceil(textLength / 1000))  // 1 credit per KB
-    }
-  }
+      return BigInt(Math.ceil(textLength / 1000)) // 1 credit per KB
+    },
+  },
 )
 ```
 
@@ -115,24 +117,27 @@ Register MCP resources with payment protection:
 
 ```typescript
 payments.mcp.registerResource(
-  'weather-data',                   // Resource name
-  'weather://current',              // Resource URI
+  'weather-data', // Resource name
+  'weather://current', // Resource URI
   {
     title: 'Current Weather Data',
     description: 'Real-time weather information',
   },
-  async (uri, vars) => {            // Handler function
+  async (uri, vars) => {
+    // Handler function
     const data = await fetchWeatherData()
 
     return {
-      contents: [{
-        uri: 'weather://current',
-        mimeType: 'application/json',
-        text: JSON.stringify(data),
-      }],
+      contents: [
+        {
+          uri: 'weather://current',
+          mimeType: 'application/json',
+          text: JSON.stringify(data),
+        },
+      ],
     }
   },
-  { credits: 2n }                   // 2 credits per access
+  { credits: 2n }, // 2 credits per access
 )
 ```
 
@@ -142,23 +147,26 @@ Register MCP prompts with credit costs:
 
 ```typescript
 payments.mcp.registerPrompt(
-  'weather-query',                  // Prompt name
+  'weather-query', // Prompt name
   {
     title: 'Weather Query Template',
     description: 'Generate weather queries',
   },
-  async (args) => {                 // Handler function
+  async (args) => {
+    // Handler function
     return {
-      messages: [{
-        role: 'user',
-        content: {
-          type: 'text',
-          text: `What is the weather in ${args.city}?`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `What is the weather in ${args.city}?`,
+          },
         },
-      }],
+      ],
     }
   },
-  { credits: 1n }                   // 1 credit per prompt
+  { credits: 1n }, // 1 credit per prompt
 )
 ```
 
@@ -193,7 +201,7 @@ payments.mcp.registerTool(
   async (args) => ({
     content: [{ type: 'text', text: `Weather in ${args.city}: Sunny` }],
   }),
-  { credits: 1n }
+  { credits: 1n },
 )
 
 // Start server (bind to localhost by default; expose via a reverse proxy with HTTPS for public traffic)
@@ -230,13 +238,13 @@ mcp://<serverName>/<type>/<name>
 
 ### Examples
 
-| Type | URI | Description |
-|------|-----|-------------|
-| Tool | `mcp://weather-server/tools/get_weather` | Single tool |
-| Tool Wildcard | `mcp://weather-server/tools/*` | All tools |
-| Resource | `mcp://weather-server/resources/weather://current` | Single resource |
-| Resource Wildcard | `mcp://weather-server/resources/*` | All resources |
-| Prompt | `mcp://weather-server/prompts/weather-query` | Single prompt |
+| Type              | URI                                                | Description     |
+| ----------------- | -------------------------------------------------- | --------------- |
+| Tool              | `mcp://weather-server/tools/get_weather`           | Single tool     |
+| Tool Wildcard     | `mcp://weather-server/tools/*`                     | All tools       |
+| Resource          | `mcp://weather-server/resources/weather://current` | Single resource |
+| Resource Wildcard | `mcp://weather-server/resources/*`                 | All resources   |
+| Prompt            | `mcp://weather-server/prompts/weather-query`       | Single prompt   |
 
 ### Wildcard Registration
 
@@ -298,7 +306,7 @@ payments.mcp.registerTool(
       content: [{ type: 'text', text: JSON.stringify(weather) }],
     }
   },
-  { credits: 1n }
+  { credits: 1n },
 )
 
 payments.mcp.registerTool(
@@ -317,7 +325,7 @@ payments.mcp.registerTool(
       content: [{ type: 'text', text: JSON.stringify(forecast) }],
     }
   },
-  { credits: 2n }  // Forecasts cost more
+  { credits: 2n }, // Forecasts cost more
 )
 
 // Register resource
@@ -331,14 +339,16 @@ payments.mcp.registerResource(
   async (uri) => {
     const alerts = await fetchAlerts()
     return {
-      contents: [{
-        uri: 'weather://alerts',
-        mimeType: 'application/json',
-        text: JSON.stringify(alerts),
-      }],
+      contents: [
+        {
+          uri: 'weather://alerts',
+          mimeType: 'application/json',
+          text: JSON.stringify(alerts),
+        },
+      ],
     }
   },
-  { credits: 1n }
+  { credits: 1n },
 )
 
 // Start server (bind to localhost by default; front with HTTPS reverse proxy for public traffic)
@@ -377,69 +387,77 @@ async function fetchAlerts() {
 
 ## Handler Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `credits` | `bigint` or `function` | Credits to consume per call |
-| `planId` | `string` | Optional override for the plan ID (otherwise inferred from token) |
-| `maxAmount` | `bigint` | Max credits to verify during authentication (default: `1n`) |
-| `onRedeemError` | `string` | `'ignore'` (default) or `'propagate'` to throw on redemption failure |
+| Option          | Type                   | Description                                                                                                                                                                                                                             |
+| --------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `credits`       | `bigint` or `function` | Credits to consume per call                                                                                                                                                                                                             |
+| `planId`        | `string`               | Optional override for the plan ID (otherwise inferred from token)                                                                                                                                                                       |
+| `maxAmount`     | `bigint`               | Max credits to verify during authentication (default: `1n`)                                                                                                                                                                             |
+| `onRedeemError` | `string`               | On post-execution settlement failure: `'ignore'` (default) returns the in-band payment error; `'propagate'` throws a JSON-RPC error. Tool content is always suppressed either way (paid content is never delivered without settlement). |
 
-## Response Metadata (`_meta`)
+## In-band x402 signaling (`_meta`)
 
-After each paywall-protected call, the SDK injects a `_meta` field into the response following the [MCP specification](https://modelcontextprotocol.io/specification/2025-06-18/basic). This field is always present regardless of whether credit redemption succeeded or failed:
+The MCP transport follows the [x402 v2 MCP transport spec](https://github.com/coinbase/x402/blob/main/specs/transports-v2/mcp.md): payments are signaled **in band** through the MCP tool-call machinery, not via HTTP status codes or headers.
+
+### Request — payment payload
+
+The client sends the x402 `PaymentPayload` in the request params `_meta["x402/payment"]` (plain JSON). For backwards compatibility an `Authorization: Bearer <token>` header is still accepted as a **deprecated fallback** when `_meta["x402/payment"]` is absent.
+
+### Response — settlement receipt
+
+On a successful paid call, the SDK injects the settlement receipt under `_meta["x402/payment-response"]` (the spec key), and Nevermined-specific observability under a namespaced `_meta["nevermined/credits"]` key:
 
 ```typescript
-// Successful redemption
 {
   content: [{ type: 'text', text: 'result' }],
   _meta: {
-    success: true,
-    txHash: '0xabc...',
-    creditsRedeemed: '5',
-    remainingBalance: '95',
-    planId: 'plan-123',
-    subscriberAddress: '0x123...',
-  }
-}
-
-// Failed redemption
-{
-  content: [{ type: 'text', text: 'result' }],
-  _meta: {
-    success: false,
-    creditsRedeemed: '0',
-    planId: 'plan-123',
-    subscriberAddress: '0x123...',
-    errorReason: 'Insufficient credits',
+    // Spec-defined settlement receipt (x402 v2 MCP transport)
+    'x402/payment-response': {
+      success: true,
+      transaction: '0xabc...',
+      network: 'eip155:84532',
+      payer: '0x123...',
+      creditsRedeemed: '5',
+      remainingBalance: '95',
+    },
+    // Nevermined-namespaced observability (NOT part of the x402 spec)
+    'nevermined/credits': {
+      success: true,
+      txHash: '0xabc...',
+      creditsRedeemed: '5',
+      planId: 'plan-123',
+      subscriberAddress: '0x123...',
+    },
   }
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `success` | `boolean` | Whether credit redemption succeeded |
-| `txHash` | `string` | Blockchain transaction hash (only on success) |
-| `creditsRedeemed` | `string` | Number of credits burned (`'0'` on failure) |
-| `remainingBalance` | `string` | Credits remaining after redemption |
-| `planId` | `string` | Plan used for the operation |
-| `subscriberAddress` | `string` | Subscriber's wallet address |
-| `errorReason` | `string` | Error message (only on failure) |
+Free / no-credit calls omit the `x402/payment-response` key (no settlement occurred); `nevermined/credits` is still attached with `creditsRedeemed: '0'`.
+
+### Payment required
+
+When payment is required (missing/invalid token, or no subscription), the tool returns an **error tool result** carrying the x402 `PaymentRequired` object — there is no HTTP `402` on `/mcp`:
+
+```typescript
+{
+  isError: true,
+  structuredContent: { x402Version: 2, error: 'payment required', resource: { /* ... */ }, accepts: [ /* ... */ ] },
+  content: [{ type: 'text', text: '<JSON-stringified PaymentRequired>' }],
+}
+```
+
+Both `structuredContent` (the object) and `content[0].text` (its JSON string) are populated, per spec. This applies to **tools** only — resources and prompts raise a JSON-RPC error instead (they have no tool-result error channel).
 
 ## Error Handling
 
-The paywall automatically returns 402 errors for invalid/missing tokens:
+Payment-required is signaled **in band** as an error tool result (see above) — there is no HTTP `402` on `/mcp`. OAuth and payment-required live at different layers and never collide: OAuth rejects at the HTTP layer (`401`), while payment-required is an MCP tool-call result. The in-band shape inherently disambiguates the two.
+
+`onRedeemError` controls only the _error type_ surfaced when settlement fails **after** the tool executed — it no longer controls whether content is returned. Per the spec, a paid result is never delivered without settlement landing, so the executed tool's content is always suppressed on settlement failure. `'ignore'` (default) surfaces the in-band payment error; `'propagate'` throws a JSON-RPC misconfiguration error.
 
 ```typescript
-// Automatic 402 handling - no code needed
-payments.mcp.registerTool(
-  'premium_tool',
-  toolConfig,
-  handler,
-  {
-    credits: 5n,
-    onRedeemError: 'propagate',  // Propagate credit errors (default: 'ignore')
-  }
-)
+payments.mcp.registerTool('premium_tool', toolConfig, handler, {
+  credits: 5n,
+  onRedeemError: 'propagate', // throw a JSON-RPC error on settlement failure (default: 'ignore')
+})
 ```
 
 ## Advanced: Custom Express App
@@ -501,6 +519,7 @@ process.on('SIGINT', () => {
 ---
 
 **Source References**:
+
 - `RUN.md` (MCP Server section, lines 16-86)
 - `src/mcp/index.ts` (MCP integration API)
 - `tests/integration/mcp-integration.test.ts` (integration examples)

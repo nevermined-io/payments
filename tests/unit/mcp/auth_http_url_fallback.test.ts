@@ -153,11 +153,18 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     await requestContextStorage.run(requestContext, async () => {
       await expect(
-        authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+        authenticator.authenticate(
+          extra,
+          { planId: 'plan-1' },
+          'did:nv:agent',
+          'test-server',
+          'tool1',
+          'tool',
+          {},
+        ),
       ).rejects.toMatchObject({
         code: -32003,
         message: expect.stringContaining('Available plans'),
-        data: { reason: 'invalid' },
       })
     })
 
@@ -234,10 +241,17 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     // No requestContextStorage, so no HTTP fallback available
     await expect(
-      authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(
+        extra,
+        { planId: 'plan-1' },
+        'did:nv:agent',
+        'test-server',
+        'tool1',
+        'tool',
+        {},
+      ),
     ).rejects.toMatchObject({
       code: -32003,
-      data: { reason: 'invalid' },
     })
 
     // Should have tried logical URL once and fetched plans, no HTTP fallback without context

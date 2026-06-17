@@ -279,6 +279,70 @@ export function buildPaymentRequired(
   }
 }
 
+/**
+ * Build an X402PaymentRequired object advertising one or more plans.
+ *
+ * Like {@link buildPaymentRequired} but produces one `accepts[]` entry per plan
+ * id, so a payment-required response can advertise every plan that unlocks the
+ * resource. For a single plan this is equivalent to {@link buildPaymentRequired}.
+ *
+ * @param planIds - The Nevermined plan identifiers (falls back to `['']` if empty)
+ * @param options - Same options as {@link buildPaymentRequired}
+ * @returns X402PaymentRequired object with one accepts entry per plan
+ */
+export function buildPaymentRequiredForPlans(
+  planIds: string[],
+  options?: {
+    endpoint?: string
+    agentId?: string
+    httpVerb?: string
+    network?: string
+    description?: string
+    mimeType?: string
+    scheme?: X402SchemeType
+    environment?: EnvironmentName
+  },
+): X402PaymentRequired {
+  const ids = planIds.length > 0 ? planIds : ['']
+  if (ids.length === 1) {
+    return buildPaymentRequired(ids[0], options)
+  }
+
+  const {
+    endpoint,
+    agentId,
+    httpVerb,
+    scheme = 'nvm:erc4337',
+    network,
+    description,
+    mimeType,
+    environment,
+  } = options || {}
+  const resolvedNetwork = network ?? getDefaultNetwork(scheme, environment)
+
+  const extra: X402SchemeExtra = {
+    version: '1',
+    ...(agentId && { agentId }),
+    ...(httpVerb && { httpVerb }),
+  }
+
+  return {
+    x402Version: 2,
+    resource: {
+      url: endpoint || '',
+      ...(description && { description }),
+      ...(mimeType && { mimeType }),
+    },
+    accepts: ids.map((planId) => ({
+      scheme,
+      network: resolvedNetwork,
+      planId,
+      extra,
+    })),
+    extensions: {},
+  }
+}
+
 interface CachedPlanMetadata {
   scheme: X402SchemeType
   fiatProvider?: string
