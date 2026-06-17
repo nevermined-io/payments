@@ -447,6 +447,66 @@ describe('x402 v2 A2A in-band transport', () => {
     expect(mockPayments.facilitator.settleCallCount).toBe(1)
   }, 15000)
 
+  test('5. streaming settlement failure -> persisted task is payment-failed, content suppressed', async () => {
+    const mockPayments = new MockPaymentsService()
+    mockPayments.facilitator.shouldFailSettle = true
+    const card = buildCard()
+    card.capabilities = { ...card.capabilities, streaming: true }
+    // Executor streams its (paid) result, incl. an artifact, then settlement throws.
+    const { client, close } = createServer(new DummyExecutor(3, true), card, mockPayments)
+    servers.push({ close })
+
+    const streamRes = await client.post('/rpc').send({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'message/stream',
+      params: {
+        message: {
+          messageId: 'msg-stream-sf',
+          contextId: 'ctx-5',
+          role: 'user',
+          parts: [{ kind: 'text', text: 'stream pay and fail' }],
+          metadata: {
+            [X402A2AMetadata.STATUS_KEY]: PaymentStatus.PAYMENT_SUBMITTED,
+            [X402A2AMetadata.PAYLOAD_KEY]: PAYMENT_PAYLOAD,
+          },
+        },
+      },
+    })
+
+    // The streamed event cannot be retracted; settlement was attempted and threw.
+    expect(mockPayments.facilitator.settleCallCount).toBe(1)
+
+    // Pull the generated taskId out of the SSE stream.
+    const taskId = streamRes.text
+      .split('\n')
+      .filter((l) => l.startsWith('data:'))
+      .map((l) => {
+        try {
+          return JSON.parse(l.slice(5).trim())
+        } catch {
+          return null
+        }
+      })
+      .map((e) => e?.result?.id ?? e?.result?.taskId)
+      .find((id) => typeof id === 'string')
+    expect(taskId).toBeTruthy()
+
+    // The PERSISTED task (tasks/get) must reflect the failure, not a paid result.
+    const getRes = await client.post('/rpc').send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tasks/get',
+      params: { id: taskId },
+    })
+    const task = getRes.body.result
+    expect(task.status.state).toBe('failed')
+    expect(task.status.message.metadata[X402A2AMetadata.STATUS_KEY]).toBe(
+      PaymentStatus.PAYMENT_FAILED,
+    )
+    expect(task.artifacts ?? []).toHaveLength(0)
+  }, 20000)
+
   test('x402A2AUtils helpers round-trip status/required/payload on a task', () => {
     const task: Task = {
       kind: 'task',
