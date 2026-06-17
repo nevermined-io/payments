@@ -17,7 +17,8 @@
  *
  * // Configure MCP integration
  * payments.mcp.configure({
- *   agentId: process.env.NVM_AGENT_ID!,
+ *   planId: process.env.NVM_PLAN_ID!, // required
+ *   agentId: process.env.NVM_AGENT_ID, // optional
  *   serverName: 'my-mcp-server'
  * })
  *
@@ -33,7 +34,8 @@
  * // Start a managed server with all OAuth endpoints
  * const { baseUrl, stop } = await payments.mcp.startServer({
  *   port: 5001,
- *   agentId: process.env.NVM_AGENT_ID!,
+ *   planId: process.env.NVM_PLAN_ID!, // required
+ *   agentId: process.env.NVM_AGENT_ID, // optional
  *   serverName: 'my-mcp-server',
  *   tools: ['hello_world']
  * })
@@ -48,7 +50,8 @@
  * // Create OAuth router
  * const router = payments.mcp.createRouter({
  *   baseUrl: 'http://localhost:5001',
- *   agentId: 'agent_123',
+ *   planId: 'plan_123', // required
+ *   agentId: 'agent_123', // optional
  *   serverName: 'my-mcp-server'
  * })
  *
@@ -168,7 +171,9 @@ export interface ExtendedMcpConfig extends McpConfig {
 export interface CreateRouterOptions {
   /** Base URL of the MCP server */
   baseUrl: string
-  /** Agent ID (client_id) */
+  /** Payment plan ID — configures the paywall plan for this server (falls back to configure()) */
+  planId?: string
+  /** Agent ID (optional; OAuth client_id / informational only) */
   agentId?: string
   /** Server name */
   serverName?: string
@@ -198,7 +203,9 @@ export interface StartServerOptions {
   host?: string
   /** Base URL (defaults to http://localhost:\{port\}) */
   baseUrl?: string
-  /** Agent ID (uses configured agentId if not provided) */
+  /** Payment plan ID — configures the paywall plan for this server (falls back to configure()) */
+  planId?: string
+  /** Agent ID (optional; OAuth client_id / informational only) */
   agentId?: string
   /** Server name */
   serverName?: string
@@ -382,6 +389,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```typescript
    * const router = payments.mcp.createRouter({
    *   baseUrl: 'http://localhost:5001',
+   *   planId: 'plan_123', // required
    *   serverName: 'my-mcp-server',
    *   tools: ['hello_world']
    * })
@@ -393,6 +401,14 @@ export function buildMcpIntegration(paymentsService: Payments) {
     // agentId is optional under the plan-centric model (informational/OAuth
     // client_id only); the OAuth router omits client_id when it's absent.
     const agentId = options.agentId || extendedConfig.agentId
+    // planId is the paywall's concern (the OAuth router below does not consume it).
+    // Configure the paywall so tools protected via withPaywall settle on this plan;
+    // per-call option wins over a prior configure().
+    configure({
+      planId: options.planId ?? extendedConfig.planId,
+      agentId,
+      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
+    })
 
     const environment =
       extendedConfig.environment || (paymentsService as any).environmentName || 'staging_sandbox'
@@ -428,6 +444,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```typescript
    * const app = payments.mcp.createApp({
    *   baseUrl: 'http://localhost:5001',
+   *   planId: 'plan_123', // required
    *   serverName: 'my-mcp-server'
    * })
    *
@@ -441,6 +458,13 @@ export function buildMcpIntegration(paymentsService: Payments) {
     // agentId is optional under the plan-centric model (informational/OAuth
     // client_id only); the OAuth router omits client_id when it's absent.
     const agentId = options.agentId || extendedConfig.agentId
+    // planId is the paywall's concern (the OAuth app below does not consume it).
+    // Configure the paywall so tools protected via withPaywall settle on this plan.
+    configure({
+      planId: options.planId ?? extendedConfig.planId,
+      agentId,
+      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
+    })
 
     const environment =
       extendedConfig.environment || (paymentsService as any).environmentName || 'staging_sandbox'
@@ -473,6 +497,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```typescript
    * const { baseUrl, stop } = await payments.mcp.startServer({
    *   port: 5001,
+   *   planId: process.env.NVM_PLAN_ID!, // required
    *   serverName: 'my-mcp-server',
    *   tools: ['hello_world', 'weather']
    * })
@@ -487,6 +512,14 @@ export function buildMcpIntegration(paymentsService: Payments) {
     // agentId is optional under the plan-centric model (informational/OAuth
     // client_id only); the OAuth router omits client_id when it's absent.
     const agentId = options.agentId || extendedConfig.agentId
+    // planId is the paywall's concern (the managed OAuth server below does not
+    // consume it). Configure the paywall so this server's protected tools settle
+    // on this plan; per-call option wins over a prior configure().
+    configure({
+      planId: options.planId ?? extendedConfig.planId,
+      agentId,
+      serverName: options.serverName || extendedConfig.serverName || 'mcp-server',
+    })
 
     const baseUrl = options.baseUrl || `http://localhost:${options.port}`
     const environment =
@@ -626,7 +659,8 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * // Then start the server
    * const { info, stop } = await payments.mcp.start({
    *   port: 5001,
-   *   agentId: 'did:nv:...',
+   *   planId: 'plan_123', // required
+   *   agentId: 'did:nv:...', // optional
    *   serverName: 'my-mcp-server'
    * })
    *
