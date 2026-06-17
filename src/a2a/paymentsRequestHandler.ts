@@ -525,10 +525,10 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             const redemptionConfig = await this.getRedemptionConfig()
 
             if (!redemptionConfig.useBatch) {
-              // Prefer the per-request context (in-band flag); fall back to a
-              // per-taskId lookup for executors that mint their own task id.
+              // Prefer the per-request context (authoritative in-band flag); fall
+              // back to a per-taskId lookup for executors that mint their own task id.
               const httpContext =
-                this.getHttpRequestContextForTask(event.taskId) ?? requestHttpContext
+                requestHttpContext ?? this.getHttpRequestContextForTask(event.taskId)
               // Execute redemption with server configuration for non-batch requests
               const response = await this.executeRedemption(
                 bearerToken,
@@ -562,7 +562,32 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
               }
             }
           } catch (err) {
-            // Do nothing
+            // x402 v2 A2A: settlement failed AFTER the paid event was already
+            // streamed to the client (a stream cannot retract it). Do NOT swallow
+            // it — log, and stamp payment-failed on the persisted task so
+            // tasks/get + resubscribe reflect the failure (mirrors non-streaming).
+            console.error('[PaymentsA2A] streaming settlement failed after execution:', err)
+            const httpContext =
+              requestHttpContext ?? this.getHttpRequestContextForTask(event.taskId)
+            if (httpContext?.inBand) {
+              try {
+                const task = resultManager.getCurrentTask()
+                if (task) {
+                  const errorReason = err instanceof Error ? err.message : String(err)
+                  if (task.status) task.status.state = 'failed'
+                  task.artifacts = undefined
+                  this.recordInBandSettlement(task, httpContext, {
+                    success: false,
+                    errorReason,
+                    transaction: '',
+                    network: '',
+                  })
+                  await resultManager.processEvent(task)
+                }
+              } catch (stampErr) {
+                console.error('[PaymentsA2A] failed to stamp streaming payment-failed:', stampErr)
+              }
+            }
           }
         }
 
@@ -627,7 +652,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           // carries the in-band flag). Fall back to a per-taskId lookup for
           // executors that mint their own task id (the event's taskId may then
           // differ from the request's generated one).
-          const httpContext = this.getHttpRequestContextForTask(event.taskId) ?? requestHttpContext
+          const httpContext = requestHttpContext ?? this.getHttpRequestContextForTask(event.taskId)
           await this.handleTaskFinalization(resultManager, event, bearerToken, httpContext)
         }
 
@@ -817,9 +842,11 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           }
         }
       } catch (err) {
-        // Settlement failed AFTER the agent executed. For the in-band x402 v2
-        // A2A path this is surfaced below (payment-failed + suppressed content);
-        // for the legacy header path the prior behavior (swallow) is preserved.
+        // Settlement failed AFTER the agent executed. Always log it (the legacy
+        // header path has no other surface for it). For the in-band x402 v2 A2A
+        // path it is additionally surfaced below as payment-failed + suppressed
+        // content; the legacy header path still delivers the result (no retract).
+        console.error('[PaymentsA2A] settlement failed after execution:', err)
         settlementError = err
       }
 
@@ -882,7 +909,9 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           this.deleteHttpRequestContextForTask(event.taskId)
         }
       } catch (err) {
-        // Do nothing
+        // This block persists the payment-failed/suppressed task; if it throws the
+        // suppression itself failed, so log loudly rather than swallow.
+        console.error('[PaymentsA2A] failed to persist finalized task:', err)
       }
     }
     try {

@@ -23,7 +23,7 @@ export const AGENT_CARD_WELL_KNOWN_PATH = '.well-known/agent-card.json'
  * Legacy pre-0.3 discovery path. Still served as a backward-compat alias and
  * tried as a fetch fallback, so newly-updated clients keep working against
  * Nevermined agents that have not adopted the canonical path yet.
- * ponytail: drop the alias + fallback one release after agents are updated.
+ * TODO(a2a): drop the alias + fallback one release after agents are updated.
  */
 export const LEGACY_AGENT_CARD_WELL_KNOWN_PATH = '.well-known/agent.json'
 

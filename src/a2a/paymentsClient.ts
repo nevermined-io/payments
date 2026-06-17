@@ -75,7 +75,7 @@ export class PaymentsClient extends A2AClient {
    * Fetches a remote agent card, trying the requested (canonical) path first and
    * falling back to the legacy '.well-known/agent.json' so updated clients keep
    * working against agents that have not adopted the canonical path yet.
-   * ponytail: drop the fallback one release after agents are updated.
+   * TODO(a2a): drop the fallback one release after agents are updated.
    */
   private static async _fetchAgentCard(
     agentBaseUrl: string,
