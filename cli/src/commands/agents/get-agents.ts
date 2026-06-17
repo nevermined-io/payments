@@ -2,13 +2,13 @@ import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Lists the payment plans **you** published (the authenticated caller's own plans). This is account management, not a marketplace search — it never returns other users' plans.
+ * Lists the AI agents **you** published (the authenticated caller's own agents). This is account management, not a marketplace search — it never returns other users' agents.
  */
-export default class GetPlans extends BaseCommand {
-  static override description = "Lists the payment plans **you** published (the authenticated caller's own plans). This is account management, not a marketplace search — it never returns other users' plans."
+export default class GetAgents extends BaseCommand {
+  static override description = "Lists the AI agents **you** published (the authenticated caller's own agents). This is account management, not a marketplace search — it never returns other users' agents."
 
   static override examples = [
-    '$ nvm plans get-plans <orgId>'
+    '$ nvm agents get-agents <orgId>'
   ]
 
   static override flags = {
@@ -28,7 +28,7 @@ export default class GetPlans extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getPlans(flags['page'], flags['offset'], flags['sort-by'], flags['sort-order'], flags['org-id'])
+      const result = await payments.agents.getAgents(flags['page'], flags['offset'], flags['sort-by'], flags['sort-order'], flags['org-id'])
 
       this.formatter.output(result)
     } catch (error) {
