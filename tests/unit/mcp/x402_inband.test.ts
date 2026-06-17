@@ -94,6 +94,15 @@ describe('x402 in-band: access token codec', () => {
       SAMPLE_PAYLOAD,
     )
   })
+
+  test('encode never throws on non-ASCII input (hostile client payload)', () => {
+    // encodeAccessToken runs on client-supplied _meta["x402/payment"]; it must not
+    // throw on code points > U+00FF (btoa would). x402 payloads are ASCII in practice.
+    const nonAscii = { ...SAMPLE_PAYLOAD, note: 'café 日本語 😀' }
+    expect(() => encodeAccessToken(nonAscii)).not.toThrow()
+    // ASCII round-trip is unchanged.
+    expect(decodeAccessToken(encodeAccessToken(SAMPLE_PAYLOAD))).toEqual(SAMPLE_PAYLOAD)
+  })
 })
 
 describe('x402 in-band: readPaymentPayload', () => {
@@ -102,13 +111,18 @@ describe('x402 in-band: readPaymentPayload', () => {
     expect(readPaymentPayload(extra)).toEqual(SAMPLE_PAYLOAD)
   })
 
-  test('returns undefined when absent / no _meta / not an object', () => {
+  test('returns undefined when absent / no _meta / not a plain object (string, array, null)', () => {
     expect(readPaymentPayload({ _meta: { progressToken: 'x' } })).toBeUndefined()
     expect(readPaymentPayload({})).toBeUndefined()
     expect(readPaymentPayload(undefined)).toBeUndefined()
     expect(
       readPaymentPayload({ _meta: { [X402_PAYMENT_META_KEY]: 'not-an-object' } }),
     ).toBeUndefined()
+    // Arrays are typeof 'object' but not valid payloads (mirror Python isinstance dict).
+    expect(
+      readPaymentPayload({ _meta: { [X402_PAYMENT_META_KEY]: [SAMPLE_PAYLOAD] } }),
+    ).toBeUndefined()
+    expect(readPaymentPayload({ _meta: { [X402_PAYMENT_META_KEY]: null } })).toBeUndefined()
   })
 })
 
@@ -277,6 +291,52 @@ describe('x402 in-band: paywall wrapper', () => {
     expect(metaChunk._meta[NEVERMINED_CREDITS_META_KEY].success).toBe(false)
     expect(metaChunk._meta[NEVERMINED_CREDITS_META_KEY].errorReason).toBe('no funds')
   })
+
+  test('settle fallback uses httpUrl, not the verb (regression: fallbackEndpoint/httpVerb order)', async () => {
+    const { decorator, payments, authenticator } = makeDecorator({})
+    authenticator.authenticate = jest.fn(async () => ({
+      token: 'tok-abc',
+      agentId: 'agent-9',
+      logicalUrl: 'mcp://srv/logical',
+      httpUrl: 'https://srv.example/http',
+      planId: 'plan-123',
+      subscriberAddress: '0x123',
+    }))
+    let calls = 0
+    payments.facilitator.settlePermissions = jest.fn(async () => {
+      calls += 1
+      if (calls === 1) throw new Error('primary settle failed')
+      return { success: true, transaction: '0xok', network: 'eip155:84532', creditsRedeemed: '5' }
+    })
+    const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
+    const wrapped = decorator.protect(handler, { kind: 'tool', name: 'premium' })
+
+    const out = await wrapped({}, { _meta: { [X402_PAYMENT_META_KEY]: SAMPLE_PAYLOAD } })
+
+    expect(payments.facilitator.settlePermissions).toHaveBeenCalledTimes(2)
+    // The fallback must build paymentRequired from the httpUrl endpoint — under the
+    // old transposed arg order (fallbackEndpoint='POST') it would be the literal "POST".
+    const fallbackArg = payments.facilitator.settlePermissions.mock.calls[1][0]
+    expect(fallbackArg.paymentRequired.resource.url).toBe('https://srv.example/http')
+    expect(fallbackArg.paymentRequired.resource.url).not.toBe('POST')
+    expect(out._meta[X402_PAYMENT_RESPONSE_META_KEY].success).toBe(true)
+  })
+
+  test('onRedeemError "propagate" surfaces a Misconfiguration (-32002) when settlement errors', async () => {
+    const { decorator, payments } = makeDecorator({})
+    payments.facilitator.settlePermissions = jest.fn(async () => {
+      throw new Error('settle boom')
+    })
+    const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
+    const wrapped = decorator.protect(handler, {
+      kind: 'tool',
+      name: 'premium',
+      onRedeemError: 'propagate',
+    })
+    await expect(
+      wrapped({}, { _meta: { [X402_PAYMENT_META_KEY]: SAMPLE_PAYLOAD } }),
+    ).rejects.toMatchObject({ code: -32002 })
+  })
 })
 
 describe('buildPaymentRequiredForPlans', () => {
@@ -314,5 +374,79 @@ describe('buildPaymentRequiredError: plans-lookup failure', () => {
     })
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
+  })
+})
+
+describe('x402 in-band: real MCP-SDK dispatch', () => {
+  // Pins the load-bearing assumption that @modelcontextprotocol/sdk surfaces the
+  // request params._meta on the tool handler's `extra` — so a future SDK bump that
+  // changed it would fail here instead of silently routing every call to the
+  // deprecated Authorization-header fallback. (Port of Python TestDispatcherInBand.)
+  test('SDK delivers params._meta["x402/payment"] to the handler; in-band path re-encodes to Bearer', async () => {
+    const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js')
+    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
+    const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js')
+
+    let capturedAuthExtra: any
+    const payments: any = {
+      getEnvironmentName: () => 'staging_sandbox',
+      facilitator: {
+        settlePermissions: jest.fn(async () => ({
+          success: true,
+          transaction: '0xok',
+          network: 'eip155:84532',
+          creditsRedeemed: '5',
+        })),
+      },
+      agents: { getAgentPlans: jest.fn(async () => ({ plans: [] })) },
+    }
+    const authenticator: any = {
+      authenticate: jest.fn(async (extra: any) => {
+        capturedAuthExtra = extra
+        return {
+          token: 'tok-abc',
+          agentId: 'agent-9',
+          logicalUrl: 'mcp://srv/tools/premium',
+          httpUrl: undefined,
+          planId: 'plan-123',
+          subscriberAddress: '0x123',
+        }
+      }),
+    }
+    const creditsContext: any = { resolve: jest.fn(() => 5n) }
+    const decorator = new PaywallDecorator(payments, authenticator, creditsContext)
+    decorator.configure({ agentId: 'agent-9', serverName: 'srv' })
+    const protectedHandler = decorator.protect(
+      async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+      { kind: 'tool', name: 'premium' },
+    )
+
+    const server = new McpServer({ name: 'test', version: '0.0.0' })
+    // An (empty) inputSchema makes the SDK invoke the callback as (args, extra),
+    // matching the paywall wrapper's tool arity.
+    server.registerTool(
+      'premium',
+      { description: 'premium', inputSchema: {} },
+      protectedHandler as any,
+    )
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const client = new Client({ name: 'c', version: '0.0.0' })
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)])
+
+    await client.callTool({
+      name: 'premium',
+      arguments: {},
+      _meta: { [X402_PAYMENT_META_KEY]: SAMPLE_PAYLOAD },
+    })
+
+    // The SDK surfaced params._meta on the handler extra; the in-band path
+    // re-encoded the payload into a Bearer token for authentication.
+    expect(capturedAuthExtra?.requestInfo?.headers?.authorization).toBe(
+      `Bearer ${encodeAccessToken(SAMPLE_PAYLOAD)}`,
+    )
+
+    await client.close()
+    await server.close()
   })
 })

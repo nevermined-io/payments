@@ -92,16 +92,23 @@ export const decodeAccessToken = (accessToken: string): Record<string, any> | nu
  * Produces unpadded base64url with compact JSON (no spaces), matching the form
  * {@link decodeAccessToken} accepts.
  *
- * NOTE: `btoa` throws on code points > U+00FF, so this assumes ASCII JSON. x402
- * PaymentPayloads are ASCII (EIP-712 hex/decimal/signature fields), matching the
- * Python SDK's equivalent. A future non-ASCII field would need UTF-8 encoding first.
+ * Encodes UTF-8 bytes before base64 so it never throws on non-ASCII input — this
+ * runs on client-supplied `_meta["x402/payment"]`, and `btoa` alone throws a
+ * DOMException on code points > U+00FF. For ASCII JSON (all real x402
+ * PaymentPayloads: EIP-712 hex/decimal/signature fields) the output is
+ * byte-identical to `btoa(json)`, so the round-trip with {@link decodeAccessToken}
+ * is unchanged. `decodeAccessToken` is intentionally left as-is; a full UTF-8
+ * round-trip would additionally require decoding the bytes there.
  *
  * @param payload - The decoded PaymentPayload object (e.g. from `_meta["x402/payment"]`)
  * @returns The base64url-encoded access token string (unpadded)
  */
 export const encodeAccessToken = (payload: Record<string, any>): string => {
   const json = JSON.stringify(payload)
-  return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  const bytes = new TextEncoder().encode(json)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 /**

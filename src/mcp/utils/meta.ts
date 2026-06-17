@@ -36,7 +36,9 @@ export const NEVERMINED_CREDITS_META_KEY = 'nevermined/credits'
  */
 export function readPaymentPayload(extra: any): Record<string, any> | undefined {
   const value = extra?._meta?.[X402_PAYMENT_META_KEY]
-  return value && typeof value === 'object' ? value : undefined
+  // Only a plain object is a valid PaymentPayload; reject null and arrays
+  // (`typeof [] === 'object'`), mirroring the Python `isinstance(value, dict)`.
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : undefined
 }
 
 /**
