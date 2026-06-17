@@ -237,7 +237,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
 
   // Extended configuration storage
   let extendedConfig: ExtendedMcpConfig = {
-    agentId: '',
+    planId: '',
     serverName: 'mcp-server',
   }
 
@@ -265,6 +265,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
     }
     // Also configure the paywall decorator
     paywallDecorator.configure({
+      planId: options.planId,
       agentId: options.agentId,
       serverName: options.serverName,
     })
@@ -382,10 +383,9 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```
    */
   function createRouter(options: CreateRouterOptions) {
+    // agentId is optional under the plan-centric model (informational/OAuth
+    // client_id only); the OAuth router omits client_id when it's absent.
     const agentId = options.agentId || extendedConfig.agentId
-    if (!agentId) {
-      throw new Error('agentId is required. Either pass it in options or call configure() first.')
-    }
 
     const environment =
       extendedConfig.environment || (paymentsService as any).environmentName || 'staging_sandbox'
@@ -431,10 +431,9 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```
    */
   function createApp(options: Omit<CreateRouterOptions, 'agentId'> & { agentId?: string }) {
+    // agentId is optional under the plan-centric model (informational/OAuth
+    // client_id only); the OAuth router omits client_id when it's absent.
     const agentId = options.agentId || extendedConfig.agentId
-    if (!agentId) {
-      throw new Error('agentId is required. Either pass it in options or call configure() first.')
-    }
 
     const environment =
       extendedConfig.environment || (paymentsService as any).environmentName || 'staging_sandbox'
@@ -478,10 +477,9 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```
    */
   async function startServer(options: StartServerOptions): Promise<HttpServerResult> {
+    // agentId is optional under the plan-centric model (informational/OAuth
+    // client_id only); the OAuth router omits client_id when it's absent.
     const agentId = options.agentId || extendedConfig.agentId
-    if (!agentId) {
-      throw new Error('agentId is required. Either pass it in options or call configure() first.')
-    }
 
     const baseUrl = options.baseUrl || `http://localhost:${options.port}`
     const environment =

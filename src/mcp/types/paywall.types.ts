@@ -73,7 +73,7 @@ export type PaywallOptions = ToolOptions | ResourceOptions | PromptOptions
  */
 export interface AuthResult {
   token: string
-  agentId: string
+  agentId?: string
   logicalUrl: string
   httpUrl?: string
   planId: string
@@ -96,6 +96,10 @@ export interface PaywallContext {
  * MCP integration configuration
  */
 export interface McpConfig {
-  agentId: string
+  /** Plan ID the server charges against (required). The facilitator is
+   * plan-centric: verify/settle resolve everything from the plan + token. */
+  planId: string
+  /** Agent ID — optional, informational/observability only. */
+  agentId?: string
   serverName?: string
 }

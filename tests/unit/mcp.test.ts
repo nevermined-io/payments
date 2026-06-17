@@ -298,7 +298,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent' })
 
       const base = async (_args: any, _extra?: any) => {
         return {}
