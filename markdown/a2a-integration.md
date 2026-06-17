@@ -19,12 +19,12 @@ The A2A integration provides:
 
 ## Build Payment Agent Card
 
-The agent card is published at `/.well-known/agent.json` and includes payment metadata. Before sending a paid request, **clients should fetch and validate the target agent's card** to confirm the expected `agentId`, the `capabilities`, and the supported X402 schemes — this protects against routing payment-signature tokens to a typosquatted or unauthorised endpoint:
+The agent card is published at the canonical `/.well-known/agent-card.json` (A2A 0.3+), with the legacy `/.well-known/agent.json` kept as a backward-compat alias. It includes payment metadata. Before sending a paid request, **clients should fetch and validate the target agent's card** to confirm the expected `agentId`, the `capabilities`, and the supported X402 schemes — this protects against routing payment tokens to a typosquatted or unauthorised endpoint:
 
 ```typescript
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
 
-const cardUrl = new URL('/.well-known/agent.json', agentUrl)
+const cardUrl = new URL('/.well-known/agent-card.json', agentUrl)
 const card = await fetch(cardUrl, { method: 'GET' }).then((r) => r.json())
 
 if (card.agentId !== expectedAgentId) {
@@ -73,7 +73,7 @@ const agentCard = Payments.a2a.buildPaymentAgentCard(
 
 ## Payment Extension Structure
 
-The agent card includes a Nevermined payment extension in `capabilities.extensions`:
+The agent card declares two extensions in `capabilities.extensions`: the Nevermined payment extension (pricing metadata) and the official a2a-x402 extension (`https://github.com/google-agentic-commerce/a2a-x402/blob/main/spec/v0.2`), which signals support for the standards-compliant in-band x402 v2 flow (see below). Both are emitted for one release; `urn:nevermined:payment` will be dropped once clients migrate to v0.2 only.
 
 ```json
 {
@@ -90,11 +90,45 @@ The agent card includes a Nevermined payment extension in `capabilities.extensio
           "planId": "plan-456",
           "costDescription": "5 credits per request"
         }
+      },
+      {
+        "uri": "https://github.com/google-agentic-commerce/a2a-x402/blob/main/spec/v0.2",
+        "required": false
       }
     ]
   }
 }
 ```
+
+## x402 v2 In-Band Payments (Standards Flow)
+
+Payment is signalled **in band** following the [Coinbase x402 v2 A2A transport spec](https://github.com/coinbase/x402/blob/main/specs/transports-v2/a2a.md) and the official [a2a-x402 extension](https://github.com/google-agentic-commerce/a2a-x402). No HTTP 402 is involved — the whole handshake rides on A2A task/message metadata, correlated by `taskId`. This is automatic when you use `payments.a2a.start`; nothing changes in your executor.
+
+Lifecycle:
+
+1. **Payment required** — a payment-gated `message/send` arrives with no payment. The server returns a Task with `status.state = "input-required"` and `status.message.metadata`:
+
+   ```json
+   {
+     "x402.payment.status": "payment-required",
+     "x402.payment.required": { /* X402PaymentRequired (accepts[] of plans) */ }
+   }
+   ```
+
+2. **Payment submitted** — the client sends a follow-up `message/send` whose `message.metadata` carries the payload, correlated via `message.taskId`:
+
+   ```json
+   {
+     "x402.payment.status": "payment-submitted",
+     "x402.payment.payload": { /* PaymentPayload */ }
+   }
+   ```
+
+3. **Completed / failed** — on success the final Task carries `x402.payment.status: "payment-completed"` plus `x402.payment.receipts` (array of settle receipts). On failure it is `failed` / `x402.payment.status: "payment-failed"` with the error under `x402.payment.error`, and paid content is suppressed.
+
+Metadata keys: `x402.payment.status`, `x402.payment.required`, `x402.payment.payload`, `x402.payment.receipts`, `x402.payment.error`.
+
+> ⚠️ **Header flow deprecated.** The legacy `payment-signature` HTTP header still works but is now a **deprecated fallback, kept for one release**. New integrations should rely on the in-band metadata flow above.
 
 ## Implement Executor
 
@@ -293,7 +327,7 @@ const { server, close } = await payments.a2a.start({
   executor,
   port: 6000,
   basePath: '/a2a/',
-  exposeAgentCard: true,        // Expose /.well-known/agent.json
+  exposeAgentCard: true,        // Expose /.well-known/agent-card.json (+ legacy /.well-known/agent.json alias)
   exposeDefaultRoutes: true,    // Expose health and info routes
 })
 
@@ -307,7 +341,7 @@ process.on('SIGINT', async () => {
 })
 ```
 
-> 🔐 **Run behind a reverse proxy with HTTPS in production.** A2A peers exchange paid `payment-signature` tokens over HTTP headers — never expose the raw server on a public hostname without TLS. Bind the dev server to `127.0.0.1` (e.g. by running it inside a container with no published port, or behind a localhost-bound proxy).
+> 🔐 **Run behind a reverse proxy with HTTPS in production.** A2A peers exchange paid tokens — in band via `x402.payment.payload`, or over the deprecated `payment-signature` header — so never expose the raw server on a public hostname without TLS. Bind the dev server to `127.0.0.1` (e.g. by running it inside a container with no published port, or behind a localhost-bound proxy).
 
 ## Credit Reporting
 
@@ -532,7 +566,7 @@ const { server, close } = await payments.a2a.start({
 })
 
 console.log('Weather A2A Agent running on http://localhost:6000/a2a/')
-console.log('Agent card: http://localhost:6000/a2a/.well-known/agent.json')
+console.log('Agent card: http://localhost:6000/a2a/.well-known/agent-card.json')
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
@@ -573,7 +607,7 @@ const { server, close } = await payments.a2a.start({
   executor,                       // Task executor (required)
   port: 6000,                     // Server port (required)
   basePath: '/a2a/',              // Base path (optional, default: '/')
-  exposeAgentCard: true,          // Expose /.well-known/agent.json (optional)
+  exposeAgentCard: true,          // Expose /.well-known/agent-card.json + legacy alias (optional)
   exposeDefaultRoutes: true,      // Expose /health, /info (optional)
   paymentsService: payments,      // Custom payments instance (optional)
   handlerOptions: {
