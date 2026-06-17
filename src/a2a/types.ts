@@ -167,6 +167,22 @@ export type HttpRequestContext = {
   urlRequested?: string
   httpMethodRequested?: string
   validation: StartAgentRequest
+  /**
+   * x402 v2 A2A in-band transport: set by the server middleware when a
+   * payment-gated request arrives with NO token (neither in-band
+   * `x402.payment.payload` nor the deprecated `payment-signature` header). The
+   * handler short-circuits and returns an `input-required` task carrying this
+   * X402PaymentRequired object under `x402.payment.required`, instead of
+   * executing the agent.
+   */
+  paymentRequired?: import('../x402/facilitator-api.js').X402PaymentRequired
+  /**
+   * Whether the bearer token was supplied in band (via `x402.payment.payload`
+   * message metadata) rather than the deprecated `payment-signature` header.
+   * When true, settlement receipts are stamped into the task metadata under the
+   * spec-defined `x402.payment.*` keys.
+   */
+  inBand?: boolean
 }
 
 /**

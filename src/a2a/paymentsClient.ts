@@ -17,6 +17,9 @@ import {
 import { A2AClient } from '@a2a-js/sdk/client'
 import { v4 as uuidv4 } from 'uuid'
 import type { AgentCard } from './types.js'
+import { AGENT_CARD_WELL_KNOWN_PATH, LEGACY_AGENT_CARD_WELL_KNOWN_PATH } from './agent-card.js'
+import { decodeAccessToken } from '../utils.js'
+import { PaymentStatus, x402A2AUtils, X402A2AMetadata } from './x402-a2a.js'
 
 /**
  * PaymentsClient is a high-level client for A2A agents with payments integration.
@@ -35,7 +38,7 @@ export class PaymentsClient extends A2AClient {
    * @param payments - The Payments object.
    * @param agentId - The ID of the agent.
    * @param planId - The ID of the plan.
-   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent.json').
+   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent-card.json').
    */
   private constructor(
     agentCard: AgentCard,
@@ -61,13 +64,35 @@ export class PaymentsClient extends A2AClient {
     payments: Payments,
     agentId: string,
     planId: string,
-    agentCardPath = '.well-known/agent.json',
+    agentCardPath = AGENT_CARD_WELL_KNOWN_PATH,
     delegationConfig?: DelegationConfig,
   ): Promise<PaymentsClient> {
-    const agentCardUrl = new URL(agentCardPath, agentBaseUrl).toString()
-    const a2a = await A2AClient.fromCardUrl(agentCardUrl)
-    const agentCard = await (a2a as any).getAgentCard()
-    return new PaymentsClient(agentCard as AgentCard, payments, agentId, planId, delegationConfig)
+    const agentCard = await PaymentsClient._fetchAgentCard(agentBaseUrl, agentCardPath)
+    return new PaymentsClient(agentCard, payments, agentId, planId, delegationConfig)
+  }
+
+  /**
+   * Fetches a remote agent card, trying the requested (canonical) path first and
+   * falling back to the legacy '.well-known/agent.json' so updated clients keep
+   * working against agents that have not adopted the canonical path yet.
+   * TODO(a2a): drop the fallback one release after agents are updated.
+   */
+  private static async _fetchAgentCard(
+    agentBaseUrl: string,
+    agentCardPath: string,
+  ): Promise<AgentCard> {
+    const load = async (path: string): Promise<AgentCard> => {
+      const a2a = await A2AClient.fromCardUrl(new URL(path, agentBaseUrl).toString())
+      return (await (a2a as any).getAgentCard()) as AgentCard
+    }
+    try {
+      return await load(agentCardPath)
+    } catch (err) {
+      if (agentCardPath !== LEGACY_AGENT_CARD_WELL_KNOWN_PATH) {
+        return await load(LEGACY_AGENT_CARD_WELL_KNOWN_PATH)
+      }
+      throw err
+    }
   }
 
   /**
@@ -107,6 +132,74 @@ export class PaymentsClient extends A2AClient {
   }
 
   /**
+   * Build the in-band x402 message metadata (x402 v2 A2A transport).
+   *
+   * The server consumes the same base64 access token whether it arrives in the
+   * deprecated `payment-signature` header or in band, so the in-band
+   * `x402.payment.payload` is just the decoded PaymentPayload object. Falls back
+   * to wrapping the raw token if it is not decodable (never expected for real
+   * Nevermined tokens, which are base64 JSON).
+   *
+   * @param accessToken - The x402 access token string
+   * @returns The message-metadata fragment carrying status + payload
+   */
+  private _buildInBandPaymentMetadata(accessToken: string): Record<string, unknown> {
+    const payload = decodeAccessToken(accessToken) ?? { token: accessToken }
+    return {
+      [X402A2AMetadata.STATUS_KEY]: PaymentStatus.PAYMENT_SUBMITTED,
+      [X402A2AMetadata.PAYLOAD_KEY]: payload,
+    }
+  }
+
+  /**
+   * Return a copy of the message params with the in-band x402 payment metadata
+   * merged into `message.metadata`, optionally correlating to a taskId returned
+   * by a prior `input-required` (payment-required) response. Immutable: the
+   * caller's params object is never mutated.
+   *
+   * @param params - The original message send params
+   * @param accessToken - The x402 access token to embed in band
+   * @param taskId - Optional taskId to correlate a payment-required follow-up
+   */
+  private _withInBandPayment(
+    params: MessageSendParams,
+    accessToken: string,
+    taskId?: string,
+  ): MessageSendParams {
+    return {
+      ...params,
+      message: {
+        ...params.message,
+        ...(taskId ? { taskId } : {}),
+        metadata: {
+          ...(params.message.metadata || {}),
+          ...this._buildInBandPaymentMetadata(accessToken),
+        },
+      },
+    }
+  }
+
+  /**
+   * Detect a payment-required response (x402 v2 A2A transport): an
+   * `input-required` task whose status message carries
+   * `x402.payment.status: payment-required`. Returns the task id to correlate a
+   * follow-up payment, or `undefined` when the response is not payment-required.
+   *
+   * @param response - The JSON-RPC send-message response
+   */
+  private _paymentRequiredTaskId(response: SendMessageResponse): string | undefined {
+    if (this.isErrorResponse(response as JSONRPCResponse)) {
+      return undefined
+    }
+    const result = (response as { result?: any }).result
+    if (!result || result.kind !== 'task' || result.status?.state !== 'input-required') {
+      return undefined
+    }
+    const status = x402A2AUtils.getPaymentStatus(result)
+    return status === PaymentStatus.PAYMENT_REQUIRED ? (result.id as string) : undefined
+  }
+
+  /**
    * Type guard to check if a JSON-RPC response is an error response.
    * @param response - The JSON-RPC response to check
    * @returns true if the response contains an error, false otherwise
@@ -122,12 +215,30 @@ export class PaymentsClient extends A2AClient {
    */
   public async sendA2AMessage(params: MessageSendParams): Promise<SendMessageResponse> {
     const accessToken = await this._getX402AccessToken()
+    // Primary path (x402 v2 A2A transport): carry the payment in band. Keep the
+    // deprecated `payment-signature` header for one release so servers that have
+    // not adopted the in-band transport still authorize the request.
     const headers = { 'payment-signature': accessToken }
-    return this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
+    const inBandParams = this._withInBandPayment(params, accessToken)
+    const response = await this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
       'message/send',
-      params,
+      inBandParams,
       headers,
     )
+
+    // Reactive flow: if the server replied with an `input-required`
+    // payment-required task (it did not accept the in-band payload, e.g. it sent
+    // requirements first), resubmit the payment correlated to that task id.
+    const taskId = this._paymentRequiredTaskId(response)
+    if (taskId) {
+      const followUp = this._withInBandPayment(params, accessToken, taskId)
+      return this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
+        'message/send',
+        followUp,
+        headers,
+      )
+    }
+    return response
   }
 
   /**
@@ -150,13 +261,16 @@ export class PaymentsClient extends A2AClient {
     }
     const endpoint = await (this as any)._getServiceEndpoint()
     const clientRequestId = uuidv4()
+    const accessToken = await this._getX402AccessToken()
+    // Carry the payment in band (x402 v2 A2A transport); keep the deprecated
+    // header for one release as a fallback.
+    const inBandParams = this._withInBandPayment(params, accessToken)
     const rpcRequest = {
       jsonrpc: '2.0',
       method: 'message/stream',
-      params: params as { [key: string]: any },
+      params: inBandParams as { [key: string]: any },
       id: clientRequestId,
     }
-    const accessToken = await this._getX402AccessToken()
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
