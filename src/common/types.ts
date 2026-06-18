@@ -11,10 +11,15 @@ export type PaymentScheme = 'nvm'
 export interface PaymentOptions {
   /**
    * The Nevermined environment to connect to.
-   * If you are developing an agent it's recommended to use the "sandbox" environment.
-   * When deploying to live use the "live" environment.
+   *
+   * @deprecated The environment is now derived from the NVM API key prefix
+   * (`<prefix>:<jwt>`), so this option is no longer required. It is still
+   * accepted for backward compatibility and as a fallback when the key prefix
+   * is unrecognized (e.g. local/custom development), but when the prefix maps
+   * to a known environment the key wins and this option is ignored (a one-time
+   * deprecation warning is emitted). It will be removed in a future release.
    */
-  environment: EnvironmentName
+  environment?: EnvironmentName
 
   /**
    * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
