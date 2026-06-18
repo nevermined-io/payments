@@ -338,10 +338,16 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       throw A2AError.internalError('HTTP context not found for task or message.')
     }
 
-    // 2. Extract bearer token and validate presence of required fields
+    // 2. Extract bearer token and validate presence of required fields.
+    // This path only runs for an *authorized* context (a token was supplied), so
+    // both bearerToken and validation must be present — assert the invariant
+    // explicitly instead of carrying an `undefined as any`.
     const { bearerToken, validation } = httpContext
     if (!bearerToken) {
       throw PaymentsError.unauthorized('Missing bearer token for payment validation.')
+    }
+    if (!validation) {
+      throw PaymentsError.unauthorized('Missing validation context for payment.')
     }
 
     // 3. Validate credits before executing the task
@@ -470,6 +476,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     task: Task | undefined,
     httpContext: HttpRequestContext | undefined,
     settlement?: SettlePermissionsResult,
+    settlementDeferred = false,
   ): void {
     if (!task || !httpContext?.inBand) {
       return
@@ -482,8 +489,16 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       )
     } else if (settlement) {
       x402A2AUtils.recordPaymentSuccess(task, settlement)
+    } else if (settlementDeferred) {
+      // No in-band settlement result because redemption is BATCHED: the payload was
+      // verified but on-chain settlement is deferred out-of-band (this handler never
+      // confirms it). Mark payment-verified + the deferred marker, NOT
+      // payment-completed — so the client knows it will be charged out-of-band
+      // rather than reading a completed task as "nothing owed".
+      x402A2AUtils.recordPaymentDeferred(task)
     } else {
-      // Verified but no on-chain settlement (free / no-credit call).
+      // Defensive default: verified, but no settlement result AND not batch-deferred
+      // (e.g. a settle that returned nothing). Record a bare verify.
       x402A2AUtils.recordPaymentVerified(task)
     }
   }
@@ -557,6 +572,21 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
                     httpContext,
                     response as SettlePermissionsResult,
                   )
+                  await resultManager.processEvent(task)
+                }
+              }
+            } else {
+              // Batch redemption: on-chain settlement is deferred out-of-band. The
+              // stream already yielded the content (can't retract), but stamp the
+              // PERSISTED task with payment-verified + the deferred marker so a
+              // streaming client (via tasks/get + resubscribe) isn't left reading a
+              // completed task as "nothing owed" — matching the non-streaming path.
+              const httpContext =
+                requestHttpContext ?? this.getHttpRequestContextForTask(event.taskId)
+              if (httpContext?.inBand) {
+                const task = resultManager.getCurrentTask()
+                if (task) {
+                  this.recordInBandSettlement(task, httpContext, undefined, true)
                   await resultManager.processEvent(task)
                 }
               }
@@ -818,9 +848,12 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     ) {
       let settlement: SettlePermissionsResult | undefined
       let settlementError: unknown
+      let settlementDeferred = false
       try {
         // Get redemption configuration from server (not from client metadata)
         const redemptionConfig = await this.getRedemptionConfig()
+        // Batch redemption defers on-chain settlement out-of-band (no receipt here).
+        settlementDeferred = redemptionConfig.useBatch ?? false
 
         if (!redemptionConfig.useBatch) {
           // Execute redemption with server configuration for non-batch requests
@@ -881,7 +914,12 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
         })
       } else if (httpContext?.inBand) {
         // Stamp in-band settlement state onto the final event's status message.
-        this.recordInBandSettlement({ status: event.status } as any, httpContext, settlement)
+        this.recordInBandSettlement(
+          { status: event.status } as any,
+          httpContext,
+          settlement,
+          settlementDeferred,
+        )
       }
 
       try {

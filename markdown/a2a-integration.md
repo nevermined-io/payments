@@ -128,6 +128,8 @@ Lifecycle:
 
 Metadata keys: `x402.payment.status`, `x402.payment.required`, `x402.payment.payload`, `x402.payment.receipts`, `x402.payment.error`.
 
+> **Batch (deferred) settlement.** If the server settles credits in batch, a successful call returns `x402.payment.status: "payment-verified"` (not `payment-completed`) plus the Nevermined marker `x402.payment.settlement: "deferred"` — the payment was verified but settled out-of-band, so there is no in-band receipt. Spec-only clients ignore the unknown key.
+
 > ⚠️ **Header flow deprecated.** The legacy `payment-signature` HTTP header still works but is now a **deprecated fallback, kept for one release**. New integrations should rely on the in-band metadata flow above.
 
 ## Implement Executor

@@ -12,6 +12,7 @@ import {
   X402A2AMetadata,
   X402A2AUtils,
   x402A2AUtils,
+  X402_SETTLEMENT_DEFERRED_KEY,
 } from '../../../src/a2a/x402-a2a.js'
 import { decodeAccessToken, encodeAccessToken } from '../../../src/utils.js'
 
@@ -74,7 +75,9 @@ describe('X402A2AUtils extraction', () => {
 
   test('rejects array and null payloads (mirrors isinstance(value, dict))', () => {
     expect(
-      utils.getPaymentPayloadFromMessage(messageWith({ [X402A2AMetadata.PAYLOAD_KEY]: [1, 2] as any })),
+      utils.getPaymentPayloadFromMessage(
+        messageWith({ [X402A2AMetadata.PAYLOAD_KEY]: [1, 2] as any }),
+      ),
     ).toBeUndefined()
     expect(
       utils.getPaymentPayloadFromMessage(
@@ -86,6 +89,28 @@ describe('X402A2AUtils extraction', () => {
   test('rejects oversized payloads (>64KB) as defense-in-depth', () => {
     const big = messageWith({ [X402A2AMetadata.PAYLOAD_KEY]: { blob: 'x'.repeat(70 * 1024) } })
     expect(utils.getPaymentPayloadFromMessage(big)).toBeUndefined()
+  })
+
+  test('getPaymentRequirements structurally guards before asserting the typed shape', () => {
+    // Plain object but not a valid X402PaymentRequired -> treated as absent.
+    expect(
+      utils.getPaymentRequirementsFromMessage(
+        messageWith({ [X402A2AMetadata.REQUIRED_KEY]: { foo: 'bar' } as any }),
+      ),
+    ).toBeUndefined()
+    // `accepts` not an array -> absent.
+    expect(
+      utils.getPaymentRequirementsFromMessage(
+        messageWith({ [X402A2AMetadata.REQUIRED_KEY]: { x402Version: 2, accepts: {} } as any }),
+      ),
+    ).toBeUndefined()
+    // Valid shape -> returned.
+    const ok = { x402Version: 2, resource: { url: '/x' }, accepts: [], extensions: {} }
+    expect(
+      utils.getPaymentRequirementsFromMessage(
+        messageWith({ [X402A2AMetadata.REQUIRED_KEY]: ok as any }),
+      ),
+    ).toEqual(ok)
   })
 })
 
@@ -136,6 +161,18 @@ describe('X402A2AUtils stamping', () => {
     expect(task.status.message?.metadata?.[X402A2AMetadata.STATUS_KEY]).toBe(
       PaymentStatus.PAYMENT_VERIFIED,
     )
+    // Plain verify carries no deferred marker (distinct from batch-deferred).
+    expect(task.status.message?.metadata?.[X402_SETTLEMENT_DEFERRED_KEY]).toBeUndefined()
+  })
+
+  test('recordPaymentDeferred stamps payment-verified + the deferred marker (batch)', () => {
+    const task = emptyTask()
+    utils.recordPaymentDeferred(task)
+    const meta = task.status.message?.metadata as Record<string, any>
+    expect(meta[X402A2AMetadata.STATUS_KEY]).toBe(PaymentStatus.PAYMENT_VERIFIED)
+    expect(meta[X402_SETTLEMENT_DEFERRED_KEY]).toBe('deferred')
+    // Never completed (no receipt) — settlement happens out-of-band.
+    expect(meta[X402A2AMetadata.RECEIPTS_KEY]).toBeUndefined()
   })
 
   test('exports a shared singleton instance', () => {

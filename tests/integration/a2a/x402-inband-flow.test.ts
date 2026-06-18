@@ -12,7 +12,12 @@ import type { Message, Task, TaskState, TaskStatus, TaskStatusUpdateEvent } from
 import request from 'supertest'
 import { PaymentsA2AServer } from '../../../src/a2a/server.js'
 import { buildPaymentAgentCard } from '../../../src/a2a/agent-card.js'
-import { X402A2AMetadata, PaymentStatus, x402A2AUtils } from '../../../src/a2a/x402-a2a.js'
+import {
+  X402A2AMetadata,
+  PaymentStatus,
+  x402A2AUtils,
+  X402_SETTLEMENT_DEFERRED_KEY,
+} from '../../../src/a2a/x402-a2a.js'
 import * as utils from '../../../src/utils.js'
 import { encodeAccessToken } from '../../../src/utils.js'
 import type { AgentCard, ExecutionEventBus, PaymentsAgentExecutor } from '../../../src/a2a/types.js'
@@ -163,7 +168,7 @@ class DummyExecutor implements PaymentsAgentExecutor {
   async cancelTask(): Promise<void> {}
 }
 
-function buildCard(): AgentCard {
+function buildCard(extraMetadata: Record<string, unknown> = {}): AgentCard {
   // buildPaymentAgentCard declares BOTH the nvm extension and the official
   // a2a-x402 extension. The latter is what flips the middleware into the in-band
   // "return input-required instead of HTTP 402" behavior when no token arrives.
@@ -178,6 +183,7 @@ function buildCard(): AgentCard {
       agentId: 'test-agent-123',
       planId: 'test-plan',
       costDescription: '10 credits per call',
+      ...extraMetadata,
     },
   )
 }
@@ -505,6 +511,64 @@ describe('x402 v2 A2A in-band transport', () => {
       PaymentStatus.PAYMENT_FAILED,
     )
     expect(task.artifacts ?? []).toHaveLength(0)
+  }, 20000)
+
+  test('6. streaming + batch redemption -> persisted task stamps payment-verified + deferred', async () => {
+    const mockPayments = new MockPaymentsService()
+    // Batch redemption: on-chain settlement is deferred out-of-band (settle is
+    // never invoked here). The streaming path must still stamp the persisted task.
+    const card = buildCard({ redemptionConfig: { useBatch: true } })
+    card.capabilities = { ...card.capabilities, streaming: true }
+    const { client, close } = createServer(new DummyExecutor(3), card, mockPayments)
+    servers.push({ close })
+
+    const streamRes = await client.post('/rpc').send({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'message/stream',
+      params: {
+        message: {
+          messageId: 'msg-stream-batch',
+          contextId: 'ctx-6',
+          role: 'user',
+          parts: [{ kind: 'text', text: 'stream pay (batch)' }],
+          metadata: {
+            [X402A2AMetadata.STATUS_KEY]: PaymentStatus.PAYMENT_SUBMITTED,
+            [X402A2AMetadata.PAYLOAD_KEY]: PAYMENT_PAYLOAD,
+          },
+        },
+      },
+    })
+
+    // Batch defers settlement: the facilitator settle path is NOT invoked here.
+    expect(mockPayments.facilitator.settleCallCount).toBe(0)
+
+    const taskId = streamRes.text
+      .split('\n')
+      .filter((l) => l.startsWith('data:'))
+      .map((l) => {
+        try {
+          return JSON.parse(l.slice(5).trim())
+        } catch {
+          return null
+        }
+      })
+      .map((e) => e?.result?.id ?? e?.result?.taskId)
+      .find((id) => typeof id === 'string')
+    expect(taskId).toBeTruthy()
+
+    // The PERSISTED task carries payment-verified + the deferred marker (NOT a
+    // bare completed task that reads as "nothing owed") — matching non-streaming.
+    const getRes = await client.post('/rpc').send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tasks/get',
+      params: { id: taskId },
+    })
+    const meta = getRes.body.result.status.message.metadata
+    expect(meta[X402A2AMetadata.STATUS_KEY]).toBe(PaymentStatus.PAYMENT_VERIFIED)
+    expect(meta[X402_SETTLEMENT_DEFERRED_KEY]).toBe('deferred')
+    expect(meta[X402A2AMetadata.RECEIPTS_KEY]).toBeUndefined()
   }, 20000)
 
   test('x402A2AUtils helpers round-trip status/required/payload on a task', () => {

@@ -62,6 +62,14 @@ export const X402A2AMetadata = {
 } as const
 
 /**
+ * Nevermined-specific (non-core-spec) marker set alongside `payment-verified`
+ * when on-chain settlement is **deferred** to a batch process this handler does
+ * not confirm. Lets a client distinguish "verified, will be charged out-of-band"
+ * from a plain verify; spec-only clients ignore the unknown key. Value: `'deferred'`.
+ */
+export const X402_SETTLEMENT_DEFERRED_KEY = 'x402.payment.settlement'
+
+/**
  * Upper bound on the serialized size of an in-band payment payload. The payload
  * is untrusted client input that gets re-encoded into a token, so cap it as
  * defense-in-depth (parity with the MCP `readPaymentPayload` and the Python
@@ -146,7 +154,18 @@ export class X402A2AUtils {
   getPaymentRequirementsFromMessage(message?: Message | null): X402PaymentRequired | undefined {
     const meta = metaOf(message)
     const value = meta?.[X402A2AUtils.REQUIRED_KEY]
-    return isPlainObject(value) ? (value as unknown as X402PaymentRequired) : undefined
+    // Structural guard before asserting the typed shape: a valid
+    // X402PaymentRequired is a plain object carrying a numeric `x402Version` and
+    // an `accepts` array. Anything else is treated as absent (never assert the
+    // rich interface over arbitrary, unvalidated metadata).
+    if (
+      !isPlainObject(value) ||
+      typeof (value as Record<string, unknown>).x402Version !== 'number' ||
+      !Array.isArray((value as Record<string, unknown>).accepts)
+    ) {
+      return undefined
+    }
+    return value as unknown as X402PaymentRequired
   }
 
   /** Extract the X402PaymentRequired object from a Task's status message metadata. */
@@ -208,6 +227,20 @@ export class X402A2AUtils {
   recordPaymentVerified(task: Task): Task {
     const meta = ensureStatusMetadata(task, 'Payment verification recorded.')
     meta[X402A2AUtils.STATUS_KEY] = PaymentStatus.PAYMENT_VERIFIED
+    return task
+  }
+
+  /**
+   * Record a deferred (batch) settlement on a Task: the payload was verified but
+   * on-chain settlement is deferred out-of-band (the handler never confirms it).
+   * Sets `payment-verified` PLUS the Nevermined `x402.payment.settlement: 'deferred'`
+   * marker, so a client can tell it will be charged out-of-band — distinct from a
+   * plain verify where nothing is owed.
+   */
+  recordPaymentDeferred(task: Task): Task {
+    const meta = ensureStatusMetadata(task, 'Payment verified; settlement deferred.')
+    meta[X402A2AUtils.STATUS_KEY] = PaymentStatus.PAYMENT_VERIFIED
+    meta[X402_SETTLEMENT_DEFERRED_KEY] = 'deferred'
     return task
   }
 
