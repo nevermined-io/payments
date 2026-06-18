@@ -34,10 +34,10 @@ This workflow:
 
 **Trigger**: Creating a new version tag (e.g., `v1.0.2`)
 
-**Workflow**: `.github/workflows/publish-docs.yml`
+**Workflow**: `.github/workflows/release.yml` (the `publish-documentation` job)
 
 This workflow:
-- Copies documentation from `markdown/` to `nevermined-io/docs_mintlify`
+- Copies documentation from `markdown/` to `nevermined-io/docs`
 - Creates a pull request in the docs repository
 - Includes version metadata and change summary
 

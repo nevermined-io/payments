@@ -59,9 +59,9 @@ Reproduce them locally:
 # Hard gate; runs in milliseconds, never flakes.
 pnpm docs:lint-links
 
-# Full check — stages the files into the docs-site layout (a clone of
-# nevermined-io/docs) and runs the same `mintlify broken-links` the docs repo
-# uses (internal links only). Needs network (clones the docs repo) + Node/npx.
+# Full check — stages the files into the docs-site layout and runs the same
+# `mintlify broken-links` the docs repo uses (internal links only). Needs
+# Node/npx.
 pnpm docs:check-links
 ```
 
