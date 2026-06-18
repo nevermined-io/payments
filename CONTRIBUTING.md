@@ -70,3 +70,7 @@ Mintlify check fails only on broken links sourced from the synced pages
 (`docs/api-reference/typescript/`), so pre-existing site breakage never fails it.
 The release pipeline runs the staged check as its own backstop. Only **internal**
 links are gated; external-URL liveness is not (it is network-flaky).
+
+> **Repo admin:** for `lint-links` to actually block a merge, add it to `main`'s
+> required status checks in branch protection — otherwise the workflow runs but
+> is advisory. (Same operational caveat as the payments-py sibling.)

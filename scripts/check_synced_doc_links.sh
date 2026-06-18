@@ -77,6 +77,14 @@ if [ ! -d "$TARGET_DIR" ]; then
   exit 1
 fi
 
+# Fail closed: `mintlify broken-links` no-ops to a green "no broken links found"
+# when run outside a Mintlify project (no docs.json/mint.json at the site root).
+# Assert the config exists so a moved/renamed config can't silently pass the gate.
+if [ ! -f "$DOCS_DIR/docs.json" ] && [ ! -f "$DOCS_DIR/mint.json" ]; then
+  echo "Error: no docs.json/mint.json at $DOCS_DIR root — not a Mintlify project; broken-links would no-op green." >&2
+  exit 1
+fi
+
 # 2. Replicate the release.yml sync transform: flat copy markdown/*.md into
 #    docs/api-reference/typescript/, dropping README.md. Other sections stay so
 #    any site-relative links resolve.
@@ -98,12 +106,18 @@ echo "Running mintlify@$MINTLIFY_VERSION broken-links (internal links only) on t
 echo ""
 cd "$DOCS_DIR"
 
-# Capture the full report (strip ANSI/spinner CRs), then scope to our pages.
-# Do not let mintlify's own non-zero exit abort the script — we decide pass/fail
-# from the SCOPED parse, since pre-existing site breakage must not fail us.
+# Capture the full report (strip ANSI/spinner CRs; normalise the U+00A0
+# non-breaking spaces mintlify pads each broken-link line with, so the parser
+# matches on plain spaces rather than relying on \s also covering U+00A0), then
+# scope to our pages. Do not let mintlify's own non-zero exit abort the script —
+# we decide pass/fail from the SCOPED parse, since pre-existing site breakage
+# must not fail us.
 REPORT="$WORK_DIR/broken-links.txt"
 set +e
-"${MINTLIFY[@]}" broken-links 2>&1 | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' | tr -d '\r' > "$REPORT"
+"${MINTLIFY[@]}" broken-links 2>&1 \
+  | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' \
+  | tr -d '\r' \
+  | sed 's/\xc2\xa0/ /g' > "$REPORT"
 set -e
 
 cat "$REPORT"

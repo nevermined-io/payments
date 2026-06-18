@@ -7,19 +7,23 @@ name: Docs link check
 # `](../../payments_py/x402/README.md)`) only fails AFTER release, when the
 # bot's PR trips Mintlify link-rot — it bit nevermined-io/docs#234 (the Python
 # sibling's v1.15.0 sync). These jobs fail fast at PR time instead.
+#
+# NOTE (repo admin): for `lint-links` to actually BLOCK a merge, add it to
+# main's required status checks in branch protection — otherwise it is advisory.
+# Same operational caveat as the payments-py sibling (#241).
 
 on:
   push:
     branches: [main]
     paths:
       - 'markdown/**'
-      - 'scripts/lint_doc_links.sh'
+      - 'scripts/lint_doc_links.py'
       - 'scripts/check_synced_doc_links.sh'
       - '.github/workflows/docs-link-check.yml'
   pull_request:
     paths:
       - 'markdown/**'
-      - 'scripts/lint_doc_links.sh'
+      - 'scripts/lint_doc_links.py'
       - 'scripts/check_synced_doc_links.sh'
       - '.github/workflows/docs-link-check.yml'
 
@@ -32,8 +36,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
       - name: Lint synced-doc links (escaping / repo-source links)
-        run: bash scripts/lint_doc_links.sh
+        run: python3 scripts/lint_doc_links.py
 
   # FULL CHECK: replicate the docs-site sync, then run the REAL Mintlify checker
   # against the whole staged site. Internal links only (no --check-external —
@@ -51,5 +58,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
       - name: Run staged Mintlify broken-links against the docs site
         run: bash scripts/check_synced_doc_links.sh
