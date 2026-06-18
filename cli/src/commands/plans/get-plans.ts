@@ -2,13 +2,13 @@ import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * getPlans command
+ * Lists the payment plans **you** published (the authenticated caller's own plans). This is account management, not a marketplace search — it never returns other users' plans.
  */
 export default class GetPlans extends BaseCommand {
-  static override description = "PlansAPI getPlans"
+  static override description = "Lists the payment plans **you** published (the authenticated caller's own plans). This is account management, not a marketplace search — it never returns other users' plans."
 
   static override examples = [
-    '$ nvm plans get-plans'
+    '$ nvm plans get-plans <orgId>'
   ]
 
   static override flags = {
@@ -17,6 +17,7 @@ export default class GetPlans extends BaseCommand {
     'offset': Flags.integer({ required: false }),
     'sort-by': Flags.string({ required: false }),
     'sort-order': Flags.string({ required: false }),
+    'org-id': Flags.string({ required: false }),
   }
 
 
@@ -27,7 +28,7 @@ export default class GetPlans extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getPlans(flags['page'], flags['offset'], flags['sort-by'], flags['sort-order'])
+      const result = await payments.plans.getPlans(flags['page'], flags['offset'], flags['sort-by'], flags['sort-order'], flags['org-id'])
 
       this.formatter.output(result)
     } catch (error) {

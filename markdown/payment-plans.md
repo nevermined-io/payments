@@ -297,15 +297,22 @@ console.log(`Price: ${plan.price}`)
 console.log(`Credits: ${plan.credits}`)
 ```
 
-### Get All Published Plans
+### List Your Plans
+
+List the plans **you** published — the authenticated caller's own plans. This is
+account management, not a marketplace search: it never returns other users'
+plans. Pass an `orgId` to list every plan in an organization you belong to.
 
 ```typescript
-// Get all plans published by your account
-const plans = await payments.plans.getPlans()
+// Your own plans (paginated: { total, page, offset, plans })
+const { plans } = await payments.plans.getPlans()
 
-plans.forEach(plan => {
+plans.forEach((plan) => {
   console.log(`${plan.name}: ${plan.planId}`)
 })
+
+// Every plan in an organization you belong to
+const { plans: orgPlans } = await payments.plans.getPlans(1, 100, 'created', 'desc', 'org-acme')
 ```
 
 ### Get Plans for an Agent

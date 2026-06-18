@@ -161,12 +161,42 @@ export interface AgentOptions {
 
 /**
  * HTTP context associated with a task or message (for internal request tracking).
+ *
+ * INVARIANT — exactly one of two mutually-exclusive states:
+ * - **payment-required**: a payment-gated request arrived with NO token, so only
+ *   `paymentRequired` is set (`bearerToken`/`validation` are absent). The handler
+ *   short-circuits to an `input-required` task instead of executing the agent.
+ * - **authorized**: a token was supplied (in band via `x402.payment.payload` when
+ *   `inBand` is true, else the deprecated `payment-signature` header), so
+ *   `bearerToken` + `validation` are set (`paymentRequired` is absent).
+ *
+ * A `mode`-discriminated union would enforce this at the type level (tracked as a
+ * follow-up); for now consumers guard the field they need — e.g. the settlement
+ * path asserts `bearerToken` + `validation` are present.
  */
 export type HttpRequestContext = {
+  /** Set only in the authorized state. */
   bearerToken?: string
   urlRequested?: string
   httpMethodRequested?: string
-  validation: StartAgentRequest
+  /** The validated request — set only in the authorized state. */
+  validation?: StartAgentRequest
+  /**
+   * x402 v2 A2A in-band transport: set by the server middleware when a
+   * payment-gated request arrives with NO token (neither in-band
+   * `x402.payment.payload` nor the deprecated `payment-signature` header). The
+   * handler short-circuits and returns an `input-required` task carrying this
+   * X402PaymentRequired object under `x402.payment.required`, instead of
+   * executing the agent. Set only in the payment-required state.
+   */
+  paymentRequired?: import('../x402/facilitator-api.js').X402PaymentRequired
+  /**
+   * Whether the bearer token was supplied in band (via `x402.payment.payload`
+   * message metadata) rather than the deprecated `payment-signature` header.
+   * When true, settlement receipts are stamped into the task metadata under the
+   * spec-defined `x402.payment.*` keys.
+   */
+  inBand?: boolean
 }
 
 /**

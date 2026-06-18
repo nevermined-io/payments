@@ -6,6 +6,10 @@ export const API_URL_REGISTER_AGENTS_AND_PLAN = '/api/v1/protocol/agents/plans'
 export const API_URL_GET_AGENT = '/api/v1/protocol/agents/:agentId'
 export const API_URL_UPDATE_AGENT = '/api/v1/protocol/agents/:agentId'
 export const API_URL_GET_AGENT_PLANS = '/api/v1/protocol/agents/:agentId/plans'
+// GET: the caller's own agents (?orgId= scopes to an org the caller belongs to).
+// Same path as API_URL_REGISTER_AGENT (disambiguated by GET vs POST); mirrors
+// the existing API_URL_REGISTER_PLAN / API_URL_GET_PLANS pair below.
+export const API_URL_GET_AGENTS = '/api/v1/protocol/agents'
 export const API_URL_GET_PLAN = '/api/v1/protocol/plans/:planId'
 export const API_URL_GET_PLANS = '/api/v1/protocol/plans'
 export const API_URL_GET_PLAN_AGENTS = '/api/v1/protocol/plans/:planId/agents'
