@@ -59,12 +59,14 @@ Reproduce them locally:
 # Hard gate; runs in milliseconds, never flakes.
 pnpm docs:lint-links
 
-# Full check — stages the files into the docs-site layout and runs the same
-# `mintlify broken-links` the docs repo uses (internal links only). Needs
-# Node/npx.
+# Full check — clones the docs site, stages the synced files into it, and runs
+# the same `mintlify broken-links` the docs repo uses (internal links only),
+# failing only on breakage sourced from these pages. Needs network + Node/npx.
 pnpm docs:check-links
 ```
 
-The lint is the blocking gate (deterministic, never flakes). The staged Mintlify
-check is a non-blocking PR backstop and a hard gate in the release pipeline. Only
-**internal** links are gated; external-URL liveness is not (it is network-flaky).
+Both are blocking gates. The lint is deterministic and never flakes; the staged
+Mintlify check fails only on broken links sourced from the synced pages
+(`docs/api-reference/typescript/`), so pre-existing site breakage never fails it.
+The release pipeline runs the staged check as its own backstop. Only **internal**
+links are gated; external-URL liveness is not (it is network-flaky).

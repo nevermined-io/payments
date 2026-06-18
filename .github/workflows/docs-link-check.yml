@@ -35,21 +35,21 @@ jobs:
       - name: Lint synced-doc links (escaping / repo-source links)
         run: bash scripts/lint_doc_links.sh
 
-  # BACKSTOP: replicate the docs-site sync (stage the synced TS pages into a
-  # minimal Mintlify project), then run the REAL Mintlify checker against it.
-  # Internal links only (no --check-external — external liveness is flaky and
-  # must not block). Depends on `npx mintlify` (network), so it is non-blocking
-  # on PRs (continue-on-error); the deterministic lint above is the hard gate,
-  # and the release pipeline runs the same check as its own backstop.
+  # FULL CHECK: replicate the docs-site sync, then run the REAL Mintlify checker
+  # against the whole staged site. Internal links only (no --check-external —
+  # external liveness is flaky and must not block). Fails ONLY on broken links
+  # sourced from the staged TS pages (docs/api-reference/typescript/), so
+  # pre-existing breakage elsewhere on the site never fails this PR. Clones the
+  # public docs repo unauthenticated (no token). The deterministic lint above is
+  # the first, always-on gate; the release pipeline runs the same check too.
   staged-mintlify-check:
     name: Staged Mintlify broken-links
     runs-on: ubuntu-latest
     needs: lint-links
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-      - name: Run staged Mintlify broken-links on the synced docs
+      - name: Run staged Mintlify broken-links against the docs site
         run: bash scripts/check_synced_doc_links.sh
