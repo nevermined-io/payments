@@ -1,0 +1,55 @@
+name: Docs link check
+
+# Catch docs link-rot BEFORE release. The release pipeline (release.yml,
+# publish-documentation job) copies markdown/**.md into the docs site's
+# docs/api-reference/typescript/**.md and opens a PR against nevermined-io/docs.
+# A link that resolves in this repo but is dead on the site (e.g.
+# `](../../payments_py/x402/README.md)`) only fails AFTER release, when the
+# bot's PR trips Mintlify link-rot — it bit nevermined-io/docs#234 (the Python
+# sibling's v1.15.0 sync). These jobs fail fast at PR time instead.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'markdown/**'
+      - 'scripts/lint_doc_links.sh'
+      - 'scripts/check_synced_doc_links.sh'
+      - '.github/workflows/docs-link-check.yml'
+  pull_request:
+    paths:
+      - 'markdown/**'
+      - 'scripts/lint_doc_links.sh'
+      - 'scripts/check_synced_doc_links.sh'
+      - '.github/workflows/docs-link-check.yml'
+
+jobs:
+  # HARD GATE: deterministic, network-free escaping-link lint. Rejects the exact
+  # class that broke the docs site (relative links escaping the synced tree /
+  # pointing at repo source). Runs in milliseconds, never flakes.
+  lint-links:
+    name: Lint synced-doc links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint synced-doc links (escaping / repo-source links)
+        run: bash scripts/lint_doc_links.sh
+
+  # BACKSTOP: replicate the docs-site sync, then run the REAL Mintlify checker
+  # against the staged whole site. Internal links only (no --check-external —
+  # external liveness is flaky and must not block). Depends on cloning the
+  # public docs repo + npx mintlify, so it is non-blocking on PRs
+  # (continue-on-error); the deterministic lint above is the hard gate, and the
+  # release pipeline runs the same check as its own backstop.
+  staged-mintlify-check:
+    name: Staged Mintlify broken-links
+    runs-on: ubuntu-latest
+    needs: lint-links
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+      - name: Run staged Mintlify broken-links against the docs site
+        run: bash scripts/check_synced_doc_links.sh

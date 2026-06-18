@@ -53,6 +53,8 @@
     "format": "prettier --check ./src",
     "prepublishOnly": "pnpm build",
     "doc": "typedoc --out docs ./src",
+    "docs:lint-links": "./scripts/lint_doc_links.sh",
+    "docs:check-links": "./scripts/check_synced_doc_links.sh",
     "cli:build": "cd cli && pnpm build",
     "cli:dev": "cd cli && pnpm dev",
     "cli:test": "cd cli && pnpm test",

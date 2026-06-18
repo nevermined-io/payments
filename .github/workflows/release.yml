@@ -533,6 +533,22 @@ jobs:
           cp -r payments/openclaw/docs/* docs_mintlify/docs/api-reference/openclaw-plugin/ || echo "OpenClaw docs not found, skipping"
           cp payments/openclaw/README.md docs_mintlify/docs/api-reference/openclaw-plugin/index.md || echo "OpenClaw README not found"
 
+      # Release-time backstop for docs link-rot. The same `mintlify broken-links`
+      # the docs repo uses, run against the fully-staged docs site BEFORE the PR
+      # is opened — so a dead synced link fails the release here instead of
+      # leaving a stuck docs-sync PR (the failure mode that motivated #401).
+      # Internal links only (no --check-external — external liveness is flaky).
+      # Pin tracks the docs repo's floating latest; keep in sync with
+      # scripts/check_synced_doc_links.sh and the payments-py sibling.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Check synced docs for broken internal links
+        working-directory: docs_mintlify
+        run: npx --yes mintlify@4.2.629 broken-links
+
       - name: Create documentation PR
         working-directory: docs_mintlify
         env:
