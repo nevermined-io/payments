@@ -59,17 +59,18 @@ Reproduce them locally:
 # Hard gate; runs in milliseconds, never flakes.
 pnpm docs:lint-links
 
-# Full check — clones the docs site, stages the synced files into it, and runs
-# the same `mintlify broken-links` the docs repo uses (internal links only),
-# failing only on breakage sourced from these pages. Needs network + Node/npx.
+# Full check — stages the synced files into a minimal Mintlify project and runs
+# the same `mintlify broken-links` the docs repo uses (internal links only).
+# Needs Node/npx.
 pnpm docs:check-links
 ```
 
 Both are blocking gates. The lint is deterministic and never flakes; the staged
-Mintlify check fails only on broken links sourced from the synced pages
-(`docs/api-reference/typescript/`), so pre-existing site breakage never fails it.
-The release pipeline runs the staged check as its own backstop. Only **internal**
-links are gated; external-URL liveness is not (it is network-flaky).
+Mintlify check validates the synced pages as a self-contained mini-site (the TS
+pages link only same-dir siblings, so no docs-site clone is needed — see
+`scripts/check_synced_doc_links.sh` for why this differs from the payments-py
+sibling). The release pipeline runs the same check as its own backstop. Only
+**internal** links are gated; external-URL liveness is not (it is network-flaky).
 
 > **Repo admin:** for `lint-links` to actually block a merge, add it to `main`'s
 > required status checks in branch protection — otherwise the workflow runs but

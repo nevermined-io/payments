@@ -533,20 +533,18 @@ jobs:
           cp -r payments/openclaw/docs/* docs_mintlify/docs/api-reference/openclaw-plugin/ || echo "OpenClaw docs not found, skipping"
           cp payments/openclaw/README.md docs_mintlify/docs/api-reference/openclaw-plugin/index.md || echo "OpenClaw README not found"
 
-      # Release-time backstop for docs link-rot. Reuses the SAME scoped check the
-      # PR gate runs (scripts/check_synced_doc_links.sh), pointed at the docs
-      # repo we just staged into via DOCS_CHECKOUT — so a dead synced link fails
-      # the release here instead of leaving a stuck docs-sync PR (the failure
-      # mode that motivated #401). Fails only on breakage sourced from the synced
-      # TypeScript pages; internal links only (no --check-external).
+      # Release-time backstop for docs link-rot. Reuses the SAME self-contained
+      # mini-site check the PR gate runs (scripts/check_synced_doc_links.sh, built
+      # from markdown/**) — so a dead synced link fails the release here instead
+      # of leaving a stuck docs-sync PR (the failure mode that motivated #401).
+      # Checks only the synced TS pages (no coupling to unrelated pre-existing
+      # breakage elsewhere on the docs site); internal links only.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
 
       - name: Check synced docs for broken internal links
-        env:
-          DOCS_CHECKOUT: ${{ github.workspace }}/docs_mintlify
         run: bash payments/scripts/check_synced_doc_links.sh
 
       - name: Create documentation PR
