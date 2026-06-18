@@ -49,7 +49,12 @@ const SAMPLE_PR = {
 }
 
 /** Build a PaywallDecorator wired with mocks for a single call. */
-function makeDecorator(opts: { settle?: any; authenticate?: jest.Mock; credits?: bigint }) {
+function makeDecorator(opts: {
+  settle?: any
+  authenticate?: jest.Mock
+  credits?: bigint
+  agentId?: string
+}) {
   const payments: any = {
     getEnvironmentName: () => 'staging_sandbox',
     facilitator: {
@@ -74,7 +79,11 @@ function makeDecorator(opts: { settle?: any; authenticate?: jest.Mock; credits?:
   const creditsContext: any = { resolve: jest.fn(() => opts.credits ?? 5n) }
 
   const decorator = new PaywallDecorator(payments, authenticator, creditsContext)
-  decorator.configure({ agentId: 'agent-9', serverName: 'srv' })
+  decorator.configure({
+    planId: 'plan-123',
+    agentId: 'agentId' in opts ? opts.agentId : 'agent-9',
+    serverName: 'srv',
+  })
   return { decorator, payments, authenticator, creditsContext }
 }
 
@@ -185,6 +194,28 @@ describe('x402 in-band: paywall wrapper', () => {
     expect(out._meta[NEVERMINED_CREDITS_META_KEY].creditsRedeemed).toBe('5')
     expect(out._meta[NEVERMINED_CREDITS_META_KEY].planId).toBe('plan-123')
     // Tool content preserved on success
+    expect(out.content[0].text).toBe('ok')
+  })
+
+  test('agentId optional: server works with planId and NO agentId', async () => {
+    const settle = {
+      success: true,
+      transaction: '0xabc',
+      network: 'eip155:84532',
+      payer: '0x123',
+      creditsRedeemed: '5',
+    }
+    // Configure with a planId but NO agentId — must not throw the
+    // "missing agentId" misconfiguration; the plan-centric path settles fine.
+    const { decorator } = makeDecorator({ settle, agentId: undefined })
+    const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
+    const wrapped = decorator.protect(handler, { kind: 'tool', name: 'premium' })
+
+    const out = await wrapped({}, { _meta: { [X402_PAYMENT_META_KEY]: SAMPLE_PAYLOAD } })
+
+    expect(out.isError).toBeFalsy()
+    expect(out._meta[X402_PAYMENT_RESPONSE_META_KEY].success).toBe(true)
+    expect(out._meta[NEVERMINED_CREDITS_META_KEY].planId).toBe('plan-123')
     expect(out.content[0].text).toBe('ok')
   })
 
@@ -378,14 +409,12 @@ describe('buildPaymentRequiredError: plans-lookup failure', () => {
 
     // No auth header → authenticate routes to buildPaymentRequiredError, whose
     // getAgentPlans lookup throws.
-    const err: any = await auth
-      .authenticate({}, {}, 'agent-9', 'srv', 'premium', 'tool', {})
-      .then(
-        () => {
-          throw new Error('expected authenticate to reject')
-        },
-        (e) => e,
-      )
+    const err: any = await auth.authenticate({}, {}, 'agent-9', 'srv', 'premium', 'tool', {}).then(
+      () => {
+        throw new Error('expected authenticate to reject')
+      },
+      (e) => e,
+    )
     expect(err.paymentRequired.error).toBe('plans unavailable')
     // accepts is exactly one entry with an empty plan id — catches an
     // empty-accepts regression at the integration point.
@@ -393,6 +422,32 @@ describe('buildPaymentRequiredError: plans-lookup failure', () => {
     expect(err.paymentRequired.accepts[0].planId).toBe('')
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
+  })
+
+  test('no agentId: accepts is built from the configured planId; getAgentPlans not called', async () => {
+    const payments: any = {
+      getEnvironmentName: () => 'staging_sandbox',
+      agents: { getAgentPlans: jest.fn() },
+    }
+    const auth = new PaywallAuthenticator(payments)
+    // No auth header + NO agentId + a configured planId → payment-required is
+    // built plan-only via the real agentId-absent branch (not a mocked authenticate).
+    const err: any = await auth
+      .authenticate({}, { planId: 'plan-x' }, undefined, 'srv', 'premium', 'tool', {})
+      .then(
+        () => {
+          throw new Error('expected authenticate to reject')
+        },
+        (e) => e,
+      )
+    expect(err).toBeInstanceOf(PaymentRequiredError)
+    expect(err.paymentRequired.accepts).toHaveLength(1)
+    expect(err.paymentRequired.accepts[0].planId).toBe('plan-x')
+    expect(err.paymentRequired.error).toBe('payment required')
+    // agentId is omitted from the scheme extra when absent
+    expect(err.paymentRequired.accepts[0].extra?.agentId).toBeUndefined()
+    // no agentId → no agent-plans lookup
+    expect(payments.agents.getAgentPlans).not.toHaveBeenCalled()
   })
 })
 
@@ -434,7 +489,7 @@ describe('x402 in-band: real MCP-SDK dispatch', () => {
     }
     const creditsContext: any = { resolve: jest.fn(() => 5n) }
     const decorator = new PaywallDecorator(payments, authenticator, creditsContext)
-    decorator.configure({ agentId: 'agent-9', serverName: 'srv' })
+    decorator.configure({ planId: 'plan-123', agentId: 'agent-9', serverName: 'srv' })
     const protectedHandler = decorator.protect(
       async () => ({ content: [{ type: 'text', text: 'ok' }] }),
       { kind: 'tool', name: 'premium' },

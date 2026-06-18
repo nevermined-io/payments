@@ -355,3 +355,29 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     expect(planCalls.length).toBe(attempts)
   })
 })
+
+describe('MCP planId settable on server entry-point options', () => {
+  test('createRouter({ planId }) configures the paywall plan with no prior configure()', () => {
+    const pm = new PaymentsMockWithFailures('none') as any as Payments
+    const mcp = buildMcpIntegration(pm)
+    // planId comes solely from the createRouter option (no configure() call).
+    mcp.createRouter({ baseUrl: 'http://localhost:5001', planId: 'plan-x' })
+    expect(mcp.getConfig().planId).toBe('plan-x')
+  })
+
+  test('per-call planId option overrides a prior configure()', () => {
+    const pm = new PaymentsMockWithFailures('none') as any as Payments
+    const mcp = buildMcpIntegration(pm)
+    mcp.configure({ planId: 'plan-from-configure', serverName: 'srv' })
+    mcp.createRouter({ baseUrl: 'http://localhost:5001', planId: 'plan-override' })
+    expect(mcp.getConfig().planId).toBe('plan-override')
+  })
+
+  test('createRouter without planId falls back to the configured planId', () => {
+    const pm = new PaymentsMockWithFailures('none') as any as Payments
+    const mcp = buildMcpIntegration(pm)
+    mcp.configure({ planId: 'plan-configured', serverName: 'srv' })
+    mcp.createRouter({ baseUrl: 'http://localhost:5001' })
+    expect(mcp.getConfig().planId).toBe('plan-configured')
+  })
+})

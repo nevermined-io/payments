@@ -389,7 +389,8 @@ payments.mcp.registerPrompt(
 ```typescript
 const { info, stop } = await payments.mcp.start({
   port: 3002,
-  agentId: process.env.NVM_AGENT_ID!,
+  planId: process.env.NVM_PLAN_ID!,
+  agentId: process.env.NVM_AGENT_ID, // optional — informational only
   serverName: 'weather-mcp',
   version: '0.1.0',
 })

@@ -45,10 +45,17 @@ const payments = Payments.getInstance({
 
 // Configure MCP integration
 payments.mcp.configure({
-  agentId: process.env.NVM_AGENT_ID!,
+  planId: process.env.NVM_PLAN_ID!,
+  agentId: process.env.NVM_AGENT_ID, // optional — informational only
   serverName: 'my-mcp-server',
 })
 ```
+
+> **`planId` is required; `agentId` is optional.** The x402 facilitator is
+> plan-centric — verify/settle resolve everything from the plan and the
+> subscriber's token. `agentId` is informational only (it also populates the
+> OAuth `client_id` when present). A per-tool `planId` option overrides the
+> server-level plan.
 
 ## Register Tools with Credits
 
@@ -184,7 +191,8 @@ const payments = Payments.getInstance({
 
 // Configure
 payments.mcp.configure({
-  agentId: process.env.NVM_AGENT_ID!,
+  planId: process.env.NVM_PLAN_ID!,
+  agentId: process.env.NVM_AGENT_ID, // optional — informational only
   serverName: 'weather-server',
 })
 
@@ -208,7 +216,8 @@ payments.mcp.registerTool(
 const { info, stop } = await payments.mcp.start({
   port: 5001,
   host: process.env.MCP_HOST ?? '127.0.0.1',
-  agentId: process.env.NVM_AGENT_ID!,
+  planId: process.env.NVM_PLAN_ID!,
+  agentId: process.env.NVM_AGENT_ID, // optional — informational only
   serverName: 'weather-server',
   version: '1.0.0',
 })
@@ -285,7 +294,8 @@ const payments = Payments.getInstance({
 
 // Configure MCP
 payments.mcp.configure({
-  agentId: process.env.NVM_AGENT_ID!,
+  planId: process.env.NVM_PLAN_ID!,
+  agentId: process.env.NVM_AGENT_ID, // optional — informational only
   serverName: 'weather-agent',
 })
 
@@ -355,7 +365,8 @@ payments.mcp.registerResource(
 const { info, stop } = await payments.mcp.start({
   port: 5001,
   host: process.env.MCP_HOST ?? '127.0.0.1',
-  agentId: process.env.NVM_AGENT_ID!,
+  planId: process.env.NVM_PLAN_ID!,
+  agentId: process.env.NVM_AGENT_ID, // optional — informational only
   serverName: 'weather-agent',
   version: '1.0.0',
 })
@@ -472,7 +483,8 @@ const app = express()
 const payments = Payments.getInstance({...})
 
 payments.mcp.configure({
-  agentId: process.env.NVM_AGENT_ID!,
+  planId: process.env.NVM_PLAN_ID!,
+  agentId: process.env.NVM_AGENT_ID, // optional — informational only
   serverName: 'my-server',
 })
 
@@ -480,7 +492,8 @@ payments.mcp.configure({
 
 // Create MCP router
 const mcpRouter = payments.mcp.createRouter({
-  agentId: process.env.NVM_AGENT_ID!,
+  planId: process.env.NVM_PLAN_ID!,
+  agentId: process.env.NVM_AGENT_ID, // optional — informational only
   serverName: 'my-server',
 })
 

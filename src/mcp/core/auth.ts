@@ -20,7 +20,7 @@ interface VerifyContext {
   logicalUrl: string
   httpUrl: string | undefined
   maxAmount: bigint
-  agentId: string
+  agentId?: string
   planIdOverride?: string
 }
 
@@ -135,7 +135,7 @@ export class PaywallAuthenticator {
     // Both attempts failed — surface a spec-shaped PaymentRequired error
     // (converted in-band to a tool-result error for tools; propagates as a
     // JSON-RPC error for resources/prompts).
-    throw await this.buildPaymentRequiredError(agentId, logicalUrl)
+    throw await this.buildPaymentRequiredError(agentId, logicalUrl, 'Payment required.', planIdOverride)
   }
 
   /**
@@ -152,30 +152,42 @@ export class PaywallAuthenticator {
    * @returns A `PaymentRequiredError` carrying the `PaymentRequired` object.
    */
   private async buildPaymentRequiredError(
-    agentId: string,
+    agentId: string | undefined,
     endpoint: string,
     message = 'Payment required.',
+    fallbackPlanId?: string,
   ): Promise<PaymentRequiredError> {
     const planIds: string[] = []
     const names: string[] = []
     let plansLookupFailed = false
-    try {
-      const plans = await this.payments.agents.getAgentPlans(agentId)
-      if (plans && Array.isArray(plans.plans)) {
-        for (const p of plans.plans) {
-          const pid = p.planId || p.id
-          if (pid) planIds.push(pid)
-          if (pid) names.push(`${pid}${p.name ? ` (${p.name})` : ''}`)
+    // Only look up the agent's plans when an agentId is configured. Under the
+    // plan-centric model agentId is optional, so we advertise the configured
+    // plan directly (below) instead of requiring an agent lookup.
+    if (agentId) {
+      try {
+        const plans = await this.payments.agents.getAgentPlans(agentId)
+        if (plans && Array.isArray(plans.plans)) {
+          for (const p of plans.plans) {
+            const pid = p.planId || p.id
+            if (pid) planIds.push(pid)
+            if (pid) names.push(`${pid}${p.name ? ` (${p.name})` : ''}`)
+          }
         }
+      } catch (error) {
+        // Best-effort: a backend failure must not look like a clean "unpaid".
+        plansLookupFailed = true
+        console.error(
+          `[x402] Failed to fetch agent plans while building payment-required (agentId=${agentId}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
       }
-    } catch (error) {
-      // Best-effort: a backend failure must not look like a clean "unpaid".
-      plansLookupFailed = true
-      console.error(
-        `[x402] Failed to fetch agent plans while building payment-required (agentId=${agentId}): ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      )
+    }
+
+    // Plan-centric fallback: advertise the configured plan when no plans were
+    // resolved via the agent (or no agentId was provided).
+    if (planIds.length === 0 && fallbackPlanId) {
+      planIds.push(fallbackPlanId)
     }
 
     const plansMsg = names.length > 0 ? ` Available plans: ${names.slice(0, 3).join(', ')}...` : ''
@@ -201,7 +213,7 @@ export class PaywallAuthenticator {
   private async verifyWithEndpoint(
     accessToken: string,
     endpoint: string,
-    agentId: string,
+    agentId: string | undefined,
     maxAmount: bigint,
     planIdOverride?: string,
   ): Promise<{ planId: string; subscriberAddress: Address; agentRequest?: any }> {
@@ -214,7 +226,8 @@ export class PaywallAuthenticator {
     const subscriberAddress = decodedAccessToken.payload?.authorization?.from
 
     // If planId is not available, try to get it from the agent's plans
-    if (!planId) {
+    // (only possible when an agentId is configured).
+    if (!planId && agentId) {
       try {
         const agentPlans = await this.payments.agents.getAgentPlans(agentId)
         if (agentPlans && Array.isArray(agentPlans.plans) && agentPlans.plans.length > 0) {
@@ -261,7 +274,7 @@ export class PaywallAuthenticator {
   async authenticate(
     extra: any,
     options: { planId?: string; maxAmount?: bigint } = {},
-    agentId: string,
+    agentId: string | undefined,
     serverName: string,
     name: string,
     kind: 'tool' | 'resource' | 'prompt',
@@ -271,7 +284,12 @@ export class PaywallAuthenticator {
 
     const authHeader = this.extractAuthHeaderFromContext(extra)
     if (!authHeader) {
-      throw await this.buildPaymentRequiredError(agentId, logicalUrl, 'Authorization required.')
+      throw await this.buildPaymentRequiredError(
+        agentId,
+        logicalUrl,
+        'Authorization required.',
+        options.planId,
+      )
     }
 
     return this.verifyWithFallback({
@@ -291,7 +309,7 @@ export class PaywallAuthenticator {
   async authenticateMeta(
     extra: any,
     options: { planId?: string; maxAmount?: bigint } = {},
-    agentId: string,
+    agentId: string | undefined,
     serverName: string,
     method: string,
   ): Promise<AuthResult> {
@@ -299,7 +317,12 @@ export class PaywallAuthenticator {
 
     const authHeader = this.extractAuthHeaderFromContext(extra)
     if (!authHeader) {
-      throw await this.buildPaymentRequiredError(agentId, logicalUrl, 'Authorization required.')
+      throw await this.buildPaymentRequiredError(
+        agentId,
+        logicalUrl,
+        'Authorization required.',
+        options.planId,
+      )
     }
 
     return this.verifyWithFallback({

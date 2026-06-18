@@ -42,8 +42,8 @@ let authHeaderDeprecationWarned = false
  */
 export class PaywallDecorator {
   // Internal config ensures serverName is always a concrete string
-  private config: { agentId: string; serverName: string } = {
-    agentId: '',
+  private config: { planId: string; agentId?: string; serverName: string } = {
+    planId: '',
     serverName: 'mcp-server',
   }
 
@@ -58,7 +58,8 @@ export class PaywallDecorator {
    */
   configure(options: McpConfig): void {
     this.config = {
-      agentId: options.agentId || this.config.agentId,
+      planId: options.planId || this.config.planId,
+      agentId: options.agentId ?? this.config.agentId,
       serverName: options.serverName ?? this.config.serverName,
     }
   }
@@ -91,11 +92,14 @@ export class PaywallDecorator {
     options: PaywallOptions,
   ): (...allArgs: any[]) => Promise<any> {
     return async (...allArgs: any[]): Promise<any> => {
-      // Validate configuration
-      if (!this.config.agentId) {
+      // Validate configuration: a planId must be resolvable (per-tool option or
+      // server-level config). agentId is optional under the plan-centric model
+      // (the facilitator resolves everything from planId + token).
+      const configuredPlanId = options?.planId ?? this.config.planId
+      if (!configuredPlanId) {
         throw createRpcError(
           ERROR_CODES.Misconfiguration,
-          'Server misconfiguration: missing agentId',
+          'Server misconfiguration: missing planId',
         )
       }
 
@@ -134,7 +138,7 @@ export class PaywallDecorator {
         // 1. Authenticate request
         const authResult = await this.authenticator.authenticate(
           authExtra,
-          { planId: options?.planId, maxAmount: options?.maxAmount },
+          { planId: configuredPlanId, maxAmount: options?.maxAmount },
           this.config.agentId,
           this.config.serverName,
           name,

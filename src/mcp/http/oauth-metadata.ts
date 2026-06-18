@@ -262,7 +262,8 @@ export function buildServerInfoResponse(
       token_endpoint: oauthUrls.tokenUri,
       jwks_uri: oauthUrls.jwksUri,
       registration_endpoint: `${config.baseUrl}/register`,
-      client_id: config.agentId,
+      // agentId is optional under the plan-centric model; omit client_id when absent.
+      ...(config.agentId ? { client_id: config.agentId } : {}),
       scopes: scopes,
     },
     tools: config.tools || [],
