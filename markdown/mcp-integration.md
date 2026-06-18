@@ -416,7 +416,17 @@ The client sends the x402 `PaymentPayload` in the request params `_meta["x402/pa
 ```typescript
 import { decodeAccessToken } from '@nevermined-io/payments'
 
-const { accessToken } = await payments.x402.getX402AccessToken(planId) // agentId is optional
+// Mint a token against a delegation (create one first). `agentId` (2nd arg) is
+// optional, but `delegationConfig` is required.
+const { delegationId } = await payments.delegation.createDelegation({
+  provider: 'erc4337', // 'stripe' | 'braintree' | 'visa' for fiat plans
+  spendingLimitCents: 10000,
+  durationSecs: 604800,
+  currency: 'usdc', // 'usd' for fiat plans
+})
+const { accessToken } = await payments.x402.getX402AccessToken(planId, undefined, {
+  delegationConfig: { delegationId },
+})
 
 await client.callTool({
   name: 'get_weather',
