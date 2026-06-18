@@ -497,7 +497,8 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
       // rather than reading a completed task as "nothing owed".
       x402A2AUtils.recordPaymentDeferred(task)
     } else {
-      // Verified, nothing to settle (no credits consumed).
+      // Defensive default: verified, but no settlement result AND not batch-deferred
+      // (e.g. a settle that returned nothing). Record a bare verify.
       x402A2AUtils.recordPaymentVerified(task)
     }
   }
@@ -571,6 +572,21 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
                     httpContext,
                     response as SettlePermissionsResult,
                   )
+                  await resultManager.processEvent(task)
+                }
+              }
+            } else {
+              // Batch redemption: on-chain settlement is deferred out-of-band. The
+              // stream already yielded the content (can't retract), but stamp the
+              // PERSISTED task with payment-verified + the deferred marker so a
+              // streaming client (via tasks/get + resubscribe) isn't left reading a
+              // completed task as "nothing owed" — matching the non-streaming path.
+              const httpContext =
+                requestHttpContext ?? this.getHttpRequestContextForTask(event.taskId)
+              if (httpContext?.inBand) {
+                const task = resultManager.getCurrentTask()
+                if (task) {
+                  this.recordInBandSettlement(task, httpContext, undefined, true)
                   await resultManager.processEvent(task)
                 }
               }
