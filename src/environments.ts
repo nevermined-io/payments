@@ -30,7 +30,10 @@ export type EnvironmentName = 'staging_sandbox' | 'staging_live' | 'sandbox' | '
  */
 export const getEnvironmentFromApiKey = (nvmApiKey: string): EnvironmentName | undefined => {
   if (!nvmApiKey || !nvmApiKey.includes(':')) return undefined
-  const prefix = nvmApiKey.slice(0, nvmApiKey.indexOf(':'))
+  // Backend-minted prefixes are always lowercase; lowercasing keeps this in
+  // exact parity with the payments-py sibling and tolerates a non-canonical
+  // uppercase prefix.
+  const prefix = nvmApiKey.slice(0, nvmApiKey.indexOf(':')).toLowerCase()
   switch (prefix) {
     case 'sandbox-staging':
       return 'staging_sandbox'

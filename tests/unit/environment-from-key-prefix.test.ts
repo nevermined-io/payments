@@ -39,6 +39,11 @@ describe('getEnvironmentFromApiKey', () => {
     expect(getEnvironmentFromApiKey(keyWithPrefix(prefix))).toBe(expected)
   })
 
+  test('matches the prefix case-insensitively (parity with the py sibling)', () => {
+    expect(getEnvironmentFromApiKey(keyWithPrefix('Sandbox-Staging'))).toBe('staging_sandbox')
+    expect(getEnvironmentFromApiKey(keyWithPrefix('LIVE'))).toBe('live')
+  })
+
   test('returns undefined for a key without a prefix (bare JWT)', () => {
     expect(getEnvironmentFromApiKey(JWT)).toBeUndefined()
   })
