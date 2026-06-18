@@ -283,6 +283,12 @@ export function buildMcpIntegration(paymentsService: Payments) {
   /**
    * Wrap a handler with paywall protection.
    * The wrapped handler will validate authentication and burn credits.
+   *
+   * A `planId` must already be resolvable (per-tool `options.planId` or a
+   * server-level one set via `configure()`/`start()`); otherwise this throws
+   * at registration time. So register paywalled handlers *after* the plan is
+   * configured — e.g. `configure({ planId })` (or `start({ planId })`, which
+   * configures first) before `withPaywall()`/`attach`.
    */
   function withPaywall<TArgs = any>(
     handler: (args: TArgs, extra?: any, context?: PaywallContext) => Promise<any> | any,

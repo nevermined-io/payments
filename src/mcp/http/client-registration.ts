@@ -160,7 +160,7 @@ export async function processClientRegistration(
   // agentId is optional under the plan-centric model, so when it's absent we
   // issue a generated client_id for OAuth dynamic registration.
   const issuedAt = Math.floor(Date.now() / 1000)
-  const clientId = config.agentId ?? `nvm-mcp-client-${issuedAt}-${Math.floor(Math.random() * 1e9)}`
+  const clientId = config.agentId ?? `nvm-mcp-client-${issuedAt}-${randomBytes(8).toString('hex')}`
 
   // Determine auth method and if secret is needed
   const authMethod = request.token_endpoint_auth_method || 'none'
