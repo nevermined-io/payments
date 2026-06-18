@@ -33,7 +33,7 @@ These endpoints are generated automatically—no manual configuration required.
 
 ## Configure MCP
 
-Initialize the MCP integration with your agent details:
+Initialize the MCP integration with your plan details:
 
 ```typescript
 import { Payments, EnvironmentName } from '@nevermined-io/payments'
@@ -401,7 +401,7 @@ async function fetchAlerts() {
 | Option          | Type                   | Description                                                                                                                                                                                                                             |
 | --------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `credits`       | `bigint` or `function` | Credits to consume per call                                                                                                                                                                                                             |
-| `planId`        | `string`               | Optional override for the plan ID (otherwise inferred from token)                                                                                                                                                                       |
+| `planId`        | `string`               | Per-handler plan ID override. A server-level `planId` (set via `configure`/`start`) is required; set this only to charge a different plan for this handler.                                                                               |
 | `maxAmount`     | `bigint`               | Max credits to verify during authentication (default: `1n`)                                                                                                                                                                             |
 | `onRedeemError` | `string`               | On post-execution settlement failure: `'ignore'` (default) returns the in-band payment error; `'propagate'` throws a JSON-RPC error. Tool content is always suppressed either way (paid content is never delivered without settlement). |
 
@@ -411,7 +411,20 @@ The MCP transport follows the [x402 v2 MCP transport spec](https://github.com/co
 
 ### Request — payment payload
 
-The client sends the x402 `PaymentPayload` in the request params `_meta["x402/payment"]` (plain JSON). For backwards compatibility an `Authorization: Bearer <token>` header is still accepted as a **deprecated fallback** when `_meta["x402/payment"]` is absent.
+The client sends the x402 `PaymentPayload` in the request params `_meta["x402/payment"]` (plain JSON). Note this is the **payment** channel — separate from session auth: the MCP session is an OAuth-protected resource, so the client must also send an `Authorization: Bearer <accessToken>` header on the transport to establish the session (`initialize` returns `401` without it). For backwards compatibility the server also reads the payment from that header alone (no `_meta`) as a **deprecated fallback** for one release.
+
+```typescript
+import { decodeAccessToken } from '@nevermined-io/payments'
+
+const { accessToken } = await payments.x402.getX402AccessToken(planId) // agentId is optional
+
+await client.callTool({
+  name: 'get_weather',
+  arguments: { city: 'Madrid' },
+  // Carry the payment in band (the spec-defined transport):
+  _meta: { 'x402/payment': decodeAccessToken(accessToken) },
+})
+```
 
 ### Response — settlement receipt
 
