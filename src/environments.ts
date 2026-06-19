@@ -18,6 +18,37 @@ export const ZeroAddress = '0x0000000000000000000000000000000000000000'
 export type EnvironmentName = 'staging_sandbox' | 'staging_live' | 'sandbox' | 'live' | 'custom'
 
 /**
+ * Maps the prefix of an NVM API key (`<prefix>:<jwt>`) to the environment the
+ * key targets. This is the inverse of the backend's `addPrefixToToken`: a key
+ * minted for `staging_sandbox` carries the prefix `sandbox-staging`, i.e.
+ * `{env}-{deployment}` on the wire maps to `{deployment}_{env}` here.
+ *
+ * @param nvmApiKey - The full NVM API key (`<prefix>:<jwt>`), or a bare JWT.
+ * @returns The mapped {@link EnvironmentName}, or `undefined` when the key has
+ *   no prefix or the prefix is not recognized (caller falls back to the
+ *   deprecated `environment` option, else `custom`).
+ */
+export const getEnvironmentFromApiKey = (nvmApiKey: string): EnvironmentName | undefined => {
+  if (!nvmApiKey || !nvmApiKey.includes(':')) return undefined
+  // Backend-minted prefixes are always lowercase; lowercasing keeps this in
+  // exact parity with the payments-py sibling and tolerates a non-canonical
+  // uppercase prefix.
+  const prefix = nvmApiKey.slice(0, nvmApiKey.indexOf(':')).toLowerCase()
+  switch (prefix) {
+    case 'sandbox-staging':
+      return 'staging_sandbox'
+    case 'live-staging':
+      return 'staging_live'
+    case 'sandbox':
+      return 'sandbox'
+    case 'live':
+      return 'live'
+    default:
+      return undefined
+  }
+}
+
+/**
  * Represents the different environments and their corresponding URLs.
  */
 export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
