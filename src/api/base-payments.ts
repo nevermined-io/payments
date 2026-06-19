@@ -3,7 +3,16 @@ import { API_VERSION_HEADER, LOCKED_API_VERSION } from '../common/api-version.js
 import { jsonReplacer } from '../common/helper.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { PaymentOptions, PaymentScheme } from '../common/types.js'
-import { EnvironmentInfo, EnvironmentName, Environments } from '../environments.js'
+import {
+  EnvironmentInfo,
+  EnvironmentName,
+  Environments,
+  getEnvironmentFromApiKey,
+} from '../environments.js'
+
+// Emit the `environment` deprecation notice at most once per process to avoid
+// log spam when many sub-API instances are constructed from the same options.
+let environmentOptionDeprecationWarned = false
 
 /**
  * Header used by the Nevermined backend to resolve the active organization
@@ -87,8 +96,8 @@ export abstract class BasePaymentsAPI {
     this.nvmApiKey = options.nvmApiKey
     this.scheme = options.scheme || 'nvm'
     this.returnUrl = options.returnUrl || ''
-    this.environment = Environments[options.environment as EnvironmentName]
-    this.environmentName = options.environment
+    this.environmentName = this.resolveEnvironmentName(options)
+    this.environment = Environments[this.environmentName]
     this.appId = options.appId
     // `version` is the backend API pin (MAJOR.MINOR) sent verbatim as
     // Nevermined-Version. Fail fast on a malformed value rather than shipping
@@ -105,6 +114,34 @@ export abstract class BasePaymentsAPI {
     const { accountAddress, heliconeApiKey } = this.parseNvmApiKey()
     this.accountAddress = accountAddress
     this.heliconeApiKey = heliconeApiKey
+  }
+
+  /**
+   * Resolves the active environment for this instance.
+   *
+   * The environment is derived from the NVM API key prefix
+   * (`<prefix>:<jwt>`); the key wins whenever its prefix is recognized. The
+   * deprecated `environment` option is still honored as a fallback when the
+   * key has no recognized prefix (e.g. local/custom dev), and ultimately
+   * defaults to `custom`. Passing `environment` emits a one-time deprecation
+   * warning.
+   */
+  private resolveEnvironmentName(options: PaymentOptions): EnvironmentName {
+    const fromKey = getEnvironmentFromApiKey(options.nvmApiKey)
+
+    if (options.environment && !environmentOptionDeprecationWarned) {
+      environmentOptionDeprecationWarned = true
+      const override =
+        fromKey && fromKey !== options.environment
+          ? ` It is ignored in favor of the environment derived from the API key ('${fromKey}').`
+          : ''
+      console.warn(
+        "[DEPRECATED] The 'environment' option is deprecated; the environment is now derived " +
+          `from the NVM API key prefix.${override} Remove the 'environment' option to silence this warning.`,
+      )
+    }
+
+    return fromKey ?? options.environment ?? 'custom'
   }
 
   /**

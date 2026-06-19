@@ -28,13 +28,14 @@ Most applications will use a builder key for server-side operations.
 For Node.js applications, use the `getInstance` method:
 
 ```typescript
-import { Payments, EnvironmentName } from '@nevermined-io/payments'
+import { Payments } from '@nevermined-io/payments'
 
 const payments = Payments.getInstance({
   nvmApiKey: process.env.NVM_API_KEY!,
-  environment: 'sandbox' as EnvironmentName,
 })
 ```
+
+The environment is derived automatically from your API key — see [Environment derivation](#environment-derivation) below.
 
 ### Configuration Options
 
@@ -42,13 +43,27 @@ The `getInstance` method accepts a `PaymentOptions` object:
 
 ```typescript
 interface PaymentOptions {
-  nvmApiKey: string          // Your Nevermined API key (required)
-  environment: EnvironmentName  // Target environment (required)
-  returnUrl?: string         // OAuth callback URL (optional, for browser)
-  appId?: string             // Your application ID (optional)
-  version?: string           // Your application version (optional)
+  nvmApiKey: string           // Your Nevermined API key (required)
+  environment?: EnvironmentName  // @deprecated — derived from the API key (optional)
+  returnUrl?: string          // OAuth callback URL (optional, for browser)
+  appId?: string              // Your application ID (optional)
+  version?: string            // Backend API version pin, MAJOR.MINOR (optional)
 }
 ```
+
+### Environment derivation
+
+NVM API keys are prefixed with the environment they belong to
+(`<prefix>:<jwt>`), so the SDK resolves the target environment from the key —
+you no longer need to pass `environment`.
+
+The `environment` option is **deprecated** but still accepted:
+
+- When the key prefix maps to a known environment, the **key always wins** and
+  the `environment` option is ignored (a one-time deprecation warning is logged).
+- When the key has no recognized prefix (for example a local/custom build), the
+  SDK falls back to the `environment` option, and finally to `custom`. This
+  keeps local and custom-backend workflows working unchanged.
 
 ### Complete Server-Side Example
 
