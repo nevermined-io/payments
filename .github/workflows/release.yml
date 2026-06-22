@@ -433,13 +433,13 @@ jobs:
 
           if [ "$USE_AUTO_NOTES" = "true" ]; then
             gh release create "$TAG" \
-              --title "Nevermined Payments $TAG" \
+              --title "$TAG" \
               --generate-notes \
               $PRERELEASE_FLAG \
               sdk-tarball/*.tgz cli-tarballs/*.tar.gz openclaw-tarball/*.tgz
           else
             gh release create "$TAG" \
-              --title "Nevermined Payments $TAG" \
+              --title "$TAG" \
               --notes-file /tmp/release_notes.md \
               $PRERELEASE_FLAG \
               sdk-tarball/*.tgz cli-tarballs/*.tar.gz openclaw-tarball/*.tgz

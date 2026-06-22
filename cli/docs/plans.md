@@ -114,24 +114,32 @@ nvm plans register-credits-plan \
 }
 ```
 
-**price-config.json**:
+**price-config.json** (`PlanPriceConfig`) — charge a fixed crypto price; `amounts` is in the token's smallest unit (e.g. `1000000` = 1 USDC at 6 decimals) and `receivers` collects it (this is what `nvm plans get-erc20-price-config` / `get-native-token-price-config` emit):
 
 ```json
 {
-  "tokenAddress": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-  "price": 1000000,
-  "amountOfCredits": 100
+  "isCrypto": true,
+  "amounts": [1000000],
+  "receivers": ["0xYourReceiverWallet"],
+  "tokenAddress": "0x0000000000000000000000000000000000000000",
+  "contractAddress": "0x0000000000000000000000000000000000000000",
+  "feeController": "0x0000000000000000000000000000000000000000",
+  "externalPriceAddress": "0x0000000000000000000000000000000000000000",
+  "templateAddress": "0x0000000000000000000000000000000000000000"
 }
 ```
 
-**credits-config.json**:
+**credits-config.json** (`PlanCreditsConfig`) — grant 100 credits, burn 1 per request (what `nvm plans get-fixed-credits-config` emits):
 
 ```json
 {
-  "subscriptionType": "credits",
-  "accessType": "credits",
-  "minCreditsToCharge": 1,
-  "maxCreditsToCharge": 10
+  "isRedemptionAmountFixed": true,
+  "redemptionType": 4,
+  "onchainMirror": false,
+  "durationSecs": 0,
+  "amount": 100,
+  "minAmount": 1,
+  "maxAmount": 1
 }
 ```
 
@@ -146,17 +154,21 @@ nvm plans register-time-plan \
   --credits-config credits-config.json
 ```
 
-**credits-config.json** (for time plan):
+**credits-config.json** (for time plan) (`PlanCreditsConfig`) — a time-limited plan sets `durationSecs > 0` (what `nvm plans get-expirable-duration-config` emits):
 
 ```json
 {
-  "subscriptionType": "time",
-  "accessType": "time",
-  "duration": 2592000
+  "isRedemptionAmountFixed": false,
+  "redemptionType": 4,
+  "onchainMirror": false,
+  "durationSecs": 2592000,
+  "amount": 1,
+  "minAmount": 1,
+  "maxAmount": 1
 }
 ```
 
-Duration is in seconds (2592000 = 30 days).
+`durationSecs` is in seconds (2592000 = 30 days).
 
 ### Trial Plans
 
@@ -366,22 +378,30 @@ cat > plan.json << EOF
 }
 EOF
 
-# 2. Create price configuration
+# 2. Create price configuration (PlanPriceConfig)
 cat > price.json << EOF
 {
-  "tokenAddress": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-  "price": 10000000,
-  "amountOfCredits": 100
+  "isCrypto": true,
+  "amounts": [10000000],
+  "receivers": ["0xYourReceiverWallet"],
+  "tokenAddress": "0x0000000000000000000000000000000000000000",
+  "contractAddress": "0x0000000000000000000000000000000000000000",
+  "feeController": "0x0000000000000000000000000000000000000000",
+  "externalPriceAddress": "0x0000000000000000000000000000000000000000",
+  "templateAddress": "0x0000000000000000000000000000000000000000"
 }
 EOF
 
-# 3. Create credits configuration
+# 3. Create credits configuration (PlanCreditsConfig) — 100 credits, burn 1-5 per request
 cat > credits.json << EOF
 {
-  "subscriptionType": "credits",
-  "accessType": "credits",
-  "minCreditsToCharge": 1,
-  "maxCreditsToCharge": 5
+  "isRedemptionAmountFixed": false,
+  "redemptionType": 4,
+  "onchainMirror": false,
+  "durationSecs": 0,
+  "amount": 100,
+  "minAmount": 1,
+  "maxAmount": 5
 }
 EOF
 
@@ -424,12 +444,12 @@ Make your plans discoverable with clear names and descriptions:
 
 ### 2. Set Appropriate Credit Limits
 
-Configure min/max credits to prevent abuse:
+Configure the min/max credits burned per request to prevent abuse (fields of `PlanCreditsConfig`):
 
 ```json
 {
-  "minCreditsToCharge": 1,
-  "maxCreditsToCharge": 10
+  "minAmount": 1,
+  "maxAmount": 10
 }
 ```
 
