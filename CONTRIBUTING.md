@@ -38,7 +38,9 @@ In `markdown/**`, use only:
   `[Payment Plans](./payment-plans)`. These resolve on the site, where every
   page lives in the same `api-reference/typescript/` directory.
 - ✅ **Site-relative links** to other docs-site pages —
-  `[CLI](/api-reference/cli)`.
+  `[CLI](/api-reference/cli)`. _(The mini-site link check can't verify cross-tree
+  targets — adding one needs the clone-based UPGRADE PATH in
+  `scripts/check_synced_doc_links.sh`; the escaping/repo-source lint still allows it.)_
 - ✅ **In-page anchors** — `[Reuse a delegation](#reusing-existing-delegations)`.
 - ✅ **Absolute GitHub URLs** for anything in the repo (source, tests, READMEs,
   other directories) —
@@ -65,12 +67,17 @@ pnpm docs:lint-links
 pnpm docs:check-links
 ```
 
-Both are blocking gates. The lint is deterministic and never flakes; the staged
-Mintlify check validates the synced pages as a self-contained mini-site (the TS
-pages link only same-dir siblings, so no docs-site clone is needed — see
-`scripts/check_synced_doc_links.sh` for why this differs from the payments-py
-sibling). The release pipeline runs the same check as its own backstop. Only
-**internal** links are gated; external-URL liveness is not (it is network-flaky).
+`lint-links` is the **blocking hard gate** — deterministic, network-free, never
+flakes. `staged-mintlify-check` is a **non-blocking PR backstop**
+(`continue-on-error`): it validates the synced pages as a self-contained
+mini-site (the TS pages link only same-dir siblings, so no docs-site clone is
+needed — see `scripts/check_synced_doc_links.sh` for why this differs from the
+payments-py sibling), but because it is network-dependent (`npx mintlify`) and
+the mini-site can't resolve cross-tree site-relative targets, it stays advisory
+at PR time so a transient hiccup or that latent false-positive never blocks a
+merge. The **release pipeline runs the same check as a hard gate** on the full
+sync. Only **internal** links are gated; external-URL liveness is not (it is
+network-flaky).
 
 > **Repo admin:** for `lint-links` to actually block a merge, add it to `main`'s
 > required status checks in branch protection — otherwise the workflow runs but

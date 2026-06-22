@@ -42,17 +42,26 @@ jobs:
       - name: Lint synced-doc links (escaping / repo-source links)
         run: python3 scripts/lint_doc_links.py
 
-  # FULL CHECK: stage the synced TS pages into a minimal Mintlify project, then
-  # run the REAL Mintlify checker against it. Internal links only (no
-  # --check-external — external liveness is flaky and must not block). The TS
+  # NON-BLOCKING BACKSTOP: stage the synced TS pages into a minimal Mintlify
+  # project, then run the REAL Mintlify checker against it. Internal links only
+  # (no --check-external — external liveness is flaky and must not block). The TS
   # pages link only same-dir siblings, so a self-contained mini-site validates
   # them fully (no docs-site clone needed — see check_synced_doc_links.sh for
   # why this legitimately differs from the payments-py sibling). Depends on
   # `npx mintlify` (network); the release pipeline runs the same check too.
+  #
+  # `continue-on-error: true` keeps this advisory at PR time: it is network-
+  # dependent (`npx mintlify`), and because the mini-site contains only the TS
+  # pages it cannot resolve cross-tree site-relative targets (e.g.
+  # `/api-reference/cli`) that are valid on the real docs site — so a transient
+  # npm hiccup or that latent false-positive must never block a merge. The
+  # network-free `lint-links` job above stays the hard gate; the release
+  # pipeline still runs this check as a hard backstop on the full sync.
   staged-mintlify-check:
     name: Staged Mintlify broken-links
     runs-on: ubuntu-latest
     needs: lint-links
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
