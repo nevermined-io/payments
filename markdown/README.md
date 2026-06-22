@@ -34,10 +34,10 @@ This workflow:
 
 **Trigger**: Creating a new version tag (e.g., `v1.0.2`)
 
-**Workflow**: `.github/workflows/publish-docs.yml`
+**Workflow**: `.github/workflows/release.yml` (the `publish-documentation` job)
 
 This workflow:
-- Copies documentation from `markdown/` to `nevermined-io/docs_mintlify`
+- Copies documentation from `markdown/` to `nevermined-io/docs`
 - Creates a pull request in the docs repository
 - Includes version metadata and change summary
 
@@ -149,17 +149,17 @@ If version metadata is incorrect:
 
 ### Broken Links
 
-To verify all internal links work:
+Internal links are validated in CI (see
+[Link Checks](../CONTRIBUTING.md#link-checks) in `CONTRIBUTING.md`). To reproduce
+the checks locally:
 
 ```bash
-# Check for broken .md links
-grep -r "\.md)" markdown/ | while read line; do
-  file=$(echo "$line" | cut -d: -f1)
-  link=$(echo "$line" | grep -o '[0-9][0-9]-[a-z-]*.mdx')
-  if [ ! -f "markdown/$link" ]; then
-    echo "Broken link in $file: $link"
-  fi
-done
+# Fast, network-free lint: rejects escaping (../) and repo-source links
+pnpm docs:lint-links
+
+# Full check: stages the files into the docs-site layout and runs the same
+# `mintlify broken-links` the docs repo uses (internal links only)
+pnpm docs:check-links
 ```
 
 ## Contributing
@@ -171,6 +171,11 @@ When contributing documentation changes:
 3. Update the `MINTLIFY_API_REFERENCE.md` if adding new sections
 4. Run `./scripts/generate-docs.sh` to validate
 5. Test all code examples to ensure they work
+6. Use only allowed link styles — these files are synced verbatim to the docs
+   site, so a link that works in-repo can be dead on the site. See the
+   [Documentation link conventions](../CONTRIBUTING.md#documentation-link-conventions)
+   in `CONTRIBUTING.md`; CI ([Link Checks](#link-checks)) rejects escaping
+   (`](../…)`) and repo-source links.
 
 ## Resources
 
