@@ -110,7 +110,7 @@ if (fiatResult.checkoutUrl) {
 
 ```bash
 # Order a fiat plan (returns a Stripe checkout URL)
-nvm plans order-fiat-plan <plan-id>
+nevermined plans order-fiat-plan <plan-id>
 ```
 
 > **Note**: When using X402 card-delegation tokens (`nvm:card-delegation` scheme), the payment is handled automatically through the delegated card — no separate checkout URL is needed. See [Querying an Agent](./querying-an-agent) for details on card-delegation tokens.

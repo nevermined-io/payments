@@ -8,7 +8,7 @@ export default class RemovePlanFromAgent extends BaseCommand {
   static override description = "Removes a Payment Plan from an AI Agent. After this operation, users with access to the Payment Plan will no longer be able to access the AI Agent."
 
   static override examples = [
-    '$ nvm agents remove-plan-from-agent <planId>'
+    '$ nevermined agents remove-plan-from-agent <planId>'
   ]
 
   static override flags = {

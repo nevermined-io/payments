@@ -16,10 +16,10 @@ import {
  * receives `paymentMethodId` + `delegationId` back at a localhost
  * callback the CLI starts for the duration of the flow.
  *
- * Mirrors the `nvm login` UX: ephemeral HTTP server on a random port,
+ * Mirrors the `nevermined login` UX: ephemeral HTTP server on a random port,
  * URL printed (or browser opened), 5-minute timeout, single-use
  * `state` echo for CSRF binding. The user must already be authenticated
- * (`nvm login`) and must be a member of at least one organisation —
+ * (`nevermined login`) and must be a member of at least one organisation —
  * the widgets feature is organisation-scoped (see issue #1671).
  */
 export default class CardsSetup extends BaseCommand {

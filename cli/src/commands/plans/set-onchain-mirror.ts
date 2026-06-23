@@ -8,7 +8,7 @@ export default class SetOnchainMirror extends BaseCommand {
   static override description = "Marks whether burns of these credits are mirrored on-chain."
 
   static override examples = [
-    '$ nvm plans set-onchain-mirror'
+    '$ nevermined plans set-onchain-mirror'
   ]
 
   static override flags = {

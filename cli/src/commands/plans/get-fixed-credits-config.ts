@@ -8,7 +8,7 @@ export default class GetFixedCreditsConfig extends BaseCommand {
   static override description = "Builds a FIXED credits configuration."
 
   static override examples = [
-    '$ nvm plans get-fixed-credits-config'
+    '$ nevermined plans get-fixed-credits-config'
   ]
 
   static override flags = {

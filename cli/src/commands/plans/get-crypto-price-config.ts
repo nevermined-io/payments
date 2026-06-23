@@ -8,7 +8,7 @@ export default class GetCryptoPriceConfig extends BaseCommand {
   static override description = "Builds a crypto price configuration for a plan."
 
   static override examples = [
-    '$ nvm plans get-crypto-price-config'
+    '$ nevermined plans get-crypto-price-config'
   ]
 
   static override flags = {

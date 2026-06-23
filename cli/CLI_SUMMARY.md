@@ -70,32 +70,32 @@ cli/
 #### Configuration Commands (3)
 
 ```bash
-nvm config init               # Initialize configuration
-nvm config show               # Display configuration
-nvm config set <key> <value>  # Set configuration value
+nevermined config init               # Initialize configuration
+nevermined config show               # Display configuration
+nevermined config set <key> <value>  # Set configuration value
 ```
 
 #### Plans Commands (4)
 
 ```bash
-nvm plans get-plans                # List all plans
-nvm plans get <planId>        # Get plan details
-nvm plans balance <planId>    # Check plan balance
-nvm plans register            # Register plan (placeholder)
+nevermined plans get-plans                # List all plans
+nevermined plans get <planId>        # Get plan details
+nevermined plans balance <planId>    # Check plan balance
+nevermined plans register            # Register plan (placeholder)
 ```
 
 #### Agents Commands (3)
 
 ```bash
-nvm agents list               # List agents (placeholder)
-nvm agents get <agentId>      # Get agent details
-nvm agents register           # Register agent (placeholder)
+nevermined agents list               # List agents (placeholder)
+nevermined agents get <agentId>      # Get agent details
+nevermined agents register           # Register agent (placeholder)
 ```
 
 #### X402 Commands (1)
 
 ```bash
-nvm x402 get-token <planId>   # Get X402 access token
+nevermined x402 get-token <planId>   # Get X402 access token
 ```
 
 ## Testing Results

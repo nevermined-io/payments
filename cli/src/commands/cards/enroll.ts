@@ -16,7 +16,7 @@ import {
  * resulting `paymentMethodId` back to a localhost callback.
  *
  * For the common case of "add a card AND a delegation in one flow",
- * use `nvm cards setup` instead — the combined command emits both IDs
+ * use `nevermined cards setup` instead — the combined command emits both IDs
  * in a single callback.
  */
 export default class CardsEnroll extends BaseCommand {

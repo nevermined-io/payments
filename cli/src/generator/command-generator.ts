@@ -292,7 +292,7 @@ ${runMethod}
       const idParam = method.parameters.find(p => p.name.toLowerCase().includes('id'))
       const idExample = idParam ? `<${idParam.name}>` : ''
 
-      examples.push(`$ nvm ${topic} ${commandName} ${idExample}`.trim())
+      examples.push(`$ nevermined ${topic} ${commandName} ${idExample}`.trim())
     }
 
     return examples.map(ex => `    '${ex.replace(/'/g, "\\'")}'`).join(',\n')

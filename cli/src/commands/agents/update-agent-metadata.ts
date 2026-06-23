@@ -8,7 +8,7 @@ export default class UpdateAgentMetadata extends BaseCommand {
   static override description = "Updates the metadata and API attributes of an existing AI Agent."
 
   static override examples = [
-    '$ nvm agents update-agent-metadata <agentId>'
+    '$ nevermined agents update-agent-metadata <agentId>'
   ]
 
   static override flags = {

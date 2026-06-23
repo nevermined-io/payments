@@ -8,7 +8,7 @@ export default class RegisterTimeTrialPlan extends BaseCommand {
   static override description = "It allows to an AI Builder to create a Trial Payment Plan on Nevermined limited by duration. A Nevermined Trial Plan allow subscribers of that plan to test the Agents associated to it. A Trial plan is a plan that only can be purchased once by a user. Trial plans, as regular plans, can be limited by duration (i.e 1 week of usage) or by credits (i.e 100 credits to use the agent)."
 
   static override examples = [
-    '$ nvm plans register-time-trial-plan'
+    '$ nevermined plans register-time-trial-plan'
   ]
 
   static override flags = {

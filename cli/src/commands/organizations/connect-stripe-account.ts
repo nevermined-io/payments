@@ -8,7 +8,7 @@ export default class ConnectStripeAccount extends BaseCommand {
   static override description = "Connect user with Stripe"
 
   static override examples = [
-    '$ nvm organizations connect-stripe-account'
+    '$ nevermined organizations connect-stripe-account'
   ]
 
   static override flags = {

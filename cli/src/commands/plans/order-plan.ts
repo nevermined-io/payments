@@ -8,7 +8,7 @@ export default class OrderPlan extends BaseCommand {
   static override description = "Orders a Payment Plan requiring the payment in crypto. The user must have enough balance in the selected token."
 
   static override examples = [
-    '$ nvm plans order-plan <planId>'
+    '$ nevermined plans order-plan <planId>'
   ]
 
   static override flags = {

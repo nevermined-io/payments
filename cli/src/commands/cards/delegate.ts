@@ -16,7 +16,7 @@ import {
  * the resulting `delegationId` is redirected back to a localhost
  * callback.
  *
- * The combined `nvm cards setup` flow is preferred for first-time
+ * The combined `nevermined cards setup` flow is preferred for first-time
  * card setup; use this when the card already exists and only the
  * delegation needs to be (re-)created.
  */

@@ -21,13 +21,13 @@ View all available payment plans:
 
 ```bash
 # Table output (default)
-nvm plans get-plans
+nevermined plans get-plans
 
 # JSON output for scripting
-nvm plans get-plans --format json
+nevermined plans get-plans --format json
 
 # With pagination and sorting
-nvm plans get-plans --page 1 --offset 10 --sort-by name --sort-order asc
+nevermined plans get-plans --page 1 --offset 10 --sort-by name --sort-order asc
 ```
 
 ## Getting Plan Details
@@ -35,13 +35,13 @@ nvm plans get-plans --page 1 --offset 10 --sort-by name --sort-order asc
 Retrieve detailed information about a specific plan:
 
 ```bash
-nvm plans get-plan <plan-id>
+nevermined plans get-plan <plan-id>
 ```
 
 Example:
 
 ```bash
-nvm plans get-plan "did:nvm:abc123"
+nevermined plans get-plan "did:nvm:abc123"
 ```
 
 Output includes:
@@ -56,10 +56,10 @@ Check your credit balance for a plan:
 
 ```bash
 # Your balance
-nvm plans get-plan-balance <plan-id>
+nevermined plans get-plan-balance <plan-id>
 
 # Check balance for specific address
-nvm plans get-plan-balance <plan-id> --account-address "0x1234..."
+nevermined plans get-plan-balance <plan-id> --account-address "0x1234..."
 ```
 
 ## Getting Agents for a Plan
@@ -67,10 +67,10 @@ nvm plans get-plan-balance <plan-id> --account-address "0x1234..."
 List all agents accessible through a specific plan:
 
 ```bash
-nvm plans get-agents-associated-to-a-plan <plan-id>
+nevermined plans get-agents-associated-to-a-plan <plan-id>
 
 # With pagination
-nvm plans get-agents-associated-to-a-plan <plan-id> --pagination '{"page": 1, "offset": 10}'
+nevermined plans get-agents-associated-to-a-plan <plan-id> --pagination '{"page": 1, "offset": 10}'
 ```
 
 ## Creating Plans
@@ -80,7 +80,7 @@ nvm plans get-agents-associated-to-a-plan <plan-id> --pagination '{"page": 1, "o
 Register a plan with full control over price and credits/duration configuration:
 
 ```bash
-nvm plans register-plan \
+nevermined plans register-plan \
   --plan-metadata plan-metadata.json \
   --price-config price-config.json \
   --credits-config credits-config.json
@@ -95,7 +95,7 @@ Optional flags:
 Create a pay-per-use plan with credits:
 
 ```bash
-nvm plans register-credits-plan \
+nevermined plans register-credits-plan \
   --plan-metadata plan-metadata.json \
   --price-config price-config.json \
   --credits-config credits-config.json
@@ -114,7 +114,7 @@ nvm plans register-credits-plan \
 }
 ```
 
-**price-config.json** (`PlanPriceConfig`) — charge a fixed crypto price; `amounts` is in the token's smallest unit (e.g. `1000000` = 1 USDC at 6 decimals) and `receivers` collects it (this is what `nvm plans get-erc20-price-config` / `get-native-token-price-config` emit):
+**price-config.json** (`PlanPriceConfig`) — charge a fixed crypto price; `amounts` is in the token's smallest unit (e.g. `1000000` = 1 USDC at 6 decimals) and `receivers` collects it (this is what `nevermined plans get-erc20-price-config` / `get-native-token-price-config` emit):
 
 ```json
 {
@@ -129,7 +129,7 @@ nvm plans register-credits-plan \
 }
 ```
 
-**credits-config.json** (`PlanCreditsConfig`) — grant 100 credits, burn 1 per request (what `nvm plans get-fixed-credits-config` emits):
+**credits-config.json** (`PlanCreditsConfig`) — grant 100 credits, burn 1 per request (what `nevermined plans get-fixed-credits-config` emits):
 
 ```json
 {
@@ -148,13 +148,13 @@ nvm plans register-credits-plan \
 Create a subscription plan with time-limited access:
 
 ```bash
-nvm plans register-time-plan \
+nevermined plans register-time-plan \
   --plan-metadata plan-metadata.json \
   --price-config price-config.json \
   --credits-config credits-config.json
 ```
 
-**credits-config.json** (for time plan) (`PlanCreditsConfig`) — a time-limited plan sets `durationSecs > 0` (what `nvm plans get-expirable-duration-config` emits):
+**credits-config.json** (for time plan) (`PlanCreditsConfig`) — a time-limited plan sets `durationSecs > 0` (what `nevermined plans get-expirable-duration-config` emits):
 
 ```json
 {
@@ -177,7 +177,7 @@ Trial plans can only be purchased once per user and are useful for letting users
 **Credits trial** (limited by credits):
 
 ```bash
-nvm plans register-credits-trial-plan \
+nevermined plans register-credits-trial-plan \
   --plan-metadata plan-metadata.json \
   --price-config price-config.json \
   --credits-config credits-config.json
@@ -186,7 +186,7 @@ nvm plans register-credits-trial-plan \
 **Time trial** (limited by duration):
 
 ```bash
-nvm plans register-time-trial-plan \
+nevermined plans register-time-trial-plan \
   --plan-metadata plan-metadata.json \
   --price-config price-config.json \
   --credits-config credits-config.json
@@ -199,7 +199,7 @@ nvm plans register-time-trial-plan \
 Purchase a plan with cryptocurrency:
 
 ```bash
-nvm plans order-plan <plan-id>
+nevermined plans order-plan <plan-id>
 ```
 
 ### Fiat Payment
@@ -207,7 +207,7 @@ nvm plans order-plan <plan-id>
 Initiate a plan purchase with fiat payment. Returns a URL where the user can complete the payment:
 
 ```bash
-nvm plans order-fiat-plan <plan-id>
+nevermined plans order-fiat-plan <plan-id>
 ```
 
 ## Minting Credits
@@ -217,7 +217,7 @@ nvm plans order-fiat-plan <plan-id>
 Add credits to a plan and transfer them to a receiver (plan owner only):
 
 ```bash
-nvm plans mint-plan-credits <plan-id> \
+nevermined plans mint-plan-credits <plan-id> \
   --credits-amount 1000 \
   --credits-receiver "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
 ```
@@ -227,7 +227,7 @@ nvm plans mint-plan-credits <plan-id> \
 Add time-limited credits:
 
 ```bash
-nvm plans mint-plan-expirable <plan-id> \
+nevermined plans mint-plan-expirable <plan-id> \
   --credits-amount 1000 \
   --credits-receiver "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb" \
   --credits-duration 2592000
@@ -237,12 +237,12 @@ The `--credits-duration` flag is optional and specifies duration in seconds.
 
 ## Redeeming Credits
 
-Credit redemption (burning credits after a paid request) is performed via the x402 facilitator, not via a dedicated `plans` command. The legacy `nvm plans redeem-credits` command was removed because the backend exposes no direct redeem endpoint — the only burn path is `POST /api/v1/x402/settle`.
+Credit redemption (burning credits after a paid request) is performed via the x402 facilitator, not via a dedicated `plans` command. The legacy `nevermined plans redeem-credits` command was removed because the backend exposes no direct redeem endpoint — the only burn path is `POST /api/v1/x402/settle`.
 
 Migration (subscriber side — get an access token):
 
 ```bash
-nvm x402token get-x402-access-token <plan-id> --format json
+nevermined x402token get-x402-access-token <plan-id> --format json
 # → { "accessToken": "eyJ4NDAyVm..." }
 ```
 
@@ -269,8 +269,8 @@ cat > /tmp/settle-params.json <<EOF
 }
 EOF
 
-nvm facilitator verify-permissions --params "$(cat /tmp/settle-params.json)" --format json
-nvm facilitator settle-permissions --params "$(cat /tmp/settle-params.json)" --format json
+nevermined facilitator verify-permissions --params "$(cat /tmp/settle-params.json)" --format json
+nevermined facilitator settle-permissions --params "$(cat /tmp/settle-params.json)" --format json
 # → { "success": true, "creditsRedeemed": "5", "remainingBalance": "...", ... }
 ```
 
@@ -282,28 +282,28 @@ The CLI provides helper commands to build price configuration objects:
 
 ```bash
 # Free (no payment required)
-nvm plans get-free-price-config
+nevermined plans get-free-price-config
 
 # Fiat price
-nvm plans get-fiat-price-config --amount 1000 --receiver "0x123..."
+nevermined plans get-fiat-price-config --amount 1000 --receiver "0x123..."
 
 # Crypto price
-nvm plans get-crypto-price-config --amount 1000 --receiver "0x123..."
+nevermined plans get-crypto-price-config --amount 1000 --receiver "0x123..."
 
 # Crypto with specific token
-nvm plans get-crypto-price-config --amount 1000 --receiver "0x123..." --token-address "0xToken..."
+nevermined plans get-crypto-price-config --amount 1000 --receiver "0x123..." --token-address "0xToken..."
 
 # Native token price
-nvm plans get-native-token-price-config --amount 1000 --receiver "0x123..."
+nevermined plans get-native-token-price-config --amount 1000 --receiver "0x123..."
 
 # ERC20 token price
-nvm plans get-erc20-price-config --amount 1000 --receiver "0x123..." --token-address "0xToken..."
+nevermined plans get-erc20-price-config --amount 1000 --receiver "0x123..." --token-address "0xToken..."
 
 # EURC (Euro stablecoin) price
-nvm plans get-eurc-price-config --amount 1000 --receiver "0x123..."
+nevermined plans get-eurc-price-config --amount 1000 --receiver "0x123..."
 
 # Pay-as-you-go price
-nvm plans get-pay-as-you-go-price-config --amount 1000 --receiver "0x123..."
+nevermined plans get-pay-as-you-go-price-config --amount 1000 --receiver "0x123..."
 ```
 
 ## Credits Configuration Helpers
@@ -312,20 +312,20 @@ Helper commands to build credits configuration objects:
 
 ```bash
 # Fixed credits (same amount per request)
-nvm plans get-fixed-credits-config --credits-granted 100 --credits-per-request 1
+nevermined plans get-fixed-credits-config --credits-granted 100 --credits-per-request 1
 
 # Dynamic credits (range per request)
-nvm plans get-dynamic-credits-config --credits-granted 100 \
+nevermined plans get-dynamic-credits-config --credits-granted 100 \
   --min-credits-per-request 1 --max-credits-per-request 10
 
 # Pay-as-you-go credits
-nvm plans get-pay-as-you-go-credits-config
+nevermined plans get-pay-as-you-go-credits-config
 
 # Expirable duration
-nvm plans get-expirable-duration-config --duration-of-plan 2592000
+nevermined plans get-expirable-duration-config --duration-of-plan 2592000
 
 # Non-expirable
-nvm plans get-non-expirable-duration-config
+nevermined plans get-non-expirable-duration-config
 ```
 
 ## Advanced Operations
@@ -335,7 +335,7 @@ nvm plans get-non-expirable-duration-config
 Mark whether burns of these credits are mirrored on-chain:
 
 ```bash
-nvm plans set-onchain-mirror \
+nevermined plans set-onchain-mirror \
   --credits-config credits-config.json \
   --onchain-mirror
 ```
@@ -345,7 +345,7 @@ nvm plans set-onchain-mirror \
 Set the redemption type in a credits configuration:
 
 ```bash
-nvm plans set-redemption-type \
+nevermined plans set-redemption-type \
   --credits-config credits-config.json \
   --redemption-type "fixed"
 ```
@@ -356,7 +356,7 @@ Use `--format json` for machine-readable output:
 
 ```bash
 # Get plan details as JSON
-PLAN_DATA=$(nvm plans get-plan "did:nvm:abc123" --format json)
+PLAN_DATA=$(nevermined plans get-plan "did:nvm:abc123" --format json)
 
 # Extract specific field with jq
 PLAN_NAME=$(echo $PLAN_DATA | jq -r '.name')
@@ -406,7 +406,7 @@ cat > credits.json << EOF
 EOF
 
 # 4. Register the plan
-nvm plans register-credits-plan \
+nevermined plans register-credits-plan \
   --plan-metadata plan.json \
   --price-config price.json \
   --credits-config credits.json
@@ -419,7 +419,7 @@ nvm plans register-credits-plan \
 PLAN_ID="did:nvm:abc123"
 MIN_CREDITS=10
 
-BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+BALANCE=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 
 if [ "$BALANCE" -lt "$MIN_CREDITS" ]; then
   echo "Low balance: $BALANCE credits remaining"
@@ -459,13 +459,13 @@ Always test new plans in sandbox before going live:
 
 ```bash
 # Test in sandbox
-nvm --profile sandbox plans register-credits-plan \
+nevermined --profile sandbox plans register-credits-plan \
   --plan-metadata metadata.json \
   --price-config price.json \
   --credits-config credits.json
 
 # Verify it works
-nvm --profile sandbox plans get-plan <plan-id>
+nevermined --profile sandbox plans get-plan <plan-id>
 ```
 
 ## Common Issues
@@ -480,10 +480,10 @@ Ensure you're using the correct environment and plan ID:
 
 ```bash
 # Check which environment you're using
-nvm config show
+nevermined config show
 
 # Try the correct profile
-nvm --profile sandbox plans get-plan <plan-id>
+nevermined --profile sandbox plans get-plan <plan-id>
 ```
 
 ## Next Steps

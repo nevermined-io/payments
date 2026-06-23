@@ -8,7 +8,7 @@ export default class AddPlanToAgent extends BaseCommand {
   static override description = "Adds an existing Payment Plan to an AI Agent. After this operation, users with access to the Payment Plan will be able to access the AI Agent."
 
   static override examples = [
-    '$ nvm agents add-plan-to-agent <planId>'
+    '$ nevermined agents add-plan-to-agent <planId>'
   ]
 
   static override flags = {

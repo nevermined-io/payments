@@ -8,7 +8,7 @@ export default class GetNonExpirableDurationConfig extends BaseCommand {
   static override description = "Builds a NON-EXPIRABLE credits configuration (no expiration)."
 
   static override examples = [
-    '$ nvm plans get-non-expirable-duration-config'
+    '$ nevermined plans get-non-expirable-duration-config'
   ]
 
   static override flags = {

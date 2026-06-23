@@ -215,7 +215,7 @@ E2E tests run directly against the **staging environment**. When making changes:
 This repo contains two in-tree consumers of the SDK that import directly from `src/`:
 
 - **`openclaw/`** — OpenClaw plugin for LLM tool-use (tools, auto-pay, MCP bridge). CI: `.github/workflows/openclaw-sync-and-test.yml`
-- **`cli/`** — CLI tool (`nvm` command). CI: `.github/workflows/cli-sync-and-test.yml`
+- **`cli/`** — CLI tool (`nevermined` command). CI: `.github/workflows/cli-sync-and-test.yml`
 
 **CRITICAL:** When changing public SDK interfaces (function signatures, types, options), you MUST also update `openclaw/` and `cli/` source files, tests, and mocks. The openclaw and CLI CI workflows build and test independently — they will fail if call sites don't match the new signatures.
 

@@ -8,7 +8,7 @@ export default class GetPayAsYouGoCreditsConfig extends BaseCommand {
   static override description = "Builds a Pay-As-You-Go credits configuration."
 
   static override examples = [
-    '$ nvm plans get-pay-as-you-go-credits-config'
+    '$ nevermined plans get-pay-as-you-go-credits-config'
   ]
 
   static override flags = {

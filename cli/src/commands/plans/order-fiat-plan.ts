@@ -8,7 +8,7 @@ export default class OrderFiatPlan extends BaseCommand {
   static override description = "Initiates the purchase of a Plan requiring the payment in Fiat. This method will return a URL where the user can complete the payment."
 
   static override examples = [
-    '$ nvm plans order-fiat-plan <planId>'
+    '$ nevermined plans order-fiat-plan <planId>'
   ]
 
   static override flags = {

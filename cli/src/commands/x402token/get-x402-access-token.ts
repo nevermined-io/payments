@@ -10,11 +10,11 @@ export default class GetX402AccessToken extends BaseCommand {
   static override description = "Create a delegation and get an X402 access token for the given plan. Supports both crypto (erc4337) and fiat (card-delegation) payment schemes."
 
   static override examples = [
-    '$ nvm x402token get-x402-access-token <planId>',
-    '$ nvm x402token get-x402-access-token <planId> --payment-type fiat',
-    '$ nvm x402token get-x402-access-token <planId> --payment-type fiat --payment-method-id pm_1AbCdEfGhIjKlM --spending-limit-cents 5000',
-    '$ nvm x402token get-x402-access-token <planId> --spending-limit-cents 100000 --delegation-duration-secs 604800',
-    '$ nvm x402token get-x402-access-token <planId> --auto-resolve-scheme',
+    '$ nevermined x402token get-x402-access-token <planId>',
+    '$ nevermined x402token get-x402-access-token <planId> --payment-type fiat',
+    '$ nevermined x402token get-x402-access-token <planId> --payment-type fiat --payment-method-id pm_1AbCdEfGhIjKlM --spending-limit-cents 5000',
+    '$ nevermined x402token get-x402-access-token <planId> --spending-limit-cents 100000 --delegation-duration-secs 604800',
+    '$ nevermined x402token get-x402-access-token <planId> --auto-resolve-scheme',
   ]
 
   static override flags = {

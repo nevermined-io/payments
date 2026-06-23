@@ -8,7 +8,7 @@ export default class SettlePermissions extends BaseCommand {
   static override description = "Settle (burn) credits from a subscriber's payment plan. This method executes the actual credit consumption, burning the specified number of credits from the subscriber's balance. If the subscriber doesn't have enough credits, it will attempt to order more before settling. The planId and subscriberAddress are extracted from the x402AccessToken."
 
   static override examples = [
-    '$ nvm facilitator settle-permissions'
+    '$ nevermined facilitator settle-permissions'
   ]
 
   static override flags = {

@@ -8,7 +8,7 @@ export default class SetRedemptionType extends BaseCommand {
   static override description = "Sets the redemption type in a credits configuration."
 
   static override examples = [
-    '$ nvm plans set-redemption-type'
+    '$ nevermined plans set-redemption-type'
   ]
 
   static override flags = {

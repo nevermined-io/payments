@@ -15,10 +15,10 @@ Reference guide for additional CLI commands including configuration, facilitator
 Authenticate via browser login. Opens your browser, waits for you to sign in, and saves the API key to your CLI config:
 
 ```bash
-nvm login
-nvm login --environment live
-nvm login --profile production --environment live
-nvm login --no-browser  # Print URL instead of opening browser
+nevermined login
+nevermined login --environment live
+nevermined login --profile production --environment live
+nevermined login --no-browser  # Print URL instead of opening browser
 ```
 
 ### Logout
@@ -26,9 +26,9 @@ nvm login --no-browser  # Print URL instead of opening browser
 Remove your API key from the local configuration so you need to authenticate again:
 
 ```bash
-nvm logout
-nvm logout --profile production
-nvm logout --all-profiles  # Remove API keys from every profile
+nevermined logout
+nevermined logout --profile production
+nevermined logout --all-profiles  # Remove API keys from every profile
 ```
 
 ### Initialize Configuration
@@ -36,7 +36,7 @@ nvm logout --all-profiles  # Remove API keys from every profile
 Set up your CLI configuration interactively:
 
 ```bash
-nvm config init
+nevermined config init
 ```
 
 Interactive prompts:
@@ -54,10 +54,10 @@ Flags:
 Display your current configuration:
 
 ```bash
-nvm config show
+nevermined config show
 
 # Show all profiles
-nvm config show --all
+nevermined config show --all
 ```
 
 Output:
@@ -76,13 +76,13 @@ Update specific configuration values:
 
 ```bash
 # Set API key
-nvm config set nvmApiKey sandbox:eyJxxxxaaaa...bbbbbbbb
+nevermined config set nvmApiKey sandbox:eyJxxxxaaaa...bbbbbbbb
 
 # Set environment
-nvm config set environment sandbox
+nevermined config set environment sandbox
 
 # Set active profile
-nvm config set activeProfile production
+nevermined config set activeProfile production
 ```
 
 ### Configuration File Structure
@@ -114,7 +114,7 @@ Facilitator commands are used by agent owners to verify and settle permissions (
 Verify that a subscriber has permission to use credits from a payment plan. This simulates credit usage without actually burning credits:
 
 ```bash
-nvm facilitator verify-permissions \
+nevermined facilitator verify-permissions \
   --params verify.json
 ```
 
@@ -133,7 +133,7 @@ nvm facilitator verify-permissions \
 Settle (burn) credits from a subscriber's payment plan. This executes the actual credit consumption:
 
 ```bash
-nvm facilitator settle-permissions \
+nevermined facilitator settle-permissions \
   --params settle.json
 ```
 
@@ -156,16 +156,16 @@ Manage organization members and settings.
 View all members in your organization:
 
 ```bash
-nvm organizations get-members
+nevermined organizations get-members
 
 # Filter by role
-nvm organizations get-members --role admin
+nevermined organizations get-members --role admin
 
 # Filter active members
-nvm organizations get-members --is-active true
+nevermined organizations get-members --is-active true
 
 # Pagination
-nvm organizations get-members --page 1 --offset 10
+nevermined organizations get-members --page 1 --offset 10
 ```
 
 ### Create Member
@@ -173,10 +173,10 @@ nvm organizations get-members --page 1 --offset 10
 Add a new member to your organization:
 
 ```bash
-nvm organizations create-member <user-id>
+nevermined organizations create-member <user-id>
 
 # With email and role
-nvm organizations create-member <user-id> --user-email "john@example.com" --user-role "developer"
+nevermined organizations create-member <user-id> --user-email "john@example.com" --user-role "developer"
 ```
 
 Flags:
@@ -188,7 +188,7 @@ Flags:
 Connect a user with Stripe for fiat payments:
 
 ```bash
-nvm organizations connect-stripe-account \
+nevermined organizations connect-stripe-account \
   --user-email "john@example.com" \
   --user-country-code "US" \
   --return-url "https://yourapp.com/stripe-callback"
@@ -206,13 +206,13 @@ All flags are required:
 Generate an access token for a plan with delegated permissions:
 
 ```bash
-nvm x402token get-x402-access-token <plan-id>
+nevermined x402token get-x402-access-token <plan-id>
 ```
 
 Example:
 
 ```bash
-nvm x402token get-x402-access-token "did:nvm:abc123"
+nevermined x402token get-x402-access-token "did:nvm:abc123"
 ```
 
 Optional flags:
@@ -224,7 +224,7 @@ Optional flags:
 Example with options:
 
 ```bash
-nvm x402token get-x402-access-token "did:nvm:abc123" \
+nevermined x402token get-x402-access-token "did:nvm:abc123" \
   --agent-id "did:nvm:agent456" \
   --redemption-limit 100 \
   --expiration 3600
@@ -244,7 +244,7 @@ Save token for later use:
 
 ```bash
 # Save to environment variable
-export X402_TOKEN=$(nvm x402token get-x402-access-token "did:nvm:abc123" \
+export X402_TOKEN=$(nevermined x402token get-x402-access-token "did:nvm:abc123" \
   --format json | jq -r '.token')
 
 # Use token in requests
@@ -261,13 +261,13 @@ Control output format:
 
 ```bash
 # Table output (default)
-nvm plans get-plans
+nevermined plans get-plans
 
 # JSON output
-nvm plans get-plans --format json
+nevermined plans get-plans --format json
 
 # Quiet output (minimal)
-nvm plans get-plans --format quiet
+nevermined plans get-plans --format quiet
 ```
 
 ### Profile Flag
@@ -276,10 +276,10 @@ Use a specific configuration profile:
 
 ```bash
 # Use production profile
-nvm --profile production plans get-plans
+nevermined --profile production plans get-plans
 
 # Use staging profile
-nvm --profile staging agents get-agent <agent-id>
+nevermined --profile staging agents get-agent <agent-id>
 ```
 
 ### Verbose Flag
@@ -287,7 +287,7 @@ nvm --profile staging agents get-agent <agent-id>
 Enable verbose output with detailed logging:
 
 ```bash
-nvm plans order-plan "did:nvm:abc123" --verbose
+nevermined plans order-plan "did:nvm:abc123" --verbose
 ```
 
 Output includes:
@@ -302,7 +302,7 @@ Output includes:
 Check CLI version:
 
 ```bash
-nvm --version
+nevermined --version
 ```
 
 ### Help
@@ -311,16 +311,16 @@ Get help for commands:
 
 ```bash
 # General help
-nvm --help
+nevermined --help
 
 # Topic help
-nvm plans --help
-nvm agents --help
-nvm config --help
+nevermined plans --help
+nevermined agents --help
+nevermined config --help
 
 # Command help
-nvm plans get-plan --help
-nvm agents register-agent --help
+nevermined plans get-plan --help
+nevermined agents register-agent --help
 ```
 
 ## Scripting Examples
@@ -333,11 +333,11 @@ Switch between environments easily:
 #!/bin/bash
 case $1 in
   production)
-    nvm config set activeProfile production
+    nevermined config set activeProfile production
     echo "Switched to production environment"
     ;;
   sandbox)
-    nvm config set activeProfile default
+    nevermined config set activeProfile default
     echo "Switched to sandbox environment"
     ;;
   *)
@@ -346,7 +346,7 @@ case $1 in
     ;;
 esac
 
-nvm config show
+nevermined config show
 ```
 
 ### Multi-Profile Operations
@@ -360,7 +360,7 @@ COMMAND="$@"
 
 for PROFILE in "${PROFILES[@]}"; do
   echo "Profile: $PROFILE"
-  nvm --profile $PROFILE $COMMAND
+  nevermined --profile $PROFILE $COMMAND
   echo ""
 done
 ```
@@ -397,12 +397,12 @@ jobs:
 
       - name: Configure CLI
         run: |
-          nvm config set nvmApiKey ${{ secrets.NVM_API_KEY }}
-          nvm config set environment live
+          nevermined config set nvmApiKey ${{ secrets.NVM_API_KEY }}
+          nevermined config set environment live
 
       - name: Register Agent
         run: |
-          nvm agents register-agent \
+          nevermined agents register-agent \
             --agent-metadata agent.json \
             --agent-api "https://api.example.com" \
             --payment-plans "${{ secrets.PLAN_ID }}"
@@ -415,9 +415,9 @@ jobs:
 Initialize configuration:
 
 ```bash
-nvm login
+nevermined login
 # or
-nvm config init
+nevermined config init
 ```
 
 ### "Invalid profile"
@@ -425,7 +425,7 @@ nvm config init
 Check available profiles:
 
 ```bash
-nvm config show --all
+nevermined config show --all
 ```
 
 ### "Permission denied"

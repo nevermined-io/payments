@@ -8,7 +8,7 @@ export default class RegisterCreditsPlan extends BaseCommand {
   static override description = "It allows to an AI Builder to create a Payment Plan on Nevermined based on Credits. A Nevermined Credits Plan limits the access by the access/usage of the Plan. With them, AI Builders control the number of requests that can be made to an agent or service. Every time a user accesses any resouce associated to the Payment Plan, the usage consumes from a capped amount of credits. When the user consumes all the credits, the plan automatically expires and the user needs to top up to continue using the service."
 
   static override examples = [
-    '$ nvm plans register-credits-plan'
+    '$ nevermined plans register-credits-plan'
   ]
 
   static override flags = {

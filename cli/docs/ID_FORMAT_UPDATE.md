@@ -32,23 +32,23 @@ Plan IDs and Agent IDs are returned as large numeric strings (BigInt format):
 ### Plans Documentation
 **Before**:
 ```bash
-nvm plans get-plan did:nvm:abc123
+nevermined plans get-plan did:nvm:abc123
 ```
 
 **After**:
 ```bash
-nvm plans get-plan "123456789012345678"
+nevermined plans get-plan "123456789012345678"
 ```
 
 ### Agents Documentation
 **Before**:
 ```bash
-nvm agents get-agent did:nvm:agent123
+nevermined agents get-agent did:nvm:agent123
 ```
 
 **After**:
 ```bash
-nvm agents get-agent "987654321098765432"
+nevermined agents get-agent "987654321098765432"
 ```
 
 ### Variable Assignments
