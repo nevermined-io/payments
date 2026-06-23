@@ -8,7 +8,7 @@ export default class GetPayAsYouGoPriceConfig extends BaseCommand {
   static override description = "Builds a Pay-As-You-Go price configuration using the template address from the API."
 
   static override examples = [
-    '$ nvm plans get-pay-as-you-go-price-config'
+    '$ nevermined plans get-pay-as-you-go-price-config'
   ]
 
   static override flags = {

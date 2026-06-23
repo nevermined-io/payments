@@ -74,7 +74,7 @@ async function main() {
   console.log('\n✨ Next steps:')
   console.log('   1. Review generated commands in src/commands/')
   console.log('   2. Run: pnpm build:manifest')
-  console.log('   3. Test commands: nvm <topic> <command> --help')
+  console.log('   3. Test commands: nevermined <topic> <command> --help')
   console.log('   4. Run tests: pnpm test')
 
   console.log('\n🎉 Done!\n')

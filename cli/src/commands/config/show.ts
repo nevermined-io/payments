@@ -26,7 +26,7 @@ export default class ConfigShow extends BaseCommand {
       const config = await this.configManager.load()
 
       if (!config) {
-        this.formatter.warning('No configuration found. Run: nvm config init')
+        this.formatter.warning('No configuration found. Run: nevermined config init')
         return
       }
 

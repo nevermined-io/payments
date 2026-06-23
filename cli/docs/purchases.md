@@ -19,13 +19,13 @@ Purchasing a payment plan gives you access to AI agents and services. Once you o
 Purchase a payment plan with cryptocurrency:
 
 ```bash
-nvm plans order-plan <plan-id>
+nevermined plans order-plan <plan-id>
 ```
 
 Example:
 
 ```bash
-nvm plans order-plan "did:nvm:abc123"
+nevermined plans order-plan "did:nvm:abc123"
 ```
 
 Output:
@@ -43,13 +43,13 @@ Status: Confirmed
 Initiate a plan purchase with fiat. This returns a URL where you can complete the payment:
 
 ```bash
-nvm plans order-fiat-plan <plan-id>
+nevermined plans order-fiat-plan <plan-id>
 ```
 
 Example:
 
 ```bash
-nvm plans order-fiat-plan "did:nvm:abc123"
+nevermined plans order-fiat-plan "did:nvm:abc123"
 ```
 
 ## Checking Your Credits
@@ -60,10 +60,10 @@ Check how many credits you have remaining:
 
 ```bash
 # Your balance
-nvm plans get-plan-balance <plan-id>
+nevermined plans get-plan-balance <plan-id>
 
 # Balance for specific address
-nvm plans get-plan-balance <plan-id> --account-address "0x123..."
+nevermined plans get-plan-balance <plan-id> --account-address "0x123..."
 ```
 
 Example output:
@@ -84,7 +84,7 @@ PLANS=("did:nvm:plan1" "did:nvm:plan2" "did:nvm:plan3")
 
 for PLAN in "${PLANS[@]}"; do
   echo "Checking balance for $PLAN..."
-  nvm plans get-plan-balance $PLAN
+  nevermined plans get-plan-balance $PLAN
   echo ""
 done
 ```
@@ -96,7 +96,7 @@ done
 Re-order a plan to add more credits to your existing balance:
 
 ```bash
-nvm plans order-plan <plan-id>
+nevermined plans order-plan <plan-id>
 ```
 
 ### Bulk Credit Purchase
@@ -109,7 +109,7 @@ PLANS=("did:nvm:plan1" "did:nvm:plan2")
 
 for PLAN in "${PLANS[@]}"; do
   echo "Ordering $PLAN..."
-  nvm plans order-plan $PLAN
+  nevermined plans order-plan $PLAN
 done
 ```
 
@@ -124,7 +124,7 @@ Create a script to alert when credits run low:
 PLAN_ID="did:nvm:abc123"
 MIN_CREDITS=10
 
-BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+BALANCE=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 
 if [ "$BALANCE" -lt "$MIN_CREDITS" ]; then
   echo "LOW CREDITS ALERT"
@@ -144,14 +144,14 @@ Automatically refill credits when low:
 PLAN_ID="did:nvm:abc123"
 MIN_CREDITS=20
 
-BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+BALANCE=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 
 if [ "$BALANCE" -lt "$MIN_CREDITS" ]; then
   echo "$(date): Credits low ($BALANCE), ordering more..."
-  nvm plans order-plan $PLAN_ID
+  nevermined plans order-plan $PLAN_ID
 
   if [ $? -eq 0 ]; then
-    NEW_BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+    NEW_BALANCE=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
     echo "$(date): New balance: $NEW_BALANCE credits"
   else
     echo "$(date): ERROR - Failed to order credits"
@@ -170,27 +170,27 @@ fi
 
 # 1. Browse available plans
 echo "Available Plans:"
-nvm plans get-plans
+nevermined plans get-plans
 
 # 2. Get details about a specific plan
 PLAN_ID="did:nvm:abc123"
-nvm plans get-plan $PLAN_ID
+nevermined plans get-plan $PLAN_ID
 
 # 3. Check current balance
 echo "Current balance:"
-nvm plans get-plan-balance $PLAN_ID
+nevermined plans get-plan-balance $PLAN_ID
 
 # 4. Purchase the plan
 echo "Purchasing plan..."
-nvm plans order-plan $PLAN_ID
+nevermined plans order-plan $PLAN_ID
 
 # 5. Verify purchase
 echo "New balance:"
-nvm plans get-plan-balance $PLAN_ID
+nevermined plans get-plan-balance $PLAN_ID
 
 # 6. Get access token for using the service
 echo "Getting access token..."
-nvm x402token get-x402-access-token $PLAN_ID
+nevermined x402token get-x402-access-token $PLAN_ID
 ```
 
 ### Example 2: Team Credit Management
@@ -202,13 +202,13 @@ TEAM_PLANS=("did:nvm:plan1" "did:nvm:plan2" "did:nvm:plan3")
 # Purchase for entire team
 for PLAN in "${TEAM_PLANS[@]}"; do
   echo "Ordering $PLAN for team..."
-  nvm plans order-plan $PLAN
+  nevermined plans order-plan $PLAN
 done
 
 # Generate team usage report
 echo "Team Balances:"
 for PLAN in "${TEAM_PLANS[@]}"; do
-  nvm plans get-plan-balance $PLAN --format json | jq '{plan: .planId, remaining: .balance}'
+  nevermined plans get-plan-balance $PLAN --format json | jq '{plan: .planId, remaining: .balance}'
 done
 ```
 
@@ -241,7 +241,7 @@ Implement auto-refill to ensure continuous service:
 Always use `--format json` in scripts:
 
 ```bash
-BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+BALANCE=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 ```
 
 ## Common Issues
@@ -256,10 +256,10 @@ The plan may be sold out or no longer active:
 
 ```bash
 # Verify plan status
-nvm plans get-plan <plan-id>
+nevermined plans get-plan <plan-id>
 
 # Look for alternative plans
-nvm plans get-plans
+nevermined plans get-plans
 ```
 
 ## Next Steps

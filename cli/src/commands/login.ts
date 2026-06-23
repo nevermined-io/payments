@@ -134,7 +134,7 @@ export default class Login extends BaseCommand {
           `  Environment: ${environment}\n` +
           `  Config file: ${this.configManager.getDefaultConfigPath()}`
       )
-      this.formatter.info('\nYou can now use the CLI. Try: nvm plans get-plans')
+      this.formatter.info('\nYou can now use the CLI. Try: nevermined plans get-plans')
     } catch (error) {
       this.handleError(error)
     }

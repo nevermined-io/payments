@@ -49,7 +49,7 @@ export default class Logout extends BaseCommand {
         )
       }
 
-      this.formatter.info('\nTo authenticate again, run: nvm login')
+      this.formatter.info('\nTo authenticate again, run: nevermined login')
     } catch (error) {
       this.handleError(error)
     }

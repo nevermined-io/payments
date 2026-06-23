@@ -8,7 +8,7 @@ export default class GetExpirableDurationConfig extends BaseCommand {
   static override description = "Credits helpers"
 
   static override examples = [
-    '$ nvm plans get-expirable-duration-config'
+    '$ nevermined plans get-expirable-duration-config'
   ]
 
   static override flags = {

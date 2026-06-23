@@ -8,7 +8,7 @@ export default class GetPlans extends BaseCommand {
   static override description = "Lists the payment plans **you** published (the authenticated caller's own plans). This is account management, not a marketplace search — it never returns other users' plans."
 
   static override examples = [
-    '$ nvm plans get-plans <orgId>'
+    '$ nevermined plans get-plans <orgId>'
   ]
 
   static override flags = {

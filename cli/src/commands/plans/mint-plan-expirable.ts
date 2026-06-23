@@ -8,7 +8,7 @@ export default class MintPlanExpirable extends BaseCommand {
   static override description = "Mints expirable credits for a given Payment Plan and transfers them to a receiver."
 
   static override examples = [
-    '$ nvm plans mint-plan-expirable <planId>'
+    '$ nevermined plans mint-plan-expirable <planId>'
   ]
 
   static override flags = {

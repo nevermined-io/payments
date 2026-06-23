@@ -8,7 +8,7 @@ export default class RegisterPlan extends BaseCommand {
   static override description = "It allows to an AI Builder to register a Payment Plan on Nevermined in a flexible manner. A Payment Plan defines 2 main aspects: 1. What a subscriber needs to pay to get the plan (i.e. 100 USDC, 5 USD, etc). 2. What the subscriber gets in return to access the AI agents associated to the plan (i.e. 100 credits, 1 week of usage, etc). With Payment Plans, AI Builders control the usage to their AI Agents. Every time a user accesses an AI Agent to the Payment Plan, the usage consumes from a capped amount of credits (or when the plan duration expires). When the user consumes all the credits, the plan automatically expires and the user needs to top up to continue using the service."
 
   static override examples = [
-    '$ nvm plans register-plan'
+    '$ nevermined plans register-plan'
   ]
 
   static override flags = {

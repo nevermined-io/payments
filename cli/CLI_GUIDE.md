@@ -40,7 +40,7 @@ yarn build:manifest
 ### 1. Initialize Configuration
 
 ```bash
-nvm config init
+nevermined config init
 ```
 
 This will prompt you for:
@@ -51,19 +51,19 @@ This will prompt you for:
 ### 2. List Available Plans
 
 ```bash
-nvm plans get-plans
+nevermined plans get-plans
 ```
 
 ### 3. Get Plan Details
 
 ```bash
-nvm plans get-plan <plan-id>
+nevermined plans get-plan <plan-id>
 ```
 
 ### 4. Check Your Balance
 
 ```bash
-nvm plans get-plan-balance <plan-id>
+nevermined plans get-plan-balance <plan-id>
 ```
 
 ## Configuration
@@ -101,10 +101,10 @@ export NVM_ENVIRONMENT=sandbox
 
 ```bash
 # Use specific profile
-nvm --profile production plans get-plans
+nevermined --profile production plans get-plans
 
 # Set active profile
-nvm config set activeProfile production
+nevermined config set activeProfile production
 ```
 
 ## Commands
@@ -112,47 +112,47 @@ nvm config set activeProfile production
 ### Config Commands
 
 ```bash
-nvm config init               # Initialize configuration
-nvm config show               # Display current configuration
-nvm config set <key> <value>  # Set configuration value
+nevermined config init               # Initialize configuration
+nevermined config show               # Display current configuration
+nevermined config set <key> <value>  # Set configuration value
 ```
 
 ### Plans Commands
 
 ```bash
 # List all plans
-nvm plans get-plans [--format json]
+nevermined plans get-plans [--format json]
 
 # Get plan details
-nvm plans get-plan <plan-id>
+nevermined plans get-plan <plan-id>
 
 # Get plan balance
-nvm plans get-plan-balance <plan-id> [--account-address <address>]
+nevermined plans get-plan-balance <plan-id> [--account-address <address>]
 
 # Register a credits plan
-nvm plans register-credits-plan \
+nevermined plans register-credits-plan \
   --plan-metadata metadata.json \
   --price-config price.json \
   --credits-config credits.json
 
 # Order a plan
-nvm plans order-plan <plan-id>
+nevermined plans order-plan <plan-id>
 ```
 
 ### Agents Commands
 
 ```bash
 # Get agent details
-nvm agents get-agent <agent-id>
+nevermined agents get-agent <agent-id>
 
 # Register an agent
-nvm agents register-agent \
+nevermined agents register-agent \
   --agent-metadata '{"name": "My Agent", "description": "AI Assistant"}' \
   --agent-api "https://api.example.com" \
   --payment-plans "plan-id-1,plan-id-2"
 
 # Update agent metadata
-nvm agents update-agent-metadata <agent-id> \
+nevermined agents update-agent-metadata <agent-id> \
   --agent-metadata updated-metadata.json
 ```
 
@@ -160,37 +160,37 @@ nvm agents update-agent-metadata <agent-id> \
 
 ```bash
 # Get X402 access token (crypto, default)
-nvm x402token get-x402-access-token <plan-id>
+nevermined x402token get-x402-access-token <plan-id>
 
 # Get X402 access token (fiat/card-delegation, auto-selects first enrolled card)
-nvm x402token get-x402-access-token <plan-id> --payment-type fiat
+nevermined x402token get-x402-access-token <plan-id> --payment-type fiat
 
 # Get X402 access token (fiat with specific card and limits)
-nvm x402token get-x402-access-token <plan-id> --payment-type fiat \
+nevermined x402token get-x402-access-token <plan-id> --payment-type fiat \
     --payment-method-id pm_1AbCdEfGhIjKlM \
     --spending-limit-cents 5000 \
     --delegation-duration-secs 7200
 
 # Auto-detect crypto vs fiat from plan metadata
-nvm x402token get-x402-access-token <plan-id> --auto-resolve-scheme
+nevermined x402token get-x402-access-token <plan-id> --auto-resolve-scheme
 ```
 
 ### Delegation Commands
 
 ```bash
 # List enrolled payment methods (credit/debit cards)
-nvm delegation list-payment-methods
+nevermined delegation list-payment-methods
 ```
 
 ### Facilitator Commands
 
 ```bash
 # Verify permissions
-nvm facilitator verify-permissions \
+nevermined facilitator verify-permissions \
   --verify-permissions-params params.json
 
 # Settle permissions
-nvm facilitator settle-permissions \
+nevermined facilitator settle-permissions \
   --settle-permissions-params params.json
 ```
 
@@ -198,11 +198,11 @@ nvm facilitator settle-permissions \
 
 ```bash
 # Create organization member
-nvm organizations create-member \
+nevermined organizations create-member \
   --member-data member.json
 
 # List members
-nvm organizations get-members
+nevermined organizations get-members
 ```
 
 ## Global Flags
@@ -221,19 +221,19 @@ All commands support these flags:
 **Table (default)**: Human-readable table output
 
 ```bash
-nvm plans get-plans
+nevermined plans get-plans
 ```
 
 **JSON**: Machine-readable JSON output
 
 ```bash
-nvm plans get-plans --format json
+nevermined plans get-plans --format json
 ```
 
 **Quiet**: Minimal output for scripting
 
 ```bash
-nvm plans get-plans --format quiet
+nevermined plans get-plans --format quiet
 ```
 
 ## Development
@@ -315,7 +315,7 @@ import { BaseCommand } from '../../base-command.js'
 export default class MyCommand extends BaseCommand {
   static override description = 'My command description'
 
-  static override examples = ['$ nvm mytopic mycommand <arg>']
+  static override examples = ['$ nevermined mytopic mycommand <arg>']
 
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -466,7 +466,7 @@ yarn build:manifest
 Initialize configuration:
 
 ```bash
-nvm config init
+nevermined config init
 ```
 
 Or set environment variable:
@@ -498,7 +498,7 @@ yarn build
 Enable verbose output for debugging:
 
 ```bash
-nvm <command> --verbose
+nevermined <command> --verbose
 ```
 
 This shows:
@@ -511,13 +511,13 @@ This shows:
 
 ```bash
 # General help
-nvm --help
+nevermined --help
 
 # Topic help
-nvm plans --help
+nevermined plans --help
 
 # Command help
-nvm plans get-plan --help
+nevermined plans get-plan --help
 ```
 
 ## Best Practices
@@ -526,30 +526,30 @@ nvm plans get-plan --help
 
 ```bash
 # Development
-nvm --profile dev plans get-plans
+nevermined --profile dev plans get-plans
 
 # Production
-nvm --profile prod plans get-plans
+nevermined --profile prod plans get-plans
 ```
 
 ### 2. Use JSON Output for Scripting
 
 ```bash
 # Get plan and extract ID
-PLAN_ID=$(nvm plans get-plans --format json | jq -r '.plans[0].id')
+PLAN_ID=$(nevermined plans get-plans --format json | jq -r '.plans[0].id')
 ```
 
 ### 3. Use JSON Files for Complex Inputs
 
 ```bash
 # Instead of inline JSON
-nvm agents register-agent --agent-metadata metadata.json
+nevermined agents register-agent --agent-metadata metadata.json
 ```
 
 ### 4. Check Command Help First
 
 ```bash
-nvm <topic> <command> --help
+nevermined <topic> <command> --help
 ```
 
 ## Contributing

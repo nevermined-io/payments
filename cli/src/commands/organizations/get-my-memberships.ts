@@ -8,7 +8,7 @@ export default class GetMyMemberships extends BaseCommand {
   static override description = "Lists every organization the authenticated user is an active member of, with their role and the organization's tier. Powers workspace pickers in third-party tools built on the SDK, and the \"where will this publish?\" UX when a user belongs to multiple orgs."
 
   static override examples = [
-    '$ nvm organizations get-my-memberships'
+    '$ nevermined organizations get-my-memberships'
   ]
 
   static override flags = {

@@ -7,8 +7,8 @@ export default class ListPaymentMethods extends BaseCommand {
   static override description = 'List enrolled credit/debit cards available for card-delegation (fiat) payments.'
 
   static override examples = [
-    '$ nvm delegation list-payment-methods',
-    '$ nvm delegation list-payment-methods --format json',
+    '$ nevermined delegation list-payment-methods',
+    '$ nevermined delegation list-payment-methods --format json',
   ]
 
   static override flags = {

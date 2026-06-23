@@ -49,7 +49,7 @@ const SELF_MINT_FETCH_TIMEOUT_MS = 15_000
 
 /**
  * Default timeout for a redirect-mode CLI flow. Mirrors the existing
- * `nvm login` callback timeout — 5 minutes is enough for the user to
+ * `nevermined login` callback timeout — 5 minutes is enough for the user to
  * tab into the browser, complete a card enrolment + delegation, and
  * land back at the CLI.
  */

@@ -11,9 +11,9 @@ Nevermined ships a standalone embed app (served at `embed.<tier>` — e.g. `embe
 1. Enrolling a credit / debit card (via Stripe Elements — sensitive data never touches your servers).
 2. Creating a spending delegation against that card (a per-card budget the user pre-authorises for agent spend).
 
-This guide explains how a **CLI or any other non-iframe integrator** can drive that page in a top-level browser tab and receive `paymentMethodId` + `delegationId` back at a localhost HTTP callback. The pattern mirrors `nvm login`: print a URL, the user clicks it, the browser redirects back to a one-shot port on the user's machine, your process resolves with the result.
+This guide explains how a **CLI or any other non-iframe integrator** can drive that page in a top-level browser tab and receive `paymentMethodId` + `delegationId` back at a localhost HTTP callback. The pattern mirrors `nevermined login`: print a URL, the user clicks it, the browser redirects back to a one-shot port on the user's machine, your process resolves with the result.
 
-The official `nvm` CLI ships three commands implementing this flow out of the box — see [`nvm cards setup`](#using-the-nvm-cli) below. If you are building your own CLI or backend integration, the rest of this guide is the contract you need to honour.
+The official `nevermined` CLI ships three commands implementing this flow out of the box — see [`nevermined cards setup`](#using-the-nevermined-cli) below. If you are building your own CLI or backend integration, the rest of this guide is the contract you need to honour.
 
 ## When to Use This Flow
 
@@ -28,7 +28,7 @@ For the classic iframe integration (a website embedding `/cards/enroll` etc. ins
 | Path | Who uses it | Authentication |
 |------|-------------|---------------|
 | **Widget-key** | A third-party (website backend, CLI) acting on behalf of an organisation's own end-users. The end-users do not necessarily have their own Nevermined accounts. | Server signs an init-token with the organisation's widget-key secret and exchanges it at `POST /widgets/session` for a session token. |
-| **Self-mint** | A user with their own NVM API key (typically after running `nvm login`) who wants to attach a card to their *own* Nevermined identity. | `POST /widgets/session/self` with `Authorization: Bearer <nvmApiKey>`. |
+| **Self-mint** | A user with their own NVM API key (typically after running `nevermined login`) who wants to attach a card to their *own* Nevermined identity. | `POST /widgets/session/self` with `Authorization: Bearer <nvmApiKey>`. |
 
 Both paths produce the same response shape (`WidgetSessionResponse`); the embed routes don't branch on which one was used.
 
@@ -89,21 +89,21 @@ Card setup is **organization-scoped**. Self-mint callers must be members of at l
 
 The browser ends up on a friendly "All done — close this tab" page so the user knows the flow finished; your CLI prints the IDs and exits.
 
-## Using the `nvm` CLI
+## Using the `nevermined` CLI
 
 Three commands are available out of the box:
 
 ```bash
 # Combined: enroll a card AND create a delegation in one flow.
 # Returns both paymentMethodId and delegationId.
-nvm cards setup
+nevermined cards setup
 
 # Single-purpose: only enroll a card. Returns paymentMethodId.
-nvm cards enroll
+nevermined cards enroll
 
 # Single-purpose: only create a delegation against an already-enrolled card.
 # Returns delegationId.
-nvm cards delegate --card pm_1234
+nevermined cards delegate --card pm_1234
 ```
 
 All three accept:
@@ -111,10 +111,10 @@ All three accept:
 - `--no-browser` — Print the URL instead of opening the browser automatically (useful over SSH or in CI).
 - `--provider stripe|braintree|visa` — Tokenization provider for the enrolment step. Defaults to `stripe`.
 
-Pre-requisite: run `nvm login` first to authenticate against the target environment.
+Pre-requisite: run `nevermined login` first to authenticate against the target environment.
 
 ```bash
-$ nvm cards setup
+$ nevermined cards setup
 ℹ Using organization: Acme AI (org-abc-123)
 Opening browser...
 Waiting for completion...
@@ -195,12 +195,12 @@ Three other routes exist if you only need one step of the flow:
 
 The browser redirects to `<returnUrl>?paymentMethodId=…&delegationId=…&state=<echo>` on success. Your local server should:
 
-1. Verify the `state` query parameter matches the one you issued. Use a constant-time string comparison (the `nvm` CLI uses `crypto.timingSafeEqual`).
+1. Verify the `state` query parameter matches the one you issued. Use a constant-time string comparison (the `nevermined` CLI uses `crypto.timingSafeEqual`).
 2. Extract `paymentMethodId` and `delegationId` (or just one, depending on which embed route you opened).
 3. Respond `200 OK` with a friendly "you can close this tab" HTML page.
 4. Close the server.
 
-Recommended timeout: **5 minutes**. Match the `nvm login` flow so users have time to switch contexts in their browser.
+Recommended timeout: **5 minutes**. Match the `nevermined login` flow so users have time to switch contexts in their browser.
 
 ### Pseudocode
 
@@ -298,6 +298,6 @@ Rules:
 
 ## See Also
 
-- [`nvm login`](./installation.md) — the equivalent flow for authentication.
+- [`nevermined login`](./installation.md) — the equivalent flow for authentication.
 - [Payment Plans](./payment-plans.md) — once a card is delegated, you can use it to subscribe to plans.
 - [Initialising the Library](./initializing-the-library.md) — bootstrap the SDK.

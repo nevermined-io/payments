@@ -8,7 +8,7 @@ export default class GetAgents extends BaseCommand {
   static override description = "Lists the AI agents **you** published (the authenticated caller's own agents). This is account management, not a marketplace search — it never returns other users' agents."
 
   static override examples = [
-    '$ nvm agents get-agents <orgId>'
+    '$ nevermined agents get-agents <orgId>'
   ]
 
   static override flags = {

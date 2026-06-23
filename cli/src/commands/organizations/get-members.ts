@@ -8,7 +8,7 @@ export default class GetMembers extends BaseCommand {
   static override description = "OrganizationsAPI getMembers"
 
   static override examples = [
-    '$ nvm organizations get-members'
+    '$ nevermined organizations get-members'
   ]
 
   static override flags = {

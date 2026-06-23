@@ -81,7 +81,7 @@ export default class ConfigInit extends BaseCommand {
           `  Environment: ${environment}`
       )
 
-      this.formatter.info('You can now use the CLI with: nvm plans get-plans')
+      this.formatter.info('You can now use the CLI with: nevermined plans get-plans')
     } catch (error: any) {
       this.handleError(error)
     }

@@ -2,7 +2,7 @@
 
 ## Status: Phase 1 Complete ✅
 
-The Nevermined Payments CLI (`nvm`) has been successfully implemented with core functionality and infrastructure in place.
+The Nevermined Payments CLI (`nevermined`) has been successfully implemented with core functionality and infrastructure in place.
 
 ## What's Been Implemented
 
@@ -65,42 +65,42 @@ cli/
 
 #### Configuration Commands
 
-- ✅ `nvm config init` - Initialize configuration
+- ✅ `nevermined config init` - Initialize configuration
   - Interactive mode with prompts
   - Flag-based mode (--api-key, --environment)
   - Profile support
-- ✅ `nvm config show` - Display configuration
+- ✅ `nevermined config show` - Display configuration
   - Show active profile
   - Show all profiles (--all flag)
-- ✅ `nvm config set <key> <value>` - Set configuration values
+- ✅ `nevermined config set <key> <value>` - Set configuration values
   - Validates environment values
   - Profile support
 
 #### Plans Commands
 
-- ✅ `nvm plans get-plans` - List all payment plans
+- ✅ `nevermined plans get-plans` - List all payment plans
   - Table output with key columns
   - JSON output support
   - Uses `payments.plans.getPlans()`
-- ✅ `nvm plans get-plan <planId>` - Get plan details
+- ✅ `nevermined plans get-plan <planId>` - Get plan details
   - Full plan object output
   - Uses `payments.plans.getPlan()`
-- ✅ `nvm plans register-plan` - Register plan (placeholder)
+- ✅ `nevermined plans register-plan` - Register plan (placeholder)
   - Directs to specialized commands
   - Supports --config for JSON input
 
 #### Agents Commands
 
-- ✅ `nvm agents list` - List agents (placeholder)
+- ✅ `nevermined agents list` - List agents (placeholder)
   - Provides guidance on using getAgent
-- ✅ `nvm agents get <agentId>` - Get agent details
+- ✅ `nevermined agents get <agentId>` - Get agent details
   - Uses `payments.agents.getAgent()`
-- ✅ `nvm agents register` - Register agent (placeholder)
+- ✅ `nevermined agents register` - Register agent (placeholder)
   - Supports --config for JSON input
 
 #### X402 Commands
 
-- ✅ `nvm x402 get-token <planId>` - Get X402 access token
+- ✅ `nevermined x402 get-token <planId>` - Get X402 access token
   - Uses `payments.x402.getX402AccessToken()`
   - Formatted output with usage instructions
 
@@ -185,13 +185,13 @@ cli/
 
 #### Phase 2: Additional Manual Commands
 
-- `nvm plans register-credits` - Credits-based plans
-- `nvm plans register-time` - Time-based plans
-- `nvm plans get-plan-balance <planId>` - Check plan balance
-- `nvm plans order <planId>` - Order a plan
-- `nvm x402 verify` - Verify permissions
-- `nvm x402 settle` - Settle permissions
-- `nvm organizations list-members` - List org members
+- `nevermined plans register-credits` - Credits-based plans
+- `nevermined plans register-time` - Time-based plans
+- `nevermined plans get-plan-balance <planId>` - Check plan balance
+- `nevermined plans order <planId>` - Order a plan
+- `nevermined x402 verify` - Verify permissions
+- `nevermined x402 settle` - Settle permissions
+- `nevermined organizations list-members` - List org members
 
 #### Phase 3: Auto-generation System
 
@@ -254,39 +254,39 @@ cli/
 npm install -g @nevermined-io/cli
 
 # 2. Configure
-nvm config init
+nevermined config init
 
 # 3. List plans
-nvm plans get-plans
+nevermined plans get-plans
 
 # 4. Get plan details
-nvm plans get-plan did:nvm:abc123
+nevermined plans get-plan did:nvm:abc123
 
 # 5. Get access token
-nvm x402 get-token did:nvm:abc123
+nevermined x402 get-token did:nvm:abc123
 ```
 
 ### Using Profiles
 
 ```bash
 # Create production profile
-nvm config init --profile production
+nevermined config init --profile production
 
 # Use specific profile
-nvm plans get-plans --profile production
+nevermined plans get-plans --profile production
 
 # View all profiles
-nvm config show --all
+nevermined config show --all
 ```
 
 ### JSON Output
 
 ```bash
 # For scripting
-nvm plans get-plans --format json | jq '.[] | .did'
+nevermined plans get-plans --format json | jq '.[] | .did'
 
 # Quiet mode
-if nvm x402 get-token did:nvm:abc123 --format quiet; then
+if nevermined x402 get-token did:nvm:abc123 --format quiet; then
   echo "Success"
 fi
 ```
