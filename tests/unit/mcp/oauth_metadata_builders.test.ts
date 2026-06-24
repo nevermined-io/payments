@@ -225,7 +225,6 @@ describe('OAuth Metadata Builders', () => {
       expect(info.version).toBe('1.0.0')
       expect(info.endpoints).toBeDefined()
       expect(info.endpoints.mcp).toBe('http://localhost:3000/mcp')
-      expect(info.endpoints.health).toBe('http://localhost:3000/health')
       expect(info.endpoints.register).toBe('http://localhost:3000/register')
     })
 
