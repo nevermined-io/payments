@@ -29,7 +29,10 @@ describe('OAuth Metadata Builders', () => {
 
       expect(metadata).toBeDefined()
       expect(metadata.resource).toBe('http://localhost:3000')
-      expect(metadata.authorization_servers).toEqual(['http://localhost:3000'])
+      // authorization_servers points at the Nevermined issuer that mints tokens,
+      // NOT this MCP server (which is the protected resource, not its own AS).
+      expect(metadata.authorization_servers).toEqual([getOAuthUrls(baseConfig.environment).issuer])
+      expect(metadata.authorization_servers).not.toContain(baseConfig.baseUrl)
       expect(metadata.bearer_methods_supported).toEqual(['header'])
       expect(metadata.resource_documentation).toBe('http://localhost:3000/')
     })
@@ -63,7 +66,9 @@ describe('OAuth Metadata Builders', () => {
 
       expect(metadata).toBeDefined()
       expect(metadata.resource).toBe('http://localhost:3000/mcp')
-      expect(metadata.authorization_servers).toEqual(['http://localhost:3000'])
+      // Same as the base builder: the AS is the Nevermined issuer, not this server.
+      expect(metadata.authorization_servers).toEqual([getOAuthUrls(baseConfig.environment).issuer])
+      expect(metadata.authorization_servers).not.toContain(baseConfig.baseUrl)
       expect(metadata.bearer_methods_supported).toEqual(['header'])
     })
 

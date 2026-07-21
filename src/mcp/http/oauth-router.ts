@@ -317,30 +317,35 @@ export function createJsonMiddleware() {
  */
 export function createRequireAuthMiddleware() {
   return function requireAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+    // RFC 9728 §5.1: a 401 from a protected resource MUST advertise where its
+    // Protected Resource Metadata lives, so a client can discover the authorization
+    // server and complete the OAuth flow. We point at THIS resource's PRM on the
+    // host the client actually reached (so it resolves regardless of proxying).
+    // `resource_metadata` ONLY — no RFC 6750 `error` param, which would leak
+    // absent-vs-invalid token.
+    const send401 = (error_description: string): void => {
+      const host = req.get('host')
+      if (host) {
+        res.setHeader(
+          'WWW-Authenticate',
+          `Bearer resource_metadata="${req.protocol || 'https'}://${host}/.well-known/oauth-protected-resource"`,
+        )
+      }
+      res.status(401).json({ error: 'unauthorized', error_description })
+    }
+
     const authHeader = req.headers.authorization
-
     if (!authHeader) {
-      res.status(401).json({
-        error: 'unauthorized',
-        error_description: 'Authorization header required',
-      })
+      send401('Authorization header required')
       return
     }
-
     if (!authHeader.startsWith('Bearer ')) {
-      res.status(401).json({
-        error: 'unauthorized',
-        error_description: 'Bearer token required',
-      })
+      send401('Bearer token required')
       return
     }
-
     const token = authHeader.slice(7).trim()
     if (!token) {
-      res.status(401).json({
-        error: 'unauthorized',
-        error_description: 'Bearer token cannot be empty',
-      })
+      send401('Bearer token cannot be empty')
       return
     }
 

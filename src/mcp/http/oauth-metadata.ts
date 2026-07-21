@@ -94,12 +94,14 @@ export function getOAuthUrls(
  */
 export function buildProtectedResourceMetadata(config: OAuthConfig): ProtectedResourceMetadata {
   const scopes = config.scopes || [...DEFAULT_SCOPES]
-  // oauthUrls calculated but not used in this metadata (kept for future use)
-  void getOAuthUrls(config.environment, config.oauthUrls)
+  // RFC 9728: `resource` is THIS server (the protected resource); the
+  // `authorization_servers` are the Nevermined issuer that actually mints tokens
+  // — NOT this MCP server. The issuer is derived from the environment.
+  const oauthUrls = getOAuthUrls(config.environment, config.oauthUrls)
 
   return {
     resource: config.baseUrl,
-    authorization_servers: [config.baseUrl],
+    authorization_servers: [oauthUrls.issuer],
     scopes_supported: scopes,
     bearer_methods_supported: ['header'],
     resource_documentation: `${config.baseUrl}/`,
@@ -127,12 +129,13 @@ export function buildMcpProtectedResourceMetadata(
   config: OAuthConfig,
 ): McpProtectedResourceMetadata {
   const scopes = config.scopes || [...DEFAULT_SCOPES]
-  // oauthUrls calculated but not used in this metadata (kept for future use)
-  void getOAuthUrls(config.environment, config.oauthUrls)
+  // See buildProtectedResourceMetadata: `authorization_servers` is the Nevermined
+  // issuer, not this MCP server.
+  const oauthUrls = getOAuthUrls(config.environment, config.oauthUrls)
 
   return {
     resource: `${config.baseUrl}/mcp`,
-    authorization_servers: [config.baseUrl],
+    authorization_servers: [oauthUrls.issuer],
     scopes_supported: scopes,
     scopes_required: scopes,
     bearer_methods_supported: ['header'],
