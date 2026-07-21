@@ -119,11 +119,16 @@ export function buildProtectedResourceMetadata(config: OAuthConfig): ProtectedRe
  */
 function resolveAuthorizationServer(config: OAuthConfig): string {
   const { tokenUri } = getOAuthUrls(config.environment, config.oauthUrls)
-  // Guard an explicit `{ tokenUri: undefined }` override slipping through the
-  // `{...baseUrls, ...overrides}` spread (exactOptionalPropertyTypes is off) —
-  // fall back to the environment default rather than `new URL(undefined)`.
-  const resolved = tokenUri || getOAuthUrls(config.environment).tokenUri
-  return new URL(resolved).origin
+  const envTokenUri = getOAuthUrls(config.environment).tokenUri
+  // Guard both a falsy `{ tokenUri: undefined }` override (slips through the
+  // `{...baseUrls, ...overrides}` spread — exactOptionalPropertyTypes is off) AND
+  // a malformed non-falsy one — fall back to the environment default rather than
+  // crash the metadata endpoint with `new URL(...)`.
+  try {
+    return new URL(tokenUri || envTokenUri).origin
+  } catch {
+    return new URL(envTokenUri).origin
+  }
 }
 
 /**

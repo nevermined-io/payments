@@ -127,14 +127,20 @@ describe('OAuth Metadata Builders', () => {
       }
     })
 
-    test('an explicit { tokenUri: undefined } override falls back to the env default (no crash, no [null])', () => {
-      const cfg = {
-        ...baseConfig,
-        oauthUrls: { tokenUri: undefined },
-      } as unknown as OAuthConfig
-      const md = buildProtectedResourceMetadata(cfg)
-      expect(md.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
-    })
+    test.each([
+      ['undefined', undefined],
+      ['a malformed string', 'not a url'],
+    ])(
+      'a %s tokenUri override falls back to the env default (no crash, no [null])',
+      (_label, tokenUri) => {
+        const cfg = {
+          ...baseConfig,
+          oauthUrls: { tokenUri },
+        } as unknown as OAuthConfig
+        const md = buildProtectedResourceMetadata(cfg)
+        expect(md.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
+      },
+    )
   })
 
   describe('buildAuthorizationServerMetadata', () => {

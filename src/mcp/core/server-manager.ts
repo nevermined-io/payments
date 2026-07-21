@@ -259,6 +259,9 @@ export class McpServerManager {
         mountMcpHandlers(this.expressApp as any, {
           sessionManager: this.sessionManager,
           requireAuth: true,
+          // Pin the challenge's resource_metadata origin to the operator's known
+          // baseUrl (never client Host/X-Forwarded-* headers) — see #410 review.
+          baseUrl,
           log: this.log,
         })
 
