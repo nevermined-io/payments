@@ -94,18 +94,32 @@ export function getOAuthUrls(
  */
 export function buildProtectedResourceMetadata(config: OAuthConfig): ProtectedResourceMetadata {
   const scopes = config.scopes || [...DEFAULT_SCOPES]
-  // RFC 9728: `resource` is THIS server (the protected resource); the
-  // `authorization_servers` are the Nevermined issuer that actually mints tokens
-  // — NOT this MCP server. The issuer is derived from the environment.
-  const oauthUrls = getOAuthUrls(config.environment, config.oauthUrls)
 
   return {
     resource: config.baseUrl,
-    authorization_servers: [oauthUrls.issuer],
+    authorization_servers: [resolveAuthorizationServer(config)],
     scopes_supported: scopes,
     bearer_methods_supported: ['header'],
     resource_documentation: `${config.baseUrl}/`,
   }
+}
+
+/**
+ * Resolve the authorization-server identifier for `authorization_servers`.
+ *
+ * RFC 9728 §2 requires each entry to be an AS issuer identifier — a URL from
+ * which `/.well-known/oauth-authorization-server` (RFC 8414) actually resolves.
+ * For Nevermined that is the **backend** API origin (which serves the AS
+ * metadata and whose own published `issuer` is the backend URL), NOT:
+ *   - `config.baseUrl` — that is this MCP server, the protected *resource*; and
+ *   - `OAuthUrls.issuer` — that is the *frontend* (a client-routed SPA that 200s
+ *     on every path, so an RFC 8414 fetch there silently returns HTML).
+ * The backend origin is derived from `tokenUri` (`${backend}/oauth/token`), which
+ * respects any `config.oauthUrls.tokenUri` override.
+ */
+function resolveAuthorizationServer(config: OAuthConfig): string {
+  const { tokenUri } = getOAuthUrls(config.environment, config.oauthUrls)
+  return new URL(tokenUri).origin
 }
 
 /**
@@ -129,13 +143,12 @@ export function buildMcpProtectedResourceMetadata(
   config: OAuthConfig,
 ): McpProtectedResourceMetadata {
   const scopes = config.scopes || [...DEFAULT_SCOPES]
-  // See buildProtectedResourceMetadata: `authorization_servers` is the Nevermined
-  // issuer, not this MCP server.
-  const oauthUrls = getOAuthUrls(config.environment, config.oauthUrls)
 
   return {
     resource: `${config.baseUrl}/mcp`,
-    authorization_servers: [oauthUrls.issuer],
+    // See resolveAuthorizationServer: the AS is the backend API origin, not this
+    // MCP server (baseUrl) nor the frontend SPA (OAuthUrls.issuer).
+    authorization_servers: [resolveAuthorizationServer(config)],
     scopes_supported: scopes,
     scopes_required: scopes,
     bearer_methods_supported: ['header'],

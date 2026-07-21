@@ -215,7 +215,7 @@ describe('createRequireAuthMiddleware', () => {
 
   // RFC 9728 §5.1 — the 401 must let the client discover the PRM (and thus the AS).
   describe('WWW-Authenticate challenge', () => {
-    test('401 carries WWW-Authenticate pointing at this resource PRM, on the requested host', () => {
+    test('401 points at this resource PRM, derived from the requested host', () => {
       const middleware = createRequireAuthMiddleware()
       const req = createMockRequest({}, { host: 'mcp.example.com', protocol: 'https' })
       const res = createMockResponse()
@@ -229,24 +229,60 @@ describe('createRequireAuthMiddleware', () => {
       )
     })
 
-    test('the challenge uses the request protocol + host', () => {
+    test('prefers x-forwarded-proto / x-forwarded-host (behind a TLS-terminating proxy)', () => {
       const middleware = createRequireAuthMiddleware()
       const req = createMockRequest(
-        { authorization: 'Basic x' },
-        { host: 'localhost:5001', protocol: 'http' },
+        { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'mcp.public.example' },
+        { host: 'internal:8080', protocol: 'http' },
       )
       const res = createMockResponse()
 
       middleware(req, res, createMockNext())
 
       expect(res.headers['WWW-Authenticate']).toBe(
-        'Bearer resource_metadata="http://localhost:5001/.well-known/oauth-protected-resource"',
+        'Bearer resource_metadata="https://mcp.public.example/.well-known/oauth-protected-resource"',
       )
     })
 
-    test('carries resource_metadata ONLY — no RFC 6750 error param (absent-vs-invalid must not leak)', () => {
+    test('an operator-pinned baseUrl wins and ignores a forged Host', () => {
+      const middleware = createRequireAuthMiddleware({ baseUrl: 'https://mcp.pinned.example/' })
+      const req = createMockRequest({}, { host: 'evil.example', protocol: 'http' })
+      const res = createMockResponse()
+
+      middleware(req, res, createMockNext())
+
+      expect(res.headers['WWW-Authenticate']).toBe(
+        'Bearer resource_metadata="https://mcp.pinned.example/.well-known/oauth-protected-resource"',
+      )
+    })
+
+    test('SECURITY: a Host with quoted-string-breaking chars is rejected → NO challenge header', () => {
+      // `Host: evil"; foo="bar` would otherwise inject a second auth-param pointing
+      // resource_metadata at the attacker origin. It must be dropped, not emitted.
       const middleware = createRequireAuthMiddleware()
-      const req = createMockRequest({ authorization: 'Bearer ' }) // empty token
+      const req = createMockRequest({}, { host: 'evil.example"; foo="bar', protocol: 'https' })
+      const res = createMockResponse()
+
+      middleware(req, res, createMockNext())
+
+      expect(res.status).toHaveBeenCalledWith(401)
+      expect(res.setHeader).not.toHaveBeenCalledWith('WWW-Authenticate', expect.anything())
+    })
+
+    test('no derivable host and no pinned baseUrl → 401 without a challenge header', () => {
+      const middleware = createRequireAuthMiddleware()
+      const req = createMockRequest({}, { host: '' }) // empty host
+      const res = createMockResponse()
+
+      middleware(req, res, createMockNext())
+
+      expect(res.status).toHaveBeenCalledWith(401)
+      expect(res.headers['WWW-Authenticate']).toBeUndefined()
+    })
+
+    test('missing credential → no RFC 6750 error param (§3)', () => {
+      const middleware = createRequireAuthMiddleware()
+      const req = createMockRequest({}, { host: 'mcp.example.com' })
       const res = createMockResponse()
 
       middleware(req, res, createMockNext())
@@ -254,6 +290,19 @@ describe('createRequireAuthMiddleware', () => {
       const challenge = res.headers['WWW-Authenticate']
       expect(challenge).toContain('resource_metadata=')
       expect(challenge).not.toContain('error=')
+    })
+
+    test('malformed credential → error="invalid_request" (§3.1)', () => {
+      const middleware = createRequireAuthMiddleware()
+      for (const authorization of ['Basic x', 'Bearer ']) {
+        const req = createMockRequest({ authorization }, { host: 'mcp.example.com' })
+        const res = createMockResponse()
+
+        middleware(req, res, createMockNext())
+
+        expect(res.headers['WWW-Authenticate']).toContain('error="invalid_request"')
+        expect(res.headers['WWW-Authenticate']).toContain('resource_metadata=')
+      }
     })
 
     test('a valid token does NOT emit a WWW-Authenticate header', () => {

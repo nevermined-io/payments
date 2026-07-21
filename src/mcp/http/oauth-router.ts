@@ -297,39 +297,53 @@ export function createJsonMiddleware() {
 }
 
 /**
- * Create a middleware that requires a Bearer token in the Authorization header.
- * Returns HTTP 401 if the token is missing or malformed.
- *
- * This is a lightweight check that only verifies presence of a token.
- * Full validation (is the token valid? does the user have access?) is handled
- * by withPaywall() when a tool is actually called.
- *
- * @returns Express middleware for token requirement
- *
- * @example
- * ```typescript
- * const requireAuth = createRequireAuthMiddleware()
- *
- * // Protect MCP endpoints
- * app.post('/mcp', requireAuth, mcpHandler)
- * app.get('/mcp', requireAuth, sseHandler)
- * ```
+ * A well-formed HTTP Host value: `hostname[:port]` or `[ipv6][:port]`. Crucially
+ * it contains none of the characters (`"`, `\`, whitespace, `;`, `,`) that could
+ * break out of the `WWW-Authenticate` quoted-string and inject extra auth-params.
  */
-export function createRequireAuthMiddleware() {
+const SAFE_HOST_RE = /^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(:\d{1,5})?$/
+
+/**
+ * Create a middleware that requires a Bearer token, emitting an RFC 9728 §5.1
+ * `WWW-Authenticate` challenge on 401 so a client can discover the PRM.
+ *
+ * `options.baseUrl` (optional) — operator-known public base URL of THIS MCP
+ * server. When set, the `resource_metadata` pointer is built from it (never from
+ * client input) — the correct choice behind a TLS-terminating proxy. When omitted,
+ * the pointer is derived from the request, but ONLY if the (forwarded) Host is a
+ * safe, well-formed value; otherwise the challenge header is omitted rather than
+ * emitting a broken/injectable one.
+ */
+export function createRequireAuthMiddleware(options: { baseUrl?: string } = {}) {
+  const pinnedBase = options.baseUrl?.replace(/\/+$/, '')
+
+  // Origin to advertise in the PRM pointer, or undefined if it can't be trusted.
+  const prmOrigin = (req: Request): string | undefined => {
+    if (pinnedBase) return pinnedBase
+    const fwdHost = req.headers['x-forwarded-host']
+    const rawHost = (Array.isArray(fwdHost) ? fwdHost[0] : fwdHost) ?? req.get('host')
+    const host = typeof rawHost === 'string' ? rawHost.trim() : undefined
+    if (!host || !SAFE_HOST_RE.test(host)) return undefined // forged/broken → omit
+    const fwdProto = req.headers['x-forwarded-proto']
+    const proto =
+      (Array.isArray(fwdProto) ? fwdProto[0] : fwdProto)?.split(',')[0]?.trim() ||
+      req.protocol ||
+      'https'
+    if (proto !== 'http' && proto !== 'https') return undefined
+    return `${proto}://${host}`
+  }
+
   return function requireAuthMiddleware(req: Request, res: Response, next: NextFunction) {
-    // RFC 9728 §5.1: a 401 from a protected resource MUST advertise where its
-    // Protected Resource Metadata lives, so a client can discover the authorization
-    // server and complete the OAuth flow. We point at THIS resource's PRM on the
-    // host the client actually reached (so it resolves regardless of proxying).
-    // `resource_metadata` ONLY — no RFC 6750 `error` param, which would leak
-    // absent-vs-invalid token.
-    const send401 = (error_description: string): void => {
-      const host = req.get('host')
-      if (host) {
-        res.setHeader(
-          'WWW-Authenticate',
-          `Bearer resource_metadata="${req.protocol || 'https'}://${host}/.well-known/oauth-protected-resource"`,
-        )
+    // RFC 9728 §5.1: a 401 from a protected resource advertises where its PRM
+    // lives so a client can discover the authorization server. `error` (RFC 6750
+    // §3.1) is added only when a credential WAS presented but is malformed — a
+    // request with no credential at all omits it (§3).
+    const send401 = (error_description: string, error?: string): void => {
+      const origin = prmOrigin(req)
+      if (origin) {
+        const params = [`resource_metadata="${origin}/.well-known/oauth-protected-resource"`]
+        if (error) params.push(`error="${error}"`)
+        res.setHeader('WWW-Authenticate', `Bearer ${params.join(', ')}`)
       }
       res.status(401).json({ error: 'unauthorized', error_description })
     }
@@ -340,12 +354,12 @@ export function createRequireAuthMiddleware() {
       return
     }
     if (!authHeader.startsWith('Bearer ')) {
-      send401('Bearer token required')
+      send401('Bearer token required', 'invalid_request')
       return
     }
     const token = authHeader.slice(7).trim()
     if (!token) {
-      send401('Bearer token cannot be empty')
+      send401('Bearer token cannot be empty', 'invalid_request')
       return
     }
 

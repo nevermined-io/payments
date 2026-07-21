@@ -29,10 +29,14 @@ describe('OAuth Metadata Builders', () => {
 
       expect(metadata).toBeDefined()
       expect(metadata.resource).toBe('http://localhost:3000')
-      // authorization_servers points at the Nevermined issuer that mints tokens,
-      // NOT this MCP server (which is the protected resource, not its own AS).
-      expect(metadata.authorization_servers).toEqual([getOAuthUrls(baseConfig.environment).issuer])
+      // The AS is the BACKEND API origin (it serves the RFC 8414 AS metadata),
+      // NOT this MCP server (baseUrl) and NOT the frontend SPA (getOAuthUrls().issuer,
+      // which 200s HTML on every path). Hardcoded so it can't drift silently.
+      expect(metadata.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
       expect(metadata.authorization_servers).not.toContain(baseConfig.baseUrl)
+      expect(metadata.authorization_servers).not.toContain(
+        getOAuthUrls(baseConfig.environment).issuer,
+      )
       expect(metadata.bearer_methods_supported).toEqual(['header'])
       expect(metadata.resource_documentation).toBe('http://localhost:3000/')
     })
@@ -66,9 +70,12 @@ describe('OAuth Metadata Builders', () => {
 
       expect(metadata).toBeDefined()
       expect(metadata.resource).toBe('http://localhost:3000/mcp')
-      // Same as the base builder: the AS is the Nevermined issuer, not this server.
-      expect(metadata.authorization_servers).toEqual([getOAuthUrls(baseConfig.environment).issuer])
+      // Same as the base builder: the AS is the backend API origin.
+      expect(metadata.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
       expect(metadata.authorization_servers).not.toContain(baseConfig.baseUrl)
+      expect(metadata.authorization_servers).not.toContain(
+        getOAuthUrls(baseConfig.environment).issuer,
+      )
       expect(metadata.bearer_methods_supported).toEqual(['header'])
     })
 
