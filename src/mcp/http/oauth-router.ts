@@ -313,9 +313,18 @@ const SAFE_HOST_RE = /^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+)(:\d{1,5})?$/
  * the pointer is derived from the request, but ONLY if the (forwarded) Host is a
  * safe, well-formed value; otherwise the challenge header is omitted rather than
  * emitting a broken/injectable one.
+ *
+ * `options.resourceMetadataPath` (optional) — the PRM path to advertise; defaults
+ * to the root `/.well-known/oauth-protected-resource`. A caller mounting this on a
+ * sub-resource (e.g. `/mcp`) should pass the scoped document
+ * (`/.well-known/oauth-protected-resource/mcp`) so the client gets the correctly
+ * scoped `resource` (RFC 8707 audience) and the resource's capabilities.
  */
-export function createRequireAuthMiddleware(options: { baseUrl?: string } = {}) {
+export function createRequireAuthMiddleware(
+  options: { baseUrl?: string; resourceMetadataPath?: string } = {},
+) {
   const pinnedBase = options.baseUrl?.replace(/\/+$/, '')
+  const prmPath = options.resourceMetadataPath ?? '/.well-known/oauth-protected-resource'
 
   // Origin to advertise in the PRM pointer, or undefined if it can't be trusted.
   const prmOrigin = (req: Request): string | undefined => {
@@ -341,7 +350,7 @@ export function createRequireAuthMiddleware(options: { baseUrl?: string } = {}) 
     const send401 = (error_description: string, error?: string): void => {
       const origin = prmOrigin(req)
       if (origin) {
-        const params = [`resource_metadata="${origin}/.well-known/oauth-protected-resource"`]
+        const params = [`resource_metadata="${origin}${prmPath}"`]
         if (error) params.push(`error="${error}"`)
         res.setHeader('WWW-Authenticate', `Bearer ${params.join(', ')}`)
       }

@@ -119,7 +119,11 @@ export function buildProtectedResourceMetadata(config: OAuthConfig): ProtectedRe
  */
 function resolveAuthorizationServer(config: OAuthConfig): string {
   const { tokenUri } = getOAuthUrls(config.environment, config.oauthUrls)
-  return new URL(tokenUri).origin
+  // Guard an explicit `{ tokenUri: undefined }` override slipping through the
+  // `{...baseUrls, ...overrides}` spread (exactOptionalPropertyTypes is off) —
+  // fall back to the environment default rather than `new URL(undefined)`.
+  const resolved = tokenUri || getOAuthUrls(config.environment).tokenUri
+  return new URL(resolved).origin
 }
 
 /**

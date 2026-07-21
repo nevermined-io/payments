@@ -106,6 +106,37 @@ describe('OAuth Metadata Builders', () => {
     })
   })
 
+  // Non-tautological: hardcoded backend origins per environment. Catches the
+  // frontend-vs-backend regression (issuer=frontend serves no AS metadata) across
+  // every environment, not just the one baseConfig happens to use.
+  describe('authorization_servers is the backend AS for every environment', () => {
+    test.each([
+      ['staging_sandbox', 'https://api.sandbox.nevermined.dev', 'https://nevermined.dev'],
+      ['staging_live', 'https://api.live.nevermined.dev', 'https://nevermined.dev'],
+      ['sandbox', 'https://api.sandbox.nevermined.app', 'https://nevermined.app'],
+      ['live', 'https://api.live.nevermined.app', 'https://nevermined.app'],
+    ] as const)('%s → [%s], never the frontend', (environment, backend, frontend) => {
+      const cfg = { baseUrl: 'http://localhost:3000', environment } as OAuthConfig
+      for (const md of [
+        buildProtectedResourceMetadata(cfg),
+        buildMcpProtectedResourceMetadata(cfg),
+      ]) {
+        expect(md.authorization_servers).toEqual([backend])
+        expect(md.authorization_servers).not.toContain(frontend)
+        expect(md.authorization_servers).not.toContain('http://localhost:3000')
+      }
+    })
+
+    test('an explicit { tokenUri: undefined } override falls back to the env default (no crash, no [null])', () => {
+      const cfg = {
+        ...baseConfig,
+        oauthUrls: { tokenUri: undefined },
+      } as unknown as OAuthConfig
+      const md = buildProtectedResourceMetadata(cfg)
+      expect(md.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
+    })
+  })
+
   describe('buildAuthorizationServerMetadata', () => {
     test('should build authorization server metadata with all required endpoints', () => {
       const metadata = buildAuthorizationServerMetadata(baseConfig)

@@ -195,7 +195,11 @@ export function mountMcpHandlers(router: Router, config: McpHandlerConfig): void
   const deleteHandler = createDeleteMcpHandler(config)
 
   if (requireAuth) {
-    const authMiddleware = createRequireAuthMiddleware()
+    // These handlers protect the `/mcp` resource, so a 401 must advertise the
+    // `/mcp`-scoped PRM (resource: `<baseUrl>/mcp`), not the root document.
+    const authMiddleware = createRequireAuthMiddleware({
+      resourceMetadataPath: '/.well-known/oauth-protected-resource/mcp',
+    })
     router.post('/mcp', authMiddleware, postHandler as any)
     router.get('/mcp', authMiddleware, getHandler as any)
     router.delete('/mcp', authMiddleware, deleteHandler as any)

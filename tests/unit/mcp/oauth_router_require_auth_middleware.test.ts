@@ -256,6 +256,20 @@ describe('createRequireAuthMiddleware', () => {
       )
     })
 
+    test('advertises the scoped PRM path when resourceMetadataPath is set (e.g. /mcp)', () => {
+      const middleware = createRequireAuthMiddleware({
+        resourceMetadataPath: '/.well-known/oauth-protected-resource/mcp',
+      })
+      const req = createMockRequest({}, { host: 'mcp.example.com', protocol: 'https' })
+      const res = createMockResponse()
+
+      middleware(req, res, createMockNext())
+
+      expect(res.headers['WWW-Authenticate']).toBe(
+        'Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"',
+      )
+    })
+
     test('SECURITY: a Host with quoted-string-breaking chars is rejected → NO challenge header', () => {
       // `Host: evil"; foo="bar` would otherwise inject a second auth-param pointing
       // resource_metadata at the attacker origin. It must be dropped, not emitted.
