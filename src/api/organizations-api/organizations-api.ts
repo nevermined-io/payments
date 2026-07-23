@@ -10,6 +10,7 @@ import {
 } from '../nvm-api.js'
 import {
   CreateUserResponse,
+  CustomerOnboardingResponse,
   MyMembership,
   OrganizationActivityFilters,
   OrganizationActivityPage,
@@ -52,6 +53,49 @@ export class OrganizationsAPI extends BasePaymentsAPI {
     return {
       ...data.walletResult,
       nvmApiKey: data.walletResult.hash,
+    }
+  }
+
+  /**
+   * Onboard a **white-label customer** into the organization (#2418).
+   *
+   * Provisions a Nevermined account for `email` under the caller's organization
+   * without consuming a member seat, and returns a usable, scoped NVM API key
+   * the org can use to transparently act on the customer's behalf (purchase
+   * plans / redeem credits). The customer is recorded in the org's Customers
+   * list.
+   *
+   * If the email already belongs to an account the org does NOT own, no key is
+   * issued: an email challenge is sent to the owner and the result carries
+   * `consentRequired: true`. Call again once the owner has consented to complete
+   * onboarding.
+   *
+   * @param email - The customer's email address.
+   * @returns The onboarding result — either `{ nvmApiKey, userId, userWallet, isCustomer, customerRecorded }` or `{ consentRequired: true }`.
+   */
+  async onboardCustomer(email: string): Promise<CustomerOnboardingResponse> {
+    const body = { email, as: 'customer' }
+    const options = this.getBackendHTTPOptions('POST', body)
+    const url = new URL(API_URL_CREATE_USER, this.environment.backend)
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Unknown error' }))
+      throw PaymentsError.fromBackend('Unable to onboard customer', error)
+    }
+
+    const wallet = (await response.json())?.walletResult ?? {}
+    // Existing, non-owned account (202): opaque — no identity or key, just the
+    // pending-consent signal.
+    if (wallet.consentRequired) {
+      return { consentRequired: true }
+    }
+    // New account or the org's returning customer: a usable key is issued.
+    return {
+      nvmApiKey: wallet.nvmApiKey,
+      userId: wallet.userId,
+      userWallet: wallet.userWallet,
+      isCustomer: wallet.isCustomer,
+      customerRecorded: wallet.customerRecorded,
     }
   }
 

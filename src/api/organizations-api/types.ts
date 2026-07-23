@@ -30,6 +30,31 @@ export type CreateUserResponse = {
 }
 
 /**
+ * Result of onboarding a white-label customer via
+ * `POST /organizations/account` with `as: 'customer'` (nvm-monorepo #2418).
+ *
+ * Two shapes depending on the account:
+ * - **New account, or the org's returning customer** → a usable, scoped
+ *   `nvmApiKey` is returned (`isCustomer: true`); the customer is recorded in
+ *   the org's Customers list (`customerRecorded`).
+ * - **An existing account the org does NOT own** → `consentRequired: true` and
+ *   NO key: an email challenge was sent to the owner. Retry once they consent.
+ *   The account's identity is deliberately not disclosed in this case.
+ */
+export type CustomerOnboardingResponse = {
+  /** True when onboarding is pending the account owner's email consent (202). */
+  consentRequired?: boolean
+  /** The usable NVM API key (Bearer credential) — present only when a key was issued. */
+  nvmApiKey?: string
+  userId?: string
+  userWallet?: string
+  /** True when a key was issued for a customer (new account or renewal). */
+  isCustomer?: boolean
+  /** Whether the customer was written to the org's Customers list (best-effort). */
+  customerRecorded?: boolean
+}
+
+/**
  * A single organization the authenticated user is an active member of.
  * Returned by `OrganizationsAPI.getMyMemberships()` and used by clients to
  * power workspace pickers and "where will this publish?" UX.

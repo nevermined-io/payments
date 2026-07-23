@@ -313,4 +313,72 @@ describe('OrganizationsAPI — workspace surface', () => {
       expect(calls[0].init.headers[CURRENT_ORG_ID_HEADER]).toBe('org-d')
     })
   })
+
+  describe('onboardCustomer (#2418)', () => {
+    test('new/returning customer: sends as=customer and returns the REAL nvmApiKey', async () => {
+      const payments = makePayments()
+      const calls = installFetchStub(() => ({
+        ok: true,
+        status: 201,
+        body: {
+          success: true,
+          message: 'Customer onboarded',
+          walletResult: {
+            hash: 'lookup-hash',
+            userId: 'us-123',
+            userWallet: '0xabc',
+            nvmApiKey: 'nvm-real-usable-key',
+            isCustomer: true,
+            customerRecorded: true,
+            alreadyMember: false,
+          },
+        },
+      }))
+
+      const result = await payments.organizations.onboardCustomer('customer@example.com')
+
+      // The request opts into the customer outcome.
+      expect(calls[0].url.pathname).toBe('/api/v1/organizations/account')
+      expect(calls[0].init.method).toBe('POST')
+      expect(JSON.parse(calls[0].init.body)).toEqual({
+        email: 'customer@example.com',
+        as: 'customer',
+      })
+      // The USABLE key is returned — not the (non-usable) lookup hash.
+      expect(result.nvmApiKey).toBe('nvm-real-usable-key')
+      expect(result.isCustomer).toBe(true)
+      expect(result.customerRecorded).toBe(true)
+      expect(result.userId).toBe('us-123')
+      expect(result.consentRequired).toBeUndefined()
+    })
+
+    test('existing non-owned account: returns consentRequired with no key or identity', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 202,
+        body: {
+          success: true,
+          message: 'Account already exists — a consent email was sent',
+          walletResult: { alreadyMember: false, consentRequired: true },
+        },
+      }))
+
+      const result = await payments.organizations.onboardCustomer('stranger@example.com')
+
+      expect(result).toEqual({ consentRequired: true })
+      expect(result.nvmApiKey).toBeUndefined()
+      expect(result.userId).toBeUndefined()
+      expect(result.userWallet).toBeUndefined()
+    })
+
+    test('throws PaymentsError on 5xx', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({ ok: false, status: 500, body: { message: 'boom' } }))
+
+      await expect(payments.organizations.onboardCustomer('customer@example.com')).rejects.toThrow(
+        /Unable to onboard customer/,
+      )
+    })
+  })
 })
