@@ -23,8 +23,10 @@ export type CardProvider = 'stripe' | 'braintree' | 'visa'
 /**
  * All delegation providers, including the crypto path. Matches the
  * server-side union and aligns with {@link CreateDelegationPayload.provider}.
+ * `vgs` = a card tokenised in the VGS vault (e.g. Visa Agentic), surfaced by
+ * {@link DelegationAPI.listPaymentMethods}.
  */
-export type DelegationProvider = CardProvider | 'erc4337'
+export type DelegationProvider = CardProvider | 'vgs' | 'erc4337'
 
 /**
  * Summary of a user's enrolled payment method.
