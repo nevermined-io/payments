@@ -33,26 +33,29 @@ export type CreateUserResponse = {
  * Result of onboarding a white-label customer via
  * `POST /organizations/account` with `as: 'customer'` (nvm-monorepo #2418).
  *
- * Two shapes depending on the account:
- * - **New account, or the org's returning customer** → a usable, scoped
- *   `nvmApiKey` is returned (`isCustomer: true`); the customer is recorded in
- *   the org's Customers list (`customerRecorded`).
- * - **An existing account the org does NOT own** → `consentRequired: true` and
- *   NO key: an email challenge was sent to the owner. Retry once they consent.
- *   The account's identity is deliberately not disclosed in this case.
+ * A discriminated union on `consentRequired` — narrow on it to get the right
+ * shape with no impossible states:
+ * - `{ consentRequired: true }` — the email belongs to an account the org does
+ *   NOT own. NO key is issued (HTTP 202); an email challenge was sent to the
+ *   owner and the account's identity is deliberately withheld. Retry once they
+ *   consent.
+ * - `{ consentRequired: false, nvmApiKey, ... }` — a new account or the org's
+ *   returning customer. A usable, scoped `nvmApiKey` is always present and the
+ *   customer is recorded in the org's Customers list.
  */
-export type CustomerOnboardingResponse = {
-  /** True when onboarding is pending the account owner's email consent (202). */
-  consentRequired?: boolean
-  /** The usable NVM API key (Bearer credential) — present only when a key was issued. */
-  nvmApiKey?: string
-  userId?: string
-  userWallet?: string
-  /** True when a key was issued for a customer (new account or renewal). */
-  isCustomer?: boolean
-  /** Whether the customer was written to the org's Customers list (best-effort). */
-  customerRecorded?: boolean
-}
+export type CustomerOnboardingResponse =
+  | { consentRequired: true }
+  | {
+      consentRequired: false
+      /** The usable NVM API key (Bearer credential). Always present in this branch. */
+      nvmApiKey: string
+      userId: string
+      userWallet: string
+      /** True when a key was issued for a customer (new account or renewal). */
+      isCustomer: boolean
+      /** Whether the customer was written to the org's Customers list (best-effort). */
+      customerRecorded: boolean
+    }
 
 /**
  * A single organization the authenticated user is an active member of.

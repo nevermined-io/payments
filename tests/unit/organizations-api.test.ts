@@ -345,11 +345,14 @@ describe('OrganizationsAPI — workspace surface', () => {
         as: 'customer',
       })
       // The USABLE key is returned — not the (non-usable) lookup hash.
-      expect(result.nvmApiKey).toBe('nvm-real-usable-key')
-      expect(result.isCustomer).toBe(true)
-      expect(result.customerRecorded).toBe(true)
-      expect(result.userId).toBe('us-123')
-      expect(result.consentRequired).toBeUndefined()
+      expect(result).toEqual({
+        consentRequired: false,
+        nvmApiKey: 'nvm-real-usable-key',
+        userId: 'us-123',
+        userWallet: '0xabc',
+        isCustomer: true,
+        customerRecorded: true,
+      })
     })
 
     test('existing non-owned account: returns consentRequired with no key or identity', async () => {
@@ -367,9 +370,33 @@ describe('OrganizationsAPI — workspace surface', () => {
       const result = await payments.organizations.onboardCustomer('stranger@example.com')
 
       expect(result).toEqual({ consentRequired: true })
-      expect(result.nvmApiKey).toBeUndefined()
-      expect(result.userId).toBeUndefined()
-      expect(result.userWallet).toBeUndefined()
+    })
+
+    test('202 status drives the consent outcome even without the body flag', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 202,
+        body: { success: true, walletResult: { alreadyMember: false } },
+      }))
+
+      const result = await payments.organizations.onboardCustomer('stranger@example.com')
+
+      expect(result).toEqual({ consentRequired: true })
+    })
+
+    test('throws when a 2xx completes onboarding but returns no usable key', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 201,
+        // Partial/regressed payload: not consent-pending, yet no nvmApiKey.
+        body: { success: true, walletResult: { userId: 'us-1', isCustomer: true } },
+      }))
+
+      await expect(payments.organizations.onboardCustomer('customer@example.com')).rejects.toThrow(
+        /did not return an API key/,
+      )
     })
 
     test('throws PaymentsError on 5xx', async () => {

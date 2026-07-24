@@ -84,13 +84,23 @@ export class OrganizationsAPI extends BasePaymentsAPI {
     }
 
     const wallet = (await response.json())?.walletResult ?? {}
-    // Existing, non-owned account (202): opaque — no identity or key, just the
-    // pending-consent signal.
-    if (wallet.consentRequired) {
+    // Existing, non-owned account: opaque consent-pending outcome. The backend
+    // signals it with HTTP 202 and `walletResult.consentRequired`; treat either
+    // as authoritative so a body-parsing quirk can't slip through as "success".
+    // No identity or key is disclosed.
+    if (response.status === 202 || wallet.consentRequired) {
       return { consentRequired: true }
     }
-    // New account or the org's returning customer: a usable key is issued.
+    // New account or the org's returning customer: a usable key MUST be present.
+    // A 2xx without one means a partial/unexpected payload — fail loudly rather
+    // than hand back a "success" carrying undefined credentials.
+    if (!wallet.nvmApiKey) {
+      throw PaymentsError.internal(
+        'Customer onboarding did not return an API key (unexpected backend response)',
+      )
+    }
     return {
+      consentRequired: false,
       nvmApiKey: wallet.nvmApiKey,
       userId: wallet.userId,
       userWallet: wallet.userWallet,
