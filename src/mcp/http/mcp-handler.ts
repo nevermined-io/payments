@@ -29,6 +29,13 @@ export interface McpHandlerConfig {
   sessionManager: SessionManager
   /** Whether to require authentication (default: true) */
   requireAuth?: boolean
+  /**
+   * Public base URL of this MCP server. When provided, the 401
+   * `WWW-Authenticate` challenge's `resource_metadata` pointer is built from it
+   * (never from client-supplied Host/X-Forwarded-* headers) — the correct,
+   * spoof-proof choice behind a TLS-terminating proxy.
+   */
+  baseUrl?: string
   /** Logger function */
   log?: (message: string) => void
 }
@@ -195,7 +202,14 @@ export function mountMcpHandlers(router: Router, config: McpHandlerConfig): void
   const deleteHandler = createDeleteMcpHandler(config)
 
   if (requireAuth) {
-    const authMiddleware = createRequireAuthMiddleware()
+    // These handlers protect the `/mcp` resource, so a 401 must advertise the
+    // `/mcp`-scoped PRM (resource: `<baseUrl>/mcp`), not the root document. Pin the
+    // origin to the operator baseUrl when known, so the challenge never depends on
+    // client-supplied Host/X-Forwarded-* headers.
+    const authMiddleware = createRequireAuthMiddleware({
+      baseUrl: config.baseUrl,
+      resourceMetadataPath: '/.well-known/oauth-protected-resource/mcp',
+    })
     router.post('/mcp', authMiddleware, postHandler as any)
     router.get('/mcp', authMiddleware, getHandler as any)
     router.delete('/mcp', authMiddleware, deleteHandler as any)
