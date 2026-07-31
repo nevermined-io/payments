@@ -89,7 +89,7 @@ Every HTTP call to the Nevermined backend carries a `Nevermined-Version` header 
 
 **Override path**: per `Payments` instance via the existing `options.version` (e.g. `Payments.getInstance({ ..., version: '1.0' })`). There is intentionally **no per-request override** — `Nevermined-Version` is not in the `ALLOWED_EXTRA_HEADERS` allowlist, so `extraHeaders` cannot clobber it.
 
-See https://docs.nevermined.app/api-reference/versioning and nvm-monorepo#1535/#1938.
+See https://nevermined.ai/docs/development-guide/api-versioning and nvm-monorepo#1535/#1938.
 
 ### x402 Protocol and Documentation Standards
 

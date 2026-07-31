@@ -50,7 +50,7 @@ export interface PaymentOptions {
    * built and tested against. Override only to deliberately target a
    * different backend contract.
    *
-   * @see https://docs.nevermined.app/api-reference/versioning
+   * @see https://nevermined.ai/docs/development-guide/api-versioning
    */
   version?: string
 
