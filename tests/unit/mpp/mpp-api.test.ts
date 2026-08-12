@@ -4,11 +4,12 @@
  * `fetch` is stubbed, so these lock the wire contract with the backend routes
  * without needing a backend.
  */
-import { MppAPI } from '../../../src/mpp/mpp-api.js'
+import { MppAPI, normalizeCredits } from '../../../src/mpp/mpp-api.js'
 import {
   MppChallengeExpiredError,
   MppCredentialRejectedError,
   MppNotConfiguredError,
+  MppError,
 } from '../../../src/mpp/errors.js'
 
 const OPTIONS = { nvmApiKey: 'eyJhbGciOiJIUzI1NiJ9.e30.sig', environment: 'sandbox' } as any
@@ -121,6 +122,111 @@ describe('MppAPI error mapping', () => {
         httpVerb: 'POST',
       }),
     ).rejects.toBeInstanceOf(MppNotConfiguredError)
+  })
+})
+
+describe('normalizeCredits', () => {
+  it('renders a large integer exponent exactly, without scientific notation', () => {
+    // credits.toString() on a JS number used to emit "1e+21" verbatim into
+    // the HMAC-sealed challenge; BigInt(...) renders the exact integer.
+    expect(normalizeCredits(1e21)).toBe('1000000000000000000000')
+  })
+
+  it('passes an ordinary integer through', () => {
+    expect(normalizeCredits(5)).toBe('5')
+    expect(normalizeCredits(5n)).toBe('5')
+    expect(normalizeCredits('5')).toBe('5')
+  })
+
+  it('rejects a non-integer number', () => {
+    expect(() => normalizeCredits(0.1)).toThrow(MppError)
+  })
+
+  it('rejects NaN and Infinity', () => {
+    expect(() => normalizeCredits(NaN)).toThrow(MppError)
+    expect(() => normalizeCredits(Infinity)).toThrow(MppError)
+  })
+
+  it('rejects a negative amount', () => {
+    expect(() => normalizeCredits(-5)).toThrow(MppError)
+    expect(() => normalizeCredits('-5')).toThrow(MppError)
+  })
+
+  it('rejects a non-decimal credits string rather than silently accepting hex/empty/whitespace', () => {
+    // BigInt('0x10'), BigInt(''), and BigInt(' 5 ') all parse "successfully"
+    // to values a decimal-string contract must not accept.
+    expect(() => normalizeCredits('0x10')).toThrow(MppError)
+    expect(() => normalizeCredits('')).toThrow(MppError)
+    expect(() => normalizeCredits(' 5 ')).toThrow(MppError)
+    expect(() => normalizeCredits('5.5')).toThrow(MppError)
+  })
+})
+
+describe('MppAPI.issueChallenge credits validation', () => {
+  it('rejects NaN before it reaches the wire', async () => {
+    const spy = stubFetch(201, { challenge: 'c', id: 'i' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '123',
+        credits: NaN,
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toThrow(MppError)
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('renders a large integer exponent exactly on the wire', async () => {
+    const spy = stubFetch(201, { challenge: 'c', id: 'i' })
+    await MppAPI.getInstance(OPTIONS).issueChallenge({
+      planId: '123',
+      credits: 1e21,
+      resource: '/ask',
+      httpVerb: 'POST',
+    })
+    expect(JSON.parse(spy.mock.calls[0][1].body).credits).toBe('1000000000000000000000')
+  })
+})
+
+describe('MppAPI.post success-path parsing', () => {
+  it('raises a typed MppError, not a raw SyntaxError, when a 2xx response is not JSON', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => {
+        throw new SyntaxError("Unexpected token '<', \"<html>...\" is not valid JSON")
+      },
+    }) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '123',
+        credits: '1',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppError)
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '123',
+        credits: '1',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(SyntaxError)
+  })
+})
+
+describe('MppAPI.post request timeout', () => {
+  it('passes an AbortSignal to fetch, so a hung backend cannot hold the connection open indefinitely', async () => {
+    const spy = stubFetch(201, { challenge: 'c', id: 'i' })
+    await MppAPI.getInstance(OPTIONS).issueChallenge({
+      planId: '123',
+      credits: '1',
+      resource: '/ask',
+      httpVerb: 'POST',
+    })
+    const [, init] = spy.mock.calls[0]
+    expect(init.signal).toBeInstanceOf(AbortSignal)
   })
 })
 

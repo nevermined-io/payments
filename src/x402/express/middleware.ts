@@ -73,6 +73,7 @@ import {
 } from './mpp-support.js'
 import { computeBodyDigest, getRawBody } from './raw-body.js'
 import { MppError, MppCredentialRejectedError } from '../../mpp/errors.js'
+import { normalizeCredits } from '../../mpp/mpp-api.js'
 
 /**
  * Configuration for a protected route
@@ -398,10 +399,13 @@ async function handleMppRequest(args: {
     try {
       const issued = await payments.mpp.issueChallenge({
         planId,
-        // Stringified here (not left to MppAPI.issueChallenge) so the exact
+        // Normalized here (not left to MppAPI.issueChallenge) so the exact
         // wire shape is visible to a mocked payments.mpp in tests, matching
-        // the decimal-string contract of IssueMppChallengeParams.credits.
-        credits: creditsToCharge.toString(),
+        // the decimal-string contract of IssueMppChallengeParams.credits —
+        // and so a NaN/Infinity/non-integer credits function result is
+        // rejected before a mocked payments.mpp in a test could hide the
+        // defect by never validating it itself.
+        credits: normalizeCredits(creditsToCharge),
         ...(agentId && { agentId }),
         resource,
         httpVerb,
