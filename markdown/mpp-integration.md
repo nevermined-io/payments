@@ -82,10 +82,10 @@ const { delegationId } = await payments.delegation.createDelegation({
   currency: 'usdc',
 })
 
-const { response, receipt } = await payments.mpp.fetch(
+const { response, receipt, paid, settled, credentialsPresented } = await payments.mpp.fetch(
   'https://agent.example/ask',
   { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q: 'hello' }) },
-  { delegationConfig: { delegationId } },
+  { delegationConfig: { delegationId }, planId: PLAN_ID },
 )
 
 console.log(await response.json(), receipt?.reference)
@@ -93,19 +93,74 @@ console.log(await response.json(), receipt?.reference)
 
 The helper reads the plan out of the challenge, mints an MPP access token for
 the delegation you already have, retries the request with the credential, and
-decodes the `Payment-Receipt`. A request to an endpoint that does not speak MPP
-comes back untouched, with `paid: false` — this holds for any body type,
-including a `ReadableStream`.
+decodes the `Payment-Receipt`. `delegationConfig` must carry a `delegationId`
+— create the delegation first, the same as for x402. Passing `planId` pins
+the plan you expect to pay; the challenge naming a different plan makes the
+call fail before anything is minted. `maxCredits` does the same for price: a
+seller unilaterally names the credits in the challenge (and can raise it on a
+re-challenge), so without a cap the helper pays whatever is asked.
 
-A `ReadableStream` request body is otherwise fine, with one caveat: if the
-endpoint *does* answer with a 402 challenge, the retry needs to resend the same
-body, and a stream can only be read once. In that case `payments.mpp.fetch`
-throws a typed `MppError` rather than let the retry fail with an opaque
-runtime error. A `string`, `Buffer`/`ArrayBuffer`/typed array,
-`URLSearchParams`, `FormData` or `Blob` body has no such caveat — pass one of
-those instead if the endpoint may challenge the request.
+### What `paid: false` does and does not mean
 
-Errors are typed: `MppChallengeExpiredError` (fetch a fresh challenge — the
-helper already retries once), `MppCredentialRejectedError` (the credential was
-refused, for example because it was already spent) and `MppNotConfiguredError`
-(the environment has MPP switched off).
+`paid` is `response.ok && settled` — it does **not** mean nothing was
+attempted. Check `credentialsPresented` (0, 1 or 2) before deciding a blind
+retry is safe:
+
+- **`credentialsPresented === 0`** — no credential was ever minted or sent.
+  The endpoint may not speak MPP, or never returned a challenge. A retry here
+  is exactly as safe as calling `fetch` again.
+- **`credentialsPresented > 0` and `settled === false`** — one or two
+  credentials were minted and presented, and their fate is not known to the
+  caller (the seller may have burned credits and failed to respond, or the
+  receipt could not be decoded). **Do not blindly retry** — that mints and
+  presents yet another credential. Inspect `response` and `creditsPresented`
+  first.
+- **`settled === true`** (equivalently, `receipt` is present) — the payment
+  succeeded regardless of what `paid` says. `paid` additionally requires the
+  HTTP response itself to be a 2xx; a settle-then-error response from a
+  seller is `settled: true, paid: false`.
+
+A request to an endpoint that never challenges (no 402 at all) comes back
+untouched, with `paid: false` and `credentialsPresented: 0` — this holds for
+any body type, including a `ReadableStream`.
+
+### Streaming request bodies
+
+A `ReadableStream` request body works exactly like plain `fetch` **as long as
+the endpoint never challenges the request** — the single underlying `fetch()`
+consumes it once, safely. The one caveat: if the endpoint *does* answer with a
+402 challenge, the retry needs to resend the same body, and a stream can only
+be read once. In that case `payments.mpp.fetch` throws before attempting the
+retry, rather than let it fail with an opaque runtime error. A `string`,
+`Buffer`/`ArrayBuffer`/typed array, `URLSearchParams`, `FormData` or `Blob`
+body has no such caveat — pass one of those instead if the endpoint may
+challenge the request.
+
+### Errors
+
+Two families, thrown for different reasons:
+
+- **`PaymentsError`** (`code: 'validation'`) — a guard this call refused to
+  even attempt: a missing or unusable `delegationConfig` (it must carry a
+  `delegationId` — the deprecated inline create-on-the-fly shape is not
+  accepted here), a challenge naming a different plan than `planId` pinned, a
+  challenge asking for more credits than `maxCredits` allows, or a
+  `ReadableStream` body that a retry would need to replay. Nothing was ever
+  minted when one of these throws.
+- **`MppError`** and its typed subclasses — what the wire actually said:
+  `MppNotConfiguredError` when the environment has MPP switched off,
+  `MppCredentialRejectedError` when the backend names that code explicitly, a
+  generic `MppError` for a rejection the backend answers without a code
+  (including the seller replaying an identical challenge), and a generic
+  `MppError` for a 402 whose challenge could not be decoded at all.
+
+`MppChallengeExpiredError` (`BCK.MPP.0004`) is never thrown by this helper —
+it is exactly the case `payments.mpp.fetch` retries automatically, once, with
+a fresh challenge, so the caller never sees it.
+
+### Note on schemes
+
+This helper mints `nvm:erc4337` access tokens only in this release. A buyer
+holding an `nvm:card-delegation` delegation cannot use `payments.mpp.fetch`
+yet — use `payments.x402.getX402AccessToken` with `scheme: 'nvm:card-delegation'`
+against an x402-only route instead.
