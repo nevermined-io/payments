@@ -63,6 +63,14 @@ import {
   type X402PaymentRequired,
   type VerifyPermissionsResult,
 } from '../facilitator-api.js'
+import {
+  MPP_HEADERS,
+  extractCredential,
+  mppResource,
+  mppVerb,
+  resolveMppOption,
+  type MppRouteOption,
+} from './mpp-support.js'
 
 /**
  * Configuration for a protected route
@@ -82,6 +90,12 @@ export interface RouteConfig {
   description?: string
   /** Expected response MIME type (e.g., "application/json") */
   mimeType?: string
+  /**
+   * Accept MPP (Machine Payments Protocol) on this route in addition to x402.
+   * Default off. `{ bindBody: true }` additionally binds the challenge to the
+   * request body, which requires `captureRawBody` on the body parser.
+   */
+  mpp?: MppRouteOption
 }
 
 /**
@@ -246,6 +260,67 @@ function sendPaymentRequired(
   })
 }
 
+/**
+ * The MPP request path.
+ *
+ * Kept whole and separate from the x402 path so that with `mpp` unset nothing
+ * here runs and the x402 behaviour is unchanged.
+ */
+async function handleMppRequest(args: {
+  req: Request
+  res: Response
+  next: NextFunction
+  payments: Payments
+  routeConfig: RouteConfig
+  paymentRequired: X402PaymentRequired
+  bindBody: boolean
+  hooks: {
+    onPaymentError?: PaymentMiddlewareOptions['onPaymentError']
+    onAfterVerify?: PaymentMiddlewareOptions['onAfterVerify']
+    onAfterSettle?: PaymentMiddlewareOptions['onAfterSettle']
+  }
+}): Promise<void> {
+  const { req, res, payments, routeConfig, paymentRequired } = args
+  const { planId, credits = 1, agentId, description } = routeConfig
+  const resource = mppResource(req)
+  const httpVerb = mppVerb(req)
+
+  // Credits are sealed into the challenge, so a credits function is evaluated
+  // exactly once — here. MPP has no equivalent of the x402 re-evaluation at
+  // settle time; the backend settles the amount the challenge carries.
+  const creditsToCharge = typeof credits === 'function' ? await credits(req, res) : credits
+
+  const sendChallenge = async (message: string): Promise<void> => {
+    const { challenge } = await payments.mpp.issueChallenge({
+      planId,
+      // Stringified here (not left to MppAPI.issueChallenge) so the exact
+      // wire shape is visible to a mocked payments.mpp in tests, matching
+      // the decimal-string contract of IssueMppChallengeParams.credits.
+      credits: creditsToCharge.toString(),
+      ...(agentId && { agentId }),
+      resource,
+      httpVerb,
+      ...(description && { description }),
+    })
+    const paymentRequiredBase64 = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
+    res
+      .status(402)
+      .setHeader(MPP_HEADERS.CHALLENGE, challenge)
+      // Advertise x402 on the same 402 so an x402 buyer is unaffected.
+      .setHeader(X402_HEADERS.PAYMENT_REQUIRED, paymentRequiredBase64)
+      .json({ error: 'Payment Required', message })
+  }
+
+  const credential = extractCredential(req)
+  if (!credential) {
+    await sendChallenge('Payment required. Present the challenge credential in Authorization.')
+    return
+  }
+
+  // Verification and settlement land in Task 4.
+  args.next()
+}
+
 export function paymentMiddleware(
   payments: Payments,
   routes: RouteConfigMap,
@@ -295,6 +370,21 @@ export function paymentMiddleware(
         scheme,
         environment: payments.getEnvironmentName(),
       })
+
+      const mppOption = resolveMppOption(routeConfig.mpp)
+      if (mppOption.enabled) {
+        await handleMppRequest({
+          req,
+          res,
+          next,
+          payments,
+          routeConfig,
+          paymentRequired,
+          bindBody: mppOption.bindBody,
+          hooks: { onPaymentError, onAfterVerify, onAfterSettle },
+        })
+        return
+      }
 
       // Extract token from headers (x402 v2: payment-signature)
       const token = extractToken(req, tokenHeader)
