@@ -35,10 +35,21 @@ function buildMockPayments(mpp: Record<string, unknown> = {}) {
   } as any
 }
 
-async function startServer(payments: any, handler?: (req: any, res: any) => void) {
+async function startServer(
+  payments: any,
+  handler?: (req: any, res: any) => void,
+  options: Record<string, unknown> = {},
+  routeCredits: number = 2,
+) {
   const app = express()
   app.use(express.json())
-  app.use(paymentMiddleware(payments, { 'POST /ask': { planId: '123', credits: 2, mpp: true } }))
+  app.use(
+    paymentMiddleware(
+      payments,
+      { 'POST /ask': { planId: '123', credits: routeCredits, mpp: true } },
+      options as any,
+    ),
+  )
   app.post('/ask', handler ?? ((_req, res) => res.json({ answer: 'ok' })))
   const server = http.createServer(app)
   await new Promise<void>((r) => server.listen(0, r))
@@ -247,5 +258,137 @@ describe('MPP redemption', () => {
     } finally {
       await close()
     }
+  })
+
+  describe('the amount reported to onAfterSettle and paymentContext', () => {
+    it('reports the amount the backend actually redeemed, not the locally recomputed credits', async () => {
+      // Credits are sealed into the challenge on an EARLIER request; this
+      // request's own creditsToCharge (routeCredits: 5, e.g. a credits
+      // function that changed between mint and redeem) must not be reported
+      // as what was burned when the settle response says otherwise.
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockResolvedValue({
+          success: true,
+          transaction: '0x',
+          network: 'eip155:84532',
+          creditsRedeemed: '2', // sealed into the challenge, not routeCredits below
+          paymentReceipt: 'receipt-b64',
+        }),
+      })
+      const onAfterSettle = jest.fn()
+      const { port, close } = await startServer(
+        payments,
+        (req: any, res: any) => res.json({ creditsToSettle: req.paymentContext.creditsToSettle }),
+        { onAfterSettle },
+        5, // routeCredits: diverges from the settlement's creditsRedeemed
+      )
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body.creditsToSettle).toBe(5) // read before settlement ran; unaffected
+
+        // Give the deferred settlement microtask a turn.
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledWith(
+          expect.anything(),
+          2, // the settled amount, not the recomputed 5
+          expect.objectContaining({ creditsRedeemed: '2' }),
+        )
+      } finally {
+        await close()
+      }
+    })
+
+    it('falls back to the recomputed credits when the settlement omits creditsRedeemed', async () => {
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockResolvedValue({
+          success: true,
+          transaction: '0x',
+          network: 'eip155:84532',
+          paymentReceipt: 'receipt-b64',
+        }),
+      })
+      const onAfterSettle = jest.fn()
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        await post(port, { authorization: CREDENTIAL })
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledWith(expect.anything(), 2, expect.anything())
+      } finally {
+        await close()
+      }
+    })
+  })
+
+  describe('settlement failure handling', () => {
+    it('still returns the served 2xx, with no Payment-Receipt header, when settleCredential rejects', async () => {
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockRejectedValue(new Error('settlement service unreachable')),
+      })
+      const { port, close } = await startServer(payments)
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({ answer: 'ok' })
+        expect(response.headers.get('payment-receipt')).toBeNull()
+      } finally {
+        await close()
+      }
+    })
+
+    it('does not settle twice when the handler ends the response twice', async () => {
+      const payments = buildMockPayments()
+      const { port, close } = await startServer(payments, (_req: any, res: any) => {
+        // res.write flushes headers immediately, so both end() calls take
+        // the synchronous (headersSent) branch -- settlementStarted is the
+        // only thing standing between this and a double settle.
+        res.write('ok')
+        res.end()
+        try {
+          res.end()
+        } catch {
+          // A second end() on an already-finished native response can throw;
+          // irrelevant here -- only the settlement call count matters.
+        }
+      })
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        await new Promise((r) => setImmediate(r))
+        expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
+      } finally {
+        await close()
+      }
+    })
+
+    it('does not throw and still calls onAfterSettle when the settle resolves with success: false and no paymentReceipt', async () => {
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockResolvedValue({
+          success: false,
+          errorReason: 'insufficient balance at settle time',
+          transaction: '',
+          network: 'eip155:84532',
+        }),
+      })
+      const onAfterSettle = jest.fn()
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        // The buyer already has the delivered resource; a failed settle
+        // must not throw ERR_HTTP_INVALID_HEADER_VALUE and must not be
+        // silently indistinguishable from every other kind of failure.
+        expect(response.status).toBe(200)
+        expect(response.headers.get('payment-receipt')).toBeNull()
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          expect.objectContaining({ success: false }),
+        )
+      } finally {
+        await close()
+      }
+    })
   })
 })

@@ -39,10 +39,16 @@ export interface RedeemMppParams {
   bodyDigest?: string
 }
 
-export interface MppSettleResult extends SettlePermissionsResult {
-  /** Ready-to-send `Payment-Receipt` header value. */
-  paymentReceipt: string
-}
+/**
+ * A discriminated union rather than a flat `paymentReceipt: string`: a
+ * settlement can fail, and `SettlePermissionsResult.success` already says
+ * so, but the flat shape let `{ success: false }` with no receipt typecheck
+ * — a state the seller middleware then had no way to reject at compile time
+ * even though it could not safely attach a receipt header for it.
+ */
+export type MppSettleResult =
+  | (SettlePermissionsResult & { success: true; paymentReceipt: string })
+  | (SettlePermissionsResult & { success: false; paymentReceipt?: string })
 
 export class MppAPI extends BasePaymentsAPI {
   static getInstance(options: PaymentOptions): MppAPI {

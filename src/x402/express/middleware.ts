@@ -556,15 +556,47 @@ async function handleMppRequest(args: {
         ...(bodyDigest && { bodyDigest }),
       })
       .then((settlement) => {
-        if (!res.headersSent) {
-          res.setHeader(MPP_HEADERS.RECEIPT, settlement.paymentReceipt)
+        // Never call res.setHeader with an undefined value: MppSettleResult's
+        // type says success: true implies a string paymentReceipt, but a
+        // real backend response isn't statically checked, so this is
+        // defensive too. Distinguishing the three cases matters: a genuine
+        // settlement failure, a successful settle that (contrary to the
+        // type) carried no receipt, and the normal success-with-receipt
+        // path each get their own accurate log — collapsing them all into
+        // "MPP settlement failed" pointed an on-call engineer at the wrong
+        // system when the burn had actually succeeded.
+        if (settlement.success && settlement.paymentReceipt) {
+          if (!res.headersSent) {
+            res.setHeader(MPP_HEADERS.RECEIPT, settlement.paymentReceipt)
+          } else {
+            console.warn(
+              '[paymentMiddleware] headers already flushed; Payment-Receipt not attached',
+            )
+          }
+        } else if (!settlement.success) {
+          console.error(
+            'MPP settlement failed:',
+            settlement.errorReason ?? 'no errorReason provided',
+          )
         } else {
           console.warn(
-            '[paymentMiddleware] headers already flushed; Payment-Receipt not attached',
+            '[paymentMiddleware] MPP settlement succeeded but carried no paymentReceipt',
           )
         }
+
+        // The amount actually burned is whatever the challenge sealed on an
+        // EARLIER request, reported back on the settlement — not
+        // creditsToCharge, which is recomputed on THIS request and can
+        // diverge from the minting request when `credits` is a function
+        // (evaluated once per request, so at least twice per payment cycle).
+        const creditsSettled =
+          settlement.creditsRedeemed !== undefined
+            ? Number(settlement.creditsRedeemed)
+            : creditsToCharge
+        paymentContext.creditsToSettle = creditsSettled
+
         if (onAfterSettle) {
-          return Promise.resolve(onAfterSettle(req, creditsToCharge, settlement)).then(
+          return Promise.resolve(onAfterSettle(req, creditsSettled, settlement)).then(
             () => undefined,
           )
         }
