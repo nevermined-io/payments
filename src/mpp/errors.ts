@@ -49,6 +49,26 @@ export class MppBodyDigestMismatchError extends MppError {
 }
 
 /**
+ * Thrown only for `settleCredential`'s own outbound deadline firing — never
+ * backend-issued, so it carries no `code`. Settlement is the one MPP call
+ * that burns: if the backend's answer to that specific request is lost to a
+ * client-side timeout, the burn may have already happened even though the
+ * caller received nothing. Collapsing that into the same `network_error`
+ * `MppError` used for "nothing happened" failures (connection refused, DNS
+ * failure, a hung challenge/verify call) would let a real burn get logged
+ * and treated exactly like one that never occurred — silently corrupting the
+ * seller's own accounting on the call that is not safe to shrug off.
+ */
+export class MppSettlementOutcomeUnknownError extends MppError {
+  constructor(
+    message = 'MPP settlement outcome unknown: the request timed out before the backend responded, so the credits may or may not have been burned',
+  ) {
+    super(message)
+    this.name = 'MppSettlementOutcomeUnknownError'
+  }
+}
+
+/**
  * `BCK.MPP.*` codes a buyer can retry by minting a fresh credential against
  * the NEW challenge the same 402 carries alongside them — as opposed to
  * `BCK.MPP.0003`, which means the credential itself was refused and paying

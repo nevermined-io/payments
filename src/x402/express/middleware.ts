@@ -72,7 +72,12 @@ import {
   type MppRouteOption,
 } from './mpp-support.js'
 import { computeBodyDigest, getRawBody } from './raw-body.js'
-import { MppError, MppCredentialRejectedError, isRetryableMppCode } from '../../mpp/errors.js'
+import {
+  MppError,
+  MppCredentialRejectedError,
+  MppSettlementOutcomeUnknownError,
+  isRetryableMppCode,
+} from '../../mpp/errors.js'
 import { normalizeCredits } from '../../mpp/mpp-api.js'
 
 /**
@@ -667,6 +672,28 @@ async function handleMppRequest(args: {
         return undefined
       })
       .catch((settleError) => {
+        if (settleError instanceof MppSettlementOutcomeUnknownError) {
+          // Settlement is the one MPP call that burns: this rejection means
+          // OUR OWN deadline fired, not that the backend rejected anything —
+          // the credits may already be burned even though this request
+          // never heard back. Logging it through the same line as a genuine
+          // failure would tell an on-call engineer nothing was charged when
+          // it may well have been, and skipping onAfterSettle here would
+          // make a real burn vanish from the seller's own accounting.
+          console.warn(
+            'MPP settlement outcome unknown (request timed out before the backend responded; credits may have been burned):',
+            settleError.message,
+          )
+          if (onAfterSettle) {
+            return Promise.resolve(
+              onAfterSettle(req, creditsToCharge, {
+                outcome: 'unknown' as const,
+                reason: settleError.message,
+              }),
+            ).then(() => undefined)
+          }
+          return undefined
+        }
         console.error('MPP settlement failed:', settleError)
       })
 
