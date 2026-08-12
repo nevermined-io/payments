@@ -151,7 +151,44 @@ describe('MPP redemption', () => {
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
       const body = await response.json()
       expect(body.code).toBe('BCK.MPP.0003')
-      expect(body.message).toBe('forged signature')
+      // The buyer-visible message is fixed and generic, never the caught
+      // error's own message -- see the dedicated hint-leak test below for
+      // why: MppAPI.post folds a backend `hint` field into that message, and
+      // forwarding it verbatim would re-widen the anti-oracle discipline
+      // src/mpp/errors.ts documents.
+      expect(body.message).toBe('Credential rejected')
+    } finally {
+      await close()
+    }
+  })
+
+  it('never forwards a caught verification error message verbatim to the buyer, even when it carries a backend hint', async () => {
+    // MppAPI.post folds a backend-supplied `hint` onto the thrown error's
+    // message (mpp-api.ts): "MPP credential rejected — the signature does
+    // not match the account bound to this plan". The backend deliberately
+    // collapses every rejection into one coarse code so the endpoint cannot
+    // be used as a forgery oracle (src/mpp/errors.ts); a hint folded into
+    // the message and then echoed to the buyer would hand the discriminator
+    // straight back to the exact caller -- a buyer probing forged
+    // credentials -- the coarse code was meant to withhold from.
+    const payments = buildMockPayments({
+      verifyCredential: jest
+        .fn()
+        .mockRejectedValue(
+          new MppCredentialRejectedError(
+            'MPP credential rejected — the signature does not match the account bound to this plan',
+          ),
+        ),
+    })
+    const { port, close } = await startServer(payments)
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(402)
+      const body = await response.json()
+      expect(body.code).toBe('BCK.MPP.0003')
+      expect(body.message).not.toMatch(/signature/)
+      expect(body.message).not.toMatch(/account bound/)
+      expect(body.message).toBe('Credential rejected')
     } finally {
       await close()
     }

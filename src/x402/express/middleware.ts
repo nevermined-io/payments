@@ -475,7 +475,14 @@ async function handleMppRequest(args: {
     // it were one of ours.
     const code =
       error instanceof MppError && error.code?.startsWith('BCK.MPP.') ? error.code : undefined
-    await sendChallenge(error instanceof Error ? error.message : 'Credential rejected', code)
+    // Log the full detail — MppAPI.post folds a backend `hint` onto the
+    // error's message — for the seller's own diagnostics. The buyer only
+    // ever sees a fixed generic message plus the coarse code: forwarding
+    // error.message verbatim would re-widen the anti-oracle discipline
+    // src/mpp/errors.ts documents, handing a hint the backend deliberately
+    // withheld straight back to the caller most likely to probe for it.
+    console.error('MPP credential verification failed:', error)
+    await sendChallenge('Credential rejected', code)
     return
   }
 
