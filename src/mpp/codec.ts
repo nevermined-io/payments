@@ -10,20 +10,59 @@
 
 import type { MppChallenge, MppChallengeRequest, MppReceipt } from './types.js'
 
-const PAYMENT_SCHEME = /^Payment\s+/i
+/** A bare token (RFC 9110 §5.6.2, used for auth-scheme names and auth-param keys). */
+const TOKEN = "[!#$%&'*+\\-.^_`|~0-9A-Za-z]+"
+/** Matches the start of a `key=` auth-param, i.e. a Payment challenge continuing. */
+const AUTH_PARAM_START = new RegExp(`^${TOKEN}\\s*=`)
 
 /**
  * Extracts the `Payment` scheme from a header value that may carry several
  * schemes comma-separated (RFC 9110 §11.6.1).
+ *
+ * The `Payment` scheme takes one of two shapes on our wire: a bare token68
+ * credential (`Payment <base64url>`, which cannot itself contain a comma) or
+ * a structured challenge (`Payment id="...", realm="...", ...`, comma-
+ * separated `key="value"` auth-params). Bounding the match at the next
+ * literal "Payment " occurrence — or at end-of-string otherwise — corrupts
+ * the first shape whenever a *different* trailing scheme follows: e.g.
+ * `Payment <token>, Bearer <jwt>` used to extract the whole remainder
+ * including the trailing scheme. Instead: a bare token68 is bounded by its
+ * first top-level comma; a structured challenge is bounded by whichever
+ * comes first — a following literal "Payment " (the merged-challenge case
+ * `parseChallengeHeader` relies on) or a following comma-delimited segment
+ * that does not itself look like a continuing `key=value` auth-param.
  */
 export function extractPaymentScheme(headerValue: string): string | null {
-  const starts: number[] = []
-  for (const match of headerValue.matchAll(/Payment\s+/gi)) {
-    if (match.index !== undefined) starts.push(match.index)
+  const schemeMatch = /Payment\s+/i.exec(headerValue)
+  if (!schemeMatch || schemeMatch.index === undefined) return null
+
+  const start = schemeMatch.index
+  const contentStart = start + schemeMatch[0].length
+  const rest = headerValue.slice(contentStart)
+
+  if (!AUTH_PARAM_START.test(rest)) {
+    // Bare token68 credential: bounded by its first top-level comma, since a
+    // token68 cannot itself contain one.
+    const commaIndex = rest.indexOf(',')
+    const end = commaIndex === -1 ? headerValue.length : contentStart + commaIndex
+    return headerValue.slice(start, end).trim()
   }
-  if (starts.length === 0) return null
-  const start = starts[0]
-  const end = starts.length > 1 ? starts[1] : headerValue.length
+
+  // Structured challenge: consume comma-separated key=value segments for as
+  // long as each next segment still looks like one; stop at the first
+  // segment that doesn't (a new scheme name), at a following literal
+  // "Payment " (the existing merged-challenge case), or at end-of-string.
+  const nextPayment = /Payment\s+/i.exec(rest)
+  const searchSpace = nextPayment ? rest.slice(0, nextPayment.index) : rest
+
+  const segments = searchSpace.split(',')
+  let consumed = segments[0].length
+  for (let i = 1; i < segments.length; i++) {
+    if (!AUTH_PARAM_START.test(segments[i].trimStart())) break
+    consumed += 1 + segments[i].length // +1 for the comma rejoining it
+  }
+
+  const end = contentStart + consumed
   return headerValue.slice(start, end).replace(/,\s*$/, '').trim()
 }
 
@@ -51,7 +90,7 @@ export function parseChallengeHeader(headerValue: string): MppChallenge | null {
   const scheme = extractPaymentScheme(headerValue)
   if (!scheme) return null
 
-  const params = parseAuthParams(scheme.replace(PAYMENT_SCHEME, ''))
+  const params = parseAuthParams(scheme.replace(/^Payment\s+/i, ''))
   const { id, realm, method, intent, request, expires, digest, opaque, description } = params
   if (!id || !realm || !method || !intent || !request) return null
 

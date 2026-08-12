@@ -119,4 +119,17 @@ describe('extractPaymentScheme', () => {
   it('returns null when absent', () => {
     expect(extractPaymentScheme('Bearer xyz')).toBeNull()
   })
+
+  it('stops at a trailing scheme when Payment is a bare credential token', () => {
+    // A credential is a token68 (no internal structure), so it can never
+    // legitimately contain a comma. A following ", Bearer some-app-jwt" must
+    // not be folded into the extracted scheme.
+    expect(extractPaymentScheme('Payment abc, Bearer xyz')).toBe('Payment abc')
+  })
+
+  it('does not corrupt the credential when Authorization carries an app JWT alongside it', () => {
+    expect(extractPaymentScheme('Payment eyJhYmMifQ, Bearer some-app-jwt')).toBe(
+      'Payment eyJhYmMifQ',
+    )
+  })
 })
