@@ -17,29 +17,50 @@ const AUTH_PARAM_START = new RegExp(`^${TOKEN}\\s*=`)
 
 /**
  * Finds where a structured challenge's auth-param list ends within `rest`
- * (the content right after "Payment "), scanning quote-aware so a comma
- * inside a `"…"` value — e.g. a seller-supplied `description` like
- * `"Standard, non-refundable request"` — is never mistaken for a boundary.
+ * (the content right after "Payment "), scanning quote- and escape-aware so
+ * neither a comma nor a `\"` inside a `"…"` value is mistaken for a
+ * boundary. mppx serializes quoted values with
+ * `value.replace(/\\/g,'\\\\').replace(/"/g,'\\"')` (`Challenge.ts:316-319`),
+ * so a seller-supplied `description` like `5" screen replacement plan` wire-
+ * encodes as `description="5\" screen replacement plan"`. A scanner that
+ * toggles quote state on every literal `"` — escaped or not — desyncs on
+ * that `\"`, stays stuck "inside" a quote for the rest of the header, and
+ * swallows a genuine trailing scheme. This mirrors mppx's own reference
+ * parser's `escaped` flag (`Challenge.ts:362-379`) rather than inventing new
+ * semantics.
  *
- * A top-level (non-quoted) comma only ends the scheme if what follows it
- * does NOT itself look like a continuing `key=value` auth-param — which is
- * also how a following literal "Payment " (the merged-challenge case) is
- * recognized as a new scheme: "Payment" followed by whitespace never matches
- * `AUTH_PARAM_START`, since that requires "=" immediately (module optional
- * whitespace) after the leading token.
+ * A top-level (non-quoted, non-escaped) comma only ends the scheme if what
+ * follows it does NOT itself look like a continuing `key=value` auth-param —
+ * which is also how a following literal "Payment " (the merged-challenge
+ * case) is recognized as a new scheme: "Payment" followed by whitespace
+ * never matches `AUTH_PARAM_START`, since that requires "=" immediately
+ * (modulo optional whitespace) after the leading token.
+ *
+ * An unterminated quote is not an error here: the loop simply runs out of
+ * input without finding a boundary and falls back to treating the whole
+ * remainder as this scheme — a safe, total (never-throwing) O(n) fallback.
  */
 function findStructuredChallengeEnd(rest: string): number {
   let inQuotes = false
+  let escaped = false
   for (let i = 0; i < rest.length; i++) {
     const ch = rest[i]
-    if (ch === '"') {
-      inQuotes = !inQuotes
+    if (inQuotes) {
+      if (escaped) {
+        escaped = false
+      } else if (ch === '\\') {
+        escaped = true
+      } else if (ch === '"') {
+        inQuotes = false
+      }
       continue
     }
-    if (ch === ',' && !inQuotes) {
-      if (!AUTH_PARAM_START.test(rest.slice(i + 1).trimStart())) {
-        return i
-      }
+    if (ch === '"') {
+      inQuotes = true
+      continue
+    }
+    if (ch === ',' && !AUTH_PARAM_START.test(rest.slice(i + 1).trimStart())) {
+      return i
     }
   }
   return rest.length
@@ -84,13 +105,76 @@ export function extractPaymentScheme(headerValue: string): string | null {
   return headerValue.slice(start, end).replace(/,\s*$/, '').trim()
 }
 
-/** Splits `key="value", key2="value2"` into a map, tolerating unquoted values. */
-function parseAuthParams(value: string): Record<string, string> {
-  const params: Record<string, string> = {}
-  const pattern = /([a-zA-Z0-9_-]+)\s*=\s*(?:"([^"]*)"|([^,\s]+))/g
-  for (const match of value.matchAll(pattern)) {
-    params[match[1]] = match[2] ?? match[3] ?? ''
+/**
+ * Reads a quoted-string value starting right after its opening `"`,
+ * unescaping `\"` to a literal `"` and `\\` to a literal `\` (mirrors
+ * mppx's `readQuotedAuthParamValue`, `Challenge.ts:461-465`).
+ *
+ * An unterminated quote is not an error here (unlike mppx's reference
+ * parser, which throws): the loop runs out of input and returns whatever was
+ * accumulated, matching {@link findStructuredChallengeEnd}'s equally
+ * permissive fallback for the same input shape.
+ */
+function readQuotedValue(input: string, start: number): [value: string, nextIndex: number] {
+  let i = start
+  let value = ''
+  let escaped = false
+  while (i < input.length) {
+    const ch = input[i]
+    i++
+    if (escaped) {
+      value += ch
+      escaped = false
+      continue
+    }
+    if (ch === '\\') {
+      escaped = true
+      continue
+    }
+    if (ch === '"') return [value, i]
+    value += ch
   }
+  return [value, i]
+}
+
+/**
+ * Splits `key="value", key2="value2"` into a map. Quoted values are read
+ * escape-aware and unescaped ({@link readQuotedValue}), so a value may
+ * itself contain a comma, a quote (`\"`) or a backslash (`\\`) without
+ * corrupting the param that follows it. Unquoted values are tolerated too.
+ */
+function parseAuthParams(input: string): Record<string, string> {
+  const params: Record<string, string> = {}
+  let i = 0
+
+  while (i < input.length) {
+    while (i < input.length && /[\s,]/.test(input[i])) i++
+    if (i >= input.length) break
+
+    const keyStart = i
+    while (i < input.length && /[a-zA-Z0-9_-]/.test(input[i])) i++
+    const key = input.slice(keyStart, i)
+    if (!key) break
+
+    while (i < input.length && /\s/.test(input[i])) i++
+    if (input[i] !== '=') break
+    i++
+    while (i < input.length && /\s/.test(input[i])) i++
+
+    let value: string
+    if (input[i] === '"') {
+      const [decoded, nextIndex] = readQuotedValue(input, i + 1)
+      value = decoded
+      i = nextIndex
+    } else {
+      const valueStart = i
+      while (i < input.length && input[i] !== ',') i++
+      value = input.slice(valueStart, i).trim()
+    }
+
+    params[key] = value
+  }
+
   return params
 }
 

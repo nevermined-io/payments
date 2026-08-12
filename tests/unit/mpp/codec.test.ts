@@ -40,6 +40,28 @@ const CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION =
   'description="Standard, non-refundable request", ' +
   'opaque="eyJfbXBweF9zY29wZSI6IlBPU1QgL2FzayIsIm5vbmNlIjoiMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1In0"'
 
+/**
+ * Mirrors mppx's own `authParam` serializer (`Challenge.ts:316-319`):
+ * `value.replace(/\\/g,'\\\\').replace(/"/g,'\\"')`. Fixtures built with this
+ * are escaped the way the real backend actually emits them, not hand-waved.
+ */
+function mppxAuthParam(name: string, value: string): string {
+  return `${name}="${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+/** Builds a full structured challenge (sans "Payment " prefix) with a given `description`. */
+function buildChallengeParams(description: string): string {
+  return [
+    mppxAuthParam('id', 'CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og'),
+    mppxAuthParam('realm', 'api.nevermined.app'),
+    mppxAuthParam('method', 'nevermined'),
+    mppxAuthParam('intent', 'charge'),
+    mppxAuthParam('request', REQUEST_ENCODED),
+    mppxAuthParam('description', description),
+    mppxAuthParam('opaque', OPAQUE_ENCODED),
+  ].join(', ')
+}
+
 describe('parseChallengeHeader', () => {
   it('parses every auth-param and decodes the sealed request', () => {
     const challenge = parseChallengeHeader(CHALLENGE_HEADER)!
@@ -179,5 +201,60 @@ describe('extractPaymentScheme', () => {
       'request="req", description="Ask about the Payment plan, then retry", opaque="op"'
     expect(extractPaymentScheme(header)).toBe(header)
     expect(extractPaymentScheme(`${header}, Bearer some-app-jwt`)).toBe(header)
+  })
+})
+
+describe('escaped quoted-string values (mppx wire format)', () => {
+  it('does not swallow a genuine trailing scheme when description has an odd number of literal quotes', () => {
+    // '5" screen replacement plan' has one literal quote (odd count). mppx
+    // serializes it as description="5\" screen replacement plan" -- a
+    // quote-only (not escape-aware) scanner flips inQuotes an odd number of
+    // times on the escaped quote and never recovers, swallowing everything
+    // after it, including a genuinely different trailing scheme.
+    const description = '5" screen replacement plan'
+    const header = `Payment ${buildChallengeParams(description)}`
+    const merged = `${header}, Bearer some-app-jwt`
+
+    expect(extractPaymentScheme(merged)).toBe(header)
+
+    const challenge = parseChallengeHeader(header)!
+    expect(challenge).not.toBeNull()
+    expect(challenge.description).toBe(description)
+    expect(challenge.opaque).toBe(OPAQUE_ENCODED)
+    expect(challenge.id).toBe('CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og')
+    expect(challenge.requestEncoded).toBe(REQUEST_ENCODED)
+  })
+
+  it('decodes the full unescaped value when description has an even number of literal quotes', () => {
+    const description = 'Access to the "Pro" tier'
+    const header = `Payment ${buildChallengeParams(description)}`
+
+    const challenge = parseChallengeHeader(header)!
+    expect(challenge.description).toBe(description)
+  })
+
+  it('decodes a value containing a literal backslash', () => {
+    const description = 'back\\slash' // actual value: back\slash (one literal backslash)
+    const header = `Payment ${buildChallengeParams(description)}`
+
+    const challenge = parseChallengeHeader(header)!
+    expect(challenge.description).toBe(description)
+  })
+
+  it('keeps request and opaque verbatim (base64url, never quoted/escaped) alongside an escaped description', () => {
+    const description = 'Contains "quotes" and a back\\slash, and a comma'
+    const header = `Payment ${buildChallengeParams(description)}`
+
+    const challenge = parseChallengeHeader(header)!
+    expect(challenge.requestEncoded).toBe(REQUEST_ENCODED)
+    expect(challenge.opaque).toBe(OPAQUE_ENCODED)
+  })
+
+  it('returns the whole remainder as a safe fallback for an unterminated quote, without hanging', () => {
+    const header =
+      'Payment id="CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og", realm="api.nevermined.app", ' +
+      'method="nevermined", intent="charge", ' +
+      `request="${REQUEST_ENCODED}", description="unterminated`
+    expect(extractPaymentScheme(header)).toBe(header)
   })
 })
