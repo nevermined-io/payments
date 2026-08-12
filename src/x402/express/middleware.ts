@@ -292,6 +292,7 @@ async function handleMppRequest(args: {
   const { planId, credits = 1, agentId, description } = routeConfig
   const resource = mppResource(req)
   const httpVerb = mppVerb(req)
+  const { onPaymentError, onAfterVerify, onAfterSettle } = args.hooks
 
   // Credits are sealed into the challenge, so a credits function is evaluated
   // exactly once — here. MPP has no equivalent of the x402 re-evaluation at
@@ -318,18 +319,44 @@ async function handleMppRequest(args: {
   }
 
   const sendChallenge = async (message: string): Promise<void> => {
-    const { challenge } = await payments.mpp.issueChallenge({
-      planId,
-      // Stringified here (not left to MppAPI.issueChallenge) so the exact
-      // wire shape is visible to a mocked payments.mpp in tests, matching
-      // the decimal-string contract of IssueMppChallengeParams.credits.
-      credits: creditsToCharge.toString(),
-      ...(agentId && { agentId }),
-      resource,
-      httpVerb,
-      ...(bodyDigest && { digest: bodyDigest }),
-      ...(description && { description }),
-    })
+    // issueChallenge itself can fail (e.g. MPP is turned off on this
+    // environment: BCK.MPP.0002 -> MppNotConfiguredError). This call site is
+    // reached from three places — no credential, rejected credential, and the
+    // verifyCredential catch block — so a failure here must never propagate
+    // out of handleMppRequest: unhandled it would skip a configured
+    // onPaymentError and fall through to Express's default error handler,
+    // which leaks a stack trace to the client on every unauthenticated
+    // request to the route.
+    let challenge: string
+    try {
+      const issued = await payments.mpp.issueChallenge({
+        planId,
+        // Stringified here (not left to MppAPI.issueChallenge) so the exact
+        // wire shape is visible to a mocked payments.mpp in tests, matching
+        // the decimal-string contract of IssueMppChallengeParams.credits.
+        credits: creditsToCharge.toString(),
+        ...(agentId && { agentId }),
+        resource,
+        httpVerb,
+        ...(bodyDigest && { digest: bodyDigest }),
+        ...(description && { description }),
+      })
+      challenge = issued.challenge
+    } catch (challengeError) {
+      if (onPaymentError) {
+        onPaymentError(challengeError as Error, req, res)
+        return
+      }
+      console.error('MPP challenge issuance failed:', challengeError)
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Unable to issue an MPP payment challenge. Please try again later.',
+        })
+      }
+      return
+    }
+
     const paymentRequiredBase64 = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
     res
       .status(402)
@@ -344,8 +371,6 @@ async function handleMppRequest(args: {
     await sendChallenge('Payment required. Present the challenge credential in Authorization.')
     return
   }
-
-  const { onPaymentError, onAfterVerify, onAfterSettle } = args.hooks
 
   try {
     const verification = await payments.mpp.verifyCredential({
