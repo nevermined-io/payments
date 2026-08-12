@@ -9,6 +9,8 @@ import {
   MppChallengeExpiredError,
   MppCredentialRejectedError,
   MppBodyDigestMismatchError,
+  MppSettlementOutcomeUnknownError,
+  MppError,
 } from '../../../src/mpp/errors.js'
 
 const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
@@ -421,6 +423,57 @@ describe('MPP redemption', () => {
           expect.objectContaining({ success: false }),
         )
       } finally {
+        await close()
+      }
+    })
+
+    it('reports outcome-unknown via onAfterSettle, and does not log it as a plain failure, when settleCredential times out', async () => {
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockRejectedValue(new MppSettlementOutcomeUnknownError()),
+      })
+      const onAfterSettle = jest.fn()
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        // The buyer already has its resource; a timed-out settle must not
+        // fail the request, and — because the burn may well have happened —
+        // must not be indistinguishable from an ordinary settlement failure.
+        expect(response.status).toBe(200)
+        expect(response.headers.get('payment-receipt')).toBeNull()
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          expect.objectContaining({ outcome: 'unknown' }),
+        )
+        // A real burn that we simply lost the answer to must never be logged
+        // through the same line used for a genuine, known rejection.
+        expect(consoleErrorSpy).not.toHaveBeenCalledWith('MPP settlement failed:', expect.anything())
+        expect(consoleWarnSpy).toHaveBeenCalled()
+      } finally {
+        consoleErrorSpy.mockRestore()
+        consoleWarnSpy.mockRestore()
+        await close()
+      }
+    })
+
+    it('still logs and skips onAfterSettle as an ordinary failure for a ordinary (non-timeout) settle rejection', async () => {
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockRejectedValue(new MppError('backend exploded')),
+      })
+      const onAfterSettle = jest.fn()
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        await new Promise((r) => setImmediate(r))
+        expect(consoleErrorSpy).toHaveBeenCalledWith('MPP settlement failed:', expect.anything())
+        expect(onAfterSettle).not.toHaveBeenCalled()
+      } finally {
+        consoleErrorSpy.mockRestore()
         await close()
       }
     })

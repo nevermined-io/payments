@@ -10,6 +10,7 @@ import {
   MppCredentialRejectedError,
   MppNotConfiguredError,
   MppError,
+  MppSettlementOutcomeUnknownError,
 } from '../../../src/mpp/errors.js'
 
 const OPTIONS = { nvmApiKey: 'eyJhbGciOiJIUzI1NiJ9.e30.sig', environment: 'sandbox' } as any
@@ -227,6 +228,59 @@ describe('MppAPI.post request timeout', () => {
     })
     const [, init] = spy.mock.calls[0]
     expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+})
+
+describe('MppAPI settle-timeout outcome semantics', () => {
+  function stubFetchTimeout() {
+    global.fetch = jest.fn().mockRejectedValue(
+      new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
+    ) as any
+  }
+
+  it('surfaces a settle timeout as MppSettlementOutcomeUnknownError, not a generic network_error', async () => {
+    stubFetchTimeout()
+    await expect(
+      MppAPI.getInstance(OPTIONS).settleCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('does not treat a verifyCredential timeout as an unknown-outcome burn — verify burns nothing', async () => {
+    stubFetchTimeout()
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('does not treat an issueChallenge timeout as an unknown-outcome burn — issuing a challenge burns nothing', async () => {
+    stubFetchTimeout()
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '123',
+        credits: '1',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('still treats a non-timeout settle failure (e.g. connection refused) as an ordinary network_error', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('fetch failed')) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).settleCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
   })
 })
 

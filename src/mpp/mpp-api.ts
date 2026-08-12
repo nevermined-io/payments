@@ -11,7 +11,7 @@ import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_MPP_CHALLENGE, API_URL_MPP_SETTLE, API_URL_MPP_VERIFY } from '../api/nvm-api.js'
 import type { PaymentOptions } from '../common/types.js'
 import type { SettlePermissionsResult, VerifyPermissionsResult } from '../x402/facilitator-api.js'
-import { MppError, toMppError } from './errors.js'
+import { MppError, MppSettlementOutcomeUnknownError, toMppError } from './errors.js'
 
 /** Only whole, non-negative decimal digits — no sign, no leading/trailing
  *  whitespace, no hex/octal/binary prefix, no fractional part. `BigInt(x)`
@@ -139,7 +139,9 @@ export class MppAPI extends BasePaymentsAPI {
    * credential twice burns once.
    */
   async settleCredential(params: RedeemMppParams): Promise<MppSettleResult> {
-    return this.post<MppSettleResult>(API_URL_MPP_SETTLE, this.redeemBody(params))
+    return this.post<MppSettleResult>(API_URL_MPP_SETTLE, this.redeemBody(params), {
+      burns: true,
+    })
   }
 
   private redeemBody(params: RedeemMppParams): Record<string, unknown> {
@@ -152,18 +154,39 @@ export class MppAPI extends BasePaymentsAPI {
     }
   }
 
-  /** One place for the POST + error translation both surfaces share. */
-  private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  /**
+   * One place for the POST + error translation both surfaces share.
+   *
+   * `burns` marks a call where "no answer" is not the same as "did not
+   * happen" — currently only `settleCredential`. For that call alone, a
+   * fetch rejection caused by OUR OWN `AbortSignal.timeout()` firing (not
+   * some other network failure) is raised as {@link MppSettlementOutcomeUnknownError}
+   * instead of the generic `network_error` `MppError` used everywhere else,
+   * so a caller can tell "definitely nothing happened" apart from "the
+   * backend may have already burned the credits; we just didn't hear back".
+   * `error.name === 'TimeoutError'` combined with `instanceof DOMException`
+   * is the documented, empirically-confirmed shape Node's `fetch` throws
+   * when an `AbortSignal.timeout()` deadline fires — as opposed to, say,
+   * connection-refused, which surfaces as a plain `TypeError`.
+   */
+  private async post<T>(
+    path: string,
+    body: Record<string, unknown>,
+    options: { burns?: boolean } = {},
+  ): Promise<T> {
     const url = new URL(path, this.environment.backend)
-    const options = {
+    const requestOptions = {
       ...this.getBackendHTTPOptions('POST', body),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     }
 
     let response: Response
     try {
-      response = await fetch(url, options)
+      response = await fetch(url, requestOptions)
     } catch (error) {
+      if (options.burns && error instanceof DOMException && error.name === 'TimeoutError') {
+        throw new MppSettlementOutcomeUnknownError()
+      }
       throw toMppError(
         'network_error',
         `Network error during MPP request: ${error instanceof Error ? error.message : String(error)}`,
