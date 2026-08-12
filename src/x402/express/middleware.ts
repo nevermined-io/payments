@@ -72,7 +72,7 @@ import {
   type MppRouteOption,
 } from './mpp-support.js'
 import { computeBodyDigest, getRawBody } from './raw-body.js'
-import { MppError } from '../../mpp/errors.js'
+import { MppError, MppCredentialRejectedError } from '../../mpp/errors.js'
 
 /**
  * Configuration for a protected route
@@ -303,6 +303,7 @@ async function handleMppRequest(args: {
   bindBody: boolean
   hooks: {
     onPaymentError?: PaymentMiddlewareOptions['onPaymentError']
+    onBeforeVerify?: PaymentMiddlewareOptions['onBeforeVerify']
     onAfterVerify?: PaymentMiddlewareOptions['onAfterVerify']
     onAfterSettle?: PaymentMiddlewareOptions['onAfterSettle']
   }
@@ -311,7 +312,7 @@ async function handleMppRequest(args: {
   const { planId, credits = 1, agentId, description } = routeConfig
   const resource = mppResource(req)
   const httpVerb = mppVerb(req)
-  const { onPaymentError, onAfterVerify, onAfterSettle } = args.hooks
+  const { onPaymentError, onBeforeVerify, onAfterVerify, onAfterSettle } = args.hooks
 
   // Credits are sealed into the challenge, so a credits function is evaluated
   // exactly once — here. MPP has no equivalent of the x402 re-evaluation at
@@ -444,29 +445,22 @@ async function handleMppRequest(args: {
     return
   }
 
+  let verification: VerifyPermissionsResult
   try {
-    const verification = await payments.mpp.verifyCredential({
+    // Hook: before verification, mirroring the x402 path (middleware.ts's
+    // x402 branch calls it in the same position). Dropped entirely here
+    // before this fix: adding mpp: true to a working route silently
+    // disabled a documented PaymentMiddlewareOptions hook.
+    if (onBeforeVerify) {
+      await onBeforeVerify(req, paymentRequired)
+    }
+
+    verification = await payments.mpp.verifyCredential({
       credential,
       resource,
       httpVerb,
       ...(bodyDigest && { bodyDigest }),
     })
-
-    if (!verification.isValid) {
-      // This IS a credential rejection, even though VerifyPermissionsResult
-      // carries no code of its own. The wire contract is positional, not
-      // incidental: any 402 answering a request that presented a credential
-      // must carry a code, or a buyer cannot tell this fresh-but-otherwise-
-      // unmarked challenge apart from "you had not paid yet" and mints a
-      // second credential for a rejection that already proved terminal.
-      // 'BCK.MPP.0003' is the backend's own generic rejection code
-      // (MppCredentialRejectedError, src/mpp/errors.ts) — nothing new is
-      // invented or published beyond it.
-      await sendChallenge(verification.invalidReason || 'Credential rejected', 'BCK.MPP.0003')
-      return
-    }
-
-    if (onAfterVerify) await onAfterVerify(req, verification)
   } catch (error) {
     if (onPaymentError) {
       onPaymentError(error as Error, req, res)
@@ -475,10 +469,61 @@ async function handleMppRequest(args: {
     // Every MPP rejection — expired, replayed, refused — is answered with a
     // fresh challenge, so a buyer can always make progress by paying again.
     // The backend's BCK.MPP.* code (when the failure carries one) rides
-    // along so the buyer can tell which kind of rejection this was.
-    const code = error instanceof MppError ? error.code : undefined
+    // along so the buyer can tell which kind of rejection this was; it is
+    // confined to BCK.MPP.* so an unrelated code (network_error, http_500,
+    // a backend code from a different namespace) is never forwarded as if
+    // it were one of ours.
+    const code =
+      error instanceof MppError && error.code?.startsWith('BCK.MPP.') ? error.code : undefined
     await sendChallenge(error instanceof Error ? error.message : 'Credential rejected', code)
     return
+  }
+
+  if (!verification.isValid) {
+    // This IS a credential rejection, even though VerifyPermissionsResult
+    // carries no code of its own. The wire contract is positional, not
+    // incidental: any 402 answering a request that presented a credential
+    // must carry a code, or a buyer cannot tell this fresh-but-otherwise-
+    // unmarked challenge apart from "you had not paid yet" and mints a
+    // second credential for a rejection that already proved terminal.
+    // 'BCK.MPP.0003' is the backend's own generic rejection code — nothing
+    // new is invented or published beyond it.
+    const rejectionError = new MppCredentialRejectedError(
+      verification.invalidReason || 'Credential rejected',
+    )
+    // Matches the x402 path: a seller who wires onPaymentError is notified
+    // of every rejected payment, not just the ones where verifyCredential
+    // itself threw.
+    if (onPaymentError) {
+      onPaymentError(rejectionError, req, res)
+      return
+    }
+    await sendChallenge(rejectionError.message, rejectionError.code)
+    return
+  }
+
+  // onAfterVerify runs OUTSIDE the verify try/catch above: a bug in the
+  // seller's OWN hook, after the credential has already been proven valid,
+  // must never be misreported as a payment rejection (no re-challenge) and
+  // must never leak the hook's own exception text into the buyer-visible
+  // 402 body the catch above would otherwise build from it.
+  if (onAfterVerify) {
+    try {
+      await onAfterVerify(req, verification)
+    } catch (hookError) {
+      if (onPaymentError) {
+        onPaymentError(hookError as Error, req, res)
+        return
+      }
+      console.error('MPP onAfterVerify hook failed:', hookError)
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'A server-side hook failed after payment verification.',
+        })
+      }
+      return
+    }
   }
 
   const paymentContext: PaymentContext = {
@@ -486,6 +531,8 @@ async function handleMppRequest(args: {
     paymentRequired,
     creditsToSettle: creditsToCharge,
     verified: true,
+    agentRequest: verification.agentRequest,
+    agentRequestId: verification.agentRequest?.agentRequestId || verification.agentRequestId,
     mpp: { credential, resource, httpVerb },
   }
   ;(req as Request & { paymentContext?: PaymentContext }).paymentContext = paymentContext
@@ -612,7 +659,7 @@ export function paymentMiddleware(
           routeConfig,
           paymentRequired,
           bindBody: mppOption.bindBody,
-          hooks: { onPaymentError, onAfterVerify, onAfterSettle },
+          hooks: { onPaymentError, onBeforeVerify, onAfterVerify, onAfterSettle },
         })
         return
       }
