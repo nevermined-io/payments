@@ -208,6 +208,31 @@ describe('MPP redemption', () => {
     }
   })
 
+  it('strips a non-BCK.MPP.* code before it ever reaches the buyer', async () => {
+    // MppAPI.post throws MppError('network_error'), MppError('http_500'),
+    // etc. for failures that never reached the backend's own rejection
+    // taxonomy at all. Those internal codes must never leak onto an
+    // anonymous 402 -- only BCK.MPP.* is the buyer-facing namespace. This
+    // guards the `error.code?.startsWith('BCK.MPP.')` filter in the verify
+    // catch block: with it removed, this test fails because body.code comes
+    // back as 'network_error' instead of undefined.
+    const payments = buildMockPayments({
+      verifyCredential: jest
+        .fn()
+        .mockRejectedValue(new MppError('Network error during MPP request: fetch failed', 'network_error')),
+    })
+    const { port, close } = await startServer(payments)
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(402)
+      const body = await response.json()
+      expect(body.code).toBeUndefined()
+      expect(body.retryable).toBeUndefined()
+    } finally {
+      await close()
+    }
+  })
+
   it('never forwards a caught verification error message verbatim to the buyer, even when it carries a backend hint', async () => {
     // MppAPI.post folds a backend-supplied `hint` onto the thrown error's
     // message (mpp-api.ts): "MPP credential rejected — the signature does
