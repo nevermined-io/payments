@@ -8,11 +8,21 @@
  * challenge carried. (The codec's own byte-for-byte round-trip guarantee is
  * covered by the Task 1 unit tests; this test covers the wiring between the
  * buyer and seller halves, not the codec itself.)
+ *
+ * The rejection-path test below asserts against the wire contract the seller
+ * middleware is converging on: a 402 answering a request that presented a
+ * credential always carries a `code` (falling back to `BCK.MPP.0003` on a
+ * resolved `{ isValid: false }`), while the very first (no-credential)
+ * challenge carries none. At the time this test was written the seller half
+ * of that contract had not yet landed in this branch's `middleware.ts` (it
+ * lands via a sibling PR, #417/#2643) — see the report for how this test
+ * behaved against the pre-contract seller.
  */
 import express from 'express'
 import http from 'http'
 import { Payments } from '../../../src/payments.js'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import { MppError } from '../../../src/mpp/errors.js'
 
 const CHALLENGE_REQUEST_ENCODED = 'eyJjcmVkaXRzIjoiMiIsInBsYW5JZCI6IjEyMyJ9'
 
@@ -22,6 +32,8 @@ describe('MPP buyer pays the SDK seller middleware', () => {
   let port: number
   let payments: Payments
   let verifyBody: any
+  let verifyIsValid = true
+  let permissionMints = 0
 
   beforeAll(async () => {
     realFetch = global.fetch
@@ -39,14 +51,21 @@ describe('MPP buyer pays the SDK seller middleware', () => {
       if (href.includes('127.0.0.1')) return realFetch(url, init)
       if (href.includes('/api/v1/mpp/challenge'))
         return new Response(JSON.stringify({ challenge: challengeHeader, id: 'c1' }), { status: 201 })
-      if (href.includes('/api/v1/mpp/permissions'))
+      if (href.includes('/api/v1/mpp/permissions')) {
+        permissionMints += 1
         return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      }
       if (href.includes('/api/v1/mpp/verify')) {
-        // Captured so the test below can assert the seller middleware forwards
-        // the buyer's credential — and the sealed challenge request inside it
-        // — untouched, rather than just trusting a stubbed success response.
+        // Captured so the happy-path test can assert the seller middleware
+        // forwards the buyer's credential — and the sealed challenge request
+        // inside it — untouched, rather than just trusting a stubbed success.
         verifyBody = JSON.parse(init.body)
-        return new Response(JSON.stringify({ isValid: true }), { status: 201 })
+        return verifyIsValid
+          ? new Response(JSON.stringify({ isValid: true }), { status: 201 })
+          : new Response(
+              JSON.stringify({ isValid: false, invalidReason: 'Credential rejected' }),
+              { status: 201 },
+            )
       }
       if (href.includes('/api/v1/mpp/settle'))
         return new Response(
@@ -79,13 +98,16 @@ describe('MPP buyer pays the SDK seller middleware', () => {
   })
 
   it('pays and gets the answer plus a receipt', async () => {
-    const { response, receipt, paid } = await payments.mpp.fetch(
+    permissionMints = 0
+    const { response, receipt, paid, settled, credentialsPresented } = await payments.mpp.fetch(
       `http://127.0.0.1:${port}/ask`,
       { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
       { delegationConfig: { delegationId: 'del-1' } },
     )
 
     expect(paid).toBe(true)
+    expect(settled).toBe(true)
+    expect(credentialsPresented).toBe(1)
     expect(await response.json()).toEqual({ answer: '42' })
     expect(receipt?.reference).toBe('c1')
 
@@ -99,5 +121,33 @@ describe('MPP buyer pays the SDK seller middleware', () => {
       Buffer.from(verifyBody.credential.slice('Payment '.length), 'base64url').toString('utf8'),
     )
     expect(decodedCredential.challenge.request).toBe(CHALLENGE_REQUEST_ENCODED)
+  })
+
+  it('surfaces a typed rejection instead of silently minting a second credential when the seller rejects', async () => {
+    verifyIsValid = false
+    permissionMints = 0
+    try {
+      // Asserted against the base MppError class, which holds both before
+      // and after the seller lands the `code: 'BCK.MPP.0003'` contract
+      // (#417/#2643): today this middleware.ts still answers a rejection
+      // with a code-less `{ error, message }` body, which the buyer's
+      // identical-challenge-id fallback (the static challenge stub in this
+      // test always returns id "c1") still correctly treats as terminal —
+      // just as a generic MppError rather than the more specific
+      // MppCredentialRejectedError the coded contract will produce. Either
+      // way, the regression this test guards against — minting a SECOND
+      // credential for a rejection the first one already proved terminal —
+      // is what `permissionMints` pins.
+      await expect(
+        payments.mpp.fetch(
+          `http://127.0.0.1:${port}/ask`,
+          { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
+          { delegationConfig: { delegationId: 'del-1' } },
+        ),
+      ).rejects.toBeInstanceOf(MppError)
+      expect(permissionMints).toBe(1)
+    } finally {
+      verifyIsValid = true
+    }
   })
 })
