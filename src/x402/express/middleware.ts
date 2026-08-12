@@ -508,8 +508,18 @@ export function paymentMiddleware(
         environment: payments.getEnvironmentName(),
       })
 
+      // Extract token from headers (x402 v2: payment-signature)
+      const token = extractToken(req, tokenHeader)
+
       const mppOption = resolveMppOption(routeConfig.mpp)
-      if (mppOption.enabled) {
+      // The 402 an MPP-enabled route sends advertises both a WWW-Authenticate
+      // challenge and the x402 payment-required header, so both protocols
+      // must be payable, not just the one that minted the 402. An MPP
+      // credential always takes the MPP path; with no MPP credential but a
+      // valid x402 token present, fall through to the existing x402 flow
+      // below unchanged. With neither present, handleMppRequest still runs so
+      // the 402 keeps advertising both.
+      if (mppOption.enabled && (extractCredential(req) || !token)) {
         await handleMppRequest({
           req,
           res,
@@ -522,9 +532,6 @@ export function paymentMiddleware(
         })
         return
       }
-
-      // Extract token from headers (x402 v2: payment-signature)
-      const token = extractToken(req, tokenHeader)
       if (!token) {
         const error = new Error('Payment required: missing x402 access token')
         if (onPaymentError) {
