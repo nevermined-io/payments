@@ -1,7 +1,7 @@
 /**
  * Unit tests for the typed MPP error hierarchy's retryable-code grouping.
  */
-import { isRetryableMppCode } from '../../../src/mpp/errors.js'
+import { isRetryableMppCode, MppError, MppSettlementOutcomeUnknownError } from '../../../src/mpp/errors.js'
 
 describe('isRetryableMppCode', () => {
   it('treats BCK.MPP.0004 (expired) as retryable', () => {
@@ -31,5 +31,21 @@ describe('isRetryableMppCode', () => {
     // isRetryableMppCode only classifies a PRESENT code; the middleware only
     // calls it when code is truthy, so this is a defensive default.
     expect(isRetryableMppCode(undefined)).toBe(false)
+  })
+})
+
+describe('package barrel exports', () => {
+  it('re-exports MppSettlementOutcomeUnknownError from the package root, so a caller can instanceof-check settleCredential rejections without matching on error.name strings', async () => {
+    // A previous round added this class but never wired it through
+    // src/mpp/index.ts, so `import { MppSettlementOutcomeUnknownError }
+    // from '@nevermined-io/payments'` compiled fine locally (this test file
+    // imports the class straight from errors.ts) but failed with TS2305
+    // against the built package -- src/index.ts re-exports the mpp barrel
+    // wholesale, so any class missing there is missing at the package root
+    // too. Importing from the root barrel here, not errors.ts directly, is
+    // the point: it pins the export path a real consumer uses.
+    const barrel = await import('../../../src/index.js')
+    expect(barrel.MppSettlementOutcomeUnknownError).toBe(MppSettlementOutcomeUnknownError)
+    expect(new barrel.MppSettlementOutcomeUnknownError()).toBeInstanceOf(MppError)
   })
 })

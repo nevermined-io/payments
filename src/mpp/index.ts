@@ -17,4 +17,6 @@ export {
   MppCredentialRejectedError,
   MppChallengeExpiredError,
   MppBodyDigestMismatchError,
+  MppSettlementOutcomeUnknownError,
 } from './errors.js'
+export type { MppSettlementOutcomeUnknown } from './errors.js'

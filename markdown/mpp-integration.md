@@ -116,6 +116,21 @@ If the seller's own settlement fails after a paid, delivered request, the
 buyer still receives their `2xx` response but no `Payment-Receipt` header —
 the settlement outcome is not otherwise visible on the wire.
 
+A seller who wires `onAfterSettle` (a `paymentMiddleware` option) sees more
+than the wire does. Settlement is the one MPP call that burns, so a request
+to the backend that times out before answering is not the same as one the
+backend actually rejected: the credits may already be burned even though
+nothing came back. That case is reported to `onAfterSettle` as
+`{ outcome: 'unknown', reason }` — the exported `MppSettlementOutcomeUnknown`
+type — instead of the usual `MppSettleResult`, and `settleCredential` itself
+rejects with the exported `MppSettlementOutcomeUnknownError` (extends
+`MppError`, carries no `code` since it is never backend-issued) rather than a
+generic network error, so a seller calling `settleCredential` directly can
+`instanceof`-check it too. `onAfterSettle`'s third parameter is typed
+`unknown`, so narrow to `MppSettlementOutcomeUnknown` explicitly before
+reading `outcome` — a blind cast to `MppSettleResult` reads `undefined` for
+`creditsRedeemed` on this branch with no compile-time or runtime signal.
+
 A `credits` function is evaluated once per *request* handled by this
 middleware — once when the challenge is minted, and again when the paid
 request presents its credential — so twice per full payment cycle, not once.
