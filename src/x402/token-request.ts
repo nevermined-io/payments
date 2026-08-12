@@ -55,8 +55,12 @@ export function buildX402TokenRequestBody(params: {
       spendingLimitCents !== undefined ||
       durationSecs !== undefined)
   if (isInlineCreate) {
+    // Neutral wording: this body builder is shared by getX402AccessToken and
+    // the MPP mint (payments.mpp.fetch / getMppAccessToken), so the message
+    // must not name one caller specifically — an MPP buyer grepping for
+    // "getX402AccessToken" after seeing this warning would find nothing.
     console.warn(
-      '[DEPRECATED] getX402AccessToken: inline create-on-the-fly delegationConfig ' +
+      '[DEPRECATED] delegationConfig: inline create-on-the-fly delegationConfig ' +
         '(no delegationId) is deprecated and will be removed in a future release. ' +
         'Create the delegation first with payments.delegation.createDelegation(), ' +
         'then request the token with delegationConfig: { delegationId }.',
