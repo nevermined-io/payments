@@ -69,6 +69,22 @@ export class MppSettlementOutcomeUnknownError extends MppError {
 }
 
 /**
+ * What `paymentMiddleware`'s `onAfterSettle` hook receives as its third
+ * argument when settlement raised {@link MppSettlementOutcomeUnknownError}.
+ * That parameter's declared type is `unknown` (shared with the x402 hook of
+ * the same name — out of scope to narrow here), so nothing stops a consumer
+ * from casting straight to `MppSettleResult` and silently reading
+ * `undefined` for `creditsRedeemed` on this branch. Exporting this shape
+ * gives a consumer something concrete to check for instead — e.g.
+ * `if ((result as MppSettlementOutcomeUnknown).outcome === 'unknown')` —
+ * and documents, at the type level, that the branch exists at all.
+ */
+export interface MppSettlementOutcomeUnknown {
+  outcome: 'unknown'
+  reason: string
+}
+
+/**
  * `BCK.MPP.*` codes a buyer can retry by minting a fresh credential against
  * the NEW challenge the same 402 carries alongside them — as opposed to
  * `BCK.MPP.0003`, which means the credential itself was refused and paying

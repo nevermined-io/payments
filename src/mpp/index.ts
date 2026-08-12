@@ -17,7 +17,9 @@ export {
   MppCredentialRejectedError,
   MppChallengeExpiredError,
   MppBodyDigestMismatchError,
+  MppSettlementOutcomeUnknownError,
 } from './errors.js'
+export type { MppSettlementOutcomeUnknown } from './errors.js'
 // `mppFetch` and `MppTokenMinter` are deliberately NOT re-exported here.
 // `payments.mpp.fetch` (via `MppAPI`, exported above) is the intended public
 // surface — it routes through `MppAPI.post`'s error translation and the

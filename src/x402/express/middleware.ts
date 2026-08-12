@@ -77,6 +77,7 @@ import {
   MppCredentialRejectedError,
   MppSettlementOutcomeUnknownError,
   isRetryableMppCode,
+  type MppSettlementOutcomeUnknown,
 } from '../../mpp/errors.js'
 import { normalizeCredits } from '../../mpp/mpp-api.js'
 
@@ -685,12 +686,13 @@ async function handleMppRequest(args: {
             settleError.message,
           )
           if (onAfterSettle) {
-            return Promise.resolve(
-              onAfterSettle(req, creditsToCharge, {
-                outcome: 'unknown' as const,
-                reason: settleError.message,
-              }),
-            ).then(() => undefined)
+            const outcome: MppSettlementOutcomeUnknown = {
+              outcome: 'unknown',
+              reason: settleError.message,
+            }
+            return Promise.resolve(onAfterSettle(req, creditsToCharge, outcome)).then(
+              () => undefined,
+            )
           }
           return undefined
         }
