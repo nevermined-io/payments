@@ -68,6 +68,28 @@ function findStructuredChallengeEnd(rest: string): number {
 }
 
 /**
+ * Matches the `Payment` scheme name at a genuine scheme boundary: start of
+ * the header value, or right after a top-level comma (RFC 9110 §11.6.1
+ * separates comma-separated challenges/credentials that way). Unanchored,
+ * `/Payment\s+/i` matches mid-token — `XPayment abc`, `NotPayment abc`,
+ * `Bearer prepayment xyz` — and also matches "Payment" text embedded inside
+ * a *different*, preceding scheme's quoted value (e.g.
+ * `Digest username="my payment plan", …`), since plain whitespace alone is
+ * not a scheme boundary. Anchoring on comma-or-start (not bare whitespace)
+ * closes both: a scheme name is never preceded by an arbitrary space, only
+ * by the start of the header or the comma that separates it from what came
+ * before.
+ *
+ * This decides which protocol handles a request:
+ * `extractCredential` → `extractPaymentScheme` feeds the MPP-vs-x402 routing
+ * predicate in `middleware.ts`, so an unanchored match would divert an
+ * x402 buyer carrying a perfectly valid `payment-signature` token, plus an
+ * unrelated `Authorization` header that happens to contain "payment" text,
+ * onto the MPP path and challenge them instead of serving the request.
+ */
+const PAYMENT_SCHEME_BOUNDARY = /(?:^|,)\s*(Payment\s+)/i
+
+/**
  * Extracts the `Payment` scheme from a header value that may carry several
  * schemes comma-separated (RFC 9110 §11.6.1).
  *
@@ -86,11 +108,16 @@ function findStructuredChallengeEnd(rest: string): number {
  * bounded by {@link findStructuredChallengeEnd}'s quote-aware scan.
  */
 export function extractPaymentScheme(headerValue: string): string | null {
-  const schemeMatch = /Payment\s+/i.exec(headerValue)
+  const schemeMatch = PAYMENT_SCHEME_BOUNDARY.exec(headerValue)
   if (!schemeMatch || schemeMatch.index === undefined) return null
 
-  const start = schemeMatch.index
-  const contentStart = start + schemeMatch[0].length
+  // Group 1 ("Payment\s+") is the tail of the whole match, so the full
+  // match's end position is also where the captured keyword ends; its start
+  // is offset back by the keyword's own length, which skips the leading
+  // comma/whitespace the boundary alternation consumed.
+  const keyword = schemeMatch[1]
+  const contentStart = schemeMatch.index + schemeMatch[0].length
+  const start = contentStart - keyword.length
   const rest = headerValue.slice(contentStart)
 
   if (!AUTH_PARAM_START.test(rest)) {
@@ -199,32 +226,71 @@ function decodeBase64UrlJson<T>(encoded: string, context: string): T {
   }
 }
 
+/** The shape a decoded `request` param must have before it is trusted — see
+ *  {@link isValidChallengeRequestShape}. `credits` is intentionally looser
+ *  than {@link MppChallengeRequest}'s declared `string`: it is coerced, not
+ *  rejected, by {@link toChallengeRequest}. */
+interface DecodedChallengeRequestShape {
+  planId: string
+  credits: string | number
+  agentId?: string
+}
+
 /**
- * Narrows a decoded `request` param to {@link MppChallengeRequest}'s shape.
+ * Validates a decoded `request` param's shape before it is trusted.
  *
  * The raw decode only guarantees valid JSON, not the right shape: a remote
- * challenge's `request=` can decode to `null`, an array, `{}`, or
- * `{ credits: 2 }` (a number where a string is declared) and all of those
- * would otherwise sail through a bare type cast and reach `payments.mpp.fetch`
- * with an unusable or `undefined` `planId`.
+ * challenge's `request=` can decode to `null`, an array, or `{}`, all of
+ * which would otherwise sail through a bare type cast and reach
+ * `payments.mpp.fetch` with an unusable or `undefined` `planId`.
+ *
+ * `planId` is the field with the documented failure mode (an unusable or
+ * `undefined` value reaching the mint) and is checked strictly: a non-empty
+ * string, full stop. `agentId` is unchecked structurally but IS load-bearing
+ * once present — the buyer helper forwards it straight into the token mint
+ * (`options.agentId ?? challenge.request.agentId`) — so a wrong-typed value
+ * is rejected here rather than reaching that spend path. `credits`, by
+ * contrast, is not what anything spends: the amount the backend re-derives
+ * comes from `requestEncoded`, forwarded byte-verbatim, so rejecting a
+ * perfectly reasonable JSON-number encoding of "credits" would make a valid
+ * third-party seller wholly unpayable over a field this SDK does not itself
+ * act on — it is coerced by {@link toChallengeRequest} instead.
  */
-function isValidChallengeRequest(value: unknown): value is MppChallengeRequest {
+function isValidChallengeRequestShape(value: unknown): value is DecodedChallengeRequestShape {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const { planId, credits } = value as Record<string, unknown>
-  return typeof planId === 'string' && planId !== '' && typeof credits === 'string'
+  const { planId, credits, agentId } = value as Record<string, unknown>
+  if (typeof planId !== 'string' || planId === '') return false
+  if (typeof credits !== 'string' && typeof credits !== 'number') return false
+  if (agentId !== undefined && typeof agentId !== 'string') return false
+  return true
+}
+
+/** Normalizes a validated decoded request into {@link MppChallengeRequest}'s
+ *  declared shape, coercing a numeric `credits` to the decimal string the
+ *  type promises. */
+function toChallengeRequest(shape: DecodedChallengeRequestShape): MppChallengeRequest {
+  return {
+    planId: shape.planId,
+    credits: String(shape.credits),
+    ...(shape.agentId !== undefined && { agentId: shape.agentId }),
+  }
 }
 
 /**
  * Parses a `WWW-Authenticate` header into a challenge.
  *
- * @returns `null` when the header carries no `Payment` scheme at all — which
- * is how a caller tells "not an MPP endpoint" apart from "malformed". A
- * `Payment` scheme that IS present but whose `request` param fails to decode,
- * or decodes to something that is not a `{ planId: string, credits: string }`
- * object, raises a typed {@link MppError} instead of returning `null` or
- * throwing a raw `SyntaxError`/`TypeError` — "structurally absent" and
- * "present but malformed" are different failures and must not collapse into
- * the same signal.
+ * @returns `null` when there is no usable `Payment` challenge to parse: the
+ * header carries no `Payment` scheme at all, OR the scheme is present but
+ * missing one of the structural auth-params (`id`/`realm`/`method`/`intent`/
+ * `request`) needed to even attempt decoding it. Both cases mean the same
+ * thing to a caller deciding whether to retry: there is nothing here to pay.
+ *
+ * A `Payment` scheme that has all of those structural params present, but
+ * whose `request` value fails to decode as JSON or decodes to something
+ * that is not a usable `{ planId, credits }` object, raises a typed
+ * {@link MppError} instead — that is a seller who tried to speak MPP and
+ * sent something broken, a distinct failure from "there is no challenge
+ * here to parse".
  */
 export function parseChallengeHeader(headerValue: string): MppChallenge | null {
   const scheme = extractPaymentScheme(headerValue)
@@ -235,10 +301,10 @@ export function parseChallengeHeader(headerValue: string): MppChallenge | null {
   if (!id || !realm || !method || !intent || !request) return null
 
   const decodedRequest = decodeBase64UrlJson<unknown>(request, 'MPP challenge request parameter')
-  if (!isValidChallengeRequest(decodedRequest)) {
+  if (!isValidChallengeRequestShape(decodedRequest)) {
     throw new MppError(
       'The MPP challenge names a request parameter that is not a valid ' +
-        '{ planId: string, credits: string } object.',
+        '{ planId: string, credits: string | number, agentId?: string } object.',
     )
   }
 
@@ -247,7 +313,7 @@ export function parseChallengeHeader(headerValue: string): MppChallenge | null {
     realm,
     method,
     intent,
-    request: decodedRequest,
+    request: toChallengeRequest(decodedRequest),
     requestEncoded: request,
     ...(expires && { expires }),
     ...(digest && { digest }),
@@ -283,15 +349,44 @@ export function buildCredentialHeader(
   return `Payment ${Buffer.from(JSON.stringify(wire), 'utf8').toString('base64url')}`
 }
 
+/** Validates a decoded `Payment-Receipt` body against {@link MppReceipt}'s
+ *  shape — mirrors {@link isValidChallengeRequestShape}'s strictness for the
+ *  same reason: without it, `null`, an array, or `{}` all sail through a
+ *  bare type cast and surface later as an untyped `TypeError` on a field
+ *  access, with nothing pointing back at the header that caused it. */
+function isValidReceipt(value: unknown): value is MppReceipt {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const { method, reference, status, timestamp } = value as Record<string, unknown>
+  return (
+    typeof method === 'string' &&
+    typeof reference === 'string' &&
+    reference !== '' &&
+    typeof status === 'string' &&
+    typeof timestamp === 'string'
+  )
+}
+
 /**
  * Decodes a `Payment-Receipt` header value.
  *
- * Raises a typed {@link MppError} on malformed input rather than a raw
- * `SyntaxError` — this function does not decide whether that failure is
- * fatal for its caller (the receipt is "unsigned by design, and carries no
- * balance", so a caller may reasonably treat a decode failure as non-fatal
- * and simply omit the receipt); it only guarantees the failure is typed.
+ * Raises a typed {@link MppError} on malformed input — undecodable base64url
+ * JSON, or JSON that decodes to something that is not a usable
+ * `{ method, reference, status, timestamp }` object — rather than a raw
+ * `SyntaxError` or an untyped receipt. This function does not decide whether
+ * that failure is fatal for its caller (the receipt is "unsigned by design,
+ * and carries no balance", so a caller may reasonably treat a decode
+ * failure as non-fatal and simply omit the receipt); it only guarantees the
+ * failure is typed and raised at the boundary, not as a later `TypeError`
+ * on a field access with nothing pointing back at the header that caused it
+ * — the same asymmetry {@link parseChallengeHeader} closes for `request=`.
  */
 export function parseReceiptHeader(headerValue: string): MppReceipt {
-  return decodeBase64UrlJson<MppReceipt>(headerValue.trim(), 'MPP receipt')
+  const decoded = decodeBase64UrlJson<unknown>(headerValue.trim(), 'MPP receipt')
+  if (!isValidReceipt(decoded)) {
+    throw new MppError(
+      'The Payment-Receipt header is not a valid ' +
+        '{ method: string, reference: string, status: string, timestamp: string } object.',
+    )
+  }
+  return decoded
 }

@@ -48,6 +48,35 @@ export class MppBodyDigestMismatchError extends MppError {
   }
 }
 
+/**
+ * `BCK.MPP.*` codes a buyer can retry by minting a fresh credential against
+ * the NEW challenge the same 402 carries alongside them — as opposed to
+ * `BCK.MPP.0003`, which means the credential itself was refused and paying
+ * again cannot help.
+ *
+ * `0004` (expired) is obviously retryable: fetch a fresh challenge, pay it.
+ * `0005` (body digest mismatch) is less obvious but equally retryable: the
+ * fresh challenge is sealed to the digest of the request that just arrived,
+ * so a credential minted against it — presented with the SAME body — would
+ * succeed. A buyer gate that only excepts `0004` from a bare
+ * `code.startsWith('BCK.MPP.')` check wrongly treats `0005` as terminal and
+ * gives up on a request that would have worked on the next attempt.
+ *
+ * Grouped here, once, so a buyer checks {@link isRetryableMppCode} instead of
+ * hardcoding the exception list — and so a future retryable code only needs
+ * to be added to this one set.
+ */
+const RETRYABLE_BCK_MPP_CODES: ReadonlySet<string> = new Set([
+  'BCK.MPP.0004',
+  'BCK.MPP.0005',
+])
+
+/** Whether a `BCK.MPP.*` code means "mint a fresh credential and try again"
+ *  rather than "this credential was refused; a new one changes nothing". */
+export function isRetryableMppCode(code: string | undefined): boolean {
+  return code !== undefined && RETRYABLE_BCK_MPP_CODES.has(code)
+}
+
 /** Maps a backend error payload onto the typed error hierarchy. */
 export function toMppError(code: string | undefined, message: string): MppError {
   switch (code) {

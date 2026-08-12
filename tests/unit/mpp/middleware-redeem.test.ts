@@ -5,7 +5,11 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
-import { MppChallengeExpiredError, MppCredentialRejectedError } from '../../../src/mpp/errors.js'
+import {
+  MppChallengeExpiredError,
+  MppCredentialRejectedError,
+  MppBodyDigestMismatchError,
+} from '../../../src/mpp/errors.js'
 
 const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
 
@@ -35,10 +39,21 @@ function buildMockPayments(mpp: Record<string, unknown> = {}) {
   } as any
 }
 
-async function startServer(payments: any, handler?: (req: any, res: any) => void) {
+async function startServer(
+  payments: any,
+  handler?: (req: any, res: any) => void,
+  options: Record<string, unknown> = {},
+  routeCredits: number = 2,
+) {
   const app = express()
   app.use(express.json())
-  app.use(paymentMiddleware(payments, { 'POST /ask': { planId: '123', credits: 2, mpp: true } }))
+  app.use(
+    paymentMiddleware(
+      payments,
+      { 'POST /ask': { planId: '123', credits: routeCredits, mpp: true } },
+      options as any,
+    ),
+  )
   app.post('/ask', handler ?? ((_req, res) => res.json({ answer: 'ok' })))
   const server = http.createServer(app)
   await new Promise<void>((r) => server.listen(0, r))
@@ -113,6 +128,10 @@ describe('MPP redemption', () => {
       const body = await response.json()
       expect(body.message).toBe('no credits')
       expect(body.code).toBe('BCK.MPP.0003')
+      // A generic rejection is terminal: presenting a fresh credential
+      // against the fresh challenge on this same 402 cannot help, because
+      // nothing about what was refused changes on the next attempt.
+      expect(body.retryable).toBe(false)
     } finally {
       await close()
     }
@@ -129,6 +148,31 @@ describe('MPP redemption', () => {
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
       const body = await response.json()
       expect(body.code).toBe('BCK.MPP.0004')
+      // Expiry is retryable: the fresh challenge on this 402 is exactly what
+      // a buyer needs to mint a new credential against and succeed.
+      expect(body.retryable).toBe(true)
+    } finally {
+      await close()
+    }
+  })
+
+  it('answers a fresh challenge carrying BCK.MPP.0005 as retryable when the request body does not match what was sealed', async () => {
+    // Unlike a genuine credential refusal, a body-digest mismatch is
+    // self-correcting: the 402's fresh challenge is sealed to the digest of
+    // the request that just arrived, so a new credential minted against it
+    // -- presented with the SAME body -- succeeds. The buyer's terminal-vs-
+    // retryable gate must not lump this in with BCK.MPP.0003 just because
+    // both match a bare "startsWith('BCK.MPP.')" prefix check.
+    const payments = buildMockPayments({
+      verifyCredential: jest.fn().mockRejectedValue(new MppBodyDigestMismatchError()),
+    })
+    const { port, close } = await startServer(payments)
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(402)
+      const body = await response.json()
+      expect(body.code).toBe('BCK.MPP.0005')
+      expect(body.retryable).toBe(true)
     } finally {
       await close()
     }
@@ -151,7 +195,44 @@ describe('MPP redemption', () => {
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
       const body = await response.json()
       expect(body.code).toBe('BCK.MPP.0003')
-      expect(body.message).toBe('forged signature')
+      // The buyer-visible message is fixed and generic, never the caught
+      // error's own message -- see the dedicated hint-leak test below for
+      // why: MppAPI.post folds a backend `hint` field into that message, and
+      // forwarding it verbatim would re-widen the anti-oracle discipline
+      // src/mpp/errors.ts documents.
+      expect(body.message).toBe('Credential rejected')
+    } finally {
+      await close()
+    }
+  })
+
+  it('never forwards a caught verification error message verbatim to the buyer, even when it carries a backend hint', async () => {
+    // MppAPI.post folds a backend-supplied `hint` onto the thrown error's
+    // message (mpp-api.ts): "MPP credential rejected — the signature does
+    // not match the account bound to this plan". The backend deliberately
+    // collapses every rejection into one coarse code so the endpoint cannot
+    // be used as a forgery oracle (src/mpp/errors.ts); a hint folded into
+    // the message and then echoed to the buyer would hand the discriminator
+    // straight back to the exact caller -- a buyer probing forged
+    // credentials -- the coarse code was meant to withhold from.
+    const payments = buildMockPayments({
+      verifyCredential: jest
+        .fn()
+        .mockRejectedValue(
+          new MppCredentialRejectedError(
+            'MPP credential rejected — the signature does not match the account bound to this plan',
+          ),
+        ),
+    })
+    const { port, close } = await startServer(payments)
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(402)
+      const body = await response.json()
+      expect(body.code).toBe('BCK.MPP.0003')
+      expect(body.message).not.toMatch(/signature/)
+      expect(body.message).not.toMatch(/account bound/)
+      expect(body.message).toBe('Credential rejected')
     } finally {
       await close()
     }
@@ -165,6 +246,7 @@ describe('MPP redemption', () => {
       expect(response.status).toBe(402)
       const body = await response.json()
       expect(body.code).toBeUndefined()
+      expect(body.retryable).toBeUndefined()
     } finally {
       await close()
     }
@@ -210,5 +292,137 @@ describe('MPP redemption', () => {
     } finally {
       await close()
     }
+  })
+
+  describe('the amount reported to onAfterSettle and paymentContext', () => {
+    it('reports the amount the backend actually redeemed, not the locally recomputed credits', async () => {
+      // Credits are sealed into the challenge on an EARLIER request; this
+      // request's own creditsToCharge (routeCredits: 5, e.g. a credits
+      // function that changed between mint and redeem) must not be reported
+      // as what was burned when the settle response says otherwise.
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockResolvedValue({
+          success: true,
+          transaction: '0x',
+          network: 'eip155:84532',
+          creditsRedeemed: '2', // sealed into the challenge, not routeCredits below
+          paymentReceipt: 'receipt-b64',
+        }),
+      })
+      const onAfterSettle = jest.fn()
+      const { port, close } = await startServer(
+        payments,
+        (req: any, res: any) => res.json({ creditsToSettle: req.paymentContext.creditsToSettle }),
+        { onAfterSettle },
+        5, // routeCredits: diverges from the settlement's creditsRedeemed
+      )
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body.creditsToSettle).toBe(5) // read before settlement ran; unaffected
+
+        // Give the deferred settlement microtask a turn.
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledWith(
+          expect.anything(),
+          2, // the settled amount, not the recomputed 5
+          expect.objectContaining({ creditsRedeemed: '2' }),
+        )
+      } finally {
+        await close()
+      }
+    })
+
+    it('falls back to the recomputed credits when the settlement omits creditsRedeemed', async () => {
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockResolvedValue({
+          success: true,
+          transaction: '0x',
+          network: 'eip155:84532',
+          paymentReceipt: 'receipt-b64',
+        }),
+      })
+      const onAfterSettle = jest.fn()
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        await post(port, { authorization: CREDENTIAL })
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledWith(expect.anything(), 2, expect.anything())
+      } finally {
+        await close()
+      }
+    })
+  })
+
+  describe('settlement failure handling', () => {
+    it('still returns the served 2xx, with no Payment-Receipt header, when settleCredential rejects', async () => {
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockRejectedValue(new Error('settlement service unreachable')),
+      })
+      const { port, close } = await startServer(payments)
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({ answer: 'ok' })
+        expect(response.headers.get('payment-receipt')).toBeNull()
+      } finally {
+        await close()
+      }
+    })
+
+    it('does not settle twice when the handler ends the response twice', async () => {
+      const payments = buildMockPayments()
+      const { port, close } = await startServer(payments, (_req: any, res: any) => {
+        // res.write flushes headers immediately, so both end() calls take
+        // the synchronous (headersSent) branch -- settlementStarted is the
+        // only thing standing between this and a double settle.
+        res.write('ok')
+        res.end()
+        try {
+          res.end()
+        } catch {
+          // A second end() on an already-finished native response can throw;
+          // irrelevant here -- only the settlement call count matters.
+        }
+      })
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        await new Promise((r) => setImmediate(r))
+        expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
+      } finally {
+        await close()
+      }
+    })
+
+    it('does not throw and still calls onAfterSettle when the settle resolves with success: false and no paymentReceipt', async () => {
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockResolvedValue({
+          success: false,
+          errorReason: 'insufficient balance at settle time',
+          transaction: '',
+          network: 'eip155:84532',
+        }),
+      })
+      const onAfterSettle = jest.fn()
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        // The buyer already has the delivered resource; a failed settle
+        // must not throw ERR_HTTP_INVALID_HEADER_VALUE and must not be
+        // silently indistinguishable from every other kind of failure.
+        expect(response.status).toBe(200)
+        expect(response.headers.get('payment-receipt')).toBeNull()
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          expect.objectContaining({ success: false }),
+        )
+      } finally {
+        await close()
+      }
+    })
   })
 })

@@ -18,8 +18,59 @@ import { PaymentsError } from '../common/payments.error.js'
 import type { PaymentOptions, X402TokenOptions } from '../common/types.js'
 import type { SettlePermissionsResult, VerifyPermissionsResult } from '../x402/facilitator-api.js'
 import { buildX402TokenRequestBody } from '../x402/token-request.js'
-import { toMppError } from './errors.js'
+import { MppError, toMppError } from './errors.js'
 import { mppFetch, type MppFetchOptions, type MppFetchResult } from './fetch.js'
+
+/** Only whole, non-negative decimal digits — no sign, no leading/trailing
+ *  whitespace, no hex/octal/binary prefix, no fractional part. `BigInt(x)`
+ *  silently accepts all of those for a string input (`BigInt('0x10')` is 16,
+ *  `BigInt('')` is 0n, `BigInt(' 5 ')` is 5n), which a decimal-string
+ *  contract must reject rather than accept quietly. */
+const DECIMAL_INTEGER_STRING = /^\d+$/
+
+/**
+ * Normalizes `credits` to the exact decimal-string amount that gets sealed
+ * into the challenge and burned. A bare `.toString()` on a JS `number` can
+ * emit scientific notation (`1e+21`), `"NaN"` or `"Infinity"` — all
+ * forwarded unvalidated into an amount this PR's own docs describe as
+ * having "no post-hoc re-pricing as there is with x402": a corrupted amount
+ * here is not correctable downstream, it IS the amount.
+ *
+ * `BigInt(x)` renders an integer-valued number exactly (no scientific
+ * notation) and throws `RangeError` on a non-integer, `NaN` or `Infinity`
+ * instead of silently stringifying them — which is why non-string inputs go
+ * through it. The `string` arm gets its own check instead of relying on
+ * `BigInt`'s string parsing, which is far more permissive than a decimal
+ * string contract should be.
+ */
+export function normalizeCredits(credits: string | number | bigint): string {
+  if (typeof credits === 'string') {
+    if (!DECIMAL_INTEGER_STRING.test(credits)) {
+      throw new MppError(
+        `credits must be a non-negative integer decimal string, got ${JSON.stringify(credits)}`,
+      )
+    }
+    return credits
+  }
+
+  let normalized: string
+  try {
+    normalized = BigInt(credits).toString()
+  } catch (error) {
+    throw new MppError(
+      `credits must be a non-negative integer, got ${credits}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  if (normalized.startsWith('-')) {
+    throw new MppError(`credits must be a non-negative integer, got ${credits}`)
+  }
+  return normalized
+}
+
+/** Deadline on an outbound MPP request so a hung backend cannot hold the
+ *  caller's connection open indefinitely — `middleware.ts` defers the
+ *  buyer's own response until settlement resolves. */
+const REQUEST_TIMEOUT_MS = 30_000
 
 export interface IssueMppChallengeParams {
   /** The Nevermined plan the credits are burned against. */
@@ -47,10 +98,16 @@ export interface RedeemMppParams {
   bodyDigest?: string
 }
 
-export interface MppSettleResult extends SettlePermissionsResult {
-  /** Ready-to-send `Payment-Receipt` header value. */
-  paymentReceipt: string
-}
+/**
+ * A discriminated union rather than a flat `paymentReceipt: string`: a
+ * settlement can fail, and `SettlePermissionsResult.success` already says
+ * so, but the flat shape let `{ success: false }` with no receipt typecheck
+ * — a state the seller middleware then had no way to reject at compile time
+ * even though it could not safely attach a receipt header for it.
+ */
+export type MppSettleResult =
+  | (SettlePermissionsResult & { success: true; paymentReceipt: string })
+  | (SettlePermissionsResult & { success: false; paymentReceipt?: string })
 
 export class MppAPI extends BasePaymentsAPI {
   static getInstance(options: PaymentOptions): MppAPI {
@@ -70,7 +127,7 @@ export class MppAPI extends BasePaymentsAPI {
     const { planId, credits, agentId, resource, httpVerb, digest, description } = params
     return this.post<{ challenge: string; id: string }>(API_URL_MPP_CHALLENGE, {
       planId,
-      credits: credits.toString(),
+      credits: normalizeCredits(credits),
       resource,
       httpVerb,
       ...(agentId && { agentId }),
@@ -179,7 +236,10 @@ export class MppAPI extends BasePaymentsAPI {
   /** One place for the POST + error translation both surfaces share. */
   private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
     const url = new URL(path, this.environment.backend)
-    const options = this.getBackendHTTPOptions('POST', body)
+    const options = {
+      ...this.getBackendHTTPOptions('POST', body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }
 
     let response: Response
     try {
@@ -205,6 +265,17 @@ export class MppAPI extends BasePaymentsAPI {
       throw toMppError(code, message)
     }
 
-    return (await response.json()) as T
+    // The success path is not exempt from a malformed body: a WAF
+    // interstitial, a gateway HTML page, or a truncated 2xx response would
+    // otherwise raise a raw SyntaxError here — the one call site in this
+    // method that was NOT already wrapped and converted to a typed error.
+    try {
+      return (await response.json()) as T
+    } catch (error) {
+      throw toMppError(
+        `http_${response.status}`,
+        `MPP response from ${path} was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
   }
 }

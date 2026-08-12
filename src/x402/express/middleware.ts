@@ -72,7 +72,8 @@ import {
   type MppRouteOption,
 } from './mpp-support.js'
 import { computeBodyDigest, getRawBody } from './raw-body.js'
-import { MppError } from '../../mpp/errors.js'
+import { MppError, MppCredentialRejectedError, isRetryableMppCode } from '../../mpp/errors.js'
+import { normalizeCredits } from '../../mpp/mpp-api.js'
 
 /**
  * Configuration for a protected route
@@ -253,6 +254,24 @@ function matchRoute(req: Request, routes: RouteConfigMap): RouteConfig | null {
  * ```
  */
 /**
+ * Whether a request carries a body, per RFC 9110 §6.4.1 / what `type-is`'s
+ * `hasBody()` encodes: a `Transfer-Encoding` header (chunked, streamed —
+ * never carries `Content-Length`), or a non-zero `Content-Length`.
+ *
+ * `bindBody`'s guard used to check `Content-Length` alone, so a chunked
+ * request (no `Content-Length` at all) took neither the "captured" nor the
+ * "refuse" branch: the challenge was minted unbound, silently. Both
+ * `Content-Length` and `Transfer-Encoding` are the BUYER's choice, so a guard
+ * that only recognizes one of the two shapes lets the buyer — not the seller
+ * — decide whether the seller's opt-in body binding applies.
+ */
+function requestHasBody(req: Request): boolean {
+  if (req.headers['transfer-encoding'] !== undefined) return true
+  const contentLength = req.headers['content-length']
+  return contentLength !== undefined && contentLength !== '0'
+}
+
+/**
  * Helper to send a 402 Payment Required response with proper x402 headers.
  */
 function sendPaymentRequired(
@@ -270,6 +289,27 @@ function sendPaymentRequired(
 }
 
 /**
+ * Credentials currently between "verified" and "settled", shared across
+ * every `handleMppRequest` call in this process.
+ *
+ * `verifyCredential` burns nothing (its own docstring says so explicitly)
+ * and `settleCredential` settling the SAME credential twice burns once —
+ * that idempotency is what makes settlement safe to retry, and it is
+ * exactly what makes concurrent delivery cheap: N concurrent requests
+ * presenting the same credential would each pass verify, each get served,
+ * and the N settles would collapse to a single burn. This set closes that
+ * window WITHIN one Node process: a second request presenting a credential
+ * already in this set is refused rather than served.
+ *
+ * What this does NOT close: multiple processes or horizontally-scaled
+ * instances of this middleware, which do not share this in-memory set and
+ * would need a shared store (e.g. Redis) this package does not provide.
+ * Deployments that scale this middleware horizontally need an external
+ * mitigation for the same race across instances.
+ */
+const inFlightMppCredentials = new Set<string>()
+
+/**
  * The MPP request path.
  *
  * Kept whole and separate from the x402 path so that with `mpp` unset nothing
@@ -285,6 +325,7 @@ async function handleMppRequest(args: {
   bindBody: boolean
   hooks: {
     onPaymentError?: PaymentMiddlewareOptions['onPaymentError']
+    onBeforeVerify?: PaymentMiddlewareOptions['onBeforeVerify']
     onAfterVerify?: PaymentMiddlewareOptions['onAfterVerify']
     onAfterSettle?: PaymentMiddlewareOptions['onAfterSettle']
   }
@@ -293,7 +334,7 @@ async function handleMppRequest(args: {
   const { planId, credits = 1, agentId, description } = routeConfig
   const resource = mppResource(req)
   const httpVerb = mppVerb(req)
-  const { onPaymentError, onAfterVerify, onAfterSettle } = args.hooks
+  const { onPaymentError, onBeforeVerify, onAfterVerify, onAfterSettle } = args.hooks
 
   // Credits are sealed into the challenge, so a credits function is evaluated
   // exactly once — here. MPP has no equivalent of the x402 re-evaluation at
@@ -301,22 +342,69 @@ async function handleMppRequest(args: {
   const creditsToCharge = typeof credits === 'function' ? await credits(req, res) : credits
 
   // A bound challenge must be minted, verified and settled against the SAME
-  // digest. A GET with no body binds nothing, which is correct: there are no
-  // bytes to bind.
+  // digest. A request with no body binds nothing, which is correct: there
+  // are no bytes to bind.
+  //
+  // The guard is intentionally FAIL CLOSED: `requestHasBody(req)` recognizes
+  // both a non-zero Content-Length AND a bare Transfer-Encoding (chunked —
+  // the shape a Content-Length-only check let straight through, unbound and
+  // silent). Whenever the request has a body and the raw bytes were never
+  // captured, we refuse rather than mint an unbound challenge — the buyer
+  // must never get to decide whether the seller's bindBody applies.
   let bodyDigest: string | undefined
+  let bindBodyRefusal: { status: number; message: string; loud: boolean } | undefined
   if (args.bindBody) {
     const raw = getRawBody(req)
-    if (
-      raw === undefined &&
-      req.headers['content-length'] &&
-      req.headers['content-length'] !== '0'
-    ) {
-      throw new Error(
-        'paymentMiddleware: mpp.bindBody requires the raw request body. ' +
-          "Mount the parser as express.json({ verify: captureRawBody }) — import { captureRawBody } from '@nevermined-io/payments/express'.",
-      )
+    if (raw === undefined && requestHasBody(req)) {
+      const contentType = req.headers['content-type'] ?? ''
+      if (contentType.toLowerCase().startsWith('application/json')) {
+        // The documented setup is express.json({ verify: captureRawBody }).
+        // A JSON body with no captured bytes means that hook was never
+        // wired — a seller configuration mistake, not the buyer's fault.
+        bindBodyRefusal = {
+          status: 500,
+          loud: true,
+          message:
+            'paymentMiddleware: mpp.bindBody requires the raw request body. ' +
+            "Mount the parser as express.json({ verify: captureRawBody }) — import { captureRawBody } from '@nevermined-io/payments/express'.",
+        }
+      } else {
+        // captureRawBody only runs for content-types the mounted parser
+        // matches. A buyer sending a content-type this route's parser was
+        // never wired for is a client-side mismatch, not a server bug.
+        bindBodyRefusal = {
+          status: 400,
+          loud: false,
+          message: `paymentMiddleware: this route requires a captured request body, and Content-Type '${contentType || '(none)'}' is not supported here.`,
+        }
+      }
+    } else if (raw) {
+      bodyDigest = computeBodyDigest(raw)
     }
-    if (raw) bodyDigest = computeBodyDigest(raw)
+  }
+  if (bindBodyRefusal) {
+    const error = new Error(bindBodyRefusal.message)
+    if (onPaymentError) {
+      onPaymentError(error, req, res)
+      return
+    }
+    // Loud in the server-side log either way — a seller can act on both
+    // causes — but never as an uncaught throw: that would skip a configured
+    // onPaymentError and fall through to Express's default error handler,
+    // leaking a stack trace to the client on every request the guard
+    // rejects, exactly the failure sendChallenge below guards against too.
+    if (bindBodyRefusal.loud) {
+      console.error('MPP bindBody misconfiguration:', bindBodyRefusal.message)
+    } else {
+      console.warn('MPP bindBody could not capture the request body:', bindBodyRefusal.message)
+    }
+    if (!res.headersSent) {
+      res.status(bindBodyRefusal.status).json({
+        error: bindBodyRefusal.status >= 500 ? 'Internal Server Error' : 'Bad Request',
+        message: bindBodyRefusal.message,
+      })
+    }
+    return
   }
 
   const sendChallenge = async (message: string, code?: string): Promise<void> => {
@@ -332,10 +420,13 @@ async function handleMppRequest(args: {
     try {
       const issued = await payments.mpp.issueChallenge({
         planId,
-        // Stringified here (not left to MppAPI.issueChallenge) so the exact
+        // Normalized here (not left to MppAPI.issueChallenge) so the exact
         // wire shape is visible to a mocked payments.mpp in tests, matching
-        // the decimal-string contract of IssueMppChallengeParams.credits.
-        credits: creditsToCharge.toString(),
+        // the decimal-string contract of IssueMppChallengeParams.credits —
+        // and so a NaN/Infinity/non-integer credits function result is
+        // rejected before a mocked payments.mpp in a test could hide the
+        // defect by never validating it itself.
+        credits: normalizeCredits(creditsToCharge),
         ...(agentId && { agentId }),
         resource,
         httpVerb,
@@ -370,7 +461,18 @@ async function handleMppRequest(args: {
       // pay it" (retryable). This echoes a distinction the backend itself
       // already publishes on the wire; it adds no new detail and does not
       // reopen the "one rejection code" forgery-oracle discipline.
-      .json({ error: 'Payment Required', message, ...(code && { code }) })
+      //
+      // `retryable` is carried alongside the code as an explicit wire signal
+      // rather than leaving every buyer to hardcode which BCK.MPP.* codes are
+      // exceptions to "code present means terminal": BCK.MPP.0004 (expired)
+      // and BCK.MPP.0005 (body digest mismatch) are both retryable against
+      // the fresh challenge on this same 402, while BCK.MPP.0003 (refused)
+      // is not.
+      .json({
+        error: 'Payment Required',
+        message,
+        ...(code && { code, retryable: isRetryableMppCode(code) }),
+      })
   }
 
   const credential = extractCredential(req)
@@ -379,29 +481,22 @@ async function handleMppRequest(args: {
     return
   }
 
+  let verification: VerifyPermissionsResult
   try {
-    const verification = await payments.mpp.verifyCredential({
+    // Hook: before verification, mirroring the x402 path (middleware.ts's
+    // x402 branch calls it in the same position). Dropped entirely here
+    // before this fix: adding mpp: true to a working route silently
+    // disabled a documented PaymentMiddlewareOptions hook.
+    if (onBeforeVerify) {
+      await onBeforeVerify(req, paymentRequired)
+    }
+
+    verification = await payments.mpp.verifyCredential({
       credential,
       resource,
       httpVerb,
       ...(bodyDigest && { bodyDigest }),
     })
-
-    if (!verification.isValid) {
-      // This IS a credential rejection, even though VerifyPermissionsResult
-      // carries no code of its own. The wire contract is positional, not
-      // incidental: any 402 answering a request that presented a credential
-      // must carry a code, or a buyer cannot tell this fresh-but-otherwise-
-      // unmarked challenge apart from "you had not paid yet" and mints a
-      // second credential for a rejection that already proved terminal.
-      // 'BCK.MPP.0003' is the backend's own generic rejection code
-      // (MppCredentialRejectedError, src/mpp/errors.ts) — nothing new is
-      // invented or published beyond it.
-      await sendChallenge(verification.invalidReason || 'Credential rejected', 'BCK.MPP.0003')
-      return
-    }
-
-    if (onAfterVerify) await onAfterVerify(req, verification)
   } catch (error) {
     if (onPaymentError) {
       onPaymentError(error as Error, req, res)
@@ -410,17 +505,105 @@ async function handleMppRequest(args: {
     // Every MPP rejection — expired, replayed, refused — is answered with a
     // fresh challenge, so a buyer can always make progress by paying again.
     // The backend's BCK.MPP.* code (when the failure carries one) rides
-    // along so the buyer can tell which kind of rejection this was.
-    const code = error instanceof MppError ? error.code : undefined
-    await sendChallenge(error instanceof Error ? error.message : 'Credential rejected', code)
+    // along so the buyer can tell which kind of rejection this was; it is
+    // confined to BCK.MPP.* so an unrelated code (network_error, http_500,
+    // a backend code from a different namespace) is never forwarded as if
+    // it were one of ours.
+    const code =
+      error instanceof MppError && error.code?.startsWith('BCK.MPP.') ? error.code : undefined
+    // Log the full detail — MppAPI.post folds a backend `hint` onto the
+    // error's message — for the seller's own diagnostics. The buyer only
+    // ever sees a fixed generic message plus the coarse code: forwarding
+    // error.message verbatim would re-widen the anti-oracle discipline
+    // src/mpp/errors.ts documents, handing a hint the backend deliberately
+    // withheld straight back to the caller most likely to probe for it.
+    console.error('MPP credential verification failed:', error)
+    await sendChallenge('Credential rejected', code)
     return
   }
+
+  if (!verification.isValid) {
+    // This IS a credential rejection, even though VerifyPermissionsResult
+    // carries no code of its own. The wire contract is positional, not
+    // incidental: any 402 answering a request that presented a credential
+    // must carry a code, or a buyer cannot tell this fresh-but-otherwise-
+    // unmarked challenge apart from "you had not paid yet" and mints a
+    // second credential for a rejection that already proved terminal.
+    // 'BCK.MPP.0003' is the backend's own generic rejection code — nothing
+    // new is invented or published beyond it.
+    const rejectionError = new MppCredentialRejectedError(
+      verification.invalidReason || 'Credential rejected',
+    )
+    // Matches the x402 path: a seller who wires onPaymentError is notified
+    // of every rejected payment, not just the ones where verifyCredential
+    // itself threw.
+    if (onPaymentError) {
+      onPaymentError(rejectionError, req, res)
+      return
+    }
+    await sendChallenge(rejectionError.message, rejectionError.code)
+    return
+  }
+
+  // onAfterVerify runs OUTSIDE the verify try/catch above: a bug in the
+  // seller's OWN hook, after the credential has already been proven valid,
+  // must never be misreported as a payment rejection (no re-challenge) and
+  // must never leak the hook's own exception text into the buyer-visible
+  // 402 body the catch above would otherwise build from it.
+  if (onAfterVerify) {
+    try {
+      await onAfterVerify(req, verification)
+    } catch (hookError) {
+      if (onPaymentError) {
+        onPaymentError(hookError as Error, req, res)
+        return
+      }
+      console.error('MPP onAfterVerify hook failed:', hookError)
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'A server-side hook failed after payment verification.',
+        })
+      }
+      return
+    }
+  }
+
+  // The credential is now verified but not yet settled — exactly the window
+  // where an idempotent settle makes concurrent delivery cheap: a second
+  // request presenting this SAME credential right now would also pass
+  // verify (verifyCredential burns nothing) and also get served, while the
+  // two settles collapse into a single burn. Refuse it instead.
+  if (inFlightMppCredentials.has(credential)) {
+    const error = new MppCredentialRejectedError(
+      'This credential is already being processed by a concurrent request.',
+    )
+    if (onPaymentError) {
+      onPaymentError(error, req, res)
+      return
+    }
+    if (!res.headersSent) {
+      res.status(409).json({ error: 'Conflict', message: error.message })
+    }
+    return
+  }
+  inFlightMppCredentials.add(credential)
+  // Released on 'close', not from inside the settlement promise: 'close'
+  // fires whether this request ends in a successful settle, a failed one, a
+  // non-2xx handler response that never reaches settlement at all, or the
+  // connection simply dropping — the one event that reliably covers every
+  // exit from here, so the credential can never be left claimed forever.
+  res.on('close', () => {
+    inFlightMppCredentials.delete(credential)
+  })
 
   const paymentContext: PaymentContext = {
     token: credential,
     paymentRequired,
     creditsToSettle: creditsToCharge,
     verified: true,
+    agentRequest: verification.agentRequest,
+    agentRequestId: verification.agentRequest?.agentRequestId || verification.agentRequestId,
     mpp: { credential, resource, httpVerb },
   }
   ;(req as Request & { paymentContext?: PaymentContext }).paymentContext = paymentContext
@@ -437,15 +620,47 @@ async function handleMppRequest(args: {
         ...(bodyDigest && { bodyDigest }),
       })
       .then((settlement) => {
-        if (!res.headersSent) {
-          res.setHeader(MPP_HEADERS.RECEIPT, settlement.paymentReceipt)
+        // Never call res.setHeader with an undefined value: MppSettleResult's
+        // type says success: true implies a string paymentReceipt, but a
+        // real backend response isn't statically checked, so this is
+        // defensive too. Distinguishing the three cases matters: a genuine
+        // settlement failure, a successful settle that (contrary to the
+        // type) carried no receipt, and the normal success-with-receipt
+        // path each get their own accurate log — collapsing them all into
+        // "MPP settlement failed" pointed an on-call engineer at the wrong
+        // system when the burn had actually succeeded.
+        if (settlement.success && settlement.paymentReceipt) {
+          if (!res.headersSent) {
+            res.setHeader(MPP_HEADERS.RECEIPT, settlement.paymentReceipt)
+          } else {
+            console.warn(
+              '[paymentMiddleware] headers already flushed; Payment-Receipt not attached',
+            )
+          }
+        } else if (!settlement.success) {
+          console.error(
+            'MPP settlement failed:',
+            settlement.errorReason ?? 'no errorReason provided',
+          )
         } else {
           console.warn(
-            '[paymentMiddleware] headers already flushed; Payment-Receipt not attached',
+            '[paymentMiddleware] MPP settlement succeeded but carried no paymentReceipt',
           )
         }
+
+        // The amount actually burned is whatever the challenge sealed on an
+        // EARLIER request, reported back on the settlement — not
+        // creditsToCharge, which is recomputed on THIS request and can
+        // diverge from the minting request when `credits` is a function
+        // (evaluated once per request, so at least twice per payment cycle).
+        const creditsSettled =
+          settlement.creditsRedeemed !== undefined
+            ? Number(settlement.creditsRedeemed)
+            : creditsToCharge
+        paymentContext.creditsToSettle = creditsSettled
+
         if (onAfterSettle) {
-          return Promise.resolve(onAfterSettle(req, creditsToCharge, settlement)).then(
+          return Promise.resolve(onAfterSettle(req, creditsSettled, settlement)).then(
             () => undefined,
           )
         }
@@ -547,7 +762,7 @@ export function paymentMiddleware(
           routeConfig,
           paymentRequired,
           bindBody: mppOption.bindBody,
-          hooks: { onPaymentError, onAfterVerify, onAfterSettle },
+          hooks: { onPaymentError, onBeforeVerify, onAfterVerify, onAfterSettle },
         })
         return
       }
