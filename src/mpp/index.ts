@@ -18,3 +18,5 @@ export {
   MppChallengeExpiredError,
   MppBodyDigestMismatchError,
 } from './errors.js'
+export { mppFetch } from './fetch.js'
+export type { MppFetchOptions, MppFetchResult, MppTokenMinter } from './fetch.js'

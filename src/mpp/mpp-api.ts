@@ -17,7 +17,8 @@ import {
 import type { PaymentOptions, X402TokenOptions } from '../common/types.js'
 import type { SettlePermissionsResult, VerifyPermissionsResult } from '../x402/facilitator-api.js'
 import { buildX402TokenRequestBody } from '../x402/token-request.js'
-import { toMppError } from './errors.js'
+import { MppError, toMppError } from './errors.js'
+import { mppFetch, type MppFetchOptions, type MppFetchResult } from './fetch.js'
 
 export interface IssueMppChallengeParams {
   /** The Nevermined plan the credits are burned against. */
@@ -110,6 +111,41 @@ export class MppAPI extends BasePaymentsAPI {
       environmentName: this.environmentName,
     })
     return this.post<{ accessToken: string }>(API_URL_MPP_CREATE_PERMISSION, body)
+  }
+
+  /**
+   * Performs an HTTP request, paying an MPP challenge if the endpoint returns
+   * one.
+   *
+   * The buyer needs no new plan, delegation or credential: the delegation that
+   * works for x402 works here unchanged.
+   *
+   * @example
+   * ```typescript
+   * const { response, receipt } = await payments.mpp.fetch(
+   *   'https://agent.example/ask',
+   *   { method: 'POST', body: JSON.stringify({ q: 'hello' }) },
+   *   { delegationConfig: { delegationId } },
+   * )
+   * ```
+   */
+  async fetch(
+    input: string | URL,
+    init?: RequestInit,
+    options?: MppFetchOptions,
+  ): Promise<MppFetchResult> {
+    if (!options?.delegationConfig) {
+      throw new MppError(
+        'payments.mpp.fetch requires a delegationConfig. Create a delegation with ' +
+          'payments.delegation.createDelegation() and pass { delegationId }.',
+      )
+    }
+    return mppFetch(
+      (planId, agentId, tokenOptions) => this.getMppAccessToken(planId, agentId, tokenOptions),
+      input,
+      init,
+      options,
+    )
   }
 
   private redeemBody(params: RedeemMppParams): Record<string, unknown> {
