@@ -145,10 +145,18 @@ describe('MppAPI.fetch — happy path', () => {
 })
 
 describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail-open gate)', () => {
-  it('does not silently re-mint when the seller rejects without a code field (identical challenge id replayed)', async () => {
-    // This is the shape the SDK's own seller middleware produces today:
-    // `{ error, message }`, no `code`. Reusing the SAME challenge header on
-    // both turns simulates the identical-id replay the fix must close.
+  it('does not silently re-mint when a seller rejects without a code field (identical challenge id replayed)', async () => {
+    // This is a third-party or non-compliant seller's shape: `{ error,
+    // message }`, no `code`. The SDK's own seller middleware always attaches
+    // a code to a credential-bearing rejection now (BCK.MPP.0003 on a
+    // resolved isValid:false, or the backend's own BCK.MPP.* code when
+    // verifyCredential itself throws — see the integration test in
+    // tests/integration/mpp/mpp-buyer-seller-loop.test.ts, which exercises
+    // that coded path against the real middleware). This test is the
+    // buyer-side defense-in-depth fallback for a seller that does NOT follow
+    // that contract; it is not a stand-in for our own seller's behaviour.
+    // Reusing the SAME challenge header on both turns simulates the
+    // identical-id replay the fallback must close.
     const mints = { count: 0 }
     global.fetch = (async (url: any) => {
       const href = String(url)
@@ -162,7 +170,12 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
     expect(mints.count).toBe(1)
   })
 
-  it('mints once per genuinely fresh re-challenge (different id), then stops at the loop bound', async () => {
+  it('mints once per genuinely fresh re-challenge (different id, no code), then stops at the loop bound', async () => {
+    // Exercises the id-freshness fallback specifically (no `code` on either
+    // 402) — the same-shaped, real-seller-with-a-code equivalent of this
+    // scenario (a BCK.MPP.0004 rejection retried exactly once, mints === 2)
+    // is covered against the actual middleware in
+    // tests/integration/mpp/mpp-buyer-seller-loop.test.ts.
     let asked = 0
     const mints = { count: 0 }
     global.fetch = (async (url: any) => {
