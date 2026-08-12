@@ -388,7 +388,16 @@ async function handleMppRequest(args: {
     })
 
     if (!verification.isValid) {
-      await sendChallenge(verification.invalidReason || 'Credential rejected')
+      // This IS a credential rejection, even though VerifyPermissionsResult
+      // carries no code of its own. The wire contract is positional, not
+      // incidental: any 402 answering a request that presented a credential
+      // must carry a code, or a buyer cannot tell this fresh-but-otherwise-
+      // unmarked challenge apart from "you had not paid yet" and mints a
+      // second credential for a rejection that already proved terminal.
+      // 'BCK.MPP.0003' is the backend's own generic rejection code
+      // (MppCredentialRejectedError, src/mpp/errors.ts) — nothing new is
+      // invented or published beyond it.
+      await sendChallenge(verification.invalidReason || 'Credential rejected', 'BCK.MPP.0003')
       return
     }
 

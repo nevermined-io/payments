@@ -92,7 +92,16 @@ describe('MPP redemption', () => {
     }
   })
 
-  it('answers a FRESH challenge when the credential is rejected, with no code (the resolved verify result carries none)', async () => {
+  it('answers a FRESH challenge when the credential is rejected, falling back to BCK.MPP.0003', async () => {
+    // A request that presented a credential and got { isValid: false } back
+    // IS a credential rejection, even though this path never throws a typed
+    // MppError with its own code. The wire contract has to be positional,
+    // not incidental: any 402 answering a credential-bearing request carries
+    // a code, or a buyer reading "code present = refused, paying again is
+    // pointless" would read this fresh-but-code-less challenge as retryable
+    // and mint a second credential for a rejection the first already proved
+    // terminal. BCK.MPP.0003 is the backend's own generic rejection code, so
+    // this invents nothing and publishes no new distinction.
     const payments = buildMockPayments({
       verifyCredential: jest.fn().mockResolvedValue({ isValid: false, invalidReason: 'no credits' }),
     })
@@ -103,9 +112,7 @@ describe('MPP redemption', () => {
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
       const body = await response.json()
       expect(body.message).toBe('no credits')
-      // A resolved { isValid: false } result carries no backend BCK.MPP.*
-      // code, so the 402 body must omit the field rather than invent one.
-      expect(body.code).toBeUndefined()
+      expect(body.code).toBe('BCK.MPP.0003')
     } finally {
       await close()
     }
