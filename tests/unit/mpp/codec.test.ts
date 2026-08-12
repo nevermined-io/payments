@@ -28,6 +28,18 @@ const OPAQUE_ENCODED =
 const RECEIPT_HEADER =
   'eyJtZXRob2QiOiJuZXZlcm1pbmVkIiwicmVmZXJlbmNlIjoiQ1Fzek9uZ2Z2VDFSSUdTYWppcFpKdmctbEJDRUR1Z1dMREY3U0RfdzFvZyIsInN0YXR1cyI6InN1Y2Nlc3MiLCJ0aW1lc3RhbXAiOiIyMDI2LTA4LTEyVDEwOjAwOjMwLjAwMFoifQ'
 
+// A structured challenge with a comma inside a quoted auth-param value
+// (`description`), placed BEFORE `opaque` so a naive comma split truncates
+// the scheme mid-quote and silently drops `opaque` — exactly the regression
+// reported in fix round 2.
+const CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION =
+  'Payment id="CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og", realm="api.nevermined.app", ' +
+  'method="nevermined", intent="charge", ' +
+  'request="eyJjcmVkaXRzIjoiMiIsInBsYW5JZCI6IjQ0NzQyNzYzMDc2MDQ3NDk3NjQwMDgwMjMwMjM2NzgxNDc0MTI5OTcwOTkyNzI3ODk2NTkzODYxOTk3MzQ3MTM1NjEzMTM1NTcxMDcifQ", ' +
+  'expires="2026-08-12T10:05:00.000Z", ' +
+  'description="Standard, non-refundable request", ' +
+  'opaque="eyJfbXBweF9zY29wZSI6IlBPU1QgL2FzayIsIm5vbmNlIjoiMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1In0"'
+
 describe('parseChallengeHeader', () => {
   it('parses every auth-param and decodes the sealed request', () => {
     const challenge = parseChallengeHeader(CHALLENGE_HEADER)!
@@ -55,6 +67,22 @@ describe('parseChallengeHeader', () => {
 
   it('picks the Payment scheme out of a merged header', () => {
     expect(parseChallengeHeader(`Bearer abc, ${CHALLENGE_HEADER}`)).not.toBeNull()
+  })
+
+  it('decodes every param when a comma sits inside a quoted description value', () => {
+    // The comma inside "Standard, non-refundable request" must not truncate
+    // the scheme, and `opaque` -- ordered AFTER the comma-bearing
+    // `description` -- must still be decoded, or the HMAC re-derivation at
+    // the backend fails and the credential is rejected.
+    const challenge = parseChallengeHeader(CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION)!
+    expect(challenge).not.toBeNull()
+    expect(challenge.description).toBe('Standard, non-refundable request')
+    expect(challenge.opaque).toBe(OPAQUE_ENCODED)
+    expect(challenge.id).toBe('CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og')
+    expect(challenge.realm).toBe('api.nevermined.app')
+    expect(challenge.method).toBe('nevermined')
+    expect(challenge.intent).toBe('charge')
+    expect(challenge.requestEncoded).toBe(REQUEST_ENCODED)
   })
 })
 
@@ -131,5 +159,25 @@ describe('extractPaymentScheme', () => {
     expect(extractPaymentScheme('Payment eyJhYmMifQ, Bearer some-app-jwt')).toBe(
       'Payment eyJhYmMifQ',
     )
+  })
+
+  it('does not truncate a structured challenge at a comma inside a quoted value', () => {
+    expect(extractPaymentScheme(CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION)).toBe(
+      CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION,
+    )
+  })
+
+  it('still stops at a genuine trailing scheme after a comma-bearing quoted value', () => {
+    expect(
+      extractPaymentScheme(`${CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION}, Bearer some-app-jwt`),
+    ).toBe(CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION)
+  })
+
+  it('is not confused by the literal text "Payment " inside a quoted value', () => {
+    const header =
+      'Payment id="c1", realm="api.nevermined.app", method="nevermined", intent="charge", ' +
+      'request="req", description="Ask about the Payment plan, then retry", opaque="op"'
+    expect(extractPaymentScheme(header)).toBe(header)
+    expect(extractPaymentScheme(`${header}, Bearer some-app-jwt`)).toBe(header)
   })
 })

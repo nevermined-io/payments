@@ -16,21 +16,52 @@ const TOKEN = "[!#$%&'*+\\-.^_`|~0-9A-Za-z]+"
 const AUTH_PARAM_START = new RegExp(`^${TOKEN}\\s*=`)
 
 /**
+ * Finds where a structured challenge's auth-param list ends within `rest`
+ * (the content right after "Payment "), scanning quote-aware so a comma
+ * inside a `"…"` value — e.g. a seller-supplied `description` like
+ * `"Standard, non-refundable request"` — is never mistaken for a boundary.
+ *
+ * A top-level (non-quoted) comma only ends the scheme if what follows it
+ * does NOT itself look like a continuing `key=value` auth-param — which is
+ * also how a following literal "Payment " (the merged-challenge case) is
+ * recognized as a new scheme: "Payment" followed by whitespace never matches
+ * `AUTH_PARAM_START`, since that requires "=" immediately (module optional
+ * whitespace) after the leading token.
+ */
+function findStructuredChallengeEnd(rest: string): number {
+  let inQuotes = false
+  for (let i = 0; i < rest.length; i++) {
+    const ch = rest[i]
+    if (ch === '"') {
+      inQuotes = !inQuotes
+      continue
+    }
+    if (ch === ',' && !inQuotes) {
+      if (!AUTH_PARAM_START.test(rest.slice(i + 1).trimStart())) {
+        return i
+      }
+    }
+  }
+  return rest.length
+}
+
+/**
  * Extracts the `Payment` scheme from a header value that may carry several
  * schemes comma-separated (RFC 9110 §11.6.1).
  *
  * The `Payment` scheme takes one of two shapes on our wire: a bare token68
- * credential (`Payment <base64url>`, which cannot itself contain a comma) or
- * a structured challenge (`Payment id="...", realm="...", ...`, comma-
- * separated `key="value"` auth-params). Bounding the match at the next
- * literal "Payment " occurrence — or at end-of-string otherwise — corrupts
- * the first shape whenever a *different* trailing scheme follows: e.g.
- * `Payment <token>, Bearer <jwt>` used to extract the whole remainder
- * including the trailing scheme. Instead: a bare token68 is bounded by its
- * first top-level comma; a structured challenge is bounded by whichever
- * comes first — a following literal "Payment " (the merged-challenge case
- * `parseChallengeHeader` relies on) or a following comma-delimited segment
- * that does not itself look like a continuing `key=value` auth-param.
+ * credential (`Payment <base64url>`, which cannot itself contain a comma or
+ * a quote) or a structured challenge (`Payment id="...", realm="...", ...`,
+ * comma-separated `key="value"` auth-params, where a value MAY contain a
+ * comma). Bounding the match at the next literal "Payment " occurrence — or
+ * at end-of-string otherwise — corrupts the first shape whenever a
+ * *different* trailing scheme follows: e.g. `Payment <token>, Bearer <jwt>`
+ * used to extract the whole remainder including the trailing scheme.
+ * Bounding a structured challenge with a naive, quote-unaware comma split
+ * corrupts the second shape whenever a value contains a comma: it truncates
+ * mid-quote and silently drops every param after it. Instead: a bare
+ * token68 is bounded by its first top-level comma; a structured challenge is
+ * bounded by {@link findStructuredChallengeEnd}'s quote-aware scan.
  */
 export function extractPaymentScheme(headerValue: string): string | null {
   const schemeMatch = /Payment\s+/i.exec(headerValue)
@@ -42,27 +73,14 @@ export function extractPaymentScheme(headerValue: string): string | null {
 
   if (!AUTH_PARAM_START.test(rest)) {
     // Bare token68 credential: bounded by its first top-level comma, since a
-    // token68 cannot itself contain one.
+    // token68 cannot itself contain one (or a quote, so no quote-tracking
+    // is needed here).
     const commaIndex = rest.indexOf(',')
     const end = commaIndex === -1 ? headerValue.length : contentStart + commaIndex
     return headerValue.slice(start, end).trim()
   }
 
-  // Structured challenge: consume comma-separated key=value segments for as
-  // long as each next segment still looks like one; stop at the first
-  // segment that doesn't (a new scheme name), at a following literal
-  // "Payment " (the existing merged-challenge case), or at end-of-string.
-  const nextPayment = /Payment\s+/i.exec(rest)
-  const searchSpace = nextPayment ? rest.slice(0, nextPayment.index) : rest
-
-  const segments = searchSpace.split(',')
-  let consumed = segments[0].length
-  for (let i = 1; i < segments.length; i++) {
-    if (!AUTH_PARAM_START.test(segments[i].trimStart())) break
-    consumed += 1 + segments[i].length // +1 for the comma rejoining it
-  }
-
-  const end = contentStart + consumed
+  const end = contentStart + findStructuredChallengeEnd(rest)
   return headerValue.slice(start, end).replace(/,\s*$/, '').trim()
 }
 
