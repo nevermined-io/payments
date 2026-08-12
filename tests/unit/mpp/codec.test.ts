@@ -318,9 +318,34 @@ describe('parseChallengeHeader — malformed request parameter', () => {
     expect(() => parseChallengeHeader(header)).toThrow(MppError)
   })
 
-  it('rejects a request= whose credits is a number instead of a string', () => {
+  it('coerces a request= whose credits is a JSON number to a string, rather than rejecting a valid third-party seller', () => {
+    // credits is not what anything spends: the amount the backend
+    // re-derives comes from requestEncoded, forwarded byte-verbatim. A
+    // third-party seller encoding credits as a JSON number is a perfectly
+    // reasonable reading of "credits" and must not become wholly unpayable
+    // over a field this SDK does not itself act on.
     const header = buildChallengeWithRequest(encodeRequestParam({ planId: '123', credits: 2 }))
+    const challenge = parseChallengeHeader(header)!
+    expect(challenge.request).toEqual({ planId: '123', credits: '2' })
+  })
+
+  it('rejects a request= whose agentId is not a string', () => {
+    // Unlike credits, agentId IS load-bearing: the buyer helper forwards
+    // challenge.request.agentId straight into the token mint
+    // (options.agentId ?? challenge.request.agentId), so a malformed value
+    // here reaches the spend path, not just a decorative field.
+    const header = buildChallengeWithRequest(
+      encodeRequestParam({ planId: '123', credits: '2', agentId: 42 }),
+    )
     expect(() => parseChallengeHeader(header)).toThrow(MppError)
+  })
+
+  it('accepts a well-formed agentId and passes it through', () => {
+    const header = buildChallengeWithRequest(
+      encodeRequestParam({ planId: '123', credits: '2', agentId: 'agent-1' }),
+    )
+    const challenge = parseChallengeHeader(header)!
+    expect(challenge.request).toEqual({ planId: '123', credits: '2', agentId: 'agent-1' })
   })
 
   it('rejects a request= with a missing planId rather than minting with planId: undefined', () => {
