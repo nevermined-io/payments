@@ -120,6 +120,12 @@ export class MppAPI extends BasePaymentsAPI {
    * The buyer needs no new plan, delegation or credential: the delegation that
    * works for x402 works here unchanged.
    *
+   * `init.body`, if set, must be replayable — a `ReadableStream` is rejected
+   * with a typed {@link MppError} before any request is sent, since it cannot
+   * be resent if the endpoint answers with a 402 challenge. A `string`,
+   * `Buffer`/`ArrayBuffer`/typed array, `URLSearchParams`, `FormData` or
+   * `Blob` body all work unchanged.
+   *
    * @example
    * ```typescript
    * const { response, receipt } = await payments.mpp.fetch(

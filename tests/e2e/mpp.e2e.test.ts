@@ -1,7 +1,11 @@
 /**
  * Staging e2e. MPP is enabled per deployment (`MPP_SECRET_KEY` + `MPP_REALM`),
- * so this suite probes the challenge route first and skips itself when the
- * environment answers `BCK.MPP.0002` — see nvm-monorepo#2645.
+ * so this suite probes the challenge route first. When the environment answers
+ * `BCK.MPP.0002` (MPP not configured — nvm-monorepo#2645) the test body
+ * returns without exercising anything, but `expect.hasAssertions()` still
+ * fails it: a bare no-op run must never read as a silent pass in CI. Any
+ * other `beforeAll` failure (e.g. the MPP routes being entirely absent from
+ * the deployment) already fails the suite on its own.
  */
 import { Payments } from '../../src/payments.js'
 import { MppNotConfiguredError } from '../../src/mpp/errors.js'
@@ -36,6 +40,13 @@ describe('MPP end to end', () => {
   })
 
   it('burns credits for a credential minted from an existing delegation', async () => {
+    // A self-skip must not read as a silent pass in CI: require at least one
+    // assertion, so a run that returns early because MPP is not configured
+    // fails loudly instead of blending in with a real pass. A genuine failure
+    // in beforeAll (anything other than MppNotConfiguredError, e.g. the MPP
+    // routes being entirely absent from the deployment) already fails the
+    // suite on its own and never reaches this point.
+    expect.hasAssertions()
     if (!mppEnabled) return
 
     const { challenge } = await builder.mpp.issueChallenge({

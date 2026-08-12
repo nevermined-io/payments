@@ -3,7 +3,7 @@
  * caller's existing Nevermined delegation, and the request is retried once.
  */
 import { MppAPI } from '../../../src/mpp/mpp-api.js'
-import { MppCredentialRejectedError } from '../../../src/mpp/errors.js'
+import { MppCredentialRejectedError, MppError } from '../../../src/mpp/errors.js'
 
 const OPTIONS = { nvmApiKey: 'eyJhbGciOiJIUzI1NiJ9.e30.sig', environment: 'sandbox' } as any
 
@@ -138,5 +138,36 @@ describe('MppAPI.fetch', () => {
     expect(result.paid).toBe(false)
     expect(result.response.status).toBe(402)
     expect(asked).toBe(3)
+  })
+
+  it('rejects a ReadableStream body up front, before any request is sent', async () => {
+    // A stream is single-read: once the first fetch() consumes it, a retry
+    // with the same body throws an opaque runtime TypeError instead of a
+    // typed MPP error. The check runs before the first request — whether a
+    // retry ever happens depends on that request's outcome, which is not
+    // known ahead of time.
+    const spy = jest.fn()
+    global.fetch = spy as any
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{}'))
+        controller.close()
+      },
+    })
+
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        { method: 'POST', body: stream as any, duplex: 'half' } as any,
+        FETCH_OPTIONS,
+      )
+    } catch (caught) {
+      error = caught
+    }
+
+    expect(error).toBeInstanceOf(MppError)
+    expect((error as Error).message).toMatch(/ReadableStream/)
+    expect(spy).not.toHaveBeenCalled()
   })
 })
