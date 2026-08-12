@@ -349,15 +349,44 @@ export function buildCredentialHeader(
   return `Payment ${Buffer.from(JSON.stringify(wire), 'utf8').toString('base64url')}`
 }
 
+/** Validates a decoded `Payment-Receipt` body against {@link MppReceipt}'s
+ *  shape — mirrors {@link isValidChallengeRequestShape}'s strictness for the
+ *  same reason: without it, `null`, an array, or `{}` all sail through a
+ *  bare type cast and surface later as an untyped `TypeError` on a field
+ *  access, with nothing pointing back at the header that caused it. */
+function isValidReceipt(value: unknown): value is MppReceipt {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const { method, reference, status, timestamp } = value as Record<string, unknown>
+  return (
+    typeof method === 'string' &&
+    typeof reference === 'string' &&
+    reference !== '' &&
+    typeof status === 'string' &&
+    typeof timestamp === 'string'
+  )
+}
+
 /**
  * Decodes a `Payment-Receipt` header value.
  *
- * Raises a typed {@link MppError} on malformed input rather than a raw
- * `SyntaxError` — this function does not decide whether that failure is
- * fatal for its caller (the receipt is "unsigned by design, and carries no
- * balance", so a caller may reasonably treat a decode failure as non-fatal
- * and simply omit the receipt); it only guarantees the failure is typed.
+ * Raises a typed {@link MppError} on malformed input — undecodable base64url
+ * JSON, or JSON that decodes to something that is not a usable
+ * `{ method, reference, status, timestamp }` object — rather than a raw
+ * `SyntaxError` or an untyped receipt. This function does not decide whether
+ * that failure is fatal for its caller (the receipt is "unsigned by design,
+ * and carries no balance", so a caller may reasonably treat a decode
+ * failure as non-fatal and simply omit the receipt); it only guarantees the
+ * failure is typed and raised at the boundary, not as a later `TypeError`
+ * on a field access with nothing pointing back at the header that caused it
+ * — the same asymmetry {@link parseChallengeHeader} closes for `request=`.
  */
 export function parseReceiptHeader(headerValue: string): MppReceipt {
-  return decodeBase64UrlJson<MppReceipt>(headerValue.trim(), 'MPP receipt')
+  const decoded = decodeBase64UrlJson<unknown>(headerValue.trim(), 'MPP receipt')
+  if (!isValidReceipt(decoded)) {
+    throw new MppError(
+      'The Payment-Receipt header is not a valid ' +
+        '{ method: string, reference: string, status: string, timestamp: string } object.',
+    )
+  }
+  return decoded
 }

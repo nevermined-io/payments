@@ -1,10 +1,18 @@
 /**
  * Wire-format tests for the MPP codec.
  *
- * The fixtures below were generated from real `mppx@0.6.31` output. They are
- * the contract: the challenge id is an HMAC over `canonicalize(request)` and
- * `opaque`, so those two base64url strings must survive a parse/rebuild cycle
- * byte-for-byte or the backend rejects the credential.
+ * `CHALLENGE_HEADER`, `CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION` and
+ * `MPPX_CREDENTIAL` below are hand-maintained fixtures modelled on real
+ * `mppx@0.6.31` output — inline string literals, not a vendored or
+ * regenerable artifact, so treat them as illustrative of the wire shape
+ * rather than as a pinned, reproducible capture. What IS pinned exactly,
+ * byte-for-byte, is the property that actually matters: the challenge id is
+ * an HMAC over `canonicalize(request)` and `opaque`, and
+ * `challenge.requestEncoded` / `challenge.opaque` are asserted with `toBe`
+ * against these exact strings below — a silent re-encode of either one,
+ * which is what would actually break settlement, is what these fixtures
+ * exist to catch. This PR takes no `mppx` dependency, so these fixtures are
+ * the compatibility contract in lieu of one.
  */
 import {
   parseChallengeHeader,
@@ -132,7 +140,18 @@ describe('buildCredentialHeader', () => {
     expect(encoded).not.toMatch(/[+/=]/)
   })
 
-  it('matches what mppx itself produced for the same inputs', () => {
+  it('decodes to the same fields as the mppx-modelled credential for the same inputs', () => {
+    // NOTE: this does not assert byte-equality with mppx's own output -- the
+    // two `Payment …` values differ (mppx orders challenge keys expires,
+    // id, intent, method, realm, opaque, request; buildCredentialHeader
+    // orders id, realm, method, intent, expires, ..., opaque, request), and
+    // that is fine: codec.ts's own docs argue key order is irrelevant
+    // because the server JSON.parses it. toEqual compares parsed objects,
+    // order-insensitive, which is the right assertion for that claim. The
+    // property that WOULD break settlement -- a silent re-encode of
+    // request/opaque -- is pinned byte-exactly by `toBe` assertions
+    // elsewhere in this file (requestEncoded/opaque above, the padding/
+    // alphabet checks below), not by this test.
     const MPPX_CREDENTIAL =
       'Payment eyJjaGFsbGVuZ2UiOnsiZXhwaXJlcyI6IjIwMjYtMDgtMTJUMTA6MDU6MDAuMDAwWiIsImlkIjoiQ1Fzek9uZ2Z2VDFSSUdTYWppcFpKdmctbEJDRUR1Z1dMREY3U0RfdzFvZyIsImludGVudCI6ImNoYXJnZSIsIm1ldGhvZCI6Im5ldmVybWluZWQiLCJyZWFsbSI6ImFwaS5uZXZlcm1pbmVkLmFwcCIsIm9wYXF1ZSI6ImV5SmZiWEJ3ZUY5elkyOXdaU0k2SWxCUFUxUWdMMkZ6YXlJc0ltNXZibU5sSWpvaU1URXhNVEV4TVRFdE1qSXlNaTB6TXpNekxUUTBORFF0TlRVMU5UVTFOVFUxTlRVMUluMCIsInJlcXVlc3QiOiJleUpqY21Wa2FYUnpJam9pTWlJc0luQnNZVzVKWkNJNklqUTBOelF5TnpZek1EYzJNRFEzTkRrM05qUXdNRGd3TWpNd01qTTJOemd4TkRjME1USTVPVGN3T1RreU56STNPRGsyTlRrek9EWXhPVGszTXpRM01UTTFOakV6TVRNMU5UY3hNRGNpZlEifSwicGF5bG9hZCI6eyJhY2Nlc3NUb2tlbiI6IkJBU0U2NF9NUFBfVE9LRU4ifX0'
     const mppxDecoded = JSON.parse(
@@ -147,7 +166,7 @@ describe('buildCredentialHeader', () => {
         'base64url',
       ).toString('utf8'),
     )
-    expect(ourDecoded).toEqual(mppxDecoded)
+    expect(ourDecoded).toStrictEqual(mppxDecoded)
   })
 })
 
@@ -381,5 +400,40 @@ describe('parseReceiptHeader — malformed input', () => {
   it('raises a typed MppError, not a raw SyntaxError, on undecodable base64url JSON', () => {
     expect(() => parseReceiptHeader('zzz')).toThrow(MppError)
     expect(() => parseReceiptHeader('zzz')).not.toThrow(SyntaxError)
+  })
+
+  it('raises a typed MppError, not an untyped receipt, when the decoded value is null', () => {
+    // A malformed Payment-Receipt arrives on a successful, already-paid 200.
+    // Returning `null` typed as MppReceipt used to let a caller's field
+    // access (receipt.status) crash later with an untyped TypeError that
+    // points nowhere back at the header that caused it.
+    const header = Buffer.from(JSON.stringify(null)).toString('base64url')
+    expect(() => parseReceiptHeader(header)).toThrow(MppError)
+  })
+
+  it('raises a typed MppError when the decoded value is an array', () => {
+    const header = Buffer.from(JSON.stringify(['a'])).toString('base64url')
+    expect(() => parseReceiptHeader(header)).toThrow(MppError)
+  })
+
+  it('raises a typed MppError when a required field is missing', () => {
+    const header = Buffer.from(JSON.stringify({ method: 'nevermined' })).toString('base64url')
+    expect(() => parseReceiptHeader(header)).toThrow(MppError)
+  })
+
+  it('raises a typed MppError when a required field has the wrong type', () => {
+    const header = Buffer.from(
+      JSON.stringify({ method: 'nevermined', reference: 'c1', status: 'success', timestamp: 42 }),
+    ).toString('base64url')
+    expect(() => parseReceiptHeader(header)).toThrow(MppError)
+  })
+
+  it('still decodes a well-formed receipt (no false positives)', () => {
+    expect(parseReceiptHeader(RECEIPT_HEADER)).toEqual({
+      method: 'nevermined',
+      reference: 'CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og',
+      status: 'success',
+      timestamp: '2026-08-12T10:00:30.000Z',
+    })
   })
 })
