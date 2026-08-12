@@ -15,7 +15,8 @@ This directory contains the markdown documentation for the Nevermined Payments T
 9. **mcp-integration.md** - Model Context Protocol integration
 10. **a2a-integration.md** - Agent-to-Agent protocol integration
 11. **x402.md** - X402 payment protocol specification
-12. **cli-card-setup.md** - White-labeled card enrolment + delegation for CLI / top-level integrators
+12. **mpp-integration.md** - Machine Payments Protocol (MPP) integration
+13. **cli-card-setup.md** - White-labeled card enrolment + delegation for CLI / top-level integrators
 
 ## Automation Workflows
 
