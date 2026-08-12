@@ -253,6 +253,24 @@ function matchRoute(req: Request, routes: RouteConfigMap): RouteConfig | null {
  * ```
  */
 /**
+ * Whether a request carries a body, per RFC 9110 §6.4.1 / what `type-is`'s
+ * `hasBody()` encodes: a `Transfer-Encoding` header (chunked, streamed —
+ * never carries `Content-Length`), or a non-zero `Content-Length`.
+ *
+ * `bindBody`'s guard used to check `Content-Length` alone, so a chunked
+ * request (no `Content-Length` at all) took neither the "captured" nor the
+ * "refuse" branch: the challenge was minted unbound, silently. Both
+ * `Content-Length` and `Transfer-Encoding` are the BUYER's choice, so a guard
+ * that only recognizes one of the two shapes lets the buyer — not the seller
+ * — decide whether the seller's opt-in body binding applies.
+ */
+function requestHasBody(req: Request): boolean {
+  if (req.headers['transfer-encoding'] !== undefined) return true
+  const contentLength = req.headers['content-length']
+  return contentLength !== undefined && contentLength !== '0'
+}
+
+/**
  * Helper to send a 402 Payment Required response with proper x402 headers.
  */
 function sendPaymentRequired(
@@ -301,22 +319,69 @@ async function handleMppRequest(args: {
   const creditsToCharge = typeof credits === 'function' ? await credits(req, res) : credits
 
   // A bound challenge must be minted, verified and settled against the SAME
-  // digest. A GET with no body binds nothing, which is correct: there are no
-  // bytes to bind.
+  // digest. A request with no body binds nothing, which is correct: there
+  // are no bytes to bind.
+  //
+  // The guard is intentionally FAIL CLOSED: `requestHasBody(req)` recognizes
+  // both a non-zero Content-Length AND a bare Transfer-Encoding (chunked —
+  // the shape a Content-Length-only check let straight through, unbound and
+  // silent). Whenever the request has a body and the raw bytes were never
+  // captured, we refuse rather than mint an unbound challenge — the buyer
+  // must never get to decide whether the seller's bindBody applies.
   let bodyDigest: string | undefined
+  let bindBodyRefusal: { status: number; message: string; loud: boolean } | undefined
   if (args.bindBody) {
     const raw = getRawBody(req)
-    if (
-      raw === undefined &&
-      req.headers['content-length'] &&
-      req.headers['content-length'] !== '0'
-    ) {
-      throw new Error(
-        'paymentMiddleware: mpp.bindBody requires the raw request body. ' +
-          "Mount the parser as express.json({ verify: captureRawBody }) — import { captureRawBody } from '@nevermined-io/payments/express'.",
-      )
+    if (raw === undefined && requestHasBody(req)) {
+      const contentType = req.headers['content-type'] ?? ''
+      if (contentType.toLowerCase().startsWith('application/json')) {
+        // The documented setup is express.json({ verify: captureRawBody }).
+        // A JSON body with no captured bytes means that hook was never
+        // wired — a seller configuration mistake, not the buyer's fault.
+        bindBodyRefusal = {
+          status: 500,
+          loud: true,
+          message:
+            'paymentMiddleware: mpp.bindBody requires the raw request body. ' +
+            "Mount the parser as express.json({ verify: captureRawBody }) — import { captureRawBody } from '@nevermined-io/payments/express'.",
+        }
+      } else {
+        // captureRawBody only runs for content-types the mounted parser
+        // matches. A buyer sending a content-type this route's parser was
+        // never wired for is a client-side mismatch, not a server bug.
+        bindBodyRefusal = {
+          status: 400,
+          loud: false,
+          message: `paymentMiddleware: this route requires a captured request body, and Content-Type '${contentType || '(none)'}' is not supported here.`,
+        }
+      }
+    } else if (raw) {
+      bodyDigest = computeBodyDigest(raw)
     }
-    if (raw) bodyDigest = computeBodyDigest(raw)
+  }
+  if (bindBodyRefusal) {
+    const error = new Error(bindBodyRefusal.message)
+    if (onPaymentError) {
+      onPaymentError(error, req, res)
+      return
+    }
+    // Loud in the server-side log either way — a seller can act on both
+    // causes — but never as an uncaught throw: that would skip a configured
+    // onPaymentError and fall through to Express's default error handler,
+    // leaking a stack trace to the client on every request the guard
+    // rejects, exactly the failure sendChallenge below guards against too.
+    if (bindBodyRefusal.loud) {
+      console.error('MPP bindBody misconfiguration:', bindBodyRefusal.message)
+    } else {
+      console.warn('MPP bindBody could not capture the request body:', bindBodyRefusal.message)
+    }
+    if (!res.headersSent) {
+      res.status(bindBodyRefusal.status).json({
+        error: bindBodyRefusal.status >= 500 ? 'Internal Server Error' : 'Bad Request',
+        message: bindBodyRefusal.message,
+      })
+    }
+    return
   }
 
   const sendChallenge = async (message: string, code?: string): Promise<void> => {

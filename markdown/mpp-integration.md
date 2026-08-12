@@ -68,6 +68,29 @@ app.use(
 ```
 
 `bindBody` seals a `sha-256=<base64>` digest of the raw request body into the
-challenge, so a credential minted for one body cannot be spent on another. It
-requires `captureRawBody` on the body parser; without it the middleware fails
-loudly rather than sending a digest computed from re-serialized JSON.
+challenge, so a credential minted for one body cannot be spent on another.
+
+`captureRawBody` only runs for the content-type the parser it is mounted on
+matches — `express.json({ verify: captureRawBody })` covers `application/json`
+and nothing else. A route that also accepts other content-types needs the
+hook wired into each parser it uses, or body binding fails for those requests.
+
+When `bindBody` is on and a request has a body (a non-zero `Content-Length`,
+or `Transfer-Encoding`) but its raw bytes were never captured, the middleware
+refuses the request rather than minting an unbound challenge — the binding is
+a security property, and it fails closed: a `500` if the request looked like
+the parser should have captured it (a likely configuration mistake), a `400`
+if the request's content-type is not one this route captures at all. Neither
+case falls through to a re-serialized-JSON digest; the alternative — silently
+serving an unbound challenge whenever the buyer's request shape does not
+match — would let the buyer, not the seller, decide whether binding applies.
+
+If the seller's own settlement fails after a paid, delivered request, the
+buyer still receives their `2xx` response but no `Payment-Receipt` header —
+the settlement outcome is not otherwise visible on the wire.
+
+A `credits` function is evaluated once per *request* handled by this
+middleware — once when the challenge is minted, and again when the paid
+request presents its credential — so twice per full payment cycle, not once.
+Anything with a side effect (metering, a counter, a DB write) in that
+function runs twice.
