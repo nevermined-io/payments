@@ -131,4 +131,34 @@ describe('MPP redemption', () => {
       await close()
     }
   })
+
+  it('still settles when the handler streams and headers are already flushed', async () => {
+    // Mirrors tests/unit/x402-middleware-settlement.test.ts's
+    // "settles when handler streams via res.write + res.end": once the
+    // handler writes before calling end(), headers are already sent by the
+    // time the res.end wrapper runs, so the Payment-Receipt header cannot be
+    // attached — but settlement MUST still run so the buyer is billed.
+    const payments = buildMockPayments()
+    const { port, close } = await startServer(payments, (_req: any, res: any) => {
+      res.setHeader('content-type', 'text/plain')
+      res.write('chunk-1')
+      res.write('-chunk-2')
+      res.end()
+    })
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(200)
+      expect(await response.text()).toBe('chunk-1-chunk-2')
+      // Headers were flushed before settlement, so the receipt cannot be
+      // attached to this response.
+      expect(response.headers.get('payment-receipt')).toBeNull()
+      expect(payments.mpp.settleCredential).toHaveBeenCalledWith({
+        credential: CREDENTIAL,
+        resource: '/ask',
+        httpVerb: 'POST',
+      })
+    } finally {
+      await close()
+    }
+  })
 })
