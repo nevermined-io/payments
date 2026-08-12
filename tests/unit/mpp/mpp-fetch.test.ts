@@ -140,26 +140,52 @@ describe('MppAPI.fetch', () => {
     expect(asked).toBe(3)
   })
 
-  it('rejects a ReadableStream body up front, before any request is sent', async () => {
-    // A stream is single-read: once the first fetch() consumes it, a retry
-    // with the same body throws an opaque runtime TypeError instead of a
-    // typed MPP error. The check runs before the first request — whether a
-    // retry ever happens depends on that request's outcome, which is not
-    // known ahead of time.
-    const spy = jest.fn()
-    global.fetch = spy as any
-    const stream = new ReadableStream({
+  function makeStreamBody() {
+    return new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('{}'))
         controller.close()
       },
     })
+  }
+
+  it('passes a stream body through untouched when the endpoint never challenges', async () => {
+    // The single underlying fetch() consumes the stream exactly once, safely
+    // — no retry is ever attempted, so the documented "returns untouched with
+    // paid: false" guarantee for a non-MPP endpoint must hold for a stream
+    // body too. This must fail before the fix (which threw for ANY stream
+    // body, whether or not a challenge ever happened).
+    const spy = jest.fn().mockResolvedValue(new Response('ok', { status: 200 }))
+    global.fetch = spy as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      { method: 'POST', body: makeStreamBody() as any, duplex: 'half' } as any,
+      FETCH_OPTIONS,
+    )
+
+    expect(result.paid).toBe(false)
+    expect(result.response.status).toBe(200)
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws a typed error for a stream body once a 402 challenge requires a retry', async () => {
+    // A retry resends init.body verbatim. A ReadableStream is single-read, so
+    // replaying it now would throw an opaque runtime TypeError instead of a
+    // typed MPP error — the guard must catch this at the point the retry is
+    // about to happen, not before the (harmless) first attempt.
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      return challenge402()
+    }) as any
 
     let error: unknown
     try {
       await MppAPI.getInstance(OPTIONS).fetch(
         'https://agent.example/ask',
-        { method: 'POST', body: stream as any, duplex: 'half' } as any,
+        { method: 'POST', body: makeStreamBody() as any, duplex: 'half' } as any,
         FETCH_OPTIONS,
       )
     } catch (caught) {
@@ -168,6 +194,5 @@ describe('MppAPI.fetch', () => {
 
     expect(error).toBeInstanceOf(MppError)
     expect((error as Error).message).toMatch(/ReadableStream/)
-    expect(spy).not.toHaveBeenCalled()
   })
 })

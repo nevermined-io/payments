@@ -15,9 +15,11 @@ import type { MppReceipt } from './types.js'
 /**
  * Options for {@link mppFetch} / `MppAPI.fetch`.
  *
- * The request's `init.body`, if any, must be replayable: a `ReadableStream`
- * body throws a typed {@link MppError} up front, since it cannot be resent if
- * the endpoint answers with a 402 challenge.
+ * The request's `init.body`, if any, must be replayable **if the endpoint may
+ * challenge the request**: a `ReadableStream` body throws a typed
+ * {@link MppError} once a 402 challenge actually requires a retry, since the
+ * stream cannot be resent. A request that is never challenged sends a stream
+ * body exactly once, exactly like plain `fetch`.
  */
 export interface MppFetchOptions {
   /** The delegation that backs the payment — the same one x402 uses. */
@@ -46,10 +48,10 @@ export type MppTokenMinter = (
 /**
  * Whether `body` is a `ReadableStream`.
  *
- * A stream is single-read: once the first `fetch()` starts consuming it, the
- * stream is locked/disturbed, and a retry with the same `init.body` throws an
- * opaque runtime `TypeError` rather than a typed MPP error. Every other
- * `BodyInit` — `string`, `Buffer`/`ArrayBuffer`/typed arrays,
+ * A stream is single-read: once a `fetch()` starts consuming it, the stream
+ * is locked/disturbed, and a *second* `fetch()` with the same `init.body`
+ * throws an opaque runtime `TypeError` rather than a typed MPP error. Every
+ * other `BodyInit` — `string`, `Buffer`/`ArrayBuffer`/typed arrays,
  * `URLSearchParams`, `FormData`, `Blob`, or no body at all — can be read more
  * than once, so a retry is safe.
  */
@@ -81,9 +83,10 @@ async function readMppErrorCode(response: Response): Promise<{ code?: string; me
  * freshly paid credential is not going to be satisfied by looping, and a loop
  * would burn a credential per turn.
  *
- * `init.body`, when set, must be replayable — a `ReadableStream` is rejected
- * up front with a typed {@link MppError}, before any request is sent, because
- * whether a retry happens at all depends on the outcome of the first request.
+ * `init.body`, when set, must be replayable **if the endpoint may challenge
+ * the request**: a `ReadableStream` is rejected with a typed {@link MppError}
+ * only once a 402 challenge actually requires a retry — a request that is
+ * never challenged sends the stream exactly once, exactly like plain `fetch`.
  */
 export async function mppFetch(
   mintToken: MppTokenMinter,
@@ -91,14 +94,6 @@ export async function mppFetch(
   init: RequestInit | undefined,
   options: MppFetchOptions,
 ): Promise<MppFetchResult> {
-  if (isNonReplayableBody(init?.body)) {
-    throw new MppError(
-      'payments.mpp.fetch cannot retry a ReadableStream request body: streams are single-read, ' +
-        'so a 402 challenge could not be replayed. Pass a replayable body instead — a string, ' +
-        'Buffer/ArrayBuffer/typed array, URLSearchParams, FormData or Blob.',
-    )
-  }
-
   const maxChallenges = 2
   let response = await fetch(input, init)
 
@@ -115,6 +110,20 @@ export async function mppFetch(
     if (options.planId && options.planId !== planId) {
       throw new MppError(
         `MPP challenge names plan ${planId}, but plan ${options.planId} was pinned by the caller`,
+      )
+    }
+
+    // A retry resends init.body verbatim. A ReadableStream is single-read —
+    // the first fetch() above already consumed it once — so replaying it now
+    // would throw an opaque runtime TypeError. Checked here, at the point a
+    // retry is actually about to happen, not before the (harmless) first
+    // attempt: whether this endpoint ever challenges is not known ahead of
+    // time, and a stream body against a non-challenging endpoint is fine.
+    if (isNonReplayableBody(init?.body)) {
+      throw new MppError(
+        'payments.mpp.fetch cannot retry a ReadableStream request body: streams are single-read, ' +
+          'so the 402 challenge from this endpoint cannot be replayed. Pass a replayable body ' +
+          'instead — a string, Buffer/ArrayBuffer/typed array, URLSearchParams, FormData or Blob.',
       )
     }
 

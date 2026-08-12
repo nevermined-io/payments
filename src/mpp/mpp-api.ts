@@ -120,11 +120,13 @@ export class MppAPI extends BasePaymentsAPI {
    * The buyer needs no new plan, delegation or credential: the delegation that
    * works for x402 works here unchanged.
    *
-   * `init.body`, if set, must be replayable — a `ReadableStream` is rejected
-   * with a typed {@link MppError} before any request is sent, since it cannot
-   * be resent if the endpoint answers with a 402 challenge. A `string`,
-   * `Buffer`/`ArrayBuffer`/typed array, `URLSearchParams`, `FormData` or
-   * `Blob` body all work unchanged.
+   * `init.body`, if set, must be replayable **if the endpoint may challenge
+   * the request**: a `ReadableStream` is rejected with a typed {@link MppError}
+   * once a 402 challenge actually requires a retry, since the stream cannot
+   * be resent. A request that is never challenged sends a stream body exactly
+   * once, exactly like plain `fetch` — the `paid: false` / untouched-response
+   * guarantee still holds. A `string`, `Buffer`/`ArrayBuffer`/typed array,
+   * `URLSearchParams`, `FormData` or `Blob` body all work unchanged either way.
    *
    * @example
    * ```typescript

@@ -94,7 +94,16 @@ console.log(await response.json(), receipt?.reference)
 The helper reads the plan out of the challenge, mints an MPP access token for
 the delegation you already have, retries the request with the credential, and
 decodes the `Payment-Receipt`. A request to an endpoint that does not speak MPP
-comes back untouched, with `paid: false`.
+comes back untouched, with `paid: false` — this holds for any body type,
+including a `ReadableStream`.
+
+A `ReadableStream` request body is otherwise fine, with one caveat: if the
+endpoint *does* answer with a 402 challenge, the retry needs to resend the same
+body, and a stream can only be read once. In that case `payments.mpp.fetch`
+throws a typed `MppError` rather than let the retry fail with an opaque
+runtime error. A `string`, `Buffer`/`ArrayBuffer`/typed array,
+`URLSearchParams`, `FormData` or `Blob` body has no such caveat — pass one of
+those instead if the endpoint may challenge the request.
 
 Errors are typed: `MppChallengeExpiredError` (fetch a fresh challenge — the
 helper already retries once), `MppCredentialRejectedError` (the credential was
