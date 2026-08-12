@@ -71,6 +71,7 @@ import {
   resolveMppOption,
   type MppRouteOption,
 } from './mpp-support.js'
+import { computeBodyDigest, getRawBody } from './raw-body.js'
 
 /**
  * Configuration for a protected route
@@ -297,6 +298,25 @@ async function handleMppRequest(args: {
   // settle time; the backend settles the amount the challenge carries.
   const creditsToCharge = typeof credits === 'function' ? await credits(req, res) : credits
 
+  // A bound challenge must be minted, verified and settled against the SAME
+  // digest. A GET with no body binds nothing, which is correct: there are no
+  // bytes to bind.
+  let bodyDigest: string | undefined
+  if (args.bindBody) {
+    const raw = getRawBody(req)
+    if (
+      raw === undefined &&
+      req.headers['content-length'] &&
+      req.headers['content-length'] !== '0'
+    ) {
+      throw new Error(
+        'paymentMiddleware: mpp.bindBody requires the raw request body. ' +
+          "Mount the parser as express.json({ verify: captureRawBody }) — import { captureRawBody } from '@nevermined-io/payments/express'.",
+      )
+    }
+    if (raw) bodyDigest = computeBodyDigest(raw)
+  }
+
   const sendChallenge = async (message: string): Promise<void> => {
     const { challenge } = await payments.mpp.issueChallenge({
       planId,
@@ -307,6 +327,7 @@ async function handleMppRequest(args: {
       ...(agentId && { agentId }),
       resource,
       httpVerb,
+      ...(bodyDigest && { digest: bodyDigest }),
       ...(description && { description }),
     })
     const paymentRequiredBase64 = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
@@ -325,7 +346,6 @@ async function handleMppRequest(args: {
   }
 
   const { onPaymentError, onAfterVerify, onAfterSettle } = args.hooks
-  const bodyDigest = undefined as string | undefined // Task 5 supplies this when bindBody is on.
 
   try {
     const verification = await payments.mpp.verifyCredential({
