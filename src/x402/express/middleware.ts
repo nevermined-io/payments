@@ -133,6 +133,13 @@ export interface PaymentContext {
   agentRequest?: StartAgentRequest
   /** Agent request ID for observability tracking */
   agentRequestId?: string
+  /** MPP framing details, present only when the route was paid over MPP. */
+  mpp?: {
+    /** The `Authorization: Payment …` value the buyer presented. */
+    credential: string
+    resource: string
+    httpVerb: string
+  }
 }
 
 /**
@@ -317,7 +324,92 @@ async function handleMppRequest(args: {
     return
   }
 
-  // Verification and settlement land in Task 4.
+  const { onPaymentError, onAfterVerify, onAfterSettle } = args.hooks
+  const bodyDigest = undefined as string | undefined // Task 5 supplies this when bindBody is on.
+
+  try {
+    const verification = await payments.mpp.verifyCredential({
+      credential,
+      resource,
+      httpVerb,
+      ...(bodyDigest && { bodyDigest }),
+    })
+
+    if (!verification.isValid) {
+      await sendChallenge(verification.invalidReason || 'Credential rejected')
+      return
+    }
+
+    if (onAfterVerify) await onAfterVerify(req, verification)
+  } catch (error) {
+    if (onPaymentError) {
+      onPaymentError(error as Error, req, res)
+      return
+    }
+    // Every MPP rejection — expired, replayed, refused — is answered with a
+    // fresh challenge, so a buyer can always make progress by paying again.
+    await sendChallenge(error instanceof Error ? error.message : 'Credential rejected')
+    return
+  }
+
+  const paymentContext: PaymentContext = {
+    token: credential,
+    paymentRequired,
+    creditsToSettle: creditsToCharge,
+    verified: true,
+    mpp: { credential, resource, httpVerb },
+  }
+  ;(req as Request & { paymentContext?: PaymentContext }).paymentContext = paymentContext
+
+  const originalEnd = res.end.bind(res) as (...a: Parameters<Response['end']>) => Response
+  let settlementStarted = false
+
+  const runSettlement = (): Promise<void> =>
+    payments.mpp
+      .settleCredential({
+        credential,
+        resource,
+        httpVerb,
+        ...(bodyDigest && { bodyDigest }),
+      })
+      .then((settlement) => {
+        if (!res.headersSent) {
+          res.setHeader(MPP_HEADERS.RECEIPT, settlement.paymentReceipt)
+        } else {
+          console.warn(
+            '[paymentMiddleware] headers already flushed; Payment-Receipt not attached',
+          )
+        }
+        if (onAfterSettle) {
+          return Promise.resolve(onAfterSettle(req, creditsToCharge, settlement)).then(
+            () => undefined,
+          )
+        }
+        return undefined
+      })
+      .catch((settleError) => {
+        console.error('MPP settlement failed:', settleError)
+      })
+
+  ;(res as unknown as { end: Response['end'] }).end = function (
+    this: Response,
+    ...endArgs: Parameters<Response['end']>
+  ): Response {
+    const isSuccess = res.statusCode >= 200 && res.statusCode < 300
+    if (settlementStarted || !isSuccess) return originalEnd(...endArgs)
+    settlementStarted = true
+
+    if (res.headersSent) {
+      void runSettlement()
+      return originalEnd(...endArgs)
+    }
+
+    runSettlement().finally(() => {
+      originalEnd(...endArgs)
+    })
+    return res
+  } as Response['end']
+
   args.next()
 }
 
