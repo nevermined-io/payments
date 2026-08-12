@@ -8,6 +8,7 @@
  * never re-encodes them.
  */
 
+import { MppError } from './errors.js'
 import type { MppChallenge, MppChallengeRequest, MppReceipt } from './types.js'
 
 /** A bare token (RFC 9110 §5.6.2, used for auth-scheme names and auth-param keys). */
@@ -178,15 +179,52 @@ function parseAuthParams(input: string): Record<string, string> {
   return params
 }
 
-function decodeBase64UrlJson<T>(encoded: string): T {
-  return JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as T
+/**
+ * Decodes a base64url string as JSON, raising a typed {@link MppError}
+ * rather than a raw `SyntaxError` on malformed input.
+ *
+ * `Buffer.from(x, 'base64url')` never throws — it silently drops invalid
+ * characters — so garbage would otherwise reach `JSON.parse` and escape as a
+ * bare `SyntaxError` that names neither MPP nor payment, invisible to a
+ * caller writing `catch (e) { if (e instanceof MppError) … }` exactly as our
+ * own docs tell them to.
+ */
+function decodeBase64UrlJson<T>(encoded: string, context: string): T {
+  try {
+    return JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as T
+  } catch (error) {
+    throw new MppError(
+      `Could not decode the ${context}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
+/**
+ * Narrows a decoded `request` param to {@link MppChallengeRequest}'s shape.
+ *
+ * The raw decode only guarantees valid JSON, not the right shape: a remote
+ * challenge's `request=` can decode to `null`, an array, `{}`, or
+ * `{ credits: 2 }` (a number where a string is declared) and all of those
+ * would otherwise sail through a bare type cast and reach `payments.mpp.fetch`
+ * with an unusable or `undefined` `planId`.
+ */
+function isValidChallengeRequest(value: unknown): value is MppChallengeRequest {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const { planId, credits } = value as Record<string, unknown>
+  return typeof planId === 'string' && planId !== '' && typeof credits === 'string'
 }
 
 /**
  * Parses a `WWW-Authenticate` header into a challenge.
  *
- * @returns the challenge, or `null` when the header carries no `Payment`
- * scheme — which is how a caller tells "not an MPP endpoint" from "malformed".
+ * @returns `null` when the header carries no `Payment` scheme at all — which
+ * is how a caller tells "not an MPP endpoint" apart from "malformed". A
+ * `Payment` scheme that IS present but whose `request` param fails to decode,
+ * or decodes to something that is not a `{ planId: string, credits: string }`
+ * object, raises a typed {@link MppError} instead of returning `null` or
+ * throwing a raw `SyntaxError`/`TypeError` — "structurally absent" and
+ * "present but malformed" are different failures and must not collapse into
+ * the same signal.
  */
 export function parseChallengeHeader(headerValue: string): MppChallenge | null {
   const scheme = extractPaymentScheme(headerValue)
@@ -196,12 +234,20 @@ export function parseChallengeHeader(headerValue: string): MppChallenge | null {
   const { id, realm, method, intent, request, expires, digest, opaque, description } = params
   if (!id || !realm || !method || !intent || !request) return null
 
+  const decodedRequest = decodeBase64UrlJson<unknown>(request, 'MPP challenge request parameter')
+  if (!isValidChallengeRequest(decodedRequest)) {
+    throw new MppError(
+      'The MPP challenge names a request parameter that is not a valid ' +
+        '{ planId: string, credits: string } object.',
+    )
+  }
+
   return {
     id,
     realm,
     method,
     intent,
-    request: decodeBase64UrlJson<MppChallengeRequest>(request),
+    request: decodedRequest,
     requestEncoded: request,
     ...(expires && { expires }),
     ...(digest && { digest }),
@@ -237,7 +283,15 @@ export function buildCredentialHeader(
   return `Payment ${Buffer.from(JSON.stringify(wire), 'utf8').toString('base64url')}`
 }
 
-/** Decodes a `Payment-Receipt` header value. */
+/**
+ * Decodes a `Payment-Receipt` header value.
+ *
+ * Raises a typed {@link MppError} on malformed input rather than a raw
+ * `SyntaxError` — this function does not decide whether that failure is
+ * fatal for its caller (the receipt is "unsigned by design, and carries no
+ * balance", so a caller may reasonably treat a decode failure as non-fatal
+ * and simply omit the receipt); it only guarantees the failure is typed.
+ */
 export function parseReceiptHeader(headerValue: string): MppReceipt {
-  return decodeBase64UrlJson<MppReceipt>(headerValue.trim())
+  return decodeBase64UrlJson<MppReceipt>(headerValue.trim(), 'MPP receipt')
 }

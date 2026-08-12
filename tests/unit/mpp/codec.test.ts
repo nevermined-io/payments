@@ -12,6 +12,7 @@ import {
   parseReceiptHeader,
   extractPaymentScheme,
 } from '../../../src/mpp/codec.js'
+import { MppError } from '../../../src/mpp/errors.js'
 
 const CHALLENGE_HEADER =
   'Payment id="CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og", realm="api.nevermined.app", ' +
@@ -256,5 +257,82 @@ describe('escaped quoted-string values (mppx wire format)', () => {
       'method="nevermined", intent="charge", ' +
       `request="${REQUEST_ENCODED}", description="unterminated`
     expect(extractPaymentScheme(header)).toBe(header)
+  })
+})
+
+/** Builds a `request=` param value: base64url-encoded JSON, matching real challenge wire shape. */
+function encodeRequestParam(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url')
+}
+
+/** A structurally complete challenge header carrying a caller-chosen `request=` value. */
+function buildChallengeWithRequest(requestEncoded: string): string {
+  return (
+    'Payment id="CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og", realm="api.nevermined.app", ' +
+    'method="nevermined", intent="charge", ' +
+    `request="${requestEncoded}", ` +
+    'expires="2026-08-12T10:05:00.000Z", ' +
+    `opaque="${OPAQUE_ENCODED}"`
+  )
+}
+
+describe('parseChallengeHeader — malformed request parameter', () => {
+  it('raises a typed MppError, not a raw SyntaxError, when request= is not valid base64url JSON', () => {
+    // Buffer.from(x, 'base64url') never throws -- it silently drops invalid
+    // characters -- so garbage reaches JSON.parse and used to escape as a
+    // bare SyntaxError mentioning neither MPP nor payment.
+    const header = buildChallengeWithRequest('zzz')
+    expect(() => parseChallengeHeader(header)).toThrow(MppError)
+    expect(() => parseChallengeHeader(header)).not.toThrow(SyntaxError)
+  })
+
+  it('rejects a request= that decodes to null', () => {
+    const header = buildChallengeWithRequest(encodeRequestParam(null))
+    expect(() => parseChallengeHeader(header)).toThrow(MppError)
+  })
+
+  it('rejects a request= that decodes to an array', () => {
+    const header = buildChallengeWithRequest(encodeRequestParam(['a']))
+    expect(() => parseChallengeHeader(header)).toThrow(MppError)
+  })
+
+  it('rejects a request= whose credits is a number instead of a string', () => {
+    const header = buildChallengeWithRequest(encodeRequestParam({ planId: '123', credits: 2 }))
+    expect(() => parseChallengeHeader(header)).toThrow(MppError)
+  })
+
+  it('rejects a request= with a missing planId rather than minting with planId: undefined', () => {
+    const header = buildChallengeWithRequest(encodeRequestParam({ credits: '2' }))
+    expect(() => parseChallengeHeader(header)).toThrow(MppError)
+  })
+
+  it('rejects a request= with a non-string planId', () => {
+    const header = buildChallengeWithRequest(encodeRequestParam({ planId: 42, credits: '2' }))
+    expect(() => parseChallengeHeader(header)).toThrow(MppError)
+  })
+
+  it('rejects a request= with an empty-string planId', () => {
+    const header = buildChallengeWithRequest(encodeRequestParam({ planId: '', credits: '2' }))
+    expect(() => parseChallengeHeader(header)).toThrow(MppError)
+  })
+
+  it('still returns null (not an error) for a header that carries no Payment scheme at all', () => {
+    // Structurally absent stays null -- that is how a caller tells "not an
+    // MPP endpoint" from "malformed". Only a PRESENT-but-undecodable
+    // challenge raises.
+    expect(parseChallengeHeader('Bearer abc')).toBeNull()
+  })
+
+  it('still parses a well-formed request= correctly (no false positives)', () => {
+    const header = buildChallengeWithRequest(encodeRequestParam({ planId: '123', credits: '2' }))
+    const challenge = parseChallengeHeader(header)!
+    expect(challenge.request).toEqual({ planId: '123', credits: '2' })
+  })
+})
+
+describe('parseReceiptHeader — malformed input', () => {
+  it('raises a typed MppError, not a raw SyntaxError, on undecodable base64url JSON', () => {
+    expect(() => parseReceiptHeader('zzz')).toThrow(MppError)
+    expect(() => parseReceiptHeader('zzz')).not.toThrow(SyntaxError)
   })
 })
