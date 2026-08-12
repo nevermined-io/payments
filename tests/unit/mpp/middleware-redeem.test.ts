@@ -5,7 +5,7 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
-import { MppChallengeExpiredError } from '../../../src/mpp/errors.js'
+import { MppChallengeExpiredError, MppCredentialRejectedError } from '../../../src/mpp/errors.js'
 
 const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
 
@@ -92,7 +92,7 @@ describe('MPP redemption', () => {
     }
   })
 
-  it('answers a FRESH challenge when the credential is rejected', async () => {
+  it('answers a FRESH challenge when the credential is rejected, with no code (the resolved verify result carries none)', async () => {
     const payments = buildMockPayments({
       verifyCredential: jest.fn().mockResolvedValue({ isValid: false, invalidReason: 'no credits' }),
     })
@@ -101,12 +101,17 @@ describe('MPP redemption', () => {
       const response = await post(port, { authorization: CREDENTIAL })
       expect(response.status).toBe(402)
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
+      const body = await response.json()
+      expect(body.message).toBe('no credits')
+      // A resolved { isValid: false } result carries no backend BCK.MPP.*
+      // code, so the 402 body must omit the field rather than invent one.
+      expect(body.code).toBeUndefined()
     } finally {
       await close()
     }
   })
 
-  it('answers a fresh challenge when the challenge has expired', async () => {
+  it('answers a fresh challenge when the challenge has expired, carrying the backend code', async () => {
     const payments = buildMockPayments({
       verifyCredential: jest.fn().mockRejectedValue(new MppChallengeExpiredError()),
     })
@@ -115,6 +120,44 @@ describe('MPP redemption', () => {
       const response = await post(port, { authorization: CREDENTIAL })
       expect(response.status).toBe(402)
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
+      const body = await response.json()
+      expect(body.code).toBe('BCK.MPP.0004')
+    } finally {
+      await close()
+    }
+  })
+
+  it('answers a fresh challenge carrying BCK.MPP.0003 when the credential is rejected as a typed error', async () => {
+    // The backend distinguishes a genuine refusal (BCK.MPP.0003, thrown as
+    // MppCredentialRejectedError by MppAPI.post when the /verify call itself
+    // 4xxs) from a resolved { isValid: false }. The buyer's terminal-
+    // rejection gate needs this code to tell "refused" from "re-challenged" —
+    // without it every rejection looks retryable and a refused credential
+    // gets a second one minted and handed over for nothing.
+    const payments = buildMockPayments({
+      verifyCredential: jest.fn().mockRejectedValue(new MppCredentialRejectedError('forged signature')),
+    })
+    const { port, close } = await startServer(payments)
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(402)
+      expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
+      const body = await response.json()
+      expect(body.code).toBe('BCK.MPP.0003')
+      expect(body.message).toBe('forged signature')
+    } finally {
+      await close()
+    }
+  })
+
+  it('omits the code entirely on the no-credential challenge (no rejection happened yet)', async () => {
+    const payments = buildMockPayments()
+    const { port, close } = await startServer(payments)
+    try {
+      const response = await post(port)
+      expect(response.status).toBe(402)
+      const body = await response.json()
+      expect(body.code).toBeUndefined()
     } finally {
       await close()
     }

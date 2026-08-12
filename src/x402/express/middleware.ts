@@ -72,6 +72,7 @@ import {
   type MppRouteOption,
 } from './mpp-support.js'
 import { computeBodyDigest, getRawBody } from './raw-body.js'
+import { MppError } from '../../mpp/errors.js'
 
 /**
  * Configuration for a protected route
@@ -318,7 +319,7 @@ async function handleMppRequest(args: {
     if (raw) bodyDigest = computeBodyDigest(raw)
   }
 
-  const sendChallenge = async (message: string): Promise<void> => {
+  const sendChallenge = async (message: string, code?: string): Promise<void> => {
     // issueChallenge itself can fail (e.g. MPP is turned off on this
     // environment: BCK.MPP.0002 -> MppNotConfiguredError). This call site is
     // reached from three places — no credential, rejected credential, and the
@@ -363,7 +364,13 @@ async function handleMppRequest(args: {
       .setHeader(MPP_HEADERS.CHALLENGE, challenge)
       // Advertise x402 on the same 402 so an x402 buyer is unaffected.
       .setHeader(X402_HEADERS.PAYMENT_REQUIRED, paymentRequiredBase64)
-      .json({ error: 'Payment Required', message })
+      // The backend's own BCK.MPP.* code rides along when we have one, so a
+      // buyer can tell "this credential was refused" (terminal — paying
+      // again with a fresh one is pointless) from "here is a fresh challenge,
+      // pay it" (retryable). This echoes a distinction the backend itself
+      // already publishes on the wire; it adds no new detail and does not
+      // reopen the "one rejection code" forgery-oracle discipline.
+      .json({ error: 'Payment Required', message, ...(code && { code }) })
   }
 
   const credential = extractCredential(req)
@@ -393,7 +400,10 @@ async function handleMppRequest(args: {
     }
     // Every MPP rejection — expired, replayed, refused — is answered with a
     // fresh challenge, so a buyer can always make progress by paying again.
-    await sendChallenge(error instanceof Error ? error.message : 'Credential rejected')
+    // The backend's BCK.MPP.* code (when the failure carries one) rides
+    // along so the buyer can tell which kind of rejection this was.
+    const code = error instanceof MppError ? error.code : undefined
+    await sendChallenge(error instanceof Error ? error.message : 'Credential rejected', code)
     return
   }
 
