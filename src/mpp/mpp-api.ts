@@ -8,9 +8,15 @@
  */
 
 import { BasePaymentsAPI } from '../api/base-payments.js'
-import { API_URL_MPP_CHALLENGE, API_URL_MPP_SETTLE, API_URL_MPP_VERIFY } from '../api/nvm-api.js'
-import type { PaymentOptions } from '../common/types.js'
+import {
+  API_URL_MPP_CHALLENGE,
+  API_URL_MPP_CREATE_PERMISSION,
+  API_URL_MPP_SETTLE,
+  API_URL_MPP_VERIFY,
+} from '../api/nvm-api.js'
+import type { PaymentOptions, X402TokenOptions } from '../common/types.js'
 import type { SettlePermissionsResult, VerifyPermissionsResult } from '../x402/facilitator-api.js'
+import { buildX402TokenRequestBody } from '../x402/token-request.js'
 import { toMppError } from './errors.js'
 
 export interface IssueMppChallengeParams {
@@ -83,6 +89,27 @@ export class MppAPI extends BasePaymentsAPI {
    */
   async settleCredential(params: RedeemMppParams): Promise<MppSettleResult> {
     return this.post<MppSettleResult>(API_URL_MPP_SETTLE, this.redeemBody(params))
+  }
+
+  /**
+   * Mints an access token signed under the `Nevermined-MPP` EIP-712 domain.
+   *
+   * Same inputs and same settlement rail as {@link X402TokenAPI.getX402AccessToken};
+   * the token verifies only on the MPP routes, which is what keeps the two
+   * protocols isolated even though the tokens are byte-identical on the wire.
+   */
+  async getMppAccessToken(
+    planId: string,
+    agentId?: string,
+    tokenOptions?: X402TokenOptions,
+  ): Promise<{ accessToken: string }> {
+    const body = buildX402TokenRequestBody({
+      planId,
+      agentId,
+      tokenOptions,
+      environmentName: this.environmentName,
+    })
+    return this.post<{ accessToken: string }>(API_URL_MPP_CREATE_PERMISSION, body)
   }
 
   private redeemBody(params: RedeemMppParams): Record<string, unknown> {
