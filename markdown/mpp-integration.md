@@ -71,3 +71,32 @@ app.use(
 challenge, so a credential minted for one body cannot be spent on another. It
 requires `captureRawBody` on the body parser; without it the middleware fails
 loudly rather than sending a digest computed from re-serialized JSON.
+
+## Paying an MPP endpoint
+
+```typescript
+const { delegationId } = await payments.delegation.createDelegation({
+  provider: 'erc4337',
+  spendingLimitCents: 10000,
+  durationSecs: 604800,
+  currency: 'usdc',
+})
+
+const { response, receipt } = await payments.mpp.fetch(
+  'https://agent.example/ask',
+  { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q: 'hello' }) },
+  { delegationConfig: { delegationId } },
+)
+
+console.log(await response.json(), receipt?.reference)
+```
+
+The helper reads the plan out of the challenge, mints an MPP access token for
+the delegation you already have, retries the request with the credential, and
+decodes the `Payment-Receipt`. A request to an endpoint that does not speak MPP
+comes back untouched, with `paid: false`.
+
+Errors are typed: `MppChallengeExpiredError` (fetch a fresh challenge — the
+helper already retries once), `MppCredentialRejectedError` (the credential was
+refused, for example because it was already spent) and `MppNotConfiguredError`
+(the environment has MPP switched off).
