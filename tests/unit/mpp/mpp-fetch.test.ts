@@ -289,6 +289,37 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
     expect(message).toContain('rejected the credential')
     expect(message.length).toBeLessThan(longMessage.length)
   })
+
+  it('coerces a non-string error/message field to the fallback string, instead of a raw TypeError', async () => {
+    // A non-compliant seller can send `{ error: { reason: '...' } }` — no
+    // `message`, and `error` itself is an object, not a string. The fallback
+    // chain (`body?.message ?? body?.error ?? 'MPP request failed'`) must not
+    // hand that object straight to the terminal throw's `.slice(0, 200)`,
+    // which would raise `TypeError: message.slice is not a function` instead
+    // of the promised typed MppError.
+    let asked = 0
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      asked += 1
+      if (asked === 1) return challenge402()
+      return new Response(JSON.stringify({ error: { reason: 'not a string' } }), {
+        status: 402,
+        headers: { 'content-type': 'application/json' },
+      })
+    }) as any
+
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    } catch (caught) {
+      error = caught
+    }
+
+    expect(error).toBeInstanceOf(MppError)
+    expect((error as Error).message).not.toMatch(/\[object Object\]/)
+  })
 })
 
 describe('MppAPI.fetch — malformed challenge and receipt handling', () => {
@@ -345,8 +376,73 @@ describe('MppAPI.fetch — malformed challenge and receipt handling', () => {
     expect(result.response.status).toBe(200)
     expect(await result.response.json()).toEqual({ answer: '42' })
     expect(result.receipt).toBeUndefined()
+    // A malformed receipt is exactly the "2xx with no usable settlement
+    // evidence" case: paid/settled must both read false, not just "receipt
+    // absent" — this is one of the two states that catches the
+    // `paid: response.ok` mutation (dropping `&& receipt !== undefined`
+    // makes this `paid: true`, which is wrong: there is no proof anything
+    // settled).
+    expect(result.paid).toBe(false)
+    expect(result.settled).toBe(false)
     expect(warnSpy).toHaveBeenCalled()
     warnSpy.mockRestore()
+  })
+})
+
+describe('MppAPI.fetch — paid/settled reflect settlement evidence, not HTTP status alone', () => {
+  it('reports settled: true with a valid receipt even when the final response is non-2xx (settle-then-error)', async () => {
+    // A seller can settle (burn credits) before writing its own response —
+    // settle-then-500, settle-then-3xx, a proxy rewriting the status. The
+    // receipt is the only settlement evidence on the wire; `settled` must
+    // reflect it regardless of what the HTTP status ends up being, while
+    // `paid` additionally requires a 2xx. The two must not contradict each
+    // other the way a single `paid` boolean derived from status alone did.
+    let asked = 0
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      asked += 1
+      if (asked === 1) return challenge402()
+      return new Response(JSON.stringify({ error: 'downstream failure' }), {
+        status: 500,
+        headers: { 'payment-receipt': RECEIPT_HEADER },
+      })
+    }) as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+
+    expect(result.response.status).toBe(500)
+    expect(result.settled).toBe(true)
+    expect(result.paid).toBe(false)
+    expect(result.receipt?.status).toBe('success')
+  })
+
+  it('reports paid: false, settled: false for a 2xx response with no receipt (a silently swallowed settlement failure)', async () => {
+    // This repo's own middleware can swallow a settlement failure and still
+    // let a 2xx out with no Payment-Receipt header (it logs and continues).
+    // `credentialsPresented` must still say a credential WAS handed over —
+    // this is the "do not blindly retry, the fate is unknown" case, not
+    // "nothing happened". This is the other state that catches the
+    // `paid: response.ok` mutation: dropping `&& receipt !== undefined`
+    // makes this `paid: true` on a 2xx with nothing actually settled.
+    let asked = 0
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      asked += 1
+      if (asked === 1) return challenge402()
+      return new Response(JSON.stringify({ answer: '42' }), { status: 200 }) // no payment-receipt header
+    }) as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+
+    expect(result.response.status).toBe(200)
+    expect(result.paid).toBe(false)
+    expect(result.settled).toBe(false)
+    expect(result.credentialsPresented).toBe(1)
+    expect(result.receipt).toBeUndefined()
   })
 })
 

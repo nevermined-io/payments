@@ -192,7 +192,14 @@ async function readMppErrorCode(
   }
   try {
     const body = JSON.parse(raw)
-    return { code: body?.code, message: body?.message ?? body?.error ?? 'MPP request failed' }
+    // A non-compliant seller can send a body shaped `{ error: { reason: '...' } }`
+    // — no `message`, and `error` itself an object rather than a string.
+    // Coerced to a string here, once, so every caller of this function (in
+    // particular the terminal-throw's `message.slice(0, 200)`) can treat
+    // `message` as always a string instead of risking a raw TypeError.
+    const rawMessage = body?.message ?? body?.error
+    const message = typeof rawMessage === 'string' ? rawMessage : 'MPP request failed'
+    return { code: body?.code, message }
   } catch {
     return {
       message: `MPP 402 was not JSON (likely a proxy or WAF page): ${raw.slice(0, 200)}`,
