@@ -151,12 +151,30 @@ Two families, thrown for different reasons:
   `MppNotConfiguredError` when the environment has MPP switched off,
   `MppCredentialRejectedError` when the backend names that code explicitly, a
   generic `MppError` for a rejection the backend answers without a code
-  (including the seller replaying an identical challenge), and a generic
-  `MppError` for a 402 whose challenge could not be decoded at all.
+  (including the seller replaying an identical challenge, or an unreadable/
+  non-JSON 402 body), and a generic `MppError` for a 402 whose challenge could
+  not be decoded at all.
 
-`MppChallengeExpiredError` (`BCK.MPP.0004`) is never thrown by this helper —
-it is exactly the case `payments.mpp.fetch` retries automatically, once, with
-a fresh challenge, so the caller never sees it.
+#### Which backend codes are retryable
+
+A 402 that comes back after a credential was presented carries a backend
+code. Only two are retryable — everything else is terminal and surfaces as a
+typed error instead of a second mint:
+
+| Code | Meaning | Retryable? |
+|---|---|---|
+| `BCK.MPP.0004` | The challenge expired | Yes — retried automatically, once, with the fresh challenge the 402 carries |
+| `BCK.MPP.0005` | The request body did not match the digest sealed in the challenge | Yes — the fresh challenge is sealed to the body that just arrived, so a new credential for it (same body) matches; retried automatically, once |
+| `BCK.MPP.0003` | The credential was refused (replay, forgery, wrong plan, insufficient balance) | No — terminal, throws `MppCredentialRejectedError` |
+| `BCK.MPP.0002` | MPP is not configured on this environment | No — terminal, throws `MppNotConfiguredError` (surfaces from the mint, before any challenge is even presented) |
+| Any other code, or none at all, on a credential-bearing retry | A non-compliant or third-party seller, a proxy/WAF page, or an unexpected backend failure (e.g. a `network_error`/`http_500`-shaped code) | No — terminal, throws a generic `MppError` |
+
+Both retryable codes share the same one-shot budget: `payments.mpp.fetch`
+follows at most one re-challenge cycle per call, so a seller that keeps
+challenging a freshly paid credential is not satisfied by looping.
+`MppChallengeExpiredError` and `MppBodyDigestMismatchError` are therefore
+never thrown by this helper — they name exactly the two cases it retries
+automatically, so the caller never sees them as exceptions.
 
 ### Note on schemes
 

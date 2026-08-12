@@ -199,12 +199,12 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
     expect(asked).toBe(3)
   })
 
-  it('surfaces a coded rejection as MppCredentialRejectedError', async () => {
+  it('surfaces a coded rejection as MppCredentialRejectedError, terminal with exactly 1 mint', async () => {
     let served = 0
+    const mints = { count: 0 }
     global.fetch = (async (url: any) => {
       const href = String(url)
-      if (href.includes('/api/v1/mpp/permissions'))
-        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
       served += 1
       if (served === 1) return challenge402()
       return new Response(JSON.stringify({ code: 'BCK.MPP.0003', message: 'Credential rejected' }), {
@@ -216,6 +216,7 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
     await expect(
       MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS),
     ).rejects.toBeInstanceOf(MppCredentialRejectedError)
+    expect(mints.count).toBe(1)
   })
 
   it('retries on an explicit BCK.MPP.0004 (expired challenge) code', async () => {
@@ -238,6 +239,60 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
     expect(result.paid).toBe(true)
     expect(mints.count).toBe(2)
     expect(result.credentialsPresented).toBe(2)
+  })
+
+  it('retries on an explicit BCK.MPP.0005 (body-digest mismatch) code, exactly once', async () => {
+    // A body-digest mismatch is the one rejection that IS retryable: the 402
+    // answering it carries a freshly minted challenge sealed to the digest of
+    // the request that just arrived, so a new credential for it (same body)
+    // would match. Nothing about the failure is permanent — see
+    // src/mpp/errors.ts's MppBodyDigestMismatchError (BCK.MPP.0005).
+    let asked = 0
+    const mints = { count: 0 }
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      if (asked === 1) return challenge402()
+      if (asked === 2)
+        return new Response(
+          JSON.stringify({ code: 'BCK.MPP.0005', message: 'Body digest mismatch' }),
+          { status: 402, headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' } },
+        )
+      return paid200()
+    }) as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    expect(result.paid).toBe(true)
+    expect(mints.count).toBe(2)
+    expect(result.credentialsPresented).toBe(2)
+  })
+
+  it('treats a non-BCK.MPP coded 402 (e.g. a synthetic network_error/http_500 from MppAPI.post) as terminal', async () => {
+    // MppAPI.post maps its own network/HTTP failures to codes like
+    // 'network_error' or 'http_500' — not 'BCK.MPP.*'. This repo's own
+    // seller forwards whatever code an MppError carries on the rejection
+    // path, so a transient backend blip on the SELLER's side can reach the
+    // buyer as a 402 with exactly this shape. It must not be retried: an
+    // explicit, non-empty code that isn't in the retryable set is terminal,
+    // the same as a genuine rejection code.
+    let asked = 0
+    const mints = { count: 0 }
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      if (asked === 1) return challenge402()
+      return new Response(
+        JSON.stringify({ code: 'network_error', message: 'Network error during MPP request' }),
+        { status: 402, headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' } },
+      )
+    }) as any
+
+    await expect(
+      MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS),
+    ).rejects.toBeInstanceOf(MppError)
+    expect(mints.count).toBe(1)
   })
 
   it('treats an unreadable (non-JSON) 402 body as terminal, not evidence of a fresh challenge', async () => {

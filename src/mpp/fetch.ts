@@ -120,6 +120,22 @@ function isNonReplayableBody(body: BodyInit | null | undefined): boolean {
   return typeof ReadableStream !== 'undefined' && body instanceof ReadableStream
 }
 
+/**
+ * Backend codes that name a condition the buyer can resolve by paying again.
+ *
+ * - `BCK.MPP.0004` (expired challenge) — the fresh challenge that comes back
+ *   with it supersedes the expired one outright.
+ * - `BCK.MPP.0005` (body-digest mismatch) — the 402 answering it carries a
+ *   freshly minted challenge sealed to the digest of the request that just
+ *   arrived, so a new credential for it (same body) would match. Nothing
+ *   about this failure is permanent, unlike every other `BCK.MPP.*` code.
+ *
+ * No wire-level "this class of code is retryable" signal exists yet, so
+ * these two are enumerated explicitly rather than inferred from a range or a
+ * flag; if the backend starts publishing that signal, prefer it here.
+ */
+const RETRYABLE_CODES = new Set(['BCK.MPP.0004', 'BCK.MPP.0005'])
+
 /** The origin of `input`, or the raw value when it does not parse as a URL — used only to label a remote error. */
 function originOf(input: string | URL): string {
   try {
@@ -217,9 +233,13 @@ async function readMppErrorCode(
  *
  * The default on a retry-turn 402 is to STOP, not to pay again: a genuinely
  * fresh challenge (a different `id` from the one just presented) or an
- * explicit `BCK.MPP.0004` (expired) code is retryable; a coded rejection, an
- * unreadable body, or the seller replaying the identical challenge id are all
- * terminal. A credential already proven invalid is never paid for twice.
+ * explicit retryable code (`BCK.MPP.0004` expired, `BCK.MPP.0005` body-digest
+ * mismatch — see {@link RETRYABLE_CODES}) is retryable; any other coded
+ * rejection (including a non-`BCK.MPP.*` code, e.g. a `network_error`/
+ * `http_500`-shaped one `MppAPI.post` can synthesize and this repo's own
+ * seller forwards), an unreadable body, or the seller replaying the
+ * identical challenge id are all terminal. A credential already proven
+ * invalid is never paid for twice.
  */
 export async function mppFetch(
   mintToken: MppTokenMinter,
@@ -309,13 +329,14 @@ export async function mppFetch(
         isFreshChallenge = !!nextChallenge && nextChallenge.id !== challenge.id
       }
 
-      const isRetryable = code === 'BCK.MPP.0004' || isFreshChallenge
+      const isRetryable = (code !== undefined && RETRYABLE_CODES.has(code)) || isFreshChallenge
       if (!isRetryable) {
         throw toMppError(code, `${originOf(input)} rejected the credential: ${message.slice(0, 200)}`)
       }
-      // Otherwise the seller genuinely re-challenged (typically an expired
-      // challenge); the loop takes one more turn and mints a NEW credential
-      // against the fresh challenge — the old one is not re-presented.
+      // Otherwise the seller genuinely re-challenged (expired, a digest
+      // mismatch, or — for a third-party seller with no code — a fresh id);
+      // the loop takes one more turn and mints a NEW credential against the
+      // fresh challenge — the old one is not re-presented.
       continue
     }
 
