@@ -18,6 +18,33 @@ route does not change the plan, the credits or the route configuration.
 | `Authorization` | Client → Server | Carries the `Payment …` credential |
 | `Payment-Receipt` | Server → Client (success) | Carries the settlement receipt |
 
+## The 402 body: `code` and `retryable`
+
+Every `402` carries a JSON body shaped `{ error, message, code?, retryable? }`.
+`code` and `retryable` are present together, or not at all — this is the
+signal a non-SDK buyer (anything not using this package's typed error
+classes) needs to implement the retry loop correctly:
+
+- **No credential was presented yet.** `code` and `retryable` are both
+  absent. This is the opening challenge; pay it.
+- **A credential was presented and rejected.** `code` is one of the
+  backend's `BCK.MPP.*` codes, and `retryable` says whether minting a fresh
+  credential against the new challenge on this same `402` can succeed:
+  - `retryable: false` — the credential itself was refused (forged, replayed,
+    wrong plan, insufficient balance, all collapsed into `BCK.MPP.0003` so
+    the endpoint cannot be used to probe *which* check failed). Paying again
+    with a new credential changes nothing; treat this as terminal.
+  - `retryable: true` — the challenge expired (`BCK.MPP.0004`) or the request
+    body did not match the digest sealed into the challenge
+    (`BCK.MPP.0005`, only when the route uses `bindBody`). Mint a fresh
+    credential against the challenge this same response carries and retry
+    once.
+
+`code` is never anything outside the `BCK.MPP.*` namespace — a transport or
+infrastructure failure (a network error, a `5xx` from the seller's own
+backend) never appears here, so its absence on a `402` is not itself a
+retryable signal on its own; only a genuine `BCK.MPP.*` rejection is.
+
 ## Protecting a route
 
 ```typescript

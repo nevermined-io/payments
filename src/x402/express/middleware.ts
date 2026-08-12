@@ -72,7 +72,7 @@ import {
   type MppRouteOption,
 } from './mpp-support.js'
 import { computeBodyDigest, getRawBody } from './raw-body.js'
-import { MppError, MppCredentialRejectedError } from '../../mpp/errors.js'
+import { MppError, MppCredentialRejectedError, isRetryableMppCode } from '../../mpp/errors.js'
 import { normalizeCredits } from '../../mpp/mpp-api.js'
 
 /**
@@ -440,7 +440,18 @@ async function handleMppRequest(args: {
       // pay it" (retryable). This echoes a distinction the backend itself
       // already publishes on the wire; it adds no new detail and does not
       // reopen the "one rejection code" forgery-oracle discipline.
-      .json({ error: 'Payment Required', message, ...(code && { code }) })
+      //
+      // `retryable` is carried alongside the code as an explicit wire signal
+      // rather than leaving every buyer to hardcode which BCK.MPP.* codes are
+      // exceptions to "code present means terminal": BCK.MPP.0004 (expired)
+      // and BCK.MPP.0005 (body digest mismatch) are both retryable against
+      // the fresh challenge on this same 402, while BCK.MPP.0003 (refused)
+      // is not.
+      .json({
+        error: 'Payment Required',
+        message,
+        ...(code && { code, retryable: isRetryableMppCode(code) }),
+      })
   }
 
   const credential = extractCredential(req)

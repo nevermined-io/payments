@@ -5,7 +5,11 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
-import { MppChallengeExpiredError, MppCredentialRejectedError } from '../../../src/mpp/errors.js'
+import {
+  MppChallengeExpiredError,
+  MppCredentialRejectedError,
+  MppBodyDigestMismatchError,
+} from '../../../src/mpp/errors.js'
 
 const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
 
@@ -124,6 +128,10 @@ describe('MPP redemption', () => {
       const body = await response.json()
       expect(body.message).toBe('no credits')
       expect(body.code).toBe('BCK.MPP.0003')
+      // A generic rejection is terminal: presenting a fresh credential
+      // against the fresh challenge on this same 402 cannot help, because
+      // nothing about what was refused changes on the next attempt.
+      expect(body.retryable).toBe(false)
     } finally {
       await close()
     }
@@ -140,6 +148,31 @@ describe('MPP redemption', () => {
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
       const body = await response.json()
       expect(body.code).toBe('BCK.MPP.0004')
+      // Expiry is retryable: the fresh challenge on this 402 is exactly what
+      // a buyer needs to mint a new credential against and succeed.
+      expect(body.retryable).toBe(true)
+    } finally {
+      await close()
+    }
+  })
+
+  it('answers a fresh challenge carrying BCK.MPP.0005 as retryable when the request body does not match what was sealed', async () => {
+    // Unlike a genuine credential refusal, a body-digest mismatch is
+    // self-correcting: the 402's fresh challenge is sealed to the digest of
+    // the request that just arrived, so a new credential minted against it
+    // -- presented with the SAME body -- succeeds. The buyer's terminal-vs-
+    // retryable gate must not lump this in with BCK.MPP.0003 just because
+    // both match a bare "startsWith('BCK.MPP.')" prefix check.
+    const payments = buildMockPayments({
+      verifyCredential: jest.fn().mockRejectedValue(new MppBodyDigestMismatchError()),
+    })
+    const { port, close } = await startServer(payments)
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(402)
+      const body = await response.json()
+      expect(body.code).toBe('BCK.MPP.0005')
+      expect(body.retryable).toBe(true)
     } finally {
       await close()
     }
@@ -213,6 +246,7 @@ describe('MPP redemption', () => {
       expect(response.status).toBe(402)
       const body = await response.json()
       expect(body.code).toBeUndefined()
+      expect(body.retryable).toBeUndefined()
     } finally {
       await close()
     }
