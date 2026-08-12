@@ -184,6 +184,28 @@ describe('extractPaymentScheme', () => {
     )
   })
 
+  it('does not match "Payment" mid-token', () => {
+    // /Payment\s+/i used to be unanchored, so it matched inside a longer
+    // token: "XPayment abc" or "NotPayment abc" were read as Payment
+    // credentials.
+    expect(extractPaymentScheme('XPayment abc')).toBeNull()
+    expect(extractPaymentScheme('NotPayment abc')).toBeNull()
+  })
+
+  it('does not divert an unrelated Authorization value containing "payment" onto the MPP path', () => {
+    // The live regression: extractCredential feeds the MPP-vs-x402 routing
+    // predicate, so an x402 buyer whose Authorization happens to contain
+    // "payment" followed by whitespace -- with no comma boundary in front of
+    // it -- must not be read as presenting an MPP credential.
+    expect(extractPaymentScheme('Bearer prepayment xyz')).toBeNull()
+  })
+
+  it('does not match "Payment" text embedded inside a different, preceding scheme\'s quoted value', () => {
+    expect(
+      extractPaymentScheme('Digest username="my payment plan", Payment abc'),
+    ).toBe('Payment abc')
+  })
+
   it('does not truncate a structured challenge at a comma inside a quoted value', () => {
     expect(extractPaymentScheme(CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION)).toBe(
       CHALLENGE_HEADER_WITH_COMMA_DESCRIPTION,

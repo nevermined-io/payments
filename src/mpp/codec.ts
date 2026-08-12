@@ -68,6 +68,28 @@ function findStructuredChallengeEnd(rest: string): number {
 }
 
 /**
+ * Matches the `Payment` scheme name at a genuine scheme boundary: start of
+ * the header value, or right after a top-level comma (RFC 9110 §11.6.1
+ * separates comma-separated challenges/credentials that way). Unanchored,
+ * `/Payment\s+/i` matches mid-token — `XPayment abc`, `NotPayment abc`,
+ * `Bearer prepayment xyz` — and also matches "Payment" text embedded inside
+ * a *different*, preceding scheme's quoted value (e.g.
+ * `Digest username="my payment plan", …`), since plain whitespace alone is
+ * not a scheme boundary. Anchoring on comma-or-start (not bare whitespace)
+ * closes both: a scheme name is never preceded by an arbitrary space, only
+ * by the start of the header or the comma that separates it from what came
+ * before.
+ *
+ * This decides which protocol handles a request:
+ * `extractCredential` → `extractPaymentScheme` feeds the MPP-vs-x402 routing
+ * predicate in `middleware.ts`, so an unanchored match would divert an
+ * x402 buyer carrying a perfectly valid `payment-signature` token, plus an
+ * unrelated `Authorization` header that happens to contain "payment" text,
+ * onto the MPP path and challenge them instead of serving the request.
+ */
+const PAYMENT_SCHEME_BOUNDARY = /(?:^|,)\s*(Payment\s+)/i
+
+/**
  * Extracts the `Payment` scheme from a header value that may carry several
  * schemes comma-separated (RFC 9110 §11.6.1).
  *
@@ -86,11 +108,16 @@ function findStructuredChallengeEnd(rest: string): number {
  * bounded by {@link findStructuredChallengeEnd}'s quote-aware scan.
  */
 export function extractPaymentScheme(headerValue: string): string | null {
-  const schemeMatch = /Payment\s+/i.exec(headerValue)
+  const schemeMatch = PAYMENT_SCHEME_BOUNDARY.exec(headerValue)
   if (!schemeMatch || schemeMatch.index === undefined) return null
 
-  const start = schemeMatch.index
-  const contentStart = start + schemeMatch[0].length
+  // Group 1 ("Payment\s+") is the tail of the whole match, so the full
+  // match's end position is also where the captured keyword ends; its start
+  // is offset back by the keyword's own length, which skips the leading
+  // comma/whitespace the boundary alternation consumed.
+  const keyword = schemeMatch[1]
+  const contentStart = schemeMatch.index + schemeMatch[0].length
+  const start = contentStart - keyword.length
   const rest = headerValue.slice(contentStart)
 
   if (!AUTH_PARAM_START.test(rest)) {

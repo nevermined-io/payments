@@ -94,6 +94,33 @@ describe('x402 token on an MPP-enabled route', () => {
     }
   })
 
+  it('an unrelated Authorization header that merely contains "payment" text does not divert an x402 buyer onto the MPP path', async () => {
+    // codec.ts's extractPaymentScheme used to match "Payment" mid-token or
+    // after bare whitespace, not just a genuine scheme boundary. An x402
+    // buyer sending a perfectly valid payment-signature token, plus an
+    // unrelated Authorization value that happens to contain "payment"
+    // followed by whitespace (e.g. a custom auth scheme, or a proxy-added
+    // header), was diverted onto the MPP path and challenged instead of
+    // served -- reported by the reviewer with `Bearer prepayment xyz`.
+    const payments = buildMockPayments()
+    const { port, close } = await startServer(payments)
+    try {
+      const response = await post(port, {
+        [X402_HEADERS.PAYMENT_SIGNATURE]: X402_TOKEN,
+        authorization: 'Bearer prepayment xyz',
+      })
+
+      expect(response.status).toBe(200)
+      expect(payments.facilitator.verifyPermissions).toHaveBeenCalledWith(
+        expect.objectContaining({ x402AccessToken: X402_TOKEN }),
+      )
+      expect(payments.mpp.verifyCredential).not.toHaveBeenCalled()
+      expect(payments.mpp.issueChallenge).not.toHaveBeenCalled()
+    } finally {
+      await close()
+    }
+  })
+
   it('with neither credential present, still issues the MPP challenge advertising both protocols', async () => {
     const payments = buildMockPayments()
     const { port, close } = await startServer(payments)
