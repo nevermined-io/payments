@@ -289,6 +289,27 @@ function sendPaymentRequired(
 }
 
 /**
+ * Credentials currently between "verified" and "settled", shared across
+ * every `handleMppRequest` call in this process.
+ *
+ * `verifyCredential` burns nothing (its own docstring says so explicitly)
+ * and `settleCredential` settling the SAME credential twice burns once —
+ * that idempotency is what makes settlement safe to retry, and it is
+ * exactly what makes concurrent delivery cheap: N concurrent requests
+ * presenting the same credential would each pass verify, each get served,
+ * and the N settles would collapse to a single burn. This set closes that
+ * window WITHIN one Node process: a second request presenting a credential
+ * already in this set is refused rather than served.
+ *
+ * What this does NOT close: multiple processes or horizontally-scaled
+ * instances of this middleware, which do not share this in-memory set and
+ * would need a shared store (e.g. Redis) this package does not provide.
+ * Deployments that scale this middleware horizontally need an external
+ * mitigation for the same race across instances.
+ */
+const inFlightMppCredentials = new Set<string>()
+
+/**
  * The MPP request path.
  *
  * Kept whole and separate from the x402 path so that with `mpp` unset nothing
@@ -547,6 +568,34 @@ async function handleMppRequest(args: {
       return
     }
   }
+
+  // The credential is now verified but not yet settled — exactly the window
+  // where an idempotent settle makes concurrent delivery cheap: a second
+  // request presenting this SAME credential right now would also pass
+  // verify (verifyCredential burns nothing) and also get served, while the
+  // two settles collapse into a single burn. Refuse it instead.
+  if (inFlightMppCredentials.has(credential)) {
+    const error = new MppCredentialRejectedError(
+      'This credential is already being processed by a concurrent request.',
+    )
+    if (onPaymentError) {
+      onPaymentError(error, req, res)
+      return
+    }
+    if (!res.headersSent) {
+      res.status(409).json({ error: 'Conflict', message: error.message })
+    }
+    return
+  }
+  inFlightMppCredentials.add(credential)
+  // Released on 'close', not from inside the settlement promise: 'close'
+  // fires whether this request ends in a successful settle, a failed one, a
+  // non-2xx handler response that never reaches settlement at all, or the
+  // connection simply dropping — the one event that reliably covers every
+  // exit from here, so the credential can never be left claimed forever.
+  res.on('close', () => {
+    inFlightMppCredentials.delete(credential)
+  })
 
   const paymentContext: PaymentContext = {
     token: credential,

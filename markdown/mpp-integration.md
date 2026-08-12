@@ -121,3 +121,20 @@ middleware — once when the challenge is minted, and again when the paid
 request presents its credential — so twice per full payment cycle, not once.
 Anything with a side effect (metering, a counter, a DB write) in that
 function runs twice.
+
+## Concurrent requests with the same credential
+
+Verifying a credential burns nothing, and settling the same credential twice
+burns once — that idempotency is what makes settlement safe to retry, and it
+is also what would make concurrent delivery cheap: without a guard, two
+requests presenting the same credential at the same time would both pass
+verification, both be served, and the two settlements would collapse into a
+single burn.
+
+The middleware guards against this **within one Node process**: a second
+request presenting a credential that is already verified but not yet settled
+is refused with `409 Conflict` rather than served. This does **not** extend
+across multiple processes or horizontally-scaled instances of this
+middleware — they do not share the in-memory guard, and a deployment that
+scales this middleware horizontally needs its own mitigation (e.g. a shared
+store such as Redis) for the same race across instances.
