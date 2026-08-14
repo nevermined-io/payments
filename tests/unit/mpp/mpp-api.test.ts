@@ -195,7 +195,7 @@ describe('MppAPI.post success-path parsing', () => {
       ok: true,
       status: 201,
       json: async () => {
-        throw new SyntaxError("Unexpected token '<', \"<html>...\" is not valid JSON")
+        throw new SyntaxError('Unexpected token \'<\', "<html>..." is not valid JSON')
       },
     }) as any
     await expect(
@@ -233,9 +233,11 @@ describe('MppAPI.post request timeout', () => {
 
 describe('MppAPI settle-timeout outcome semantics', () => {
   function stubFetchTimeout() {
-    global.fetch = jest.fn().mockRejectedValue(
-      new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
-    ) as any
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(
+        new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
+      ) as any
   }
 
   it('surfaces a settle timeout as MppSettlementOutcomeUnknownError, not a generic network_error', async () => {
@@ -247,6 +249,43 @@ describe('MppAPI settle-timeout outcome semantics', () => {
         httpVerb: 'POST',
       }),
     ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('surfaces a 2xx whose body cannot be read as an unknown outcome on a burning call', async () => {
+    // The backend already answered 2xx, so the burn committed and only the
+    // body was lost — our own AbortSignal.timeout() aborts the body stream
+    // too, and a mid-body connection reset lands in the same catch. Reporting
+    // that as a definite failure is the accounting corruption this error
+    // class exists to prevent: the middleware would log "settlement failed"
+    // and skip onAfterSettle for credits that WERE burned. If anything this
+    // case is likelier to have burned than the pre-response timeout above.
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockRejectedValue(new Error('terminated')),
+    }) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).settleCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it("keeps a non-burning call's unreadable 2xx body a plain MppError — nothing was charged", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockRejectedValue(new Error('terminated')),
+    }) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
   })
 
   it('does not treat a verifyCredential timeout as an unknown-outcome burn — verify burns nothing', async () => {

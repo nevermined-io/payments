@@ -17,7 +17,15 @@ import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
 
-const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
+// Per-case credential: single-use is enforced process-wide, so a constant
+// shared across cases would leak "already spent" from one test into the next.
+// Reuse WITHIN a case is deliberate here — that is what this file tests.
+let credentialSeq = 0
+let CREDENTIAL = ''
+beforeEach(() => {
+  credentialSeq += 1
+  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+})
 
 function buildMockPayments(mpp: Record<string, unknown> = {}) {
   return {
@@ -107,11 +115,18 @@ describe('concurrent requests presenting the same MPP credential', () => {
     }
   })
 
-  it('releases the credential once settlement completes, so a later request can use it again', async () => {
-    // Not a realistic reuse (a spent credential would be rejected by the
-    // backend's own idempotency key), but it proves the guard is a
-    // transient in-flight lock, not a permanent one -- a hung or leaked
-    // lock would make a credential unusable forever within this process.
+  it('refuses a credential that already bought a response, and answers a fresh challenge', async () => {
+    // The premise this file used to encode was that a sequential replay is
+    // harmless because "the backend's own idempotency key would reject a
+    // spent credential". It does the opposite: feeding the challenge id as
+    // the burn key makes a replayed settle SUCCEED as a replay of the first
+    // burn (idempotentReplay), and verifyCredential burns nothing, so a
+    // replay verifies clean. Nothing in the MPP redeem path tracks spent
+    // state. Left alone, one payment buys unlimited responses for the whole
+    // 300s challenge TTL.
+    //
+    // Single-use is therefore the seller edge's job, and this is the test
+    // that holds it.
     const payments = buildMockPayments()
     const { port, close } = await startServer(payments, (_req, res) => {
       res.json({ answer: 'ok' })
@@ -122,9 +137,115 @@ describe('concurrent requests presenting the same MPP credential', () => {
       await new Promise((r) => setImmediate(r))
 
       const secondResponse = await post(port, { authorization: CREDENTIAL })
+      expect(secondResponse.status).toBe(402)
+      // A fresh challenge, not a bare error: the buyer can pay again and
+      // make progress. Marked terminal for THIS credential (0003) so a
+      // buyer retry loop does not spin on it.
+      expect(secondResponse.headers.get('www-authenticate')).toBe('Payment id="c1"')
+      expect(await secondResponse.json()).toMatchObject({
+        code: 'BCK.MPP.0003',
+        retryable: false,
+      })
+
+      await new Promise((r) => setImmediate(r))
+      // The decisive assertion: one payment, one settle. Serving the replay
+      // would have produced a second settle that collapsed onto the same
+      // burn — a free response.
+      expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
+      // Refused before the backend is consulted at all.
+      expect(payments.mpp.verifyCredential).toHaveBeenCalledTimes(1)
+    } finally {
+      await close()
+    }
+  })
+
+  it('does not mark a credential spent when the handler failed, so the buyer keeps their claim', async () => {
+    // Only a 2xx settles. A credential whose request never got served must
+    // stay usable — otherwise a seller-side 500 would burn the buyer's
+    // payment and lock them out of retrying with it.
+    const payments = buildMockPayments()
+    let failFirst = true
+    const { port, close } = await startServer(payments, (_req, res) => {
+      if (failFirst) {
+        failFirst = false
+        res.status(500).json({ error: 'handler blew up' })
+        return
+      }
+      res.json({ answer: 'ok' })
+    })
+    try {
+      const firstResponse = await post(port, { authorization: CREDENTIAL })
+      expect(firstResponse.status).toBe(500)
+      await new Promise((r) => setImmediate(r))
+      expect(payments.mpp.settleCredential).not.toHaveBeenCalled()
+
+      const secondResponse = await post(port, { authorization: CREDENTIAL })
       expect(secondResponse.status).toBe(200)
       await new Promise((r) => setImmediate(r))
-      expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(2)
+      expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
+    } finally {
+      await close()
+    }
+  })
+
+  it('does not strand the credential when the buyer disconnects while verify is in flight', async () => {
+    // The 'close' listener that releases the claim is registered AFTER
+    // onBeforeVerify / verifyCredential / onAfterVerify have been awaited. A
+    // buyer who disconnects during those awaits has already made res emit
+    // 'close' — Node emits it once — so the listener would never fire and
+    // the credential would stay claimed for the life of the process.
+    //
+    // That is worse than a leak: nothing was settled, so the buyer still
+    // owns an unspent claim, and every legitimate retry with it would 409 —
+    // a 409 that carries no fresh challenge either, leaving the documented
+    // retry loop with nothing to fall back on.
+    let releaseVerify: () => void = () => undefined
+    const verifyGate = new Promise<void>((resolve) => {
+      releaseVerify = resolve
+    })
+    const payments = buildMockPayments({
+      verifyCredential: jest.fn(async () => {
+        await verifyGate
+        return { isValid: true }
+      }),
+    })
+    const { port, close } = await startServer(payments, (_req, res) => {
+      res.json({ answer: 'ok' })
+    })
+    try {
+      const controller = new AbortController()
+      const aborted = fetch(`http://127.0.0.1:${port}/ask`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: CREDENTIAL },
+        body: JSON.stringify({ q: 'hello' }),
+        signal: controller.signal,
+      }).catch(() => undefined)
+
+      // Let the request reach verifyCredential, then hang up on it.
+      await new Promise((r) => setTimeout(r, 50))
+      controller.abort()
+      await aborted
+      releaseVerify()
+      await new Promise((r) => setTimeout(r, 50))
+
+      const settledDuringAbort = (payments.mpp.settleCredential as jest.Mock).mock.calls.length
+      const retry = await post(port, { authorization: CREDENTIAL })
+      // The defect was a PERMANENT 409: the claim was never released, so
+      // this retry (and every later one) was refused as "already being
+      // processed by a concurrent request" for the life of the process,
+      // with no fresh challenge to fall back on.
+      expect(retry.status).not.toBe(409)
+      if (settledDuringAbort === 0) {
+        // Nothing was charged, so the credential is still the buyer's to
+        // spend and the retry is served.
+        expect(retry.status).toBe(200)
+      } else {
+        // The handler ran and the settle landed before the socket closed, so
+        // the credential is legitimately spent — answered with a fresh
+        // challenge the buyer can pay, not a bare conflict.
+        expect(retry.status).toBe(402)
+        expect(retry.headers.get('www-authenticate')).toBeTruthy()
+      }
     } finally {
       await close()
     }

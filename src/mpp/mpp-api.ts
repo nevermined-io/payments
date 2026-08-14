@@ -214,6 +214,23 @@ export class MppAPI extends BasePaymentsAPI {
     try {
       return (await response.json()) as T
     } catch (error) {
+      // On a burning call this is an UNKNOWN outcome, not a failure. The
+      // backend already answered 2xx — the burn committed — and only the
+      // body was lost (our own AbortSignal.timeout() also aborts the body
+      // stream, and a mid-body reset lands here too). Reporting it as a
+      // definite failure is exactly the accounting corruption
+      // MppSettlementOutcomeUnknownError exists to prevent: the middleware
+      // would log "settlement failed" and skip onAfterSettle for credits
+      // that were in fact burned. If anything this case is MORE likely to
+      // have burned than the pre-response timeout the error was introduced
+      // for.
+      if (options.burns) {
+        throw new MppSettlementOutcomeUnknownError(
+          `The backend answered ${response.status} but its body could not be read: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+      }
       throw toMppError(
         `http_${response.status}`,
         `MPP response from ${path} was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,

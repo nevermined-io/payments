@@ -315,6 +315,68 @@ function sendPaymentRequired(
  */
 const inFlightMppCredentials = new Set<string>()
 
+/** Digest of zero bytes — what a `bindBody` route binds when the request
+ *  carries no body, so "no body" is a bound state rather than an unbound
+ *  challenge the buyer can attach anything to later. */
+const EMPTY_BODY_DIGEST = computeBodyDigest(Buffer.alloc(0))
+
+/**
+ * How long a settled credential stays refused. Matches the backend's
+ * `MPP_CHALLENGE_TTL_SECONDS` (300): past it the challenge itself is
+ * expired, so the credential is refused by the backend anyway and there is
+ * nothing left for this set to protect.
+ */
+const SPENT_CREDENTIAL_TTL_MS = 300_000
+
+/**
+ * Credentials whose settlement has already been started, and the instant
+ * each stops being worth remembering.
+ *
+ * {@link inFlightMppCredentials} closes only the OVERLAP window — it is
+ * released when the response closes. Without this second set, a buyer who
+ * simply REPEATS the same credential after the first response finished is
+ * served again: `verifyCredential` burns nothing so it verifies clean, and
+ * the backend's settle idempotency (the challenge id doubles as the burn
+ * key) collapses the second settle onto the first burn instead of
+ * rejecting it. The result is pay once, be served for the whole challenge
+ * TTL — the backend cannot refuse it, because from its side a replayed
+ * settle succeeding IS the idempotency contract working as designed.
+ *
+ * So single-use is the seller edge's job, and this is where it lives.
+ *
+ * Same process-local caveat as the in-flight set: this does not span
+ * processes or horizontally-scaled instances, which need a shared store
+ * this package does not provide.
+ */
+const spentMppCredentials = new Map<string, number>()
+
+/**
+ * Marks a credential spent, and drops the entries that have aged out.
+ *
+ * Every entry gets the same TTL, so `Map`'s insertion order IS expiry
+ * order: the sweep can stop at the first entry still alive instead of
+ * walking the whole map on every settlement.
+ */
+function markCredentialSpent(credential: string): void {
+  const now = Date.now()
+  for (const [spent, expiresAt] of spentMppCredentials) {
+    if (expiresAt > now) break
+    spentMppCredentials.delete(spent)
+  }
+  spentMppCredentials.set(credential, now + SPENT_CREDENTIAL_TTL_MS)
+}
+
+/** Whether this credential has already bought a response. */
+function isCredentialSpent(credential: string): boolean {
+  const expiresAt = spentMppCredentials.get(credential)
+  if (expiresAt === undefined) return false
+  if (expiresAt <= Date.now()) {
+    spentMppCredentials.delete(credential)
+    return false
+  }
+  return true
+}
+
 /**
  * The MPP request path.
  *
@@ -346,6 +408,32 @@ async function handleMppRequest(args: {
   // exactly once — here. MPP has no equivalent of the x402 re-evaluation at
   // settle time; the backend settles the amount the challenge carries.
   const creditsToCharge = typeof credits === 'function' ? await credits(req, res) : credits
+
+  /**
+   * One policy for `onPaymentError` on MPP routes: it NOTIFIES, and this
+   * middleware keeps ownership of the response.
+   *
+   * The x402 branch lets the hook take over the response and returns. MPP
+   * cannot copy that: the protocol only lets a buyer make progress if the
+   * 402 carries a fresh `WWW-Authenticate` challenge, so a seller who wired
+   * the hook for observability would silently strip the one thing the
+   * documented retry loop needs — and, in the other direction, an unpaid
+   * request sent a challenge but never notified the hook at all, so adding
+   * `mpp: true` to a working route quietly stopped those events.
+   *
+   * The hook may still respond itself; every write on this path is guarded
+   * on `res.headersSent`, so it wins if it does. A throwing hook is logged
+   * rather than propagated — it must not turn into a buyer-visible 500 on
+   * the path whose whole job is to hand back a challenge.
+   */
+  const notifyPaymentError = (error: Error): void => {
+    if (!onPaymentError) return
+    try {
+      onPaymentError(error, req, res)
+    } catch (hookError) {
+      console.error('MPP onPaymentError hook failed:', hookError)
+    }
+  }
 
   // A bound challenge must be minted, verified and settled against the SAME
   // digest. A request with no body binds nothing, which is correct: there
@@ -386,14 +474,27 @@ async function handleMppRequest(args: {
       }
     } else if (raw) {
       bodyDigest = computeBodyDigest(raw)
+    } else {
+      // No captured bytes AND no body on the wire. Leaving `bodyDigest`
+      // undefined here would mint an UNBOUND challenge on a route the seller
+      // marked `bindBody: true`, and the backend's `assertBodyDigestMatches`
+      // returns early when the challenge carries no digest — so the buyer
+      // could mint with an empty request and then attach any body they liked
+      // to the paid retry. That is the same "the buyer decides whether
+      // bindBody applies" hole the guard above closes for chunked bodies,
+      // one branch over.
+      //
+      // The digest of zero bytes is a well-defined value, so bind it: a
+      // bodyless retry reproduces it and passes, and a retry that grew a
+      // body computes a different digest and is refused by the backend
+      // (BCK.MPP.0005). `captureRawBody` skipping zero-length buffers is
+      // what makes "no body" and "empty body" indistinguishable here, and
+      // both bind to the same digest, so the two stay equivalent.
+      bodyDigest = EMPTY_BODY_DIGEST
     }
   }
   if (bindBodyRefusal) {
-    const error = new Error(bindBodyRefusal.message)
-    if (onPaymentError) {
-      onPaymentError(error, req, res)
-      return
-    }
+    notifyPaymentError(new Error(bindBodyRefusal.message))
     // Loud in the server-side log either way — a seller can act on both
     // causes — but never as an uncaught throw: that would skip a configured
     // onPaymentError and fall through to Express's default error handler,
@@ -441,10 +542,7 @@ async function handleMppRequest(args: {
       })
       challenge = issued.challenge
     } catch (challengeError) {
-      if (onPaymentError) {
-        onPaymentError(challengeError as Error, req, res)
-        return
-      }
+      notifyPaymentError(challengeError as Error)
       console.error('MPP challenge issuance failed:', challengeError)
       if (!res.headersSent) {
         res.status(500).json({
@@ -454,6 +552,11 @@ async function handleMppRequest(args: {
       }
       return
     }
+
+    // An onPaymentError that answered the request itself owns it — see
+    // notifyPaymentError. Writing the 402 on top would throw
+    // ERR_HTTP_HEADERS_SENT out of an async handler.
+    if (res.headersSent) return
 
     const paymentRequiredBase64 = Buffer.from(JSON.stringify(paymentRequired)).toString('base64')
     res
@@ -483,7 +586,34 @@ async function handleMppRequest(args: {
 
   const credential = extractCredential(req)
   if (!credential) {
+    // Deliberately NOT routed through onPaymentError, unlike the x402 branch
+    // which does notify for a missing token.
+    //
+    // The two protocols make "unpaid" mean different things. An x402 access
+    // token is reusable, so a request arriving without one is an anomaly —
+    // a misconfigured client — and worth an error event. In MPP the mint /
+    // redeem handshake makes the FIRST request of every payment cycle
+    // credential-less by design: notifying here would fire onPaymentError on
+    // every successful payment, drowning the rejections, expiries and
+    // configuration failures the hook exists to surface.
+    //
+    // Every genuine failure below does notify, and the challenge is sent
+    // either way — see notifyPaymentError.
     await sendChallenge('Payment required. Present the challenge credential in Authorization.')
+    return
+  }
+
+  // Already bought a response. Checked before verifyCredential so a replay
+  // costs no backend round-trip, and answered with a FRESH challenge rather
+  // than a bare error so the buyer can make progress by paying again — the
+  // same shape every other MPP rejection uses. The code is BCK.MPP.0003
+  // (credential rejected, non-retryable): a replay is a client-side bug,
+  // and a buyer that blindly retried it would loop.
+  if (isCredentialSpent(credential)) {
+    await sendChallenge(
+      'Credential already used. Each credential buys exactly one response; pay the new challenge.',
+      'BCK.MPP.0003',
+    )
     return
   }
 
@@ -504,10 +634,7 @@ async function handleMppRequest(args: {
       ...(bodyDigest && { bodyDigest }),
     })
   } catch (error) {
-    if (onPaymentError) {
-      onPaymentError(error as Error, req, res)
-      return
-    }
+    notifyPaymentError(error as Error)
     // Every MPP rejection — expired, replayed, refused — is answered with a
     // fresh challenge, so a buyer can always make progress by paying again.
     // The backend's BCK.MPP.* code (when the failure carries one) rides
@@ -540,13 +667,9 @@ async function handleMppRequest(args: {
     const rejectionError = new MppCredentialRejectedError(
       verification.invalidReason || 'Credential rejected',
     )
-    // Matches the x402 path: a seller who wires onPaymentError is notified
-    // of every rejected payment, not just the ones where verifyCredential
-    // itself threw.
-    if (onPaymentError) {
-      onPaymentError(rejectionError, req, res)
-      return
-    }
+    // A seller who wires onPaymentError is notified of every rejected
+    // payment, not just the ones where verifyCredential itself threw.
+    notifyPaymentError(rejectionError)
     await sendChallenge(rejectionError.message, rejectionError.code)
     return
   }
@@ -560,10 +683,7 @@ async function handleMppRequest(args: {
     try {
       await onAfterVerify(req, verification)
     } catch (hookError) {
-      if (onPaymentError) {
-        onPaymentError(hookError as Error, req, res)
-        return
-      }
+      notifyPaymentError(hookError as Error)
       console.error('MPP onAfterVerify hook failed:', hookError)
       if (!res.headersSent) {
         res.status(500).json({
@@ -584,10 +704,7 @@ async function handleMppRequest(args: {
     const error = new MppCredentialRejectedError(
       'This credential is already being processed by a concurrent request.',
     )
-    if (onPaymentError) {
-      onPaymentError(error, req, res)
-      return
-    }
+    notifyPaymentError(error)
     if (!res.headersSent) {
       res.status(409).json({ error: 'Conflict', message: error.message })
     }
@@ -602,6 +719,16 @@ async function handleMppRequest(args: {
   res.on('close', () => {
     inFlightMppCredentials.delete(credential)
   })
+  // This listener is registered AFTER three awaits (onBeforeVerify,
+  // verifyCredential, onAfterVerify). A buyer who disconnected while those
+  // were in flight has already made `res` emit 'close' — Node emits it once —
+  // so the listener above would never fire and the credential would stay
+  // claimed for the lifetime of the process. That is worse than a leak: the
+  // credential was never settled, so the buyer still owns an unspent claim,
+  // and every legitimate retry with it would 409 forever.
+  if (res.closed) {
+    inFlightMppCredentials.delete(credential)
+  }
 
   const paymentContext: PaymentContext = {
     token: credential,
@@ -616,6 +743,29 @@ async function handleMppRequest(args: {
 
   const originalEnd = res.end.bind(res) as (...a: Parameters<Response['end']>) => Response
   let settlementStarted = false
+
+  // A seller's own onAfterSettle can throw, and where that lands differed by
+  // branch: on the success path it rejected into the settlement .catch() and
+  // was logged as "MPP settlement failed" (blaming the backend for a hook
+  // bug), and on the timeout branch — which runs INSIDE that .catch(), with
+  // nothing downstream — it escaped as an unhandled rejection, process-fatal
+  // under Node's default. Both now log and continue: the settle has already
+  // happened either way, and the worst moment to take the process down is
+  // the branch where credits may have been burned and the seller most needs
+  // the record.
+  // `Promise.resolve().then(() => hook(...))` rather than
+  // `Promise.resolve(hook(...))`: the latter CALLS the hook before any
+  // promise wraps it, so a SYNCHRONOUS throw — the ordinary shape of a hook
+  // bug — escapes past the rejection handler below entirely.
+  const runAfterSettleHook = (credits: number, settlement: unknown): Promise<void> =>
+    Promise.resolve()
+      .then(() => onAfterSettle!(req, credits, settlement))
+      .then(
+        () => undefined,
+        (hookError) => {
+          console.error('MPP onAfterSettle hook failed:', hookError)
+        },
+      )
 
   const runSettlement = (): Promise<void> =>
     payments.mpp
@@ -649,9 +799,7 @@ async function handleMppRequest(args: {
             settlement.errorReason ?? 'no errorReason provided',
           )
         } else {
-          console.warn(
-            '[paymentMiddleware] MPP settlement succeeded but carried no paymentReceipt',
-          )
+          console.warn('[paymentMiddleware] MPP settlement succeeded but carried no paymentReceipt')
         }
 
         // The amount actually burned is whatever the challenge sealed on an
@@ -659,16 +807,40 @@ async function handleMppRequest(args: {
         // creditsToCharge, which is recomputed on THIS request and can
         // diverge from the minting request when `credits` is a function
         // (evaluated once per request, so at least twice per payment cycle).
-        const creditsSettled =
-          settlement.creditsRedeemed !== undefined
-            ? Number(settlement.creditsRedeemed)
-            : creditsToCharge
+        // A FAILED settle burned nothing, so it reports 0 rather than
+        // falling back to creditsToCharge — a seller writing usage or
+        // revenue records off this argument would otherwise over-report
+        // every failed settlement at the full charge.
+        //
+        // `creditsRedeemed` is a decimal string precisely because the amount
+        // can exceed what a JS number represents (see normalizeCredits).
+        // `Number()` narrows it for PaymentContext.creditsToSettle and
+        // onAfterSettle, which are typed `number` on the shared x402 path;
+        // an unparseable value would otherwise hand `NaN` straight to the
+        // seller's accounting hook with no signal, so it is treated as
+        // "the backend did not report an amount" and logged.
+        let creditsSettled: number
+        if (!settlement.success) {
+          creditsSettled = 0
+        } else if (settlement.creditsRedeemed !== undefined) {
+          const redeemed = Number(settlement.creditsRedeemed)
+          if (Number.isFinite(redeemed)) {
+            creditsSettled = redeemed
+          } else {
+            console.warn(
+              `[paymentMiddleware] MPP settlement reported an unusable creditsRedeemed (${String(
+                settlement.creditsRedeemed,
+              )}); reporting the charged amount instead`,
+            )
+            creditsSettled = creditsToCharge
+          }
+        } else {
+          creditsSettled = creditsToCharge
+        }
         paymentContext.creditsToSettle = creditsSettled
 
         if (onAfterSettle) {
-          return Promise.resolve(onAfterSettle(req, creditsSettled, settlement)).then(
-            () => undefined,
-          )
+          return runAfterSettleHook(creditsSettled, settlement)
         }
         return undefined
       })
@@ -690,9 +862,7 @@ async function handleMppRequest(args: {
               outcome: 'unknown',
               reason: settleError.message,
             }
-            return Promise.resolve(onAfterSettle(req, creditsToCharge, outcome)).then(
-              () => undefined,
-            )
+            return runAfterSettleHook(creditsToCharge, outcome)
           }
           return undefined
         }
@@ -706,6 +876,17 @@ async function handleMppRequest(args: {
     const isSuccess = res.statusCode >= 200 && res.statusCode < 300
     if (settlementStarted || !isSuccess) return originalEnd(...endArgs)
     settlementStarted = true
+    // Spent at the moment a response is actually being delivered for this
+    // credential, not when its settle resolves. Marking here rather than in
+    // the settlement callback is what covers the streaming branch below,
+    // where settlement is fired detached and the response closes (releasing
+    // the in-flight claim) while the settle is still outstanding — a second
+    // request arriving in that window would otherwise be served too, and
+    // both settles would collapse onto one burn.
+    //
+    // Only reached on a 2xx: a non-2xx never settles, so its credential is
+    // still unspent and the buyer can legitimately retry with it.
+    markCredentialSpent(credential)
 
     if (res.headersSent) {
       void runSettlement()

@@ -13,7 +13,18 @@ import {
   MppError,
 } from '../../../src/mpp/errors.js'
 
-const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
+// A credential is single-use: the middleware refuses one that has already
+// bought a response (see `spentMppCredentials` in middleware.ts). Tests share
+// this module-level state, so each case mints its own credential — a shared
+// constant would make every case after the first see a 402 for a reason that
+// has nothing to do with what it is testing. Real buyers never replay one
+// either; that is the property being protected.
+let credentialSeq = 0
+let CREDENTIAL = ''
+beforeEach(() => {
+  credentialSeq += 1
+  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+})
 
 function buildMockPayments(mpp: Record<string, unknown> = {}) {
   return {
@@ -120,7 +131,9 @@ describe('MPP redemption', () => {
     // terminal. BCK.MPP.0003 is the backend's own generic rejection code, so
     // this invents nothing and publishes no new distinction.
     const payments = buildMockPayments({
-      verifyCredential: jest.fn().mockResolvedValue({ isValid: false, invalidReason: 'no credits' }),
+      verifyCredential: jest
+        .fn()
+        .mockResolvedValue({ isValid: false, invalidReason: 'no credits' }),
     })
     const { port, close } = await startServer(payments)
     try {
@@ -188,7 +201,9 @@ describe('MPP redemption', () => {
     // without it every rejection looks retryable and a refused credential
     // gets a second one minted and handed over for nothing.
     const payments = buildMockPayments({
-      verifyCredential: jest.fn().mockRejectedValue(new MppCredentialRejectedError('forged signature')),
+      verifyCredential: jest
+        .fn()
+        .mockRejectedValue(new MppCredentialRejectedError('forged signature')),
     })
     const { port, close } = await startServer(payments)
     try {
@@ -219,7 +234,9 @@ describe('MPP redemption', () => {
     const payments = buildMockPayments({
       verifyCredential: jest
         .fn()
-        .mockRejectedValue(new MppError('Network error during MPP request: fetch failed', 'network_error')),
+        .mockRejectedValue(
+          new MppError('Network error during MPP request: fetch failed', 'network_error'),
+        ),
     })
     const { port, close } = await startServer(payments)
     try {
@@ -442,12 +459,101 @@ describe('MPP redemption', () => {
         expect(response.status).toBe(200)
         expect(response.headers.get('payment-receipt')).toBeNull()
         await new Promise((r) => setImmediate(r))
+        // Pinned, not expect.anything(): the amount is the money-critical
+        // argument, and leaving it unconstrained is exactly what let the
+        // middleware report the full charge for a settle that burned
+        // NOTHING. A seller writing usage or revenue records off this hook
+        // would have over-reported every failed settlement.
         expect(onAfterSettle).toHaveBeenCalledWith(
           expect.anything(),
-          expect.anything(),
+          0,
           expect.objectContaining({ success: false }),
         )
       } finally {
+        await close()
+      }
+    })
+
+    it('reports an unusable creditsRedeemed as the charged amount instead of handing NaN to the seller', async () => {
+      // creditsRedeemed is a decimal STRING precisely because the amount can
+      // exceed what a JS number represents. Number() narrows it for the hook
+      // (typed number on the shared x402 path), and an unparseable value
+      // would otherwise arrive as NaN in the seller's accounting with no
+      // signal at all.
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockResolvedValue({
+          success: true,
+          transaction: '0x',
+          network: 'eip155:84532',
+          creditsRedeemed: 'not-a-number',
+          paymentReceipt: 'receipt-b64',
+        }),
+      })
+      const onAfterSettle = jest.fn()
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        await post(port, { authorization: CREDENTIAL })
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledWith(expect.anything(), 2, expect.anything())
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('unusable creditsRedeemed'))
+      } finally {
+        warn.mockRestore()
+        await close()
+      }
+    })
+
+    it('survives a throwing onAfterSettle on the settle-success path', async () => {
+      const payments = buildMockPayments()
+      const onAfterSettle = jest.fn(() => {
+        throw new Error('seller accounting hook is broken')
+      })
+      const error = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        await new Promise((r) => setImmediate(r))
+        // Logged as a HOOK failure, never as "MPP settlement failed" — the
+        // settle succeeded, and blaming the backend for the seller's own bug
+        // sends an on-call engineer at the wrong system.
+        expect(error).toHaveBeenCalledWith('MPP onAfterSettle hook failed:', expect.any(Error))
+        expect(error).not.toHaveBeenCalledWith('MPP settlement failed:', expect.anything())
+      } finally {
+        error.mockRestore()
+        await close()
+      }
+    })
+
+    it('survives a throwing onAfterSettle on the outcome-unknown path, which has nothing downstream to catch it', async () => {
+      // This hook call sits INSIDE the settlement .catch(), so a rejection it
+      // produces ends the chain — process-fatal under Node's default
+      // --unhandled-rejections=throw. And it is the worst branch to die on:
+      // the credits may already be burned, which is exactly when the seller
+      // most needs the record.
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockRejectedValue(new MppSettlementOutcomeUnknownError()),
+      })
+      const onAfterSettle = jest.fn(() => {
+        throw new Error('seller accounting hook is broken')
+      })
+      const unhandled = jest.fn()
+      process.on('unhandledRejection', unhandled)
+      const error = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const { port, close } = await startServer(payments, undefined, { onAfterSettle })
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        await new Promise((r) => setImmediate(r))
+        await new Promise((r) => setImmediate(r))
+        expect(onAfterSettle).toHaveBeenCalledTimes(1)
+        expect(unhandled).not.toHaveBeenCalled()
+        expect(error).toHaveBeenCalledWith('MPP onAfterSettle hook failed:', expect.any(Error))
+      } finally {
+        process.off('unhandledRejection', unhandled)
+        error.mockRestore()
+        warn.mockRestore()
         await close()
       }
     })
@@ -475,7 +581,10 @@ describe('MPP redemption', () => {
         )
         // A real burn that we simply lost the answer to must never be logged
         // through the same line used for a genuine, known rejection.
-        expect(consoleErrorSpy).not.toHaveBeenCalledWith('MPP settlement failed:', expect.anything())
+        expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+          'MPP settlement failed:',
+          expect.anything(),
+        )
         expect(consoleWarnSpy).toHaveBeenCalled()
       } finally {
         consoleErrorSpy.mockRestore()

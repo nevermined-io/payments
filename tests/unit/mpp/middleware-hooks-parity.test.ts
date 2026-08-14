@@ -10,7 +10,18 @@ import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
 import { MppCredentialRejectedError } from '../../../src/mpp/errors.js'
 
-const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
+// A credential is single-use: the middleware refuses one that has already
+// bought a response (see `spentMppCredentials` in middleware.ts). Tests share
+// this module-level state, so each case mints its own credential — a shared
+// constant would make every case after the first see a 402 for a reason that
+// has nothing to do with what it is testing. Real buyers never replay one
+// either; that is the property being protected.
+let credentialSeq = 0
+let CREDENTIAL = ''
+beforeEach(() => {
+  credentialSeq += 1
+  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+})
 
 function buildMockPayments(mpp: Record<string, unknown> = {}) {
   return {
@@ -52,8 +63,7 @@ async function startServer(
   )
   app.post(
     '/ask',
-    handler ??
-      ((req: any, res: any) => res.json({ paymentContext: req.paymentContext ?? null })),
+    handler ?? ((req: any, res: any) => res.json({ paymentContext: req.paymentContext ?? null })),
   )
   const server = http.createServer(app)
   await new Promise<void>((r) => server.listen(0, r))
@@ -70,7 +80,7 @@ async function post(port: number, headers: Record<string, string> = {}) {
 }
 
 describe('onPaymentError on a rejected MPP credential', () => {
-  it('is called instead of sendChallenge, matching the x402 path', async () => {
+  it('lets a hook that answers the request own the response', async () => {
     const payments = buildMockPayments({
       verifyCredential: jest
         .fn()
@@ -85,7 +95,51 @@ describe('onPaymentError on a rejected MPP credential', () => {
       expect(onPaymentError).toHaveBeenCalledTimes(1)
       expect(onPaymentError.mock.calls[0][0]).toBeInstanceOf(MppCredentialRejectedError)
       expect(response.status).toBe(503)
-      expect(payments.mpp.issueChallenge).not.toHaveBeenCalled()
+    } finally {
+      await close()
+    }
+  })
+
+  it('notifies the hook AND still sends the fresh challenge when the hook does not respond', async () => {
+    // On MPP routes onPaymentError notifies; the middleware keeps the
+    // response. A hook wired purely for observability must not strip the
+    // fresh challenge off the 402 — without it the buyer has nothing to pay
+    // and the documented retry loop dead-ends. (The x402 branch hands the
+    // response to the hook instead, because an x402 402 carries no
+    // equivalent single-use challenge to lose.)
+    const payments = buildMockPayments({
+      verifyCredential: jest
+        .fn()
+        .mockResolvedValue({ isValid: false, invalidReason: 'no credits' }),
+    })
+    const onPaymentError = jest.fn()
+    const { port, close } = await startServer(payments, { onPaymentError })
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(onPaymentError).toHaveBeenCalledTimes(1)
+      expect(onPaymentError.mock.calls[0][0]).toBeInstanceOf(MppCredentialRejectedError)
+      expect(response.status).toBe(402)
+      expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
+      expect(await response.json()).toMatchObject({ code: 'BCK.MPP.0003', retryable: false })
+    } finally {
+      await close()
+    }
+  })
+
+  it('does not let a throwing hook turn into a 500 instead of a challenge', async () => {
+    const payments = buildMockPayments({
+      verifyCredential: jest
+        .fn()
+        .mockResolvedValue({ isValid: false, invalidReason: 'no credits' }),
+    })
+    const onPaymentError = jest.fn(() => {
+      throw new Error('seller hook is broken')
+    })
+    const { port, close } = await startServer(payments, { onPaymentError })
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(402)
+      expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
     } finally {
       await close()
     }
