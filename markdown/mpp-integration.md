@@ -209,7 +209,11 @@ const { delegationId } = await payments.delegation.createDelegation({
 
 const { response, receipt, paid, settled, credentialsPresented } = await payments.mpp.fetch(
   'https://agent.example/ask',
-  { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q: 'hello' }) },
+  {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ q: 'hello' }),
+  },
   { delegationConfig: { delegationId }, planId: PLAN_ID },
 )
 
@@ -253,7 +257,7 @@ any body type, including a `ReadableStream`.
 
 A `ReadableStream` request body works exactly like plain `fetch` **as long as
 the endpoint never challenges the request** — the single underlying `fetch()`
-consumes it once, safely. The one caveat: if the endpoint *does* answer with a
+consumes it once, safely. The one caveat: if the endpoint _does_ answer with a
 402 challenge, the retry needs to resend the same body, and a stream can only
 be read once. In that case `payments.mpp.fetch` throws before attempting the
 retry, rather than let it fail with an opaque runtime error. A `string`,
@@ -286,13 +290,13 @@ A 402 that comes back after a credential was presented carries a backend
 code. Only two are retryable — everything else is terminal and surfaces as a
 typed error instead of a second mint:
 
-| Code | Meaning | Retryable? |
-|---|---|---|
-| `BCK.MPP.0004` | The challenge expired | Yes — retried automatically, once, with the fresh challenge the 402 carries |
-| `BCK.MPP.0005` | The request body did not match the digest sealed in the challenge | Yes — the fresh challenge is sealed to the body that just arrived, so a new credential for it (same body) matches; retried automatically, once |
-| `BCK.MPP.0003` | The credential was refused (replay, forgery, wrong plan, insufficient balance) | No — terminal, throws `MppCredentialRejectedError` |
-| `BCK.MPP.0002` | MPP is not configured on this environment | No — terminal, throws `MppNotConfiguredError` (surfaces from the mint, before any challenge is even presented) |
-| Any other code, or none at all, on a credential-bearing retry | A non-compliant or third-party seller, a proxy/WAF page, or an unexpected backend failure (e.g. a `network_error`/`http_500`-shaped code) | No — terminal, throws a generic `MppError` |
+| Code                                                          | Meaning                                                                                                                                   | Retryable?                                                                                                                                     |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BCK.MPP.0004`                                                | The challenge expired                                                                                                                     | Yes — retried automatically, once, with the fresh challenge the 402 carries                                                                    |
+| `BCK.MPP.0005`                                                | The request body did not match the digest sealed in the challenge                                                                         | Yes — the fresh challenge is sealed to the body that just arrived, so a new credential for it (same body) matches; retried automatically, once |
+| `BCK.MPP.0003`                                                | The credential was refused (replay, forgery, wrong plan, insufficient balance)                                                            | No — terminal, throws `MppCredentialRejectedError`                                                                                             |
+| `BCK.MPP.0002`                                                | MPP is not configured on this environment                                                                                                 | No — terminal, throws `MppNotConfiguredError` (surfaces from the mint, before any challenge is even presented)                                 |
+| Any other code, or none at all, on a credential-bearing retry | A non-compliant or third-party seller, a proxy/WAF page, or an unexpected backend failure (e.g. a `network_error`/`http_500`-shaped code) | No — terminal, throws a generic `MppError`                                                                                                     |
 
 Both retryable codes share the same one-shot budget: `payments.mpp.fetch`
 follows at most one re-challenge cycle per call, so a seller that keeps
