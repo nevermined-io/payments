@@ -15,7 +15,18 @@ import http from 'http'
 import { createHash } from 'crypto'
 import { paymentMiddleware, captureRawBody } from '../../../src/x402/express/index.js'
 
-const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
+// A credential is single-use: the middleware refuses one that has already
+// bought a response (see `spentMppCredentials` in middleware.ts). Tests share
+// this module-level state, so each case mints its own credential — a shared
+// constant would make every case after the first see a 402 for a reason that
+// has nothing to do with what it is testing. Real buyers never replay one
+// either; that is the property being protected.
+let credentialSeq = 0
+let CREDENTIAL = ''
+beforeEach(() => {
+  credentialSeq += 1
+  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+})
 const BODY = JSON.stringify({ q: 'hello' })
 const EXPECTED_DIGEST = `sha-256=${createHash('sha256').update(Buffer.from(BODY)).digest('base64')}`
 
@@ -200,7 +211,16 @@ describe('bindBody', () => {
     }
   })
 
-  it('treats a request with no body (no Content-Length, no Transfer-Encoding) as having nothing to bind', async () => {
+  it('binds the EMPTY body when a request carries none, rather than minting an unbound challenge', async () => {
+    // The hole this closes: an unbound challenge on a bindBody route is one
+    // the buyer can redeem with ANY body, because the backend's
+    // assertBodyDigestMatches returns early when the challenge carries no
+    // digest. Minting empty-bodied would have let a buyer choose whether the
+    // seller's bindBody applied — the same class as the chunked case above,
+    // reached by simply omitting the body.
+    //
+    // The digest of zero bytes is well-defined, so "no body" is a bound
+    // state: a bodyless redeem reproduces it, one that grew a body does not.
     const payments = buildMockPayments()
     const { port, close } = await startServer(payments, false)
     try {
@@ -208,11 +228,31 @@ describe('bindBody', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
       })
-      // No body at all: bindBody has nothing to bind, so the (empty) request
-      // is challenged normally rather than refused as misconfigured.
       expect(response.status).toBe(402)
       expect(payments.mpp.issueChallenge).toHaveBeenCalledWith(
-        expect.not.objectContaining({ digest: expect.anything() }),
+        // sha-256 of zero bytes, the RFC 9530 way MPP spells it.
+        expect.objectContaining({ digest: 'sha-256=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=' }),
+      )
+    } finally {
+      await close()
+    }
+  })
+
+  it('redeems a bodyless request against the empty-body digest it was sealed with', async () => {
+    const payments = buildMockPayments()
+    const { port, close } = await startServer(payments, false)
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/ask`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: CREDENTIAL },
+      })
+      expect(response.status).toBe(200)
+      // Same digest at redeem as at mint — otherwise the backend would
+      // reject the buyer's own unchanged request with BCK.MPP.0005.
+      expect(payments.mpp.verifyCredential).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bodyDigest: 'sha-256=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+        }),
       )
     } finally {
       await close()

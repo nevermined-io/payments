@@ -8,7 +8,18 @@ import http from 'http'
 import { Payments } from '../../../src/payments.js'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
 
-const CREDENTIAL = 'Payment eyJjaGFsbGVuZ2UiOnt9fQ'
+// A credential is single-use: the middleware refuses one that has already
+// bought a response (see `spentMppCredentials` in middleware.ts). Tests share
+// this module-level state, so each case mints its own credential — a shared
+// constant would make every case after the first see a 402 for a reason that
+// has nothing to do with what it is testing. Real buyers never replay one
+// either; that is the property being protected.
+let credentialSeq = 0
+let CREDENTIAL = ''
+beforeEach(() => {
+  credentialSeq += 1
+  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+})
 
 describe('MPP seller flow', () => {
   let realFetch: typeof fetch

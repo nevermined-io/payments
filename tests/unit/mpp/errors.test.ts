@@ -1,7 +1,12 @@
 /**
  * Unit tests for the typed MPP error hierarchy's retryable-code grouping.
  */
-import { isRetryableMppCode, MppError, MppSettlementOutcomeUnknownError } from '../../../src/mpp/errors.js'
+import {
+  isRetryableMppCode,
+  MppError,
+  MppSettlementOutcomeUnknownError,
+  MPP_SETTLEMENT_OUTCOME_UNKNOWN_CODE,
+} from '../../../src/mpp/errors.js'
 
 describe('isRetryableMppCode', () => {
   it('treats BCK.MPP.0004 (expired) as retryable', () => {
@@ -47,5 +52,42 @@ describe('package barrel exports', () => {
     const barrel = await import('../../../src/index.js')
     expect(barrel.MppSettlementOutcomeUnknownError).toBe(MppSettlementOutcomeUnknownError)
     expect(new barrel.MppSettlementOutcomeUnknownError()).toBeInstanceOf(MppError)
+  })
+})
+
+describe('MppSettlementOutcomeUnknownError.code', () => {
+  it('carries a stable synthetic code, so the branch is discriminable without instanceof', () => {
+    // `instanceof` is not enough on a published package: two copies of
+    // @nevermined-io/payments in one dependency tree (or a process /
+    // serialization boundary) make it false for a genuinely-MPP error, and
+    // the check degrades SILENTLY to the "nothing was burned" path that the
+    // integration guide tells sellers to rely on. `code` is the only
+    // data-level discriminant this hierarchy has.
+    const error = new MppSettlementOutcomeUnknownError()
+    expect(error.code).toBe(MPP_SETTLEMENT_OUTCOME_UNKNOWN_CODE)
+    expect(error.code).toBe('settlement_outcome_unknown')
+  })
+
+  it('cannot be mistaken for a backend code', () => {
+    // Follows the SDK-invented convention (network_error, http_<status>),
+    // deliberately outside the BCK.MPP.* namespace the backend owns.
+    expect(MPP_SETTLEMENT_OUTCOME_UNKNOWN_CODE.startsWith('BCK.')).toBe(false)
+    expect(isRetryableMppCode(MPP_SETTLEMENT_OUTCOME_UNKNOWN_CODE)).toBe(false)
+  })
+})
+
+describe('buyer-facing helpers reachable from the package root', () => {
+  it('exports isRetryableMppCode and normalizeCredits', async () => {
+    // isRetryableMppCode's own docstring exists to stop a buyer hardcoding
+    // ['BCK.MPP.0004','BCK.MPP.0005'] -- which is exactly what they had to
+    // do while the function was unreachable from the package. normalizeCredits
+    // is the only validator for the amount contract, and a seller pre-checking
+    // a `credits` function result before it is sealed into a challenge needs
+    // the same rules the middleware applies.
+    const barrel = await import('../../../src/index.js')
+    expect(typeof barrel.isRetryableMppCode).toBe('function')
+    expect(barrel.isRetryableMppCode('BCK.MPP.0004')).toBe(true)
+    expect(typeof barrel.normalizeCredits).toBe('function')
+    expect(barrel.normalizeCredits(10n)).toBe('10')
   })
 })

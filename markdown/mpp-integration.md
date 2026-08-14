@@ -1,7 +1,7 @@
 ---
-title: "MPP Integration"
-description: "Protect Express routes with the Machine Payments Protocol (MPP), a second payment framing over the same plans, delegations and credits as x402"
-icon: "handshake"
+title: 'MPP Integration'
+description: 'Protect Express routes with the Machine Payments Protocol (MPP), a second payment framing over the same plans, delegations and credits as x402'
+icon: 'handshake'
 ---
 
 # MPP Integration
@@ -12,11 +12,11 @@ route does not change the plan, the credits or the route configuration.
 
 ## Header table
 
-| Header | Direction | Purpose |
-|--------|-----------|---------|
-| `WWW-Authenticate` | Server → Client (402) | Carries the `Payment …` challenge |
-| `Authorization` | Client → Server | Carries the `Payment …` credential |
-| `Payment-Receipt` | Server → Client (success) | Carries the settlement receipt |
+| Header             | Direction                 | Purpose                            |
+| ------------------ | ------------------------- | ---------------------------------- |
+| `WWW-Authenticate` | Server → Client (402)     | Carries the `Payment …` challenge  |
+| `Authorization`    | Client → Server           | Carries the `Payment …` credential |
+| `Payment-Receipt`  | Server → Client (success) | Carries the settlement receipt     |
 
 ## The 402 body: `code` and `retryable`
 
@@ -32,7 +32,7 @@ classes) needs to implement the retry loop correctly:
   credential against the new challenge on this same `402` can succeed:
   - `retryable: false` — the credential itself was refused (forged, replayed,
     wrong plan, insufficient balance, all collapsed into `BCK.MPP.0003` so
-    the endpoint cannot be used to probe *which* check failed). Paying again
+    the endpoint cannot be used to probe _which_ check failed). Paying again
     with a new credential changes nothing; treat this as terminal.
   - `retryable: true` — the challenge expired (`BCK.MPP.0004`) or the request
     body did not match the digest sealed into the challenge
@@ -112,6 +112,13 @@ case falls through to a re-serialized-JSON digest; the alternative — silently
 serving an unbound challenge whenever the buyer's request shape does not
 match — would let the buyer, not the seller, decide whether binding applies.
 
+A request that carries **no body at all** on a `bindBody` route is bound to
+the digest of zero bytes rather than left unbound. Minting unbound would
+reopen the same hole from the other side: the backend only compares digests
+when the challenge carries one, so a buyer could mint with an empty request
+and then attach any body they liked to the paid retry. A bodyless retry
+reproduces the empty digest and passes; one that grew a body does not.
+
 If the seller's own settlement fails after a paid, delivered request, the
 buyer still receives their `2xx` response but no `Payment-Receipt` header —
 the settlement outcome is not otherwise visible on the wire.
@@ -124,35 +131,71 @@ nothing came back. That case is reported to `onAfterSettle` as
 `{ outcome: 'unknown', reason }` — the exported `MppSettlementOutcomeUnknown`
 type — instead of the usual `MppSettleResult`, and `settleCredential` itself
 rejects with the exported `MppSettlementOutcomeUnknownError` (extends
-`MppError`, carries no `code` since it is never backend-issued) rather than a
-generic network error, so a seller calling `settleCredential` directly can
-`instanceof`-check it too. `onAfterSettle`'s third parameter is typed
+`MppError`, and carries the stable `code` `'settlement_outcome_unknown'` —
+outside the `BCK.MPP.*` namespace the backend owns) rather than a generic
+network error, so a seller calling `settleCredential` directly can check it
+by `instanceof` **or** by `error.code`. Prefer `code` where two copies of
+this package could end up in one dependency tree, or across a process or
+serialization boundary: `instanceof` is false there for a genuinely-MPP
+error, and the check degrades silently to the "nothing was burned" path.
+
+The same unknown-outcome treatment covers a settle whose `2xx` body cannot be
+read: the backend answered, so the burn committed, and only the response was
+lost. `onAfterSettle`'s third parameter is typed
 `unknown`, so narrow to `MppSettlementOutcomeUnknown` explicitly before
 reading `outcome` — a blind cast to `MppSettleResult` reads `undefined` for
 `creditsRedeemed` on this branch with no compile-time or runtime signal.
 
-A `credits` function is evaluated once per *request* handled by this
+### `onPaymentError` on an MPP route
+
+On MPP routes `onPaymentError` **notifies**; the middleware keeps ownership of
+the response unless your handler answers the request itself. This differs from
+the x402 branch, where the hook takes over: an MPP `402` has to carry a fresh
+`WWW-Authenticate` challenge for the buyer to make any progress, and a hook
+wired purely for observability must not strip it.
+
+It fires for rejected credentials, expiries, digest mismatches, body-binding
+refusals and challenge-issuance failures — but **not** for the initial
+credential-less request. In MPP the first request of every payment cycle is
+unpaid by design, so notifying there would fire the hook on every successful
+payment and drown the failures it exists to surface. A hook that throws is
+logged and the challenge is still sent.
+
+A `credits` function is evaluated once per _request_ handled by this
 middleware — once when the challenge is minted, and again when the paid
 request presents its credential — so twice per full payment cycle, not once.
 Anything with a side effect (metering, a counter, a DB write) in that
 function runs twice.
 
-## Concurrent requests with the same credential
+## A credential buys exactly one response
 
 Verifying a credential burns nothing, and settling the same credential twice
-burns once — that idempotency is what makes settlement safe to retry, and it
-is also what would make concurrent delivery cheap: without a guard, two
-requests presenting the same credential at the same time would both pass
-verification, both be served, and the two settlements would collapse into a
-single burn.
+burns once — that idempotency is what makes settlement safe to retry. On its
+own it would also make a **replay** free: a buyer who presents the same
+credential again passes verification (nothing was burned to notice), is
+served again, and the second settlement collapses onto the first burn. The
+backend cannot refuse that — a replayed settle succeeding _is_ its
+idempotency contract working as designed — so single-use is enforced at the
+seller edge.
 
-The middleware guards against this **within one Node process**: a second
-request presenting a credential that is already verified but not yet settled
-is refused with `409 Conflict` rather than served. This does **not** extend
-across multiple processes or horizontally-scaled instances of this
-middleware — they do not share the in-memory guard, and a deployment that
-scales this middleware horizontally needs its own mitigation (e.g. a shared
-store such as Redis) for the same race across instances.
+Two guards do it, both **within one Node process**:
+
+- **Concurrent** — a second request presenting a credential that is verified
+  but not yet settled is refused with `409 Conflict`.
+- **Sequential** — a credential that has already bought a response is
+  refused with a `402` carrying a **fresh challenge** and
+  `code: "BCK.MPP.0003"` (`retryable: false`), for the 300-second lifetime
+  of the challenge it came from. After that the challenge has expired and
+  the backend refuses the credential anyway.
+
+A credential is only marked spent when a `2xx` is actually delivered for it.
+A request your handler answers with a `4xx`/`5xx` never settles, so the buyer
+keeps their claim and can retry with the same credential.
+
+Neither guard extends across multiple processes or horizontally-scaled
+instances of this middleware — they do not share the in-memory state, and a
+deployment that scales this middleware horizontally needs its own mitigation
+(e.g. a shared store such as Redis) for both races across instances.
 
 ## Paying an MPP endpoint
 

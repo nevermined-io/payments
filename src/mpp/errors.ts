@@ -49,21 +49,37 @@ export class MppBodyDigestMismatchError extends MppError {
 }
 
 /**
- * Thrown only for `settleCredential`'s own outbound deadline firing — never
- * backend-issued, so it carries no `code`. Settlement is the one MPP call
- * that burns: if the backend's answer to that specific request is lost to a
- * client-side timeout, the burn may have already happened even though the
- * caller received nothing. Collapsing that into the same `network_error`
- * `MppError` used for "nothing happened" failures (connection refused, DNS
- * failure, a hung challenge/verify call) would let a real burn get logged
- * and treated exactly like one that never occurred — silently corrupting the
- * seller's own accounting on the call that is not safe to shrug off.
+ * Stable `code` on {@link MppSettlementOutcomeUnknownError}. Not a backend
+ * code — no `BCK.MPP.*` prefix, so it can never collide with one.
+ */
+export const MPP_SETTLEMENT_OUTCOME_UNKNOWN_CODE = 'settlement_outcome_unknown'
+
+/**
+ * Raised when settlement's outcome cannot be determined: `settleCredential`'s
+ * own outbound deadline firing before any response, or a 2xx whose body could
+ * not be read. Settlement is the one MPP call that burns, so in both cases the
+ * burn may have already happened even though the caller received nothing
+ * usable. Collapsing that into the same `network_error` `MppError` used for
+ * "nothing happened" failures (connection refused, DNS failure, a hung
+ * challenge/verify call) would let a real burn get logged and treated exactly
+ * like one that never occurred — silently corrupting the seller's own
+ * accounting on the call that is not safe to shrug off.
  */
 export class MppSettlementOutcomeUnknownError extends MppError {
   constructor(
     message = 'MPP settlement outcome unknown: the request timed out before the backend responded, so the credits may or may not have been burned',
   ) {
-    super(message)
+    // No backend issues this code — the condition is detected here — but it
+    // still carries one, following the same convention as the other
+    // SDK-invented codes (`network_error`, `http_${status}`). `code` is the
+    // only DATA-level discriminant on this hierarchy, and this is the branch
+    // whose whole point is that misclassifying it corrupts the seller's
+    // accounting. Two copies of this package in one dependency tree make
+    // `instanceof` false for a genuinely-MPP error, and the check would
+    // degrade silently to the "nothing happened" path — which the
+    // integration guide tells sellers to rely on. Same across a process or
+    // serialization boundary.
+    super(message, MPP_SETTLEMENT_OUTCOME_UNKNOWN_CODE)
     this.name = 'MppSettlementOutcomeUnknownError'
   }
 }
@@ -102,10 +118,7 @@ export interface MppSettlementOutcomeUnknown {
  * hardcoding the exception list — and so a future retryable code only needs
  * to be added to this one set.
  */
-const RETRYABLE_BCK_MPP_CODES: ReadonlySet<string> = new Set([
-  'BCK.MPP.0004',
-  'BCK.MPP.0005',
-])
+const RETRYABLE_BCK_MPP_CODES: ReadonlySet<string> = new Set(['BCK.MPP.0004', 'BCK.MPP.0005'])
 
 /** Whether a `BCK.MPP.*` code means "mint a fresh credential and try again"
  *  rather than "this credential was refused; a new one changes nothing". */
