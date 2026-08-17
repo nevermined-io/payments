@@ -1239,33 +1239,42 @@ describe('MppAPI.fetch — round-4: the spend report is present only when someth
     expect(mppSpendOf(error)?.credentialsPresented).toBe(1)
   })
 
-  it('excludes a receipt that states failure outright from settled/paid', async () => {
-    let asked = 0
-    global.fetch = (async (url: any) => {
-      const href = String(url)
-      if (href.includes('/api/v1/mpp/permissions'))
-        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
-      asked += 1
-      if (asked === 1) return challenge402()
-      return new Response(JSON.stringify({ answer: '42' }), {
-        status: 200,
-        headers: { 'payment-receipt': receiptHeader('failed') },
-      })
-    }) as any
+  // The negative side is spelled the way a seller might really spell it, not
+  // only the way our own does. A seller's casing and padding are not ours to
+  // control, so the normalisation that handles them has to be pinned here —
+  // otherwise `"FAILED"` reports `settled: true, paid: true`, which is the one
+  // direction this field must never be wrong in. The positive table below
+  // already covers casing on its side; this is the same instinct applied to the
+  // half where being wrong costs money.
+  it.each(['failed', 'FAILED', ' Declined ', 'Failure', 'ERROR'])(
+    'excludes a receipt whose status %p states failure outright from settled/paid',
+    async (status) => {
+      let asked = 0
+      global.fetch = (async (url: any) => {
+        const href = String(url)
+        if (href.includes('/api/v1/mpp/permissions'))
+          return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+        asked += 1
+        if (asked === 1) return challenge402()
+        return new Response(JSON.stringify({ answer: '42' }), {
+          status: 200,
+          headers: { 'payment-receipt': receiptHeader(status) },
+        })
+      }) as any
 
-    const result = await MppAPI.getInstance(OPTIONS).fetch(
-      'https://agent.example/ask',
-      {},
-      FETCH_OPTIONS,
-    )
-    // `paid: true` on a receipt that says the settlement failed is wrong in the
-    // one direction this field must never be wrong.
-    expect(result.settled).toBe(false)
-    expect(result.paid).toBe(false)
-    // The receipt is still handed over — the caller can see what the seller said.
-    expect(result.receipt?.status).toBe('failed')
-    expect(result.credentialsPresented).toBe(1)
-  })
+      const result = await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        FETCH_OPTIONS,
+      )
+      expect(result.settled).toBe(false)
+      expect(result.paid).toBe(false)
+      // The receipt is still handed over, verbatim — the caller can see exactly
+      // what the seller said, including its own spelling.
+      expect(result.receipt?.status).toBe(status)
+      expect(result.credentialsPresented).toBe(1)
+    },
+  )
 
   it.each(['completed', 'ok', 'SUCCESS', 'settled'])(
     'keeps an unrecognized status %s as settled, since success is deliberately not recognized',
