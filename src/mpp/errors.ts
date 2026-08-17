@@ -38,8 +38,12 @@ export interface MppSpendReport {
  * Exported so a caller never has to hand-cast: the field is declared on
  * {@link MppError} but is also attached to the {@link PaymentsError} a
  * caller-constraint guard throws on the re-challenge turn, and those two do
- * not share a base class. `undefined` means no credential had been presented
- * when the error was raised — nothing was spent.
+ * not share a base class.
+ *
+ * A report is attached **only** when at least one credential was presented, so
+ * a truthy result always means money may have left, and `undefined` always
+ * means nothing was spent. That is what makes `if (mppSpendOf(err))` a usable
+ * test rather than one that fires on plain argument validation too.
  */
 export function mppSpendOf(error: unknown): MppSpendReport | undefined {
   if (typeof error !== 'object' || error === null) return undefined
@@ -204,8 +208,17 @@ export interface MppSettlementOutcomeUnknown {
  * Grouped here, once, so a buyer checks {@link isRetryableMppCode} instead of
  * hardcoding the exception list — and so a future retryable code only needs
  * to be added to this one set.
+ *
+ * Exported so the buyer's own tests derive their table from this set instead of
+ * repeating its members, which is what makes "a code added here is honoured by
+ * `payments.mpp.fetch`" an enforced property rather than a convention. It is
+ * deliberately NOT re-exported from `./index.js`: a mutable-looking membership
+ * list is not something to make public API.
  */
-const RETRYABLE_BCK_MPP_CODES: ReadonlySet<string> = new Set(['BCK.MPP.0004', 'BCK.MPP.0005'])
+export const RETRYABLE_BCK_MPP_CODES: ReadonlySet<string> = new Set([
+  'BCK.MPP.0004',
+  'BCK.MPP.0005',
+])
 
 /** Whether a `BCK.MPP.*` code means "mint a fresh credential and try again"
  *  rather than "this credential was refused; a new one changes nothing". */

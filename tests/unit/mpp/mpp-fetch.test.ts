@@ -13,6 +13,7 @@ import {
   MppCredentialRejectedError,
   MppError,
   MppSpendOutcomeUnknownError,
+  RETRYABLE_BCK_MPP_CODES,
   isRetryableMppCode,
   mppSpendOf,
 } from '../../../src/mpp/errors.js'
@@ -1044,7 +1045,12 @@ describe('MppAPI.fetch — the retryable-code decision comes from errors.ts', ()
   // Pins the buyer to isRetryableMppCode instead of a copied literal set: add a
   // code to the canonical set and this test demands the buyer follow, which a
   // local `new Set([...])` in fetch.ts would fail.
-  it.each(['BCK.MPP.0002', 'BCK.MPP.0003', 'BCK.MPP.0004', 'BCK.MPP.0005', 'BCK.MPP.0099'])(
+  //
+  // The retryable half is DERIVED from the canonical set rather than listed, so
+  // a code added there is covered here without anyone remembering to. A
+  // hardcoded list left the "new code added to the set" mutant alive: the table
+  // simply never asked about it.
+  it.each([...RETRYABLE_BCK_MPP_CODES, 'BCK.MPP.0002', 'BCK.MPP.0003', 'BCK.MPP.0099'])(
     'treats %s exactly as isRetryableMppCode says',
     async (code) => {
       let asked = 0
@@ -1138,6 +1144,210 @@ describe('MppAPI.fetch — hostile 402 error bodies', () => {
     await expect(
       MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS),
     ).rejects.toBeInstanceOf(MppError)
+    expect(mints.count).toBe(1)
+  })
+})
+
+describe('MppAPI.fetch — round-4: the spend report is present only when something was spent', () => {
+  /** Encodes a `Payment-Receipt` header value with an arbitrary status. */
+  function receiptHeader(status: string) {
+    return Buffer.from(
+      JSON.stringify({
+        method: 'nevermined',
+        reference: 'CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og',
+        status,
+        timestamp: '2026-08-12T10:00:30.000Z',
+      }),
+      'utf8',
+    ).toString('base64url')
+  }
+
+  it('reports no spend on a first-turn planId mismatch', async () => {
+    global.fetch = (async () => challenge402()) as any
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        { ...FETCH_OPTIONS, planId: '999' },
+      )
+    } catch (caught) {
+      error = caught
+    }
+    // `{ credentialsPresented: 0 }` is a truthy object, so annotating a
+    // first-turn guard would send a caller following the documented
+    // `if (mppSpendOf(err))` pattern into the "credits may already be burned"
+    // branch on plain argument validation.
+    expect(error).toBeInstanceOf(PaymentsError)
+    expect(mppSpendOf(error)).toBeUndefined()
+  })
+
+  it('reports no spend on a first-turn maxCredits refusal', async () => {
+    global.fetch = (async () => challenge402()) as any // asks for 2
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        { ...FETCH_OPTIONS, maxCredits: 1 },
+      )
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toBeInstanceOf(PaymentsError)
+    expect(mppSpendOf(error)).toBeUndefined()
+  })
+
+  it('reports no spend when the MINT itself fails, since nothing reached the seller', async () => {
+    global.fetch = (async (url: any) => {
+      if (String(url).includes('/api/v1/mpp/permissions')) throw new TypeError('fetch failed')
+      return challenge402()
+    }) as any
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    } catch (caught) {
+      error = caught
+    }
+    expect(mppSpendOf(error)).toBeUndefined()
+  })
+
+  it('still reports the spend when the escaping error cannot carry the field', async () => {
+    // Nothing in this SDK freezes errors; this pins the fallback so a
+    // non-extensible error cannot recreate the invisible-spend failure the
+    // boundary exists to close.
+    const frozen = Object.freeze(new MppError('frozen rejection', 'BCK.MPP.0003'))
+    let asked = 0
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      asked += 1
+      if (asked === 1) return challenge402()
+      throw frozen
+    }) as any
+
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    } catch (caught) {
+      error = caught
+    }
+
+    expect(error).toBeInstanceOf(MppSpendOutcomeUnknownError)
+    expect((error as MppSpendOutcomeUnknownError).cause).toBe(frozen)
+    expect(mppSpendOf(error)?.credentialsPresented).toBe(1)
+  })
+
+  it('excludes a receipt that states failure outright from settled/paid', async () => {
+    let asked = 0
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      asked += 1
+      if (asked === 1) return challenge402()
+      return new Response(JSON.stringify({ answer: '42' }), {
+        status: 200,
+        headers: { 'payment-receipt': receiptHeader('failed') },
+      })
+    }) as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
+    // `paid: true` on a receipt that says the settlement failed is wrong in the
+    // one direction this field must never be wrong.
+    expect(result.settled).toBe(false)
+    expect(result.paid).toBe(false)
+    // The receipt is still handed over — the caller can see what the seller said.
+    expect(result.receipt?.status).toBe('failed')
+    expect(result.credentialsPresented).toBe(1)
+  })
+
+  it.each(['completed', 'ok', 'SUCCESS', 'settled'])(
+    'keeps an unrecognized status %s as settled, since success is deliberately not recognized',
+    async (status) => {
+      let asked = 0
+      global.fetch = (async (url: any) => {
+        const href = String(url)
+        if (href.includes('/api/v1/mpp/permissions'))
+          return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+        asked += 1
+        if (asked === 1) return challenge402()
+        return new Response(JSON.stringify({ answer: '42' }), {
+          status: 200,
+          headers: { 'payment-receipt': receiptHeader(status) },
+        })
+      }) as any
+
+      // Treating a third party's synonym for success as failure would report an
+      // unpaid call that was in fact paid — the asymmetry is the whole point.
+      const result = await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        FETCH_OPTIONS,
+      )
+      expect(result.settled).toBe(true)
+      expect(result.paid).toBe(true)
+    },
+  )
+})
+
+describe('MppAPI.fetch — round-4: 402 bodies that are empty or padded', () => {
+  it('retries a genuinely fresh challenge whose 402 carries NO body at all', async () => {
+    let asked = 0
+    const mints = { count: 0 }
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      if (asked === 1) return challenge402()
+      if (asked === 2)
+        // Bodiless 402 + fresh id: an ordinary HTTP shape, and the one the
+        // opening 402 is allowed to use. Classifying it as unreadable would
+        // suppress the documented retry and blame a WAF that is not there.
+        return new Response(null, {
+          status: 402,
+          headers: { 'www-authenticate': CHALLENGE_HEADER_2 },
+        })
+      return paid200()
+    }) as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
+    expect(result.paid).toBe(true)
+    expect(mints.count).toBe(2)
+  })
+
+  it('keeps a terminal code terminal when padding sits OUTSIDE the JSON object', async () => {
+    // The truncation-safety comment used to claim a truncated read cannot yield
+    // valid JSON. `<complete JSON><whitespace><garbage>` falsifies that: it
+    // parses AFTER truncation and throws before it. The property that actually
+    // holds is that the surviving prefix contains the whole code object, so the
+    // classification is unchanged — here, still terminal, still one mint.
+    const padded = `{"code":"BCK.MPP.0003","message":"rejected"}${' '.repeat(200 * 1024)}garbage`
+    let asked = 0
+    const mints = { count: 0 }
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      if (asked === 1) return challenge402()
+      return new Response(padded, {
+        status: 402,
+        headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' },
+      })
+    }) as any
+
+    await expect(
+      MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS),
+    ).rejects.toBeInstanceOf(MppCredentialRejectedError)
     expect(mints.count).toBe(1)
   })
 })

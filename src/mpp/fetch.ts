@@ -85,15 +85,22 @@ export interface MppFetchResult {
    */
   receipt?: MppReceipt
   /**
-   * Whether the endpoint returned settlement evidence — exactly "a
-   * `Payment-Receipt` decoded cleanly", never derived from the HTTP status.
+   * Whether the endpoint returned settlement evidence: a `Payment-Receipt` that
+   * decoded cleanly and does not state failure outright. Never derived from the
+   * HTTP status.
    *
-   * `MppReceipt.status` is deliberately NOT interpreted: it is a seller-set
-   * string with no agreed vocabulary beyond `'success'`, so treating an
-   * unrecognized value as failure would report `settled: false` for a burn
-   * that happened — a worse lie than the one it would fix. This SDK's own
-   * seller attaches a receipt only when settlement succeeded. Against a
-   * third-party seller, read `receipt.status` yourself if it matters.
+   * `receipt.status` is read asymmetrically, on purpose. Success is NOT
+   * recognized — `'success'` is the only value with agreement behind it, so
+   * treating an unrecognized `'ok'`/`'completed'` as failure would report an
+   * unpaid call that was in fact paid. An explicit negative (`'failed'`,
+   * `'failure'`, `'declined'`, `'error'`) is a different thing from an unknown
+   * vocabulary, and is excluded: `paid: true` on a receipt that says the
+   * settlement failed is wrong in the one direction this field must never be
+   * wrong. Anything else stays `settled: true` with `receipt` on the result, so
+   * a caller paying third parties can judge the value itself.
+   *
+   * This SDK's own seller attaches a receipt only when settlement succeeded, so
+   * the distinction is third-party exposure rather than in-ecosystem.
    */
   settled: boolean
   /**
@@ -111,6 +118,16 @@ export interface MppFetchResult {
    * amount, since a re-challenge is free to name a different price and the
    * caller is accounting for the call. Present whenever
    * `credentialsPresented > 0`.
+   *
+   * It is an **upper bound** on what may have burned, never a lower one. A
+   * seller that answers a retryable code while replaying the identical
+   * challenge id gets a second credential minted against that same challenge
+   * (a code decides alone — see {@link mppFetch}), and against a seller that
+   * keys single-use on the challenge id, as this SDK's middleware does, that
+   * second credential is refused as a replay and burns nothing. The count is
+   * deliberately not lowered for it: this field answers "what could have left",
+   * and guessing which of a remote's credentials it honoured would answer a
+   * question the buyer cannot see.
    */
   creditsPresented?: string
   /**
@@ -156,10 +173,48 @@ function isNonReplayableBody(body: BodyInit | null | undefined): boolean {
  *
  * The body is seller-controlled and read purely to look for a `code`, so a
  * hostile or broken endpoint answering a 402 with an unbounded stream must not
- * be able to exhaust the buyer's memory. A truncated read cannot yield valid
- * JSON, which lands on the existing "unreadable body → terminal" path.
+ * be able to exhaust the buyer's memory.
+ *
+ * A truncated read of a body large enough to matter will usually not parse; if
+ * it does, the prefix necessarily contains the complete `code` object — a
+ * truncated prefix of one JSON object can only parse once its closing brace is
+ * inside the cap — so the classification is unchanged either way. The branch
+ * keys on `JSON.parse` succeeding, never on "truncated implies unparseable",
+ * which is false: `<complete JSON><whitespace><garbage>` parses after
+ * truncation and throws before it.
  */
 const MAX_ERROR_BODY_BYTES = 64 * 1024
+
+/**
+ * Receipt `status` values that state failure outright, lower-cased.
+ *
+ * `MppReceipt.status` is a seller-set string and this SDK deliberately does not
+ * try to recognize *success*: `'success'` is the only value with any agreement
+ * behind it, so treating an unrecognized `'ok'`/`'completed'` as failure would
+ * report an unpaid call that was in fact paid. The asymmetry is the point — an
+ * explicit negative is not an unknown vocabulary, and reporting `paid: true`
+ * for a receipt that says the settlement failed is wrong in the one direction
+ * this field must never be wrong.
+ *
+ * Only unambiguous negatives belong here; anything genuinely ambiguous stays
+ * unrecognized and is reported as settled, with `receipt` on the result for a
+ * caller that wants to judge for itself.
+ */
+const EXPLICIT_FAILURE_RECEIPT_STATUSES: ReadonlySet<string> = new Set([
+  'failed',
+  'failure',
+  'declined',
+  'error',
+])
+
+/** Whether a decoded receipt states outright that the settlement did not happen. */
+function statesFailure(receipt: MppReceipt | undefined): boolean {
+  return (
+    receipt !== undefined &&
+    typeof receipt.status === 'string' &&
+    EXPLICIT_FAILURE_RECEIPT_STATUSES.has(receipt.status.trim().toLowerCase())
+  )
+}
 
 /** The origin of `input`, or the raw value when it does not parse as a URL — used only to label a remote error. */
 function originOf(input: string | URL): string {
@@ -299,6 +354,13 @@ async function readBoundedText(response: Response): Promise<string> {
  * or non-JSON body — an HTML WAF/CDN page, a truncated response, a
  * disturbed-body clone failure — is neither: it is treated as terminal by
  * the caller, since it is not evidence of anything retryable.
+ *
+ * A body that is EMPTY or whitespace-only is not in that class. It is an
+ * ordinary HTTP shape — the one the opening 402 is free to use — and carries no
+ * code, so it is reported as "no code" rather than as unreadable. Reported as
+ * unreadable it would suppress the documented fresh-challenge retry against a
+ * seller that did nothing wrong, and blame a WAF that is not there. Truncated
+ * bodies are non-empty by construction, so this cannot loosen that path.
  */
 async function readMppErrorCode(
   response: Response,
@@ -312,6 +374,7 @@ async function readMppErrorCode(
       bodyUnreadable: true,
     }
   }
+  if (raw.trim() === '') return { message: 'MPP 402 carried no body' }
   try {
     const body = JSON.parse(raw)
     // A non-compliant seller can send a body shaped `{ error: { reason: '...' } }`
@@ -343,14 +406,20 @@ async function readMppErrorCode(
  * a freshly paid credential is not going to be satisfied by looping, and a
  * loop would burn a credential per turn.
  *
- * The default on a retry-turn 402 is to STOP, not to pay again: a genuinely
- * fresh challenge (a different `id` from the one just presented) or a code
- * {@link isRetryableMppCode} accepts (`BCK.MPP.0004` expired, `BCK.MPP.0005`
- * body-digest mismatch) is retryable; any other coded rejection (including a
- * non-`BCK.MPP.*` code, e.g. a `network_error`/`http_500`-shaped one
- * `MppAPI.post` can synthesize and this repo's own seller forwards), an
- * unreadable body, or the seller replaying the identical challenge id are all
- * terminal. A credential already proven invalid is never paid for twice.
+ * The default on a retry-turn 402 is to STOP, not to pay again. **A code, when
+ * present, decides alone**: one {@link isRetryableMppCode} accepts
+ * (`BCK.MPP.0004` expired, `BCK.MPP.0005` body-digest mismatch) is retried,
+ * every other code is terminal — including a non-`BCK.MPP.*` one, e.g. the
+ * `network_error`/`http_500`-shaped code `MppAPI.post` can synthesize and this
+ * repo's own seller forwards. The challenge id is not consulted on that path,
+ * so a retryable code replaying the identical id does re-mint; `maxCredits`,
+ * not id-freshness, is what bounds what that can cost.
+ *
+ * **With no code**, freshness is the whole signal: a challenge whose `id`
+ * differs from the one just presented is a real re-challenge and is retried
+ * once, while the identical id replayed, an unparseable challenge or an
+ * unreadable body are terminal — a credential already proven invalid is never
+ * paid for twice.
  *
  * ### What throws and what comes back as a 402
  *
@@ -358,8 +427,12 @@ async function readMppErrorCode(
  * instead, because the response is evidence the caller may need and throwing
  * would discard it:
  *
- * 1. A 402 with no `WWW-Authenticate: Payment …` challenge at all (either
- *    turn) — the endpoint may not speak MPP; `credentialsPresented: 0`.
+ * 1. A 402 with no USABLE `Payment` challenge (either turn): no
+ *    `WWW-Authenticate`, another scheme, or a `Payment` challenge missing a
+ *    required param — {@link parseChallengeHeader} yields nothing for all
+ *    three, so a seller that announced `Payment` and then sent it malformed
+ *    lands here too, not only one that does not speak MPP.
+ *    `credentialsPresented: 0`.
  * 2. A retry-turn 402 that IS retryable but carries no challenge to retry
  *    against, so the next turn finds nothing to mint for.
  * 3. The one re-challenge cycle spent: two credentials presented and the
@@ -522,10 +595,11 @@ export async function mppFetch(
       }
     }
 
+    const settled = receipt !== undefined && !statesFailure(receipt)
     return {
       response,
-      settled: receipt !== undefined,
-      paid: response.ok && receipt !== undefined,
+      settled,
+      paid: response.ok && settled,
       credentialsPresented,
       ...(credentialsPresented > 0 && { creditsPresented: creditsPresentedTotal.toString() }),
       ...(receipt && { receipt }),
@@ -549,7 +623,13 @@ export async function mppFetch(
  * Attaches spend accounting to whatever is escaping, and wraps a raw
  * transport failure that happened with a credential already on the wire.
  *
- * Three cases, in order:
+ * **Nothing is attached when nothing was presented.** `{ credentialsPresented: 0 }`
+ * is a truthy object, so annotating a first-turn argument failure would send a
+ * caller following the documented `if (mppSpendOf(err))` pattern into the
+ * "credits may already be burned, do not retry" branch on a plain validation
+ * error — making the field useless for the one decision it exists to inform.
+ *
+ * With that, three cases:
  * - An {@link MppError} (or the {@link PaymentsError} a caller-constraint guard
  *   throws on the re-challenge turn) is annotated and rethrown AS-IS: the type
  *   a caller branches on must not change just because money is now reported.
@@ -560,16 +640,28 @@ export async function mppFetch(
  *   spent, and dressing up a plain network fault would only obscure it.
  */
 function asSpendAwareError(err: unknown, spend: MppSpendReport, input: string | URL): unknown {
-  if (err instanceof MppError || err instanceof PaymentsError) {
-    const annotated = err as { spend?: MppSpendReport }
-    annotated.spend = spend
-    return err
-  }
   if (spend.credentialsPresented === 0) return err
+  if (err instanceof MppError || err instanceof PaymentsError) {
+    try {
+      const annotated = err as { spend?: MppSpendReport }
+      annotated.spend = spend
+      return err
+    } catch {
+      // A frozen or otherwise non-extensible error cannot carry the report, and
+      // silently returning it would recreate exactly the invisible-spend failure
+      // this boundary exists to close. Fall through to the wrapper below, which
+      // holds the report in its own field.
+    }
+  }
+  const detail = err instanceof Error ? err.message : String(err)
   return new MppSpendOutcomeUnknownError(
-    `The MPP credential was sent to ${originOf(input)} but the request failed before any response ` +
-      `was read (${err instanceof Error ? err.message : String(err)}), so ${spend.creditsPresented} ` +
-      'credits may or may not have been burned. Do not blindly retry.',
+    err instanceof MppError || err instanceof PaymentsError
+      ? `The MPP credential was sent to ${originOf(input)} and the call then failed with an error that ` +
+          `could not carry its own spend report (${detail}), so ${spend.creditsPresented} credits may or ` +
+          'may not have been burned. Do not blindly retry.'
+      : `The MPP credential was sent to ${originOf(input)} but the request failed before any response ` +
+          `was read (${detail}), so ${spend.creditsPresented} credits may or may not have been burned. ` +
+          'Do not blindly retry.',
     err,
     spend,
   )

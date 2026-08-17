@@ -361,8 +361,11 @@ Only a rejection the remote **named** throws. Three dead ends resolve with the
 402 as `response`, because that response is evidence you may need and throwing
 would discard it:
 
-1. A 402 carrying no `WWW-Authenticate: Payment …` challenge at all, on either
-   turn — the endpoint may not speak MPP. `credentialsPresented: 0`.
+1. A 402 with no **usable** `Payment` challenge, on either turn: no
+   `WWW-Authenticate` header, a different scheme, or a `Payment` challenge
+   missing a required param — the decoder returns nothing for all three, so a
+   seller that announced `Payment` but sent it malformed lands here too, not
+   only one that does not speak MPP. `credentialsPresented: 0`.
 2. A retry-turn 402 that is retryable but carries no challenge to retry
    against, so there is nothing to mint for.
 3. The one re-challenge cycle spent: two credentials presented and the seller
@@ -454,8 +457,12 @@ Both retryable codes share the same one-shot budget: `payments.mpp.fetch`
 follows at most one re-challenge cycle per call, so a seller that keeps
 challenging a freshly paid credential is not satisfied by looping.
 `MppChallengeExpiredError` and `MppBodyDigestMismatchError` are therefore
-never thrown by this helper — they name exactly the two cases it retries
-automatically, so the caller never sees them as exceptions.
+never thrown by the **retry gate** — they name exactly the two cases it retries
+automatically. They can still reach a caller from the **mint**, the other call
+in the turn: `MppAPI.post` forwards the backend's `code` into the typed
+hierarchy, so a mint answering `BCK.MPP.0004` surfaces as
+`MppChallengeExpiredError` before any credential is presented — the same way
+`BCK.MPP.0002` does in the row above.
 
 ### Note on schemes
 
