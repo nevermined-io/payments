@@ -8,10 +8,18 @@
  */
 
 import { BasePaymentsAPI } from '../api/base-payments.js'
-import { API_URL_MPP_CHALLENGE, API_URL_MPP_SETTLE, API_URL_MPP_VERIFY } from '../api/nvm-api.js'
-import type { PaymentOptions } from '../common/types.js'
+import {
+  API_URL_MPP_CHALLENGE,
+  API_URL_MPP_CREATE_PERMISSION,
+  API_URL_MPP_SETTLE,
+  API_URL_MPP_VERIFY,
+} from '../api/nvm-api.js'
+import { PaymentsError } from '../common/payments.error.js'
+import type { PaymentOptions, X402TokenOptions } from '../common/types.js'
 import type { SettlePermissionsResult, VerifyPermissionsResult } from '../x402/facilitator-api.js'
+import { buildX402TokenRequestBody } from '../x402/token-request.js'
 import { MppError, MppSettlementOutcomeUnknownError, toMppError } from './errors.js'
+import { mppFetch, type MppFetchOptions, type MppFetchResult } from './fetch.js'
 
 /** Only whole, non-negative decimal digits — no sign, no leading/trailing
  *  whitespace, no hex/octal/binary prefix, no fractional part. `BigInt(x)`
@@ -186,6 +194,79 @@ export class MppAPI extends BasePaymentsAPI {
     return this.post<MppSettleResult>(API_URL_MPP_SETTLE, this.redeemBody(params), {
       burns: true,
     })
+  }
+
+  /**
+   * Mints an access token signed under the `Nevermined-MPP` EIP-712 domain.
+   *
+   * Same inputs and same settlement rail as {@link X402TokenAPI.getX402AccessToken};
+   * the token verifies only on the MPP routes, which is what keeps the two
+   * protocols isolated even though the tokens are byte-identical on the wire.
+   */
+  async getMppAccessToken(
+    planId: string,
+    agentId?: string,
+    tokenOptions?: X402TokenOptions,
+  ): Promise<{ accessToken: string }> {
+    const body = buildX402TokenRequestBody({
+      planId,
+      agentId,
+      tokenOptions,
+      environmentName: this.environmentName,
+    })
+    return this.post<{ accessToken: string }>(API_URL_MPP_CREATE_PERMISSION, body)
+  }
+
+  /**
+   * Performs an HTTP request, paying an MPP challenge if the endpoint returns
+   * one.
+   *
+   * The buyer needs no new plan, delegation or credential: the delegation that
+   * works for x402 works here unchanged.
+   *
+   * `init.body`, if set, must be replayable **if the endpoint may challenge
+   * the request**: a `ReadableStream` throws a typed {@link PaymentsError}
+   * once a 402 challenge actually requires a retry, since the stream cannot
+   * be resent. A request that is never challenged sends a stream body exactly
+   * once, exactly like plain `fetch` — the `paid: false` / untouched-response
+   * guarantee still holds. A `string`, `Buffer`/`ArrayBuffer`/typed array,
+   * `URLSearchParams`, `FormData` or `Blob` body all work unchanged either way.
+   *
+   * `options.delegationConfig` must carry a `delegationId` — this call
+   * refuses the deprecated inline create-on-the-fly shape (no `delegationId`)
+   * that {@link X402TokenAPI.getX402AccessToken} otherwise tolerates with a
+   * warning: the retry loop here can mint an access token twice per call, so
+   * that shape could silently create two delegations as a side effect of
+   * paying.
+   *
+   * @example
+   * ```typescript
+   * const { response, receipt } = await payments.mpp.fetch(
+   *   'https://agent.example/ask',
+   *   { method: 'POST', body: JSON.stringify({ q: 'hello' }) },
+   *   { delegationConfig: { delegationId }, planId },
+   * )
+   * ```
+   */
+  async fetch(
+    input: string | URL,
+    init: RequestInit | undefined,
+    options: MppFetchOptions,
+  ): Promise<MppFetchResult> {
+    if (!options?.delegationConfig?.delegationId) {
+      throw PaymentsError.validation(
+        'payments.mpp.fetch requires delegationConfig.delegationId. Create a delegation first ' +
+          'with payments.delegation.createDelegation(), then pass { delegationId }. An inline ' +
+          'create-on-the-fly delegationConfig (no delegationId) is not accepted here — the retry ' +
+          'loop can mint against it twice per call, which would create two delegations.',
+      )
+    }
+    return mppFetch(
+      (planId, agentId, tokenOptions) => this.getMppAccessToken(planId, agentId, tokenOptions),
+      input,
+      init,
+      options,
+    )
   }
 
   private redeemBody(params: RedeemMppParams): Record<string, unknown> {
