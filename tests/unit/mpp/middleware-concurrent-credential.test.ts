@@ -24,9 +24,12 @@ import { mppCredentialFixture } from './credential-fixture.js'
 // Reuse WITHIN a case is deliberate here — that is what this file tests.
 let credentialSeq = 0
 let CREDENTIAL = ''
+/** A second, distinct credential for the one case that needs two in a row. */
+let FIRST_CREDENTIAL = ''
 beforeEach(() => {
   credentialSeq += 1
   CREDENTIAL = mppCredentialFixture(`conc-${credentialSeq}`)
+  FIRST_CREDENTIAL = mppCredentialFixture(`conc-${credentialSeq}-first`)
 })
 
 function buildMockPayments(mpp: Record<string, unknown> = {}) {
@@ -66,6 +69,41 @@ async function post(port: number, headers: Record<string, string> = {}) {
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify({ q: 'hello' }),
   })
+}
+
+/** The literal bytes of a `POST /ask` request, so a test can drive the socket
+ *  itself instead of going through `fetch`. */
+function rawRequest(port: number, headers: Record<string, string>): string {
+  const body = JSON.stringify({ q: 'hello' })
+  const headerLines = Object.entries({ 'content-type': 'application/json', ...headers })
+    .map(([k, v]) => `${k}: ${v}\r\n`)
+    .join('')
+  return `POST /ask HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n${headerLines}Content-Length: ${Buffer.byteLength(
+    body,
+  )}\r\n\r\n${body}`
+}
+
+/**
+ * Sends the request, waits until the first bytes of the response have actually
+ * arrived, then hangs up — a buyer who took the streamed value and left.
+ *
+ * @returns everything the client received before hanging up.
+ */
+async function postAndHangUpOnFirstByte(
+  port: number,
+  headers: Record<string, string>,
+): Promise<string> {
+  const socket = net.connect(port, '127.0.0.1')
+  socket.on('error', () => undefined)
+  await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
+  socket.write(rawRequest(port, headers))
+  const received = await new Promise<string>((resolve) =>
+    socket.once('data', (chunk) => resolve(chunk.toString())),
+  )
+  socket.destroy()
+  // Same reason as postThenHangUp: let the server's event loop observe it.
+  await new Promise((r) => setTimeout(r, 50))
+  return received
 }
 
 /**
@@ -316,6 +354,116 @@ describe('concurrent requests presenting the same MPP credential', () => {
       await new Promise((r) => setImmediate(r))
       expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
     } finally {
+      warn.mockRestore()
+      await close()
+    }
+  })
+
+  it('SETTLES a streamed response the buyer already received before hanging up', async () => {
+    // The mirror image of the test above, and the direction the delivery gate
+    // got wrong first: on a STREAMED response, delivery happens at
+    // `res.write()` while the gate is evaluated in the `res.end` wrapper. A
+    // buyer who reads the payload and then hangs up has been served in full —
+    // so refusing to settle would give the response away for free AND leave
+    // the credential spendable for the rest of the 300s challenge TTL,
+    // repeatable. Any SSE or token-streaming endpoint has this shape, which
+    // is exactly what an agent endpoint looks like.
+    const payments = buildMockPayments()
+    let releaseTail: () => void = () => undefined
+    const tailGate = new Promise<void>((resolve) => {
+      releaseTail = resolve
+    })
+    const { port, close } = await startServer(payments, async (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/plain' })
+      res.write('THE-PAID-PAYLOAD')
+      // Hold end() open so the buyer can hang up strictly after receiving the
+      // value but strictly before the response completes.
+      await tailGate
+      res.end('-tail')
+    })
+    try {
+      const received = await postAndHangUpOnFirstByte(port, { authorization: CREDENTIAL })
+      expect(received).toContain('THE-PAID-PAYLOAD')
+
+      releaseTail()
+      await new Promise((r) => setTimeout(r, 80))
+
+      // The buyer got the value, so the seller gets paid...
+      expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
+
+      // ...and the credential is spent, so it cannot buy a second one.
+      const replay = await post(port, { authorization: CREDENTIAL })
+      expect(replay.status).toBe(402)
+      expect(await replay.json()).toMatchObject({ code: 'BCK.MPP.0003' })
+      await new Promise((r) => setImmediate(r))
+      expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
+    } finally {
+      releaseTail()
+      await close()
+    }
+  })
+
+  it('does not settle an undelivered response on a REUSED keep-alive connection', async () => {
+    // The negative control for the fix above, and the reason it measures a
+    // DELTA rather than reading `socket.bytesWritten` directly.
+    // `bytesWritten` is cumulative for the whole connection, so on a socket
+    // that already carried a completed response it is non-zero for a response
+    // that has written nothing at all (measured: 249 bytes from the previous
+    // request). Keyed on the raw value, this second request — buffered, and
+    // abandoned before the handler ends — would settle without ever having
+    // been delivered, which is the charge-without-delivery direction all over
+    // again.
+    const payments = buildMockPayments()
+    let releaseSecond: () => void = () => undefined
+    const secondGate = new Promise<void>((resolve) => {
+      releaseSecond = resolve
+    })
+    let handlerCalls = 0
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { port, close } = await startServer(payments, async (_req, res) => {
+      handlerCalls += 1
+      if (handlerCalls !== 2) {
+        res.json({ answer: 'ok' })
+        return
+      }
+      // `writeHead` flips `res.headersSent` immediately — it only STORES the
+      // header; nothing reaches the socket until the first write/end. That is
+      // what makes this the case the raw-`bytesWritten` reading gets wrong:
+      // `headersSent` is true, this response has flushed zero bytes, and the
+      // cumulative counter is already non-zero from request 1.
+      res.writeHead(200, { 'content-type': 'application/json' })
+      await secondGate
+      res.end('{"answer":"ok"}')
+    })
+    try {
+      const socket = net.connect(port, '127.0.0.1')
+      socket.on('error', () => undefined)
+      await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
+
+      // Request 1 completes normally, putting bytes on this socket.
+      socket.write(rawRequest(port, { authorization: FIRST_CREDENTIAL }))
+      await new Promise<void>((resolve) => socket.once('data', () => resolve()))
+      await new Promise((r) => setImmediate(r))
+      expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
+
+      // Request 2 reuses the same connection, and is abandoned before the
+      // handler produces anything.
+      socket.write(rawRequest(port, { authorization: CREDENTIAL }))
+      await new Promise((r) => setTimeout(r, 60))
+      socket.destroy()
+      await new Promise((r) => setTimeout(r, 60))
+
+      releaseSecond()
+      await new Promise((r) => setTimeout(r, 80))
+
+      // Still exactly one: request 2 delivered nothing, so it must not settle.
+      expect(payments.mpp.settleCredential).toHaveBeenCalledTimes(1)
+
+      // And its credential is untouched, so the buyer can still spend it.
+      const retry = await post(port, { authorization: CREDENTIAL })
+      expect(retry.status).toBe(200)
+    } finally {
+      releaseSecond()
       warn.mockRestore()
       await close()
     }

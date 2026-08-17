@@ -210,13 +210,23 @@ A credential that cannot be decoded into a `challenge.id` at all is refused
 the same way, without a backend round-trip — the backend would reject it too.
 
 A credential is only marked spent when a `2xx` is **actually delivered** for
-it — a status code alone is not delivery. If the buyer disconnects before the
-response reaches them, settlement never runs and the credential stays
-theirs to retry with; `onPaymentError` still fires so the loss is visible on
-the seller's side, since MPP has no void or reversal for a burn that already
-committed before the disconnect was noticed. A request your handler answers
-with a `4xx`/`5xx` never settles either, so the buyer keeps their claim there
-too.
+it — a status code alone is not delivery, since an aborted request still
+reports `200`. If the buyer disconnects before any of the response reaches
+them, settlement never runs and the credential stays theirs to retry with;
+`onPaymentError` still fires so the loss is visible on the seller's side,
+since MPP has no void or reversal for a burn that already committed before
+the disconnect was noticed. A request your handler answers with a `4xx`/`5xx`
+never settles either, so the buyer keeps their claim there too.
+
+**The reverse also holds, and it matters most for streaming endpoints.** On a
+streamed response (SSE, token streaming — the shape most agent endpoints
+take) the buyer receives the value at `res.write()`, well before your handler
+calls `res.end()`. A buyer who reads the payload and then hangs up **has been
+served**, so that request settles and the credential is marked spent. Delivery
+is measured as bytes actually put on the wire for that response, not as a
+socket still being open at the end of it — otherwise a buyer could stream the
+answer, disconnect, and replay the same credential for the rest of the
+challenge TTL.
 
 Neither guard extends across multiple processes or horizontally-scaled
 instances of this middleware — they do not share the in-memory state, and a
@@ -227,9 +237,14 @@ deployment that scales this middleware horizontally needs its own mitigation
 
 `settleCredential` can end three ways: a definite success, a definite
 failure, or **unknown** — the backend answered with a `5xx`/`408`, or timed
-out, or returned a `2xx` whose body could not be read. In all three unknown
-cases the credits may already be burned; reporting them as a definite
-failure would make a real burn silently vanish from your records.
+out, or returned a `2xx` whose body could not be read, or the connection was
+reset after the request had already been written (`ECONNRESET`, `EPIPE`,
+`UND_ERR_SOCKET`). In all of those the credits may already be burned;
+reporting them as a definite failure would make a real burn silently vanish
+from your records. Failures that prove nothing was reached — `ECONNREFUSED`,
+`ENOTFOUND`, `EAI_AGAIN`, and the backend's own `4xx` rejections — stay
+definite, because inflating your records with burns that never happened is
+the same corruption in the other direction.
 
 `onAfterSettle`'s third parameter is `unknown` precisely so a definite
 failure and an unknown outcome cannot be confused for the same shape — a
@@ -237,3 +252,17 @@ definite failure reports `creditsToSettle: 0` (nothing burned, as far as this
 side can prove), while an unknown outcome reports the charged amount and
 `{ outcome: 'unknown', reason }`. Narrow to `MppSettlementOutcomeUnknown`
 explicitly before reading `outcome`.
+
+Two consequences worth knowing before you wire up accounting:
+
+- **A definite settlement failure still delivers the response.** The buyer
+  gets what they asked for even though the burn did not happen — the
+  alternative would be destroying a response your handler already produced.
+  `onPaymentError` fires so you can reconcile, but the resource is gone.
+- **`paymentContext.creditsToSettle` is only reliable on the buffered path.**
+  When the handler streams (headers already flushed before `res.end()`),
+  settlement is detached and `res.on('finish')` fires before it resolves, so
+  the context still holds the optimistic pre-settle amount. On the buffered
+  path the response is held until settlement resolves, so it is accurate
+  there. **Read the settled amount from `onAfterSettle`, not from
+  `paymentContext`** — that is the only place correct on both paths.

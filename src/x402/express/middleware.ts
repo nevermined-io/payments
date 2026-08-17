@@ -886,6 +886,17 @@ async function handleMppRequest(args: {
   const originalEnd = res.end.bind(res) as (...a: Parameters<Response['end']>) => Response
   let settlementStarted = false
 
+  // Captured HERE, before next() hands control to the handler, so the
+  // `res.end` wrapper can tell how many bytes THIS response put on the wire.
+  //
+  // The reference is held rather than read from `res.socket` later because
+  // that property is allowed to be nulled once the response detaches, and the
+  // baseline because `bytesWritten` counts the whole connection: on a
+  // keep-alive socket it is already non-zero from the previous response, so
+  // only the delta says anything about this one.
+  const responseSocket = res.socket
+  const socketBytesBeforeHandler = responseSocket?.bytesWritten ?? 0
+
   // A seller's own onAfterSettle can throw, and where that lands differed by
   // branch: on the success path it rejected into the settlement .catch() and
   // was logged as "MPP settlement failed" (blaming the backend for a hook
@@ -1060,16 +1071,41 @@ async function handleMppRequest(args: {
     // the buyer's credits for a response that went into a dead socket, and
     // MppAPI exposes no void, refund or reversal, so that burn is permanent.
     //
+    // BUT A DEAD SOCKET IS NOT PROOF OF NON-DELIVERY EITHER, and that is the
+    // whole reason this predicate is not simply `!res.destroyed`. Delivery on
+    // a STREAMED response happens at `res.write()`, while this runs in the
+    // `res.end` wrapper: an SSE or token-streaming endpoint — precisely the
+    // shape an agent endpoint takes — hands the buyer the entire value and
+    // only then calls `end()`. A buyer who reads the payload and hangs up
+    // has been served in full, so refusing to settle there would give the
+    // response away AND leave the credential spendable for the rest of the
+    // 300s challenge TTL. Charge-without-delivery and delivery-without-charge
+    // are two directions of the same bug; the gate has to close both.
+    //
+    // So: bytes already on the wire for THIS response count as delivery, even
+    // if the socket has since gone.
+    //
+    // The delta against a baseline captured before the handler ran is
+    // load-bearing — `socket.bytesWritten` alone is NOT a usable signal. It
+    // is cumulative for the whole connection, so on a keep-alive socket that
+    // already carried an earlier response it reads non-zero for a response
+    // that has written nothing at all (measured: 249 bytes from the previous
+    // request, delta 0 for this one). Keying on the raw value would settle an
+    // undelivered buffered response on every reused connection — reopening
+    // the charge-without-delivery direction one branch over.
+    //
     // markdown/mpp-integration.md states the invariant as "a credential is
     // only marked spent when a 2xx is actually delivered for it"; this is
-    // where that becomes true. A credential whose request was never delivered
-    // stays unspent, which is also what makes the buyer's retry meaningful
-    // rather than a 402 for money already taken.
-    const isDeliverable = !res.destroyed && !res.closed
-    if (settlementStarted || !isSuccess || !isDeliverable) {
-      if (isSuccess && !isDeliverable && !settlementStarted) {
+    // where that becomes true, in both directions.
+    const bytesFlushed =
+      (responseSocket?.bytesWritten ?? socketBytesBeforeHandler) - socketBytesBeforeHandler
+    const alreadyDelivered = res.headersSent && bytesFlushed > 0
+    const socketStillAlive = !res.destroyed && !res.closed
+    const isDelivered = socketStillAlive || alreadyDelivered
+    if (settlementStarted || !isSuccess || !isDelivered) {
+      if (isSuccess && !isDelivered && !settlementStarted) {
         console.warn(
-          '[paymentMiddleware] MPP: the buyer disconnected before the response could be delivered; not settling, credential left unspent',
+          '[paymentMiddleware] MPP: the buyer disconnected before any of the response reached them; not settling, credential left unspent',
         )
       }
       return originalEnd(...endArgs)

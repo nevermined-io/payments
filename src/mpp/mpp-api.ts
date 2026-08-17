@@ -64,6 +64,50 @@ export function normalizeCredits(credits: string | number | bigint): string {
  *  buyer's own response until settlement resolves. */
 const REQUEST_TIMEOUT_MS = 30_000
 
+/**
+ * Socket-level failures that can only happen once the request was already on
+ * the wire, so on a burning call the backend may have completed the burn and
+ * only the answer was lost.
+ *
+ * `ECONNRESET` / `EPIPE` mean the peer tore down (or we wrote into) a
+ * connection that had been established; `UND_ERR_SOCKET` is undici's wrapper
+ * for the same thing, and `UND_ERR_ABORTED` covers a mid-flight abort that
+ * did not come through the `TimeoutError` path.
+ */
+const OUTCOME_UNKNOWN_SOCKET_CODES = new Set([
+  'ECONNRESET',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_ABORTED',
+])
+
+/**
+ * Whether a `fetch` rejection is a connection that died AFTER the request was
+ * written — i.e. an unknown settlement outcome rather than a definite failure.
+ *
+ * Deliberately an ALLOW-LIST, not a blanket promotion of every network error.
+ * `ECONNREFUSED`, `ENOTFOUND` and `EAI_AGAIN` all mean the request never
+ * reached anything that could burn, so reporting them as "may have burned"
+ * would inflate a seller's records with burns that never happened — the same
+ * corruption as the 4xx case one screen down, in the other direction. Any code
+ * not named here keeps the definite `network_error` classification.
+ *
+ * Node's `fetch` surfaces the underlying socket error as `error.cause`, so the
+ * code is read from there first and off the error itself as a fallback.
+ */
+function isPostRequestSocketFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  // `cause` is read off a widened shape rather than `Error.cause`: the
+  // package's lib target predates ES2022, so the property is not on the
+  // declared `Error` type even though Node populates it.
+  const { cause, code: ownCode } = error as unknown as { cause?: unknown; code?: unknown }
+  const causeCode = (cause as { code?: unknown } | undefined)?.code
+  return (
+    (typeof causeCode === 'string' && OUTCOME_UNKNOWN_SOCKET_CODES.has(causeCode)) ||
+    (typeof ownCode === 'string' && OUTCOME_UNKNOWN_SOCKET_CODES.has(ownCode))
+  )
+}
+
 export interface IssueMppChallengeParams {
   /** The Nevermined plan the credits are burned against. */
   planId: string
@@ -191,6 +235,13 @@ export class MppAPI extends BasePaymentsAPI {
     } catch (error) {
       if (options.burns && error instanceof DOMException && error.name === 'TimeoutError') {
         throw new MppSettlementOutcomeUnknownError()
+      }
+      if (options.burns && isPostRequestSocketFailure(error)) {
+        throw new MppSettlementOutcomeUnknownError(
+          `The connection to the backend failed after the settle request was written: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
       }
       throw toMppError(
         'network_error',

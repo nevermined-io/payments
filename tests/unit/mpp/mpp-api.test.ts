@@ -355,6 +355,58 @@ describe('MppAPI settle-timeout outcome semantics', () => {
     ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
   })
 
+  it.each(['ECONNRESET', 'EPIPE', 'UND_ERR_SOCKET', 'UND_ERR_ABORTED'])(
+    'surfaces a %s on the burning settle as an unknown outcome — the request was already on the wire',
+    async (code) => {
+      // A connection that dies AFTER the settle request was written has
+      // exactly the property this class exists for: the backend may already
+      // have burned and only the answer was lost. Node's fetch surfaces the
+      // socket error as `error.cause`.
+      const failure = new TypeError('fetch failed')
+      ;(failure as { cause?: unknown }).cause = { code }
+      global.fetch = jest.fn().mockRejectedValue(failure) as any
+      await expect(
+        MppAPI.getInstance(OPTIONS).settleCredential({
+          credential: 'Payment abc',
+          resource: '/ask',
+          httpVerb: 'POST',
+        }),
+      ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+    },
+  )
+
+  it.each(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'])(
+    'keeps a %s on the burning settle a DEFINITE failure — the request never reached anything that could burn',
+    async (code) => {
+      // The allow-list is deliberately narrow: blanket-promoting every network
+      // error would inflate a seller's records with burns that never happened,
+      // the same corruption as reclassifying a 4xx, in the other direction.
+      const failure = new TypeError('fetch failed')
+      ;(failure as { cause?: unknown }).cause = { code }
+      global.fetch = jest.fn().mockRejectedValue(failure) as any
+      await expect(
+        MppAPI.getInstance(OPTIONS).settleCredential({
+          credential: 'Payment abc',
+          resource: '/ask',
+          httpVerb: 'POST',
+        }),
+      ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+    },
+  )
+
+  it('does not treat a mid-flight reset on a NON-burning call as an unknown outcome', async () => {
+    const failure = new TypeError('fetch failed')
+    ;(failure as { cause?: unknown }).cause = { code: 'ECONNRESET' }
+    global.fetch = jest.fn().mockRejectedValue(failure) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
   it('does not treat a 5xx on a NON-burning call as an unknown outcome', async () => {
     stubFetch(503, { message: 'gateway said no' })
     await expect(
