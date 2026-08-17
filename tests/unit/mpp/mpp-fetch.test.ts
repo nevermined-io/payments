@@ -9,7 +9,13 @@
  * Authorization-append behaviour and the PaymentsError/MppError split.
  */
 import { MppAPI } from '../../../src/mpp/mpp-api.js'
-import { MppCredentialRejectedError, MppError } from '../../../src/mpp/errors.js'
+import {
+  MppCredentialRejectedError,
+  MppError,
+  MppSpendOutcomeUnknownError,
+  isRetryableMppCode,
+  mppSpendOf,
+} from '../../../src/mpp/errors.js'
 import { PaymentsError } from '../../../src/common/payments.error.js'
 
 const OPTIONS = { nvmApiKey: 'eyJhbGciOiJIUzI1NiJ9.e30.sig', environment: 'sandbox' } as any
@@ -49,7 +55,10 @@ const RECEIPT_HEADER =
 const PLAN_ID = '4474276307604749764008023023678147412997099272789659386199734713561313557107'
 const FETCH_OPTIONS = { delegationConfig: { delegationId: 'del-1' } } as any
 
-function challenge402(header: string = CHALLENGE_HEADER, body: unknown = { error: 'Payment Required' }) {
+function challenge402(
+  header: string = CHALLENGE_HEADER,
+  body: unknown = { error: 'Payment Required' },
+) {
   return new Response(JSON.stringify(body), {
     status: 402,
     headers: { 'www-authenticate': header, 'content-type': 'application/json' },
@@ -116,7 +125,11 @@ describe('MppAPI.fetch — happy path', () => {
   it('returns a non-402 response untouched without minting anything', async () => {
     const spy = jest.fn().mockResolvedValue(new Response('ok', { status: 200 }))
     global.fetch = spy as any
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
     expect(result.paid).toBe(false)
     expect(result.settled).toBe(false)
     expect(result.credentialsPresented).toBe(0)
@@ -125,7 +138,11 @@ describe('MppAPI.fetch — happy path', () => {
 
   it('returns a 402 that carries no www-authenticate header at all, untouched', async () => {
     global.fetch = (async () => new Response('nope', { status: 402 })) as any
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
     expect(result.paid).toBe(false)
     expect(result.credentialsPresented).toBe(0)
     expect(result.response.status).toBe(402)
@@ -137,7 +154,11 @@ describe('MppAPI.fetch — happy path', () => {
         status: 402,
         headers: { 'www-authenticate': 'Bearer realm="x"' },
       })) as any
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
     expect(result.paid).toBe(false)
     expect(result.credentialsPresented).toBe(0)
     expect(result.response.status).toBe(402)
@@ -146,22 +167,25 @@ describe('MppAPI.fetch — happy path', () => {
 
 describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail-open gate)', () => {
   it('does not silently re-mint when a seller rejects without a code field (identical challenge id replayed)', async () => {
-    // This is a third-party or non-compliant seller's shape: `{ error,
-    // message }`, no `code`. The SDK's own seller middleware always attaches
-    // a code to a credential-bearing rejection now (BCK.MPP.0003 on a
-    // resolved isValid:false, or the backend's own BCK.MPP.* code when
-    // verifyCredential itself throws — see the integration test in
-    // tests/integration/mpp/mpp-buyer-seller-loop.test.ts, which exercises
-    // that coded path against the real middleware). This test is the
-    // buyer-side defense-in-depth fallback for a seller that does NOT follow
-    // that contract; it is not a stand-in for our own seller's behaviour.
-    // Reusing the SAME challenge header on both turns simulates the
-    // identical-id replay the fallback must close.
+    // `{ error, message }`, no `code` — the shape a third-party seller sends,
+    // and one THIS repo's seller sends too: middleware.ts forwards a code only
+    // when it starts with `BCK.MPP.`, so a verify-side infrastructure failure
+    // (whose synthesized code is `network_error`/`http_${status}`) reaches the
+    // buyer as a codeless 402. That is precisely why the codeless case is not
+    // terminal by itself — see the fresh-id test below.
+    //
+    // What IS terminal, and what this test pins, is a codeless 402 replaying the
+    // IDENTICAL challenge id: the seller is refusing the credential it just
+    // issued a challenge for, so minting against that same challenge again
+    // cannot help and would only spend twice. Same header on both turns.
     const mints = { count: 0 }
     global.fetch = (async (url: any) => {
       const href = String(url)
       if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
-      return challenge402(CHALLENGE_HEADER, { error: 'Payment Required', message: 'Credential rejected' })
+      return challenge402(CHALLENGE_HEADER, {
+        error: 'Payment Required',
+        message: 'Credential rejected',
+      })
     }) as any
 
     await expect(
@@ -187,7 +211,11 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
       return challenge402(CHALLENGE_HEADER_3)
     }) as any
 
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
 
     // Pin the money, not just the request count: two credentials were minted
     // and presented, and the result must say so honestly.
@@ -207,10 +235,13 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
       if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
       served += 1
       if (served === 1) return challenge402()
-      return new Response(JSON.stringify({ code: 'BCK.MPP.0003', message: 'Credential rejected' }), {
-        status: 402,
-        headers: { 'content-type': 'application/json' },
-      })
+      return new Response(
+        JSON.stringify({ code: 'BCK.MPP.0003', message: 'Credential rejected' }),
+        {
+          status: 402,
+          headers: { 'content-type': 'application/json' },
+        },
+      )
     }) as any
 
     await expect(
@@ -230,12 +261,19 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
       if (asked === 2)
         return new Response(
           JSON.stringify({ code: 'BCK.MPP.0004', message: 'Challenge expired' }),
-          { status: 402, headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' } },
+          {
+            status: 402,
+            headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' },
+          },
         )
       return paid200()
     }) as any
 
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
     expect(result.paid).toBe(true)
     expect(mints.count).toBe(2)
     expect(result.credentialsPresented).toBe(2)
@@ -257,12 +295,19 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
       if (asked === 2)
         return new Response(
           JSON.stringify({ code: 'BCK.MPP.0005', message: 'Body digest mismatch' }),
-          { status: 402, headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' } },
+          {
+            status: 402,
+            headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' },
+          },
         )
       return paid200()
     }) as any
 
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
     expect(result.paid).toBe(true)
     expect(mints.count).toBe(2)
     expect(result.credentialsPresented).toBe(2)
@@ -285,7 +330,10 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
       if (asked === 1) return challenge402()
       return new Response(
         JSON.stringify({ code: 'network_error', message: 'Network error during MPP request' }),
-        { status: 402, headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' } },
+        {
+          status: 402,
+          headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' },
+        },
       )
     }) as any
 
@@ -380,9 +428,11 @@ describe('MppAPI.fetch — the re-challenge gate defaults to STOP (blocker: fail
 describe('MppAPI.fetch — malformed challenge and receipt handling', () => {
   it('throws a typed MppError when the 402 challenge cannot be decoded, without minting anything', async () => {
     const malformed = challengeHeader('mal-1', 'zzz')
-    const spy = jest.fn().mockResolvedValue(
-      new Response('{}', { status: 402, headers: { 'www-authenticate': malformed } }),
-    )
+    const spy = jest
+      .fn()
+      .mockResolvedValue(
+        new Response('{}', { status: 402, headers: { 'www-authenticate': malformed } }),
+      )
     global.fetch = spy as any
 
     await expect(
@@ -391,24 +441,64 @@ describe('MppAPI.fetch — malformed challenge and receipt handling', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('throws a typed MppError when the challenge names no planId', async () => {
+  it('refuses a challenge that names no planId at the codec, before anything is minted', async () => {
+    // The refusal comes from isValidChallengeRequestShape in codec.ts, which
+    // rejects a missing/non-string planId outright — so the decode throws and
+    // the buyer never sees a challenge at all. fetch.ts deliberately does NOT
+    // re-check planId: that second guard was unreachable and read as coverage.
     const header = challengeHeader('mal-2', encodeRequest({ credits: '2' }))
-    global.fetch = (async () =>
-      new Response('{}', { status: 402, headers: { 'www-authenticate': header } })) as any
+    const spy = jest.fn(
+      async () => new Response('{}', { status: 402, headers: { 'www-authenticate': header } }),
+    )
+    global.fetch = spy as any
 
     await expect(
       MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS),
     ).rejects.toBeInstanceOf(MppError)
+    // One call: the resource. No /permissions mint.
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('throws a typed MppError when the challenge credits is not a decimal string', async () => {
-    const header = challengeHeader('mal-3', encodeRequest({ planId: '123', credits: 2 }))
-    global.fetch = (async () =>
-      new Response('{}', { status: 402, headers: { 'www-authenticate': header } })) as any
+  it('coerces a NUMERIC credits rather than refusing it, and pays normally', async () => {
+    // Pins the codec's documented coercion, so the credits guard below cannot
+    // be tested with a JSON number and pass for the wrong reason: 2 becomes
+    // '2', which is a valid decimal string.
+    const header = challengeHeader('num-1', encodeRequest({ planId: PLAN_ID, credits: 2 }))
+    let asked = 0
+    const mints = { count: 0 }
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      return asked === 1 ? challenge402(header) : paid200()
+    }) as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
+    expect(result.paid).toBe(true)
+    expect(result.creditsPresented).toBe('2')
+    expect(mints.count).toBe(1)
+  })
+
+  it('refuses a non-decimal credits string BEFORE minting anything', async () => {
+    const header = challengeHeader('mal-3', encodeRequest({ planId: PLAN_ID, credits: '2.5' }))
+    const urls: string[] = []
+    global.fetch = (async (url: any) => {
+      urls.push(String(url))
+      return new Response('{}', { status: 402, headers: { 'www-authenticate': header } })
+    }) as any
 
     await expect(
       MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS),
-    ).rejects.toBeInstanceOf(MppError)
+    ).rejects.toThrow(/non-decimal-string credits/)
+    // The property that matters is not the error type — it is that no mint was
+    // attempted. A stub answering every URL with a 402 makes a mint look like a
+    // failure too, which is how this test previously passed with the guard dead.
+    expect(urls.filter((u) => u.includes('/api/v1/mpp/permissions'))).toHaveLength(0)
+    expect(urls).toHaveLength(1)
   })
 
   it('decodes a malformed Payment-Receipt as absent, with a warning, rather than throwing after payment succeeded', async () => {
@@ -426,7 +516,11 @@ describe('MppAPI.fetch — malformed challenge and receipt handling', () => {
       })
     }) as any
 
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
 
     expect(result.response.status).toBe(200)
     expect(await result.response.json()).toEqual({ answer: '42' })
@@ -465,7 +559,11 @@ describe('MppAPI.fetch — paid/settled reflect settlement evidence, not HTTP st
       })
     }) as any
 
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
 
     expect(result.response.status).toBe(500)
     expect(result.settled).toBe(true)
@@ -491,7 +589,11 @@ describe('MppAPI.fetch — paid/settled reflect settlement evidence, not HTTP st
       return new Response(JSON.stringify({ answer: '42' }), { status: 200 }) // no payment-receipt header
     }) as any
 
-    const result = await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
 
     expect(result.response.status).toBe(200)
     expect(result.paid).toBe(false)
@@ -506,10 +608,14 @@ describe('MppAPI.fetch — argument/guard errors are PaymentsError, not MppError
     global.fetch = (async () => challenge402()) as any
     let error: unknown
     try {
-      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, {
-        ...FETCH_OPTIONS,
-        planId: '999',
-      })
+      await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        {
+          ...FETCH_OPTIONS,
+          planId: '999',
+        },
+      )
     } catch (caught) {
       error = caught
     }
@@ -522,7 +628,11 @@ describe('MppAPI.fetch — argument/guard errors are PaymentsError, not MppError
     global.fetch = (async () => challenge402()) as any // CHALLENGE_HEADER asks for 2 credits
     let error: unknown
     try {
-      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, { ...FETCH_OPTIONS, maxCredits: 1 })
+      await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        { ...FETCH_OPTIONS, maxCredits: 1 },
+      )
     } catch (caught) {
       error = caught
     }
@@ -550,7 +660,10 @@ describe('MppAPI.fetch — argument/guard errors are PaymentsError, not MppError
   })
 
   it('re-checks the credits cap on the re-challenge turn, not just the first challenge', async () => {
-    const highCreditsHeader = challengeHeader('fresh-high', encodeRequest({ planId: PLAN_ID, credits: '10000' }))
+    const highCreditsHeader = challengeHeader(
+      'fresh-high',
+      encodeRequest({ planId: PLAN_ID, credits: '10000' }),
+    )
     let asked = 0
     const mints = { count: 0 }
     global.fetch = (async (url: any) => {
@@ -562,7 +675,11 @@ describe('MppAPI.fetch — argument/guard errors are PaymentsError, not MppError
 
     let error: unknown
     try {
-      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, { ...FETCH_OPTIONS, maxCredits: 5 })
+      await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        { ...FETCH_OPTIONS, maxCredits: 5 },
+      )
     } catch (caught) {
       error = caught
     }
@@ -629,11 +746,9 @@ describe('MppAPI.fetch — argument/guard errors are PaymentsError, not MppError
     global.fetch = spy as any
     let error: unknown
     try {
-      await MppAPI.getInstance(OPTIONS).fetch(
-        'https://agent.example/ask',
-        {},
-        { delegationConfig: { spendingLimitCents: 10000, durationSecs: 604800 } } as any,
-      )
+      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, {
+        delegationConfig: { spendingLimitCents: 10000, durationSecs: 604800 },
+      } as any)
     } catch (caught) {
       error = caught
     }
@@ -666,11 +781,9 @@ describe('MppAPI.fetch — argument/guard errors are PaymentsError, not MppError
     }) as any
 
     await expect(
-      MppAPI.getInstance(OPTIONS).fetch(
-        'https://agent.example/ask',
-        {},
-        { delegationConfig: { spendingLimitCents: 10000, durationSecs: 604800 } } as any,
-      ),
+      MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, {
+        delegationConfig: { spendingLimitCents: 10000, durationSecs: 604800 },
+      } as any),
     ).rejects.toBeInstanceOf(PaymentsError)
     expect(permissionsCalls).toBe(0)
   })
@@ -696,5 +809,335 @@ describe('MppAPI.fetch — Authorization header handling', () => {
 
     const retry = calls.filter((c) => c.url.includes('/ask'))[1]
     expect(retry.headers['authorization']).toMatch(/^Payment .+, Bearer caller-own-api-key$/)
+  })
+})
+
+describe('MppAPI.fetch — every exit reports what may already have been spent', () => {
+  /** A 402 asking for `credits` under a distinct challenge id. */
+  function priced402(id: string, credits: string) {
+    return challenge402(challengeHeader(id, encodeRequest({ planId: PLAN_ID, credits })))
+  }
+
+  it('carries the spend accounting on the terminal-rejection throw, not only on the return', async () => {
+    let asked = 0
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      asked += 1
+      return asked === 1
+        ? challenge402()
+        : new Response(JSON.stringify({ code: 'BCK.MPP.0003', message: 'Credential rejected' }), {
+            status: 402,
+            headers: { 'content-type': 'application/json' },
+          })
+    }) as any
+
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    } catch (caught) {
+      error = caught
+    }
+
+    expect(error).toBeInstanceOf(MppCredentialRejectedError)
+    // The credential and its access token are function-local and gone by now:
+    // without these numbers the caller cannot tell that money left.
+    expect(mppSpendOf(error)).toEqual({
+      credentialsPresented: 1,
+      creditsPresented: '2',
+      challengeId: 'CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og',
+    })
+  })
+
+  it('wraps a transport failure on the credential-bearing retry so the documented handler catches it', async () => {
+    const transportFailure = new TypeError('fetch failed')
+    let asked = 0
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      asked += 1
+      if (asked === 1) return challenge402()
+      throw transportFailure
+    }) as any
+
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    } catch (caught) {
+      error = caught
+    }
+
+    // A raw TypeError here would escape `catch (e) { if (e instanceof MppError) }`
+    // — the pattern this module and markdown/mpp-integration.md both prescribe —
+    // while the credential was already on the wire.
+    expect(error).toBeInstanceOf(MppSpendOutcomeUnknownError)
+    expect(error).toBeInstanceOf(MppError)
+    expect((error as MppSpendOutcomeUnknownError).cause).toBe(transportFailure)
+    expect((error as MppError).code).toBe('spend_outcome_unknown')
+    expect(mppSpendOf(error)?.credentialsPresented).toBe(1)
+    expect(mppSpendOf(error)?.creditsPresented).toBe('2')
+  })
+
+  it('leaves a transport failure that happens BEFORE any credential exactly as fetch threw it', async () => {
+    const transportFailure = new TypeError('fetch failed')
+    global.fetch = (async () => {
+      throw transportFailure
+    }) as any
+
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS)
+    } catch (caught) {
+      error = caught
+    }
+
+    // Nothing was spent, so wrapping it would only obscure a plain network fault.
+    expect(error).toBe(transportFailure)
+    expect(error).not.toBeInstanceOf(MppError)
+    expect(mppSpendOf(error)).toBeUndefined()
+  })
+
+  it('carries the accounting on a PaymentsError raised on the re-challenge turn', async () => {
+    let asked = 0
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions'))
+        return new Response(JSON.stringify({ accessToken: 'mpp-token' }), { status: 201 })
+      asked += 1
+      return asked === 1 ? priced402('turn-1', '100') : priced402('turn-2', '100')
+    }) as any
+
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        { ...FETCH_OPTIONS, maxCredits: 150 },
+      )
+    } catch (caught) {
+      error = caught
+    }
+
+    // "Nothing was ever minted when a PaymentsError throws" is only true on the
+    // FIRST turn; a guard firing on the re-challenge turn fires after a
+    // credential has been presented, and must say so.
+    expect(error).toBeInstanceOf(PaymentsError)
+    expect(mppSpendOf(error)).toEqual({
+      credentialsPresented: 1,
+      creditsPresented: '100',
+      challengeId: 'turn-1',
+    })
+  })
+
+  it('returns the 402 — rather than throwing — when a retryable code carries no challenge to retry against', async () => {
+    let asked = 0
+    const mints = { count: 0 }
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      if (asked === 1) return challenge402()
+      // Retryable code, but no WWW-Authenticate: the next turn finds nothing to
+      // mint against. Documented dead end #2 on mppFetch.
+      return new Response(JSON.stringify({ code: 'BCK.MPP.0004', message: 'expired' }), {
+        status: 402,
+        headers: { 'content-type': 'application/json' },
+      })
+    }) as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
+    expect(result.response.status).toBe(402)
+    expect(result.paid).toBe(false)
+    // A resolved promise does NOT mean nothing was spent — one credential is out.
+    expect(result.credentialsPresented).toBe(1)
+    expect(result.creditsPresented).toBe('2')
+    expect(mints.count).toBe(1)
+  })
+})
+
+describe('MppAPI.fetch — maxCredits is a budget for the CALL', () => {
+  function priced402(id: string, credits: string) {
+    return challenge402(challengeHeader(id, encodeRequest({ planId: PLAN_ID, credits })))
+  }
+
+  function twoTurnSeller(mints: { count: number }, prices: [string, string]) {
+    let asked = 0
+    return (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      if (asked === 1) return priced402('turn-1', prices[0])
+      if (asked === 2) return priced402('turn-2', prices[1])
+      return paid200()
+    }) as any
+  }
+
+  it('refuses the second turn when the two challenges TOGETHER exceed the cap', async () => {
+    const mints = { count: 0 }
+    global.fetch = twoTurnSeller(mints, ['100', '100'])
+
+    await expect(
+      MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        { ...FETCH_OPTIONS, maxCredits: 150 },
+      ),
+    ).rejects.toBeInstanceOf(PaymentsError)
+    // A per-turn cap would have allowed both — 100 ≤ 150 twice — and let the
+    // seller collect 200 against a cap that reads as 150.
+    expect(mints.count).toBe(1)
+  })
+
+  it('allows both turns when their total fits, and reports the SUM as creditsPresented', async () => {
+    const mints = { count: 0 }
+    global.fetch = twoTurnSeller(mints, ['100', '40'])
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      { ...FETCH_OPTIONS, maxCredits: 150 },
+    )
+    expect(result.paid).toBe(true)
+    expect(result.credentialsPresented).toBe(2)
+    // Not '40': a re-challenge may name a different price, and the caller is
+    // accounting for the call, not for the last turn.
+    expect(result.creditsPresented).toBe('140')
+    expect(mints.count).toBe(2)
+  })
+
+  it.each([
+    ['a non-numeric string', 'abc'],
+    ['a decimal string', '2.5'],
+    ['a negative number', -1],
+    ['a fractional number', 1.5],
+  ])('refuses %s maxCredits at entry, before any request is made', async (_label, value) => {
+    const spy = jest.fn()
+    global.fetch = spy as any
+
+    let error: unknown
+    try {
+      await MppAPI.getInstance(OPTIONS).fetch(
+        'https://agent.example/ask',
+        {},
+        { ...FETCH_OPTIONS, maxCredits: value as any },
+      )
+    } catch (caught) {
+      error = caught
+    }
+
+    // A bad argument must not surface mid-flight as a raw SyntaxError/RangeError
+    // out of BigInt() on whatever 402 happens to arrive first.
+    expect(error).toBeInstanceOf(PaymentsError)
+    expect(error).not.toBeInstanceOf(MppError)
+    expect((error as Error).message).toMatch(/maxCredits/)
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe('MppAPI.fetch — the retryable-code decision comes from errors.ts', () => {
+  // Pins the buyer to isRetryableMppCode instead of a copied literal set: add a
+  // code to the canonical set and this test demands the buyer follow, which a
+  // local `new Set([...])` in fetch.ts would fail.
+  it.each(['BCK.MPP.0002', 'BCK.MPP.0003', 'BCK.MPP.0004', 'BCK.MPP.0005', 'BCK.MPP.0099'])(
+    'treats %s exactly as isRetryableMppCode says',
+    async (code) => {
+      let asked = 0
+      const mints = { count: 0 }
+      global.fetch = (async (url: any) => {
+        const href = String(url)
+        if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+        asked += 1
+        if (asked === 1) return challenge402()
+        // Same challenge id on every turn, so the id-freshness fallback cannot
+        // account for a retry: only the code can.
+        return new Response(JSON.stringify({ code, message: 'rejected' }), {
+          status: 402,
+          headers: { 'www-authenticate': CHALLENGE_HEADER, 'content-type': 'application/json' },
+        })
+      }) as any
+
+      const retryable = isRetryableMppCode(code)
+      let error: unknown
+      let result: Awaited<ReturnType<MppAPI['fetch']>> | undefined
+      try {
+        result = await MppAPI.getInstance(OPTIONS).fetch(
+          'https://agent.example/ask',
+          {},
+          FETCH_OPTIONS,
+        )
+      } catch (caught) {
+        error = caught
+      }
+
+      if (retryable) {
+        expect(error).toBeUndefined()
+        expect(mints.count).toBe(2)
+        expect(result?.credentialsPresented).toBe(2)
+        expect(result?.response.status).toBe(402)
+      } else {
+        expect(error).toBeInstanceOf(MppError)
+        expect(mints.count).toBe(1)
+      }
+    },
+  )
+})
+
+describe('MppAPI.fetch — hostile 402 error bodies', () => {
+  it('treats a `code: null` body as codeless, so a genuinely fresh challenge is still retried', async () => {
+    let asked = 0
+    const mints = { count: 0 }
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      if (asked === 1) return challenge402()
+      if (asked === 2)
+        // `{"code": null}` is a routine way to serialize "no code". Read
+        // literally it both defeats the `code === undefined` fallback gate and
+        // puts a null in a field typed `code?: string`.
+        return new Response(JSON.stringify({ code: null, message: 'try again' }), {
+          status: 402,
+          headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' },
+        })
+      return paid200()
+    }) as any
+
+    const result = await MppAPI.getInstance(OPTIONS).fetch(
+      'https://agent.example/ask',
+      {},
+      FETCH_OPTIONS,
+    )
+    expect(result.paid).toBe(true)
+    expect(mints.count).toBe(2)
+  })
+
+  it('stops reading a 402 body at the cap, which lands on the terminal (unreadable) path', async () => {
+    let asked = 0
+    const mints = { count: 0 }
+    const huge = `{"code":"BCK.MPP.0004","pad":"${'x'.repeat(200 * 1024)}"}`
+    global.fetch = (async (url: any) => {
+      const href = String(url)
+      if (href.includes('/api/v1/mpp/permissions')) return mintStub(mints)()
+      asked += 1
+      if (asked === 1) return challenge402()
+      return new Response(huge, {
+        status: 402,
+        headers: { 'www-authenticate': CHALLENGE_HEADER_2, 'content-type': 'application/json' },
+      })
+    }) as any
+
+    // Truncated JSON cannot parse, so the body is "unreadable" — terminal, one
+    // mint. Fail-closed: a seller cannot buy a second mint with a huge body,
+    // and cannot make the buyer buffer it either.
+    await expect(
+      MppAPI.getInstance(OPTIONS).fetch('https://agent.example/ask', {}, FETCH_OPTIONS),
+    ).rejects.toBeInstanceOf(MppError)
+    expect(mints.count).toBe(1)
   })
 })

@@ -6,7 +6,58 @@
  * does not try to reconstruct why a credential was refused.
  */
 
+/**
+ * What a buyer-side failure reports about money already committed.
+ *
+ * `payments.mpp.fetch` returns this accounting on its success path
+ * (`credentialsPresented` / `creditsPresented` on `MppFetchResult`). It is
+ * repeated on the ERROR path because that is where a caller needs it most: the
+ * credential and its access token are function-local and gone once the helper
+ * throws, so an error without these numbers leaves the caller unable to tell
+ * whether money left — the one outcome a buyer helper must never produce.
+ *
+ * Read it with {@link mppSpendOf} rather than casting: it rides on
+ * `PaymentsError` too (a `maxCredits` or `planId` guard can fire on the
+ * re-challenge turn, after a credential has already been presented).
+ */
+export interface MppSpendReport {
+  /** How many credentials were minted and sent before the failure (0, 1 or 2). */
+  credentialsPresented: number
+  /**
+   * Total credits named by the challenges those credentials were minted
+   * against, as a decimal string. Present whenever `credentialsPresented > 0`.
+   */
+  creditsPresented?: string
+  /** `id` of the challenge the last credential was minted against, so the caller can correlate it with the seller's side. */
+  challengeId?: string
+}
+
+/**
+ * Reads the spend accounting off any error raised by `payments.mpp.fetch`.
+ *
+ * Exported so a caller never has to hand-cast: the field is declared on
+ * {@link MppError} but is also attached to the {@link PaymentsError} a
+ * caller-constraint guard throws on the re-challenge turn, and those two do
+ * not share a base class. `undefined` means no credential had been presented
+ * when the error was raised — nothing was spent.
+ */
+export function mppSpendOf(error: unknown): MppSpendReport | undefined {
+  if (typeof error !== 'object' || error === null) return undefined
+  const spend = (error as { spend?: unknown }).spend
+  if (typeof spend !== 'object' || spend === null) return undefined
+  return typeof (spend as MppSpendReport).credentialsPresented === 'number'
+    ? (spend as MppSpendReport)
+    : undefined
+}
+
 export class MppError extends Error {
+  /**
+   * Spend accounting, set when this error was raised after a credential had
+   * been minted and presented. Absent means nothing was spent. Prefer
+   * {@link mppSpendOf}, which also reads it off a `PaymentsError`.
+   */
+  spend?: MppSpendReport
+
   constructor(
     message: string,
     readonly code?: string,
@@ -81,6 +132,42 @@ export class MppSettlementOutcomeUnknownError extends MppError {
     // serialization boundary.
     super(message, MPP_SETTLEMENT_OUTCOME_UNKNOWN_CODE)
     this.name = 'MppSettlementOutcomeUnknownError'
+  }
+}
+
+/**
+ * Stable `code` on {@link MppSpendOutcomeUnknownError}. Not a backend code, for
+ * the same reason as {@link MPP_SETTLEMENT_OUTCOME_UNKNOWN_CODE}.
+ */
+export const MPP_SPEND_OUTCOME_UNKNOWN_CODE = 'spend_outcome_unknown'
+
+/**
+ * The buyer-side mirror of {@link MppSettlementOutcomeUnknownError}: raised
+ * when the retry that carries a credential fails at the transport level — a
+ * disconnect, a DNS failure, or the caller's own `AbortSignal` firing between
+ * the mint and the retry (`init.signal` is re-sent with it).
+ *
+ * The credential is on the wire by then, so the seller may already have
+ * verified and burned it. Left as the raw `TypeError` that `fetch` rejects
+ * with, the failure would escape the `catch (e) { if (e instanceof MppError) }`
+ * pattern this module and `markdown/mpp-integration.md` both prescribe, and
+ * carry no accounting at all: spent, invisible, unrecoverable. Wrapped, it
+ * reaches the documented handler with {@link MppSpendReport} attached and the
+ * original error preserved on `cause`.
+ *
+ * A transport failure BEFORE any credential exists is not this error — it stays
+ * exactly as `fetch` threw it, because nothing was spent and wrapping it would
+ * only obscure a plain network fault.
+ */
+export class MppSpendOutcomeUnknownError extends MppError {
+  /** The original error `fetch` (or the mint) rejected with. */
+  readonly cause?: unknown
+
+  constructor(message: string, cause?: unknown, spend?: MppSpendReport) {
+    super(message, MPP_SPEND_OUTCOME_UNKNOWN_CODE)
+    this.name = 'MppSpendOutcomeUnknownError'
+    this.cause = cause
+    this.spend = spend
   }
 }
 

@@ -21,11 +21,14 @@
 import { PaymentsError } from '../common/payments.error.js'
 import type { DelegationConfig, X402TokenOptions } from '../common/types.js'
 import { buildCredentialHeader, parseChallengeHeader, parseReceiptHeader } from './codec.js'
-import { MppError, toMppError } from './errors.js'
+import { MppError, MppSpendOutcomeUnknownError, isRetryableMppCode, toMppError } from './errors.js'
+import type { MppSpendReport } from './errors.js'
 import type { MppChallenge, MppReceipt } from './types.js'
 
 /**
  * Options for {@link mppFetch} / `MppAPI.fetch`.
+ *
+ * @experimental The MPP buyer surface may change in a minor release.
  *
  * The request's `init.body`, if any, must be replayable **if the endpoint may
  * challenge the request**: a `ReadableStream` body throws a typed
@@ -50,13 +53,27 @@ export interface MppFetchOptions {
   /** Fail before minting if the challenge names a different plan than this. */
   planId?: string
   /**
-   * Fail before minting if the challenge asks for more credits than this. A
-   * seller unilaterally names the price in the challenge; without a cap this
-   * helper mints against whatever it asks, on every re-challenge turn too.
+   * Budget for the WHOLE call, not for one challenge: the helper refuses to
+   * mint whenever the credits named so far plus the credits this challenge
+   * asks for would exceed it. A seller unilaterally names the price, and a
+   * re-challenge names it again — a per-turn cap would therefore bound each
+   * turn at `maxCredits` and the call at twice it, which is not what "cap"
+   * reads as. `creditsPresented` on the result is the same running total, so
+   * the two always speak about the same number.
+   *
+   * Must be a non-negative integer (a decimal string, a safe integer, or a
+   * `bigint`); anything else is refused with a {@link PaymentsError} at entry,
+   * before the first request, rather than mid-flight on the first 402.
    */
   maxCredits?: string | number | bigint
 }
 
+/**
+ * What {@link mppFetch} / `MppAPI.fetch` resolves to.
+ *
+ * @experimental Fields may be added or change meaning in a minor release —
+ * `settled` and `creditsPresented` both did during review.
+ */
 export interface MppFetchResult {
   /** The final response — the paid one when a payment happened. */
   response: Response
@@ -68,9 +85,15 @@ export interface MppFetchResult {
    */
   receipt?: MppReceipt
   /**
-   * Whether the settlement succeeded, derived from the receipt — the only
-   * settlement evidence on the wire — not from the HTTP status. `settled`
-   * implies `receipt` is present; the reverse is not required.
+   * Whether the endpoint returned settlement evidence — exactly "a
+   * `Payment-Receipt` decoded cleanly", never derived from the HTTP status.
+   *
+   * `MppReceipt.status` is deliberately NOT interpreted: it is a seller-set
+   * string with no agreed vocabulary beyond `'success'`, so treating an
+   * unrecognized value as failure would report `settled: false` for a burn
+   * that happened — a worse lie than the one it would fix. This SDK's own
+   * seller attaches a receipt only when settlement succeeded. Against a
+   * third-party seller, read `receipt.status` yourself if it matters.
    */
   settled: boolean
   /**
@@ -83,10 +106,11 @@ export interface MppFetchResult {
    */
   credentialsPresented: number
   /**
-   * Credits named by the last challenge a credential was minted and
-   * presented for, as a decimal string. Present whenever
-   * `credentialsPresented > 0`, so a caller can account for what may have
-   * been spent even when `settled` is false.
+   * TOTAL credits named by every challenge a credential was minted against
+   * during this call, as a decimal string — summed, not the last turn's
+   * amount, since a re-challenge is free to name a different price and the
+   * caller is accounting for the call. Present whenever
+   * `credentialsPresented > 0`.
    */
   creditsPresented?: string
   /**
@@ -95,6 +119,13 @@ export interface MppFetchResult {
    * settlement that silently failed) and a non-2xx with a receipt (settle-
    * then-error) are both `paid: false` — check `settled` and
    * `credentialsPresented` for the honest picture in either case.
+   *
+   * `ok: true, paid: false, credentialsPresented: 1` is a ROUTINE outcome, not
+   * an exotic one: a seller whose handler streams or flushes has already sent
+   * its headers when settlement runs, so `Payment-Receipt` cannot be attached
+   * to a response that is already on the wire (this SDK's own middleware says
+   * so where it settles detached). The credits were burned. Never read this
+   * combination as "the payment did not happen" and retry.
    */
   paid: boolean
 }
@@ -121,20 +152,14 @@ function isNonReplayableBody(body: BodyInit | null | undefined): boolean {
 }
 
 /**
- * Backend codes that name a condition the buyer can resolve by paying again.
+ * Cap on how much of a 402's error body is buffered before parsing it.
  *
- * - `BCK.MPP.0004` (expired challenge) — the fresh challenge that comes back
- *   with it supersedes the expired one outright.
- * - `BCK.MPP.0005` (body-digest mismatch) — the 402 answering it carries a
- *   freshly minted challenge sealed to the digest of the request that just
- *   arrived, so a new credential for it (same body) would match. Nothing
- *   about this failure is permanent, unlike every other `BCK.MPP.*` code.
- *
- * No wire-level "this class of code is retryable" signal exists yet, so
- * these two are enumerated explicitly rather than inferred from a range or a
- * flag; if the backend starts publishing that signal, prefer it here.
+ * The body is seller-controlled and read purely to look for a `code`, so a
+ * hostile or broken endpoint answering a 402 with an unbounded stream must not
+ * be able to exhaust the buyer's memory. A truncated read cannot yield valid
+ * JSON, which lands on the existing "unreadable body → terminal" path.
  */
-const RETRYABLE_CODES = new Set(['BCK.MPP.0004', 'BCK.MPP.0005'])
+const MAX_ERROR_BODY_BYTES = 64 * 1024
 
 /** The origin of `input`, or the raw value when it does not parse as a URL — used only to label a remote error. */
 function originOf(input: string | URL): string {
@@ -164,25 +189,106 @@ function tryParseChallenge(headerValue: string): MppChallenge | null {
 }
 
 /**
- * Validates the decoded challenge request shape before it is ever minted
- * against. `parseChallengeHeader` decodes seller-supplied base64url JSON with
- * no shape guarantees at the type level — a malformed or malicious challenge
- * must be refused with a typed error, not surface as a raw `TypeError` off
- * `challenge.request.planId` or a confusing downstream backend 4xx.
+ * Refuses a challenge whose `credits` is not a decimal string before it is
+ * ever minted against.
+ *
+ * `parseChallengeHeader` guarantees `credits` is a string OR a number and
+ * coerces the number (`isValidChallengeRequestShape` / `toChallengeRequest` in
+ * `codec.ts`), so what survives to here and still needs refusing is a string
+ * that is not a non-negative integer — `'2.5'`, `'-1'`, `'1e3'`, `'abc'`. Each
+ * of those would otherwise reach `BigInt()` in the cap comparison as a raw
+ * `SyntaxError`, or the mint as a price nothing can account for.
+ *
+ * `planId` is NOT re-checked here: the codec already rejects a non-string or
+ * empty `planId` outright, so a second guard for it was unreachable code that
+ * read as coverage.
  */
 function assertValidChallengeRequest(challenge: MppChallenge, input: string | URL): void {
-  const request: any = challenge.request
-  const planId = request?.planId
-  if (typeof planId !== 'string' || !planId) {
-    throw new MppError(`The MPP challenge from ${originOf(input)} names no planId; refusing to mint.`)
-  }
-  const credits = request?.credits
+  const credits: unknown = challenge.request?.credits
   if (typeof credits !== 'string' || !/^\d+$/.test(credits)) {
     throw new MppError(
       `The MPP challenge from ${originOf(input)} names a non-decimal-string credits value ` +
         `(${JSON.stringify(credits)}); refusing to mint.`,
     )
   }
+}
+
+/**
+ * Validates `options.maxCredits` at entry and normalizes it to a `bigint`.
+ *
+ * At entry, not at the comparison: `maxCredits` is a caller argument, and a
+ * caller mistake must surface before the first request rather than mid-flight
+ * on whatever 402 happens to arrive — and as a {@link PaymentsError}, which is
+ * what this module documents for bad arguments, rather than the raw
+ * `SyntaxError`/`RangeError` that `BigInt('abc')` or `BigInt(1.5)` throws.
+ */
+function parseMaxCredits(value: string | number | bigint | undefined): bigint | undefined {
+  if (value === undefined) return undefined
+  const refuse = () =>
+    PaymentsError.validation(
+      `maxCredits must be a non-negative integer (decimal string, safe integer or bigint), ` +
+        `got ${JSON.stringify(typeof value === 'bigint' ? String(value) : value)}`,
+    )
+  if (typeof value === 'bigint') {
+    if (value < 0n) throw refuse()
+    return value
+  }
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value) || value < 0) throw refuse()
+    return BigInt(value)
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return BigInt(value.trim())
+  throw refuse()
+}
+
+/**
+ * Reads at most {@link MAX_ERROR_BODY_BYTES} of a response body as text.
+ *
+ * Streams the clone and stops at the cap instead of `text()`-ing it, so an
+ * endpoint answering a 402 with an endless body cannot be used to exhaust the
+ * buyer. A runtime whose `Response` exposes no readable `body` (or a test
+ * double) falls back to `text()` with the same cap applied afterwards — the
+ * bound is then advisory, which is why the streaming path is preferred.
+ */
+async function readBoundedText(response: Response): Promise<string> {
+  const body = response.body
+  if (!body || typeof body.getReader !== 'function') {
+    return (await response.text()).slice(0, MAX_ERROR_BODY_BYTES)
+  }
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      // Truncate the chunk that crosses the cap rather than retaining it whole:
+      // the transport chooses the chunk size, so "stop after the chunk that
+      // crossed" would let one huge chunk defeat the bound entirely.
+      const room = MAX_ERROR_BODY_BYTES - size
+      if (value.byteLength >= room) {
+        chunks.push(value.subarray(0, room))
+        size = MAX_ERROR_BODY_BYTES
+        break
+      }
+      chunks.push(value)
+      size += value.byteLength
+    }
+  } finally {
+    // NOT awaited, deliberately: this reader is one branch of the tee that
+    // `clone()` creates, and awaiting its cancel deadlocks while the sibling
+    // branch (the response the caller still holds) is unread — verified, it
+    // hangs rather than resolving. Signalling the cancel is enough.
+    reader.cancel().catch(() => undefined)
+  }
+  const joined = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    joined.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return new TextDecoder().decode(joined)
 }
 
 /**
@@ -199,7 +305,7 @@ async function readMppErrorCode(
 ): Promise<{ code?: string; message: string; bodyUnreadable?: boolean }> {
   let raw: string
   try {
-    raw = await response.clone().text()
+    raw = await readBoundedText(response.clone())
   } catch (err) {
     return {
       message: `MPP 402 body could not be read: ${err instanceof Error ? err.message : String(err)}`,
@@ -215,7 +321,13 @@ async function readMppErrorCode(
     // `message` as always a string instead of risking a raw TypeError.
     const rawMessage = body?.message ?? body?.error
     const message = typeof rawMessage === 'string' ? rawMessage : 'MPP request failed'
-    return { code: body?.code, message }
+    // `code` is only a code when it is a non-empty string. `{"code": null}` is
+    // a routine way to serialize "no code", and taking it literally would both
+    // store a `null` in a field typed `code?: string` and skip the
+    // fresh-challenge fallback — which is gated on `code === undefined` — so a
+    // legitimate re-challenge from such a seller would read as terminal.
+    const code = typeof body?.code === 'string' && body.code !== '' ? body.code : undefined
+    return { code, message }
   } catch {
     return {
       message: `MPP 402 was not JSON (likely a proxy or WAF page): ${raw.slice(0, 200)}`,
@@ -232,14 +344,36 @@ async function readMppErrorCode(
  * loop would burn a credential per turn.
  *
  * The default on a retry-turn 402 is to STOP, not to pay again: a genuinely
- * fresh challenge (a different `id` from the one just presented) or an
- * explicit retryable code (`BCK.MPP.0004` expired, `BCK.MPP.0005` body-digest
- * mismatch — see {@link RETRYABLE_CODES}) is retryable; any other coded
- * rejection (including a non-`BCK.MPP.*` code, e.g. a `network_error`/
- * `http_500`-shaped one `MppAPI.post` can synthesize and this repo's own
- * seller forwards), an unreadable body, or the seller replaying the
- * identical challenge id are all terminal. A credential already proven
- * invalid is never paid for twice.
+ * fresh challenge (a different `id` from the one just presented) or a code
+ * {@link isRetryableMppCode} accepts (`BCK.MPP.0004` expired, `BCK.MPP.0005`
+ * body-digest mismatch) is retryable; any other coded rejection (including a
+ * non-`BCK.MPP.*` code, e.g. a `network_error`/`http_500`-shaped one
+ * `MppAPI.post` can synthesize and this repo's own seller forwards), an
+ * unreadable body, or the seller replaying the identical challenge id are all
+ * terminal. A credential already proven invalid is never paid for twice.
+ *
+ * ### What throws and what comes back as a 402
+ *
+ * Only a rejection the remote NAMED throws. Three dead ends RETURN the 402
+ * instead, because the response is evidence the caller may need and throwing
+ * would discard it:
+ *
+ * 1. A 402 with no `WWW-Authenticate: Payment …` challenge at all (either
+ *    turn) — the endpoint may not speak MPP; `credentialsPresented: 0`.
+ * 2. A retry-turn 402 that IS retryable but carries no challenge to retry
+ *    against, so the next turn finds nothing to mint for.
+ * 3. The one re-challenge cycle spent: two credentials presented and the
+ *    seller still answering 402.
+ *
+ * In cases 2 and 3 a credential WAS presented and may have been burned, so the
+ * result is `paid: false` with a non-zero `credentialsPresented` and the last
+ * 402 as `response`. Checking `response.ok` is therefore not optional — a
+ * resolved promise does not mean the request was paid for.
+ *
+ * Every throw raised after a credential was presented carries the same
+ * accounting as {@link MppSpendReport}, readable with `mppSpendOf(error)`,
+ * including a transport failure on the credential-bearing retry (wrapped as
+ * {@link MppSpendOutcomeUnknownError} so `instanceof MppError` catches it).
  */
 export async function mppFetch(
   mintToken: MppTokenMinter,
@@ -247,10 +381,19 @@ export async function mppFetch(
   init: RequestInit | undefined,
   options: MppFetchOptions,
 ): Promise<MppFetchResult> {
+  const maxCredits = parseMaxCredits(options.maxCredits)
   const maxChallenges = 2
   let response = await fetch(input, init)
   let credentialsPresented = 0
-  let creditsPresented: string | undefined
+  let creditsPresentedTotal = 0n
+  let lastChallengeId: string | undefined
+
+  /** The accounting as it stands right now — reported identically on the return and the throw paths. */
+  const spend = (): MppSpendReport => ({
+    credentialsPresented,
+    ...(credentialsPresented > 0 && { creditsPresented: creditsPresentedTotal.toString() }),
+    ...(lastChallengeId !== undefined && { challengeId: lastChallengeId }),
+  })
 
   for (let attempt = 0; attempt < maxChallenges; attempt++) {
     if (response.status !== 402) break
@@ -258,86 +401,108 @@ export async function mppFetch(
     const challengeHeader = response.headers.get('www-authenticate')
     if (!challengeHeader) break
 
-    let challenge: MppChallenge | null
+    // Everything from here to the end of the turn can throw AFTER a credential
+    // has been presented on an earlier turn — and, past the mint, after one has
+    // been presented on this one. A single boundary attaches the accounting to
+    // whatever comes out, so no exit from this function is silent about money.
     try {
-      challenge = parseChallengeHeader(challengeHeader)
+      let challenge: MppChallenge | null
+      try {
+        challenge = parseChallengeHeader(challengeHeader)
+      } catch (err) {
+        throw new MppError(
+          `The 402 from ${originOf(input)} carried a malformed MPP challenge ` +
+            `(${err instanceof Error ? err.message : String(err)}). No payment was attempted.`,
+        )
+      }
+      if (!challenge) break
+      assertValidChallengeRequest(challenge, input)
+
+      const planId = challenge.request.planId
+      if (options.planId && options.planId !== planId) {
+        throw PaymentsError.validation(
+          `MPP challenge names plan ${planId}, but plan ${options.planId} was pinned by the caller`,
+        )
+      }
+
+      // The cap bounds the CALL: what this challenge asks for is added to what
+      // earlier turns already committed. Bounding each turn separately would
+      // let a seller collect `maxCredits` twice by re-challenging once.
+      const credits = BigInt(challenge.request.credits)
+      if (maxCredits !== undefined && creditsPresentedTotal + credits > maxCredits) {
+        throw PaymentsError.validation(
+          `MPP challenge asks for ${challenge.request.credits} credits, which would take this call to ` +
+            `${creditsPresentedTotal + credits}, above the caller's cap of ${maxCredits}` +
+            (credentialsPresented > 0
+              ? ` (${creditsPresentedTotal} already presented on ${credentialsPresented} credential(s))`
+              : ''),
+        )
+      }
+
+      // A retry resends init.body verbatim. A ReadableStream is single-read —
+      // the first fetch() above already consumed it once — so replaying it now
+      // would throw an opaque runtime TypeError. Checked here, at the point a
+      // retry is actually about to happen, not before the (harmless) first
+      // attempt: whether this endpoint ever challenges is not known ahead of
+      // time, and a stream body against a non-challenging endpoint is fine.
+      if (isNonReplayableBody(init?.body)) {
+        throw PaymentsError.validation(
+          'payments.mpp.fetch cannot retry a ReadableStream request body: streams are single-read, ' +
+            'so the 402 challenge from this endpoint cannot be replayed. Pass a replayable body ' +
+            'instead — a string, Buffer/ArrayBuffer/typed array, URLSearchParams, FormData or Blob.',
+        )
+      }
+
+      const { accessToken } = await mintToken(
+        planId,
+        options.agentId ?? challenge.request.agentId,
+        { delegationConfig: options.delegationConfig },
+      )
+
+      const headers = new Headers(init?.headers ?? {})
+      const existingAuth = headers.get('authorization')
+      const credential = buildCredentialHeader(challenge, { accessToken })
+      // Append, not replace: a caller authenticating to the resource server
+      // with its own Authorization (the normal shape for a metered API) must
+      // not have that credential stripped on the request that costs money.
+      // Our own seller's extractPaymentScheme was hardened for exactly this
+      // multi-scheme shape.
+      headers.set('authorization', existingAuth ? `${credential}, ${existingAuth}` : credential)
+
+      // Counted BEFORE the request, not after: the credential is on the wire as
+      // soon as fetch() is called, so a rejection here (disconnect, DNS, the
+      // caller's AbortSignal) must not report zero credentials presented. The
+      // seller may already have verified and burned it.
+      credentialsPresented += 1
+      creditsPresentedTotal += credits
+      lastChallengeId = challenge.id
+      response = await fetch(input, { ...init, headers })
+
+      if (response.status === 402) {
+        const { code, message, bodyUnreadable } = await readMppErrorCode(response)
+
+        let isFreshChallenge = false
+        if (code === undefined && !bodyUnreadable) {
+          const nextChallengeHeader = response.headers.get('www-authenticate')
+          const nextChallenge = nextChallengeHeader ? tryParseChallenge(nextChallengeHeader) : null
+          isFreshChallenge = !!nextChallenge && nextChallenge.id !== challenge.id
+        }
+
+        if (!isRetryableMppCode(code) && !isFreshChallenge) {
+          throw toMppError(
+            code,
+            `${originOf(input)} rejected the credential: ${message.slice(0, 200)}`,
+          )
+        }
+        // Otherwise the seller genuinely re-challenged (expired, a digest
+        // mismatch, or — for a seller that sends no code, including THIS repo's
+        // middleware when verification fails for infrastructure reasons — a
+        // fresh id); the loop takes one more turn and mints a NEW credential
+        // against the fresh challenge — the old one is not re-presented.
+        continue
+      }
     } catch (err) {
-      throw new MppError(
-        `The 402 from ${originOf(input)} carried a malformed MPP challenge ` +
-          `(${err instanceof Error ? err.message : String(err)}). No payment was attempted.`,
-      )
-    }
-    if (!challenge) break
-    assertValidChallengeRequest(challenge, input)
-
-    const planId = challenge.request.planId
-    if (options.planId && options.planId !== planId) {
-      throw PaymentsError.validation(
-        `MPP challenge names plan ${planId}, but plan ${options.planId} was pinned by the caller`,
-      )
-    }
-
-    if (
-      options.maxCredits !== undefined &&
-      BigInt(challenge.request.credits) > BigInt(options.maxCredits)
-    ) {
-      throw PaymentsError.validation(
-        `MPP challenge asks for ${challenge.request.credits} credits, above the caller's cap of ` +
-          `${options.maxCredits}`,
-      )
-    }
-
-    // A retry resends init.body verbatim. A ReadableStream is single-read —
-    // the first fetch() above already consumed it once — so replaying it now
-    // would throw an opaque runtime TypeError. Checked here, at the point a
-    // retry is actually about to happen, not before the (harmless) first
-    // attempt: whether this endpoint ever challenges is not known ahead of
-    // time, and a stream body against a non-challenging endpoint is fine.
-    if (isNonReplayableBody(init?.body)) {
-      throw PaymentsError.validation(
-        'payments.mpp.fetch cannot retry a ReadableStream request body: streams are single-read, ' +
-          'so the 402 challenge from this endpoint cannot be replayed. Pass a replayable body ' +
-          'instead — a string, Buffer/ArrayBuffer/typed array, URLSearchParams, FormData or Blob.',
-      )
-    }
-
-    const { accessToken } = await mintToken(planId, options.agentId ?? challenge.request.agentId, {
-      delegationConfig: options.delegationConfig,
-    })
-
-    const headers = new Headers(init?.headers ?? {})
-    const existingAuth = headers.get('authorization')
-    const credential = buildCredentialHeader(challenge, { accessToken })
-    // Append, not replace: a caller authenticating to the resource server
-    // with its own Authorization (the normal shape for a metered API) must
-    // not have that credential stripped on the request that costs money.
-    // Our own seller's extractPaymentScheme was hardened for exactly this
-    // multi-scheme shape.
-    headers.set('authorization', existingAuth ? `${credential}, ${existingAuth}` : credential)
-
-    response = await fetch(input, { ...init, headers })
-    credentialsPresented += 1
-    creditsPresented = challenge.request.credits
-
-    if (response.status === 402) {
-      const { code, message, bodyUnreadable } = await readMppErrorCode(response)
-
-      let isFreshChallenge = false
-      if (code === undefined && !bodyUnreadable) {
-        const nextChallengeHeader = response.headers.get('www-authenticate')
-        const nextChallenge = nextChallengeHeader ? tryParseChallenge(nextChallengeHeader) : null
-        isFreshChallenge = !!nextChallenge && nextChallenge.id !== challenge.id
-      }
-
-      const isRetryable = (code !== undefined && RETRYABLE_CODES.has(code)) || isFreshChallenge
-      if (!isRetryable) {
-        throw toMppError(code, `${originOf(input)} rejected the credential: ${message.slice(0, 200)}`)
-      }
-      // Otherwise the seller genuinely re-challenged (expired, a digest
-      // mismatch, or — for a third-party seller with no code — a fresh id);
-      // the loop takes one more turn and mints a NEW credential against the
-      // fresh challenge — the old one is not re-presented.
-      continue
+      throw asSpendAwareError(err, spend(), input)
     }
 
     const receiptHeader = response.headers.get('payment-receipt')
@@ -362,16 +527,50 @@ export async function mppFetch(
       settled: receipt !== undefined,
       paid: response.ok && receipt !== undefined,
       credentialsPresented,
-      ...(creditsPresented !== undefined && { creditsPresented }),
+      ...(credentialsPresented > 0 && { creditsPresented: creditsPresentedTotal.toString() }),
       ...(receipt && { receipt }),
     }
   }
 
+  // Every dead end documented on this function lands here: no challenge to pay,
+  // a retryable 402 with no challenge to retry against, or the re-challenge
+  // budget spent. `spend()` is what tells those apart — the last two carry a
+  // non-zero `credentialsPresented`.
   return {
     response,
     settled: false,
     paid: false,
     credentialsPresented,
-    ...(creditsPresented !== undefined && { creditsPresented }),
+    ...(credentialsPresented > 0 && { creditsPresented: creditsPresentedTotal.toString() }),
   }
+}
+
+/**
+ * Attaches spend accounting to whatever is escaping, and wraps a raw
+ * transport failure that happened with a credential already on the wire.
+ *
+ * Three cases, in order:
+ * - An {@link MppError} (or the {@link PaymentsError} a caller-constraint guard
+ *   throws on the re-challenge turn) is annotated and rethrown AS-IS: the type
+ *   a caller branches on must not change just because money is now reported.
+ * - Anything else with a credential already presented becomes an
+ *   {@link MppSpendOutcomeUnknownError}, so it reaches the `instanceof MppError`
+ *   handler this module documents instead of escaping as a raw `TypeError`.
+ * - Anything else with nothing presented is rethrown untouched — nothing was
+ *   spent, and dressing up a plain network fault would only obscure it.
+ */
+function asSpendAwareError(err: unknown, spend: MppSpendReport, input: string | URL): unknown {
+  if (err instanceof MppError || err instanceof PaymentsError) {
+    const annotated = err as { spend?: MppSpendReport }
+    annotated.spend = spend
+    return err
+  }
+  if (spend.credentialsPresented === 0) return err
+  return new MppSpendOutcomeUnknownError(
+    `The MPP credential was sent to ${originOf(input)} but the request failed before any response ` +
+      `was read (${err instanceof Error ? err.message : String(err)}), so ${spend.creditsPresented} ` +
+      'credits may or may not have been burned. Do not blindly retry.',
+    err,
+    spend,
+  )
 }

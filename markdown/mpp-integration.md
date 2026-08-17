@@ -41,9 +41,15 @@ classes) needs to implement the retry loop correctly:
     once.
 
 `code` is never anything outside the `BCK.MPP.*` namespace — a transport or
-infrastructure failure (a network error, a `5xx` from the seller's own
-backend) never appears here, so its absence on a `402` is not itself a
-retryable signal on its own; only a genuine `BCK.MPP.*` rejection is.
+infrastructure failure (a network error, a `5xx` from the seller's own backend)
+is stripped rather than forwarded, so a **codeless** `402` is exactly what a
+verify-side infrastructure failure looks like from the buyer's side.
+
+Absence of a `code` is therefore not a rejection signal, and not a retry signal
+either. What the buyer keys on instead is whether the same `402` carries a
+genuinely **fresh** challenge (a different `id`): a fresh challenge means "here
+is a new price, pay it", a replayed `id` means "your credential was refused".
+See [Which backend codes are retryable](#which-backend-codes-are-retryable).
 
 ## Protecting a route
 
@@ -199,6 +205,11 @@ deployment that scales this middleware horizontally needs its own mitigation
 
 ## Paying an MPP endpoint
 
+> **`payments.mpp.*` is `@experimental`.** The buyer surface — `MppFetchOptions`,
+> `MppFetchResult` and the fields on them — may change in a minor release.
+> `MppFetchResult` gained `settled` and `creditsPresented` between two rounds of
+> a single review; pin the package version if that matters to you.
+
 ```typescript
 const { delegationId } = await payments.delegation.createDelegation({
   provider: 'erc4337',
@@ -229,6 +240,15 @@ call fail before anything is minted. `maxCredits` does the same for price: a
 seller unilaterally names the credits in the challenge (and can raise it on a
 re-challenge), so without a cap the helper pays whatever is asked.
 
+`maxCredits` is a budget for the **whole call**, not for one challenge: the
+credits a challenge asks for are added to what earlier turns of the same call
+already committed, and the call is refused as soon as the running total would
+exceed the cap. `creditsPresented` on the result is that same running total —
+the sum across every credential presented, not the last challenge's price. It
+must be a non-negative integer (decimal string, safe integer or `bigint`);
+anything else is refused with a `PaymentsError` before the first request, not
+mid-flight on whatever 402 arrives.
+
 ### What `paid: false` does and does not mean
 
 `paid` is `response.ok && settled` — it does **not** mean nothing was
@@ -247,11 +267,40 @@ retry is safe:
 - **`settled === true`** (equivalently, `receipt` is present) — the payment
   succeeded regardless of what `paid` says. `paid` additionally requires the
   HTTP response itself to be a 2xx; a settle-then-error response from a
-  seller is `settled: true, paid: false`.
+  seller is `settled: true, paid: false`. `settled` is exactly "a receipt
+  decoded cleanly": `receipt.status` is a seller-set string with no agreed
+  vocabulary beyond `'success'`, so it is deliberately not interpreted —
+  read it yourself if you are paying a third-party seller and it matters.
+  This SDK's own middleware attaches a receipt only when settlement succeeded.
 
 A request to an endpoint that never challenges (no 402 at all) comes back
 untouched, with `paid: false` and `credentialsPresented: 0` — this holds for
 any body type, including a `ReadableStream`.
+
+**`response.ok === true` with `paid: false` and `credentialsPresented: 1` is a
+routine outcome, not an exotic one.** A seller whose handler streams or flushes
+has already sent its headers by the time settlement runs, so it cannot attach
+`Payment-Receipt` to a response that is on the wire — this SDK's own middleware
+settles detached in exactly that case and says so in its own log line. The
+credits **were** burned. Never read that combination as "the payment did not
+happen" and retry it.
+
+#### What comes back as a 402 instead of throwing
+
+Only a rejection the remote **named** throws. Three dead ends resolve with the
+402 as `response`, because that response is evidence you may need and throwing
+would discard it:
+
+1. A 402 carrying no `WWW-Authenticate: Payment …` challenge at all, on either
+   turn — the endpoint may not speak MPP. `credentialsPresented: 0`.
+2. A retry-turn 402 that is retryable but carries no challenge to retry
+   against, so there is nothing to mint for.
+3. The one re-challenge cycle spent: two credentials presented and the seller
+   still answering 402.
+
+Cases 2 and 3 come back with a **non-zero** `credentialsPresented`, so a
+resolved promise on its own does not mean the request was free. Check
+`response.ok`.
 
 ### Streaming request bodies
 
@@ -272,10 +321,9 @@ Two families, thrown for different reasons:
 - **`PaymentsError`** (`code: 'validation'`) — a guard this call refused to
   even attempt: a missing or unusable `delegationConfig` (it must carry a
   `delegationId` — the deprecated inline create-on-the-fly shape is not
-  accepted here), a challenge naming a different plan than `planId` pinned, a
-  challenge asking for more credits than `maxCredits` allows, or a
-  `ReadableStream` body that a retry would need to replay. Nothing was ever
-  minted when one of these throws.
+  accepted here), a malformed `maxCredits`, a challenge naming a different plan
+  than `planId` pinned, a challenge that would take the call over `maxCredits`,
+  or a `ReadableStream` body that a retry would need to replay.
 - **`MppError`** and its typed subclasses — what the wire actually said:
   `MppNotConfiguredError` when the environment has MPP switched off,
   `MppCredentialRejectedError` when the backend names that code explicitly, a
@@ -283,6 +331,38 @@ Two families, thrown for different reasons:
   (including the seller replaying an identical challenge, or an unreadable/
   non-JSON 402 body), and a generic `MppError` for a 402 whose challenge could
   not be decoded at all.
+- **`MppSpendOutcomeUnknownError`** (a subclass of `MppError`, code
+  `spend_outcome_unknown`) — the credential-bearing retry failed at the
+  transport level: a disconnect, a DNS failure, or your own `AbortSignal`
+  firing between the mint and the retry. The credential was on the wire, so the
+  seller may already have verified and burned it. The original failure is on
+  `.cause`. This exists so such a failure cannot reach you as a raw `TypeError`
+  that the `instanceof MppError` pattern below misses.
+
+#### Errors report what was already spent
+
+An argument guard on the **first** turn throws before anything is minted. A
+guard on the **re-challenge** turn does not — a credential has already been
+presented by then — so every error raised after a credential went out carries
+the same accounting the success path returns. Read it with `mppSpendOf`, which
+works across both error families (they share no base class):
+
+```typescript
+import { mppSpendOf, MppError } from '@nevermined-io/payments'
+
+try {
+  await payments.mpp.fetch(url, init, { delegationConfig: { delegationId }, maxCredits: 100 })
+} catch (err) {
+  const spend = mppSpendOf(err) // undefined => nothing was spent
+  if (spend) {
+    // spend.credentialsPresented, spend.creditsPresented, spend.challengeId
+    // Do NOT blindly retry: those credits may already be burned.
+  }
+  if (err instanceof MppError) {
+    /* the wire refused, or the retry never completed */
+  }
+}
+```
 
 #### Which backend codes are retryable
 
@@ -290,13 +370,15 @@ A 402 that comes back after a credential was presented carries a backend
 code. Only two are retryable — everything else is terminal and surfaces as a
 typed error instead of a second mint:
 
-| Code                                                          | Meaning                                                                                                                                   | Retryable?                                                                                                                                     |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BCK.MPP.0004`                                                | The challenge expired                                                                                                                     | Yes — retried automatically, once, with the fresh challenge the 402 carries                                                                    |
-| `BCK.MPP.0005`                                                | The request body did not match the digest sealed in the challenge                                                                         | Yes — the fresh challenge is sealed to the body that just arrived, so a new credential for it (same body) matches; retried automatically, once |
-| `BCK.MPP.0003`                                                | The credential was refused (replay, forgery, wrong plan, insufficient balance)                                                            | No — terminal, throws `MppCredentialRejectedError`                                                                                             |
-| `BCK.MPP.0002`                                                | MPP is not configured on this environment                                                                                                 | No — terminal, throws `MppNotConfiguredError` (surfaces from the mint, before any challenge is even presented)                                 |
-| Any other code, or none at all, on a credential-bearing retry | A non-compliant or third-party seller, a proxy/WAF page, or an unexpected backend failure (e.g. a `network_error`/`http_500`-shaped code) | No — terminal, throws a generic `MppError`                                                                                                     |
+| Code                                                                                                                    | Meaning                                                                                                                                                                                                                                                | Retryable?                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BCK.MPP.0004`                                                                                                          | The challenge expired                                                                                                                                                                                                                                  | Yes — retried automatically, once, with the fresh challenge the 402 carries                                                                       |
+| `BCK.MPP.0005`                                                                                                          | The request body did not match the digest sealed in the challenge                                                                                                                                                                                      | Yes — the fresh challenge is sealed to the body that just arrived, so a new credential for it (same body) matches; retried automatically, once    |
+| `BCK.MPP.0003`                                                                                                          | The credential was refused (replay, forgery, wrong plan, insufficient balance)                                                                                                                                                                         | No — terminal, throws `MppCredentialRejectedError`                                                                                                |
+| `BCK.MPP.0002`                                                                                                          | MPP is not configured on this environment                                                                                                                                                                                                              | No — terminal, throws `MppNotConfiguredError` (surfaces from the mint, before any challenge is even presented)                                    |
+| **No code at all**, and the 402 carries a genuinely fresh challenge (different `id`)                                    | A seller that publishes no codes — a third party, or **this SDK's own middleware** when verification fails for infrastructure reasons: it forwards a code only when it starts with `BCK.MPP.`, so a synthesized `network_error`/`http_500` is stripped | Yes — treated as a real re-challenge and retried once, against the NEW challenge                                                                  |
+| **No code at all**, and no fresh challenge — same `id` replayed, no parseable challenge, or an unreadable/non-JSON body | A seller refusing the credential it just issued that challenge for, or a proxy/WAF page                                                                                                                                                                | No — terminal, throws a generic `MppError`: minting against the same challenge again cannot help and would only spend twice                       |
+| Any other code on a credential-bearing retry                                                                            | A non-compliant seller, or a backend failure surfacing a non-`BCK.MPP.*` code                                                                                                                                                                          | No — terminal, throws a generic `MppError`. When a code is present it decides alone; the fresh-challenge fallback applies only when there is none |
 
 Both retryable codes share the same one-shot budget: `payments.mpp.fetch`
 follows at most one re-challenge cycle per call, so a seller that keeps
