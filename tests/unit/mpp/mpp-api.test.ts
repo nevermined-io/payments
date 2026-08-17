@@ -1,0 +1,432 @@
+/**
+ * Unit tests for MppAPI: request shaping and error mapping.
+ *
+ * `fetch` is stubbed, so these lock the wire contract with the backend routes
+ * without needing a backend.
+ */
+import { MppAPI, normalizeCredits } from '../../../src/mpp/mpp-api.js'
+import {
+  MppChallengeExpiredError,
+  MppCredentialRejectedError,
+  MppNotConfiguredError,
+  MppError,
+  MppSettlementOutcomeUnknownError,
+} from '../../../src/mpp/errors.js'
+
+const OPTIONS = { nvmApiKey: 'eyJhbGciOiJIUzI1NiJ9.e30.sig', environment: 'sandbox' } as any
+
+function stubFetch(status: number, body: unknown) {
+  const spy = jest.fn().mockResolvedValue({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  })
+  global.fetch = spy as any
+  return spy
+}
+
+describe('MppAPI.issueChallenge', () => {
+  it('posts to /api/v1/mpp/challenge with string credits', async () => {
+    const spy = stubFetch(201, { challenge: 'Payment id="x"', id: 'x' })
+    const api = MppAPI.getInstance(OPTIONS)
+
+    const result = await api.issueChallenge({
+      planId: '123',
+      credits: 2,
+      resource: '/ask',
+      httpVerb: 'POST',
+    })
+
+    expect(result).toEqual({ challenge: 'Payment id="x"', id: 'x' })
+    const [url, init] = spy.mock.calls[0]
+    expect(String(url)).toContain('/api/v1/mpp/challenge')
+    expect(JSON.parse(init.body)).toEqual({
+      planId: '123',
+      credits: '2',
+      resource: '/ask',
+      httpVerb: 'POST',
+    })
+  })
+
+  it('omits optional fields it was not given', async () => {
+    const spy = stubFetch(201, { challenge: 'c', id: 'i' })
+    await MppAPI.getInstance(OPTIONS).issueChallenge({
+      planId: '123',
+      credits: '1',
+      resource: '/ask',
+      httpVerb: 'POST',
+      agentId: 'agent-1',
+      digest: 'sha-256=abc',
+      description: 'Premium',
+    })
+    expect(JSON.parse(spy.mock.calls[0][1].body)).toEqual({
+      planId: '123',
+      credits: '1',
+      resource: '/ask',
+      httpVerb: 'POST',
+      agentId: 'agent-1',
+      digest: 'sha-256=abc',
+      description: 'Premium',
+    })
+  })
+})
+
+describe('MppAPI.settleCredential', () => {
+  it('returns the settlement plus the receipt header value', async () => {
+    stubFetch(201, {
+      success: true,
+      transaction: '0xabc',
+      network: 'eip155:84532',
+      creditsRedeemed: '2',
+      paymentReceipt: 'eyJ0ZXN0Ijp0cnVlfQ',
+    })
+    const result = await MppAPI.getInstance(OPTIONS).settleCredential({
+      credential: 'Payment abc',
+      resource: '/ask',
+      httpVerb: 'POST',
+    })
+    expect(result.success).toBe(true)
+    expect(result.paymentReceipt).toBe('eyJ0ZXN0Ijp0cnVlfQ')
+  })
+})
+
+describe('MppAPI error mapping', () => {
+  it('maps BCK.MPP.0004 to MppChallengeExpiredError', async () => {
+    stubFetch(402, { code: 'BCK.MPP.0004', message: 'Challenge expired' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppChallengeExpiredError)
+  })
+
+  it('maps BCK.MPP.0003 to MppCredentialRejectedError', async () => {
+    stubFetch(402, { code: 'BCK.MPP.0003', message: 'Credential rejected' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppCredentialRejectedError)
+  })
+
+  it('maps BCK.MPP.0002 to MppNotConfiguredError', async () => {
+    stubFetch(501, { code: 'BCK.MPP.0002', message: 'MPP is not configured' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '1',
+        credits: '1',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppNotConfiguredError)
+  })
+})
+
+describe('normalizeCredits', () => {
+  it('renders a large integer exponent exactly, without scientific notation', () => {
+    // credits.toString() on a JS number used to emit "1e+21" verbatim into
+    // the HMAC-sealed challenge; BigInt(...) renders the exact integer.
+    expect(normalizeCredits(1e21)).toBe('1000000000000000000000')
+  })
+
+  it('passes an ordinary integer through', () => {
+    expect(normalizeCredits(5)).toBe('5')
+    expect(normalizeCredits(5n)).toBe('5')
+    expect(normalizeCredits('5')).toBe('5')
+  })
+
+  it('rejects a non-integer number', () => {
+    expect(() => normalizeCredits(0.1)).toThrow(MppError)
+  })
+
+  it('rejects NaN and Infinity', () => {
+    expect(() => normalizeCredits(NaN)).toThrow(MppError)
+    expect(() => normalizeCredits(Infinity)).toThrow(MppError)
+  })
+
+  it('rejects a negative amount', () => {
+    expect(() => normalizeCredits(-5)).toThrow(MppError)
+    expect(() => normalizeCredits('-5')).toThrow(MppError)
+  })
+
+  it('rejects a non-decimal credits string rather than silently accepting hex/empty/whitespace', () => {
+    // BigInt('0x10'), BigInt(''), and BigInt(' 5 ') all parse "successfully"
+    // to values a decimal-string contract must not accept.
+    expect(() => normalizeCredits('0x10')).toThrow(MppError)
+    expect(() => normalizeCredits('')).toThrow(MppError)
+    expect(() => normalizeCredits(' 5 ')).toThrow(MppError)
+    expect(() => normalizeCredits('5.5')).toThrow(MppError)
+  })
+})
+
+describe('MppAPI.issueChallenge credits validation', () => {
+  it('rejects NaN before it reaches the wire', async () => {
+    const spy = stubFetch(201, { challenge: 'c', id: 'i' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '123',
+        credits: NaN,
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toThrow(MppError)
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('renders a large integer exponent exactly on the wire', async () => {
+    const spy = stubFetch(201, { challenge: 'c', id: 'i' })
+    await MppAPI.getInstance(OPTIONS).issueChallenge({
+      planId: '123',
+      credits: 1e21,
+      resource: '/ask',
+      httpVerb: 'POST',
+    })
+    expect(JSON.parse(spy.mock.calls[0][1].body).credits).toBe('1000000000000000000000')
+  })
+})
+
+describe('MppAPI.post success-path parsing', () => {
+  it('raises a typed MppError, not a raw SyntaxError, when a 2xx response is not JSON', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => {
+        throw new SyntaxError('Unexpected token \'<\', "<html>..." is not valid JSON')
+      },
+    }) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '123',
+        credits: '1',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppError)
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '123',
+        credits: '1',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(SyntaxError)
+  })
+})
+
+describe('MppAPI.post request timeout', () => {
+  it('passes an AbortSignal to fetch, so a hung backend cannot hold the connection open indefinitely', async () => {
+    const spy = stubFetch(201, { challenge: 'c', id: 'i' })
+    await MppAPI.getInstance(OPTIONS).issueChallenge({
+      planId: '123',
+      credits: '1',
+      resource: '/ask',
+      httpVerb: 'POST',
+    })
+    const [, init] = spy.mock.calls[0]
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+})
+
+describe('MppAPI settle-timeout outcome semantics', () => {
+  function stubFetchTimeout() {
+    global.fetch = jest
+      .fn()
+      .mockRejectedValue(
+        new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
+      ) as any
+  }
+
+  it('surfaces a settle timeout as MppSettlementOutcomeUnknownError, not a generic network_error', async () => {
+    stubFetchTimeout()
+    await expect(
+      MppAPI.getInstance(OPTIONS).settleCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('surfaces a 2xx whose body cannot be read as an unknown outcome on a burning call', async () => {
+    // The backend already answered 2xx, so the burn committed and only the
+    // body was lost — our own AbortSignal.timeout() aborts the body stream
+    // too, and a mid-body connection reset lands in the same catch. Reporting
+    // that as a definite failure is the accounting corruption this error
+    // class exists to prevent: the middleware would log "settlement failed"
+    // and skip onAfterSettle for credits that WERE burned. If anything this
+    // case is likelier to have burned than the pre-response timeout above.
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockRejectedValue(new Error('terminated')),
+    }) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).settleCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it("keeps a non-burning call's unreadable 2xx body a plain MppError — nothing was charged", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockRejectedValue(new Error('terminated')),
+    }) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('does not treat a verifyCredential timeout as an unknown-outcome burn — verify burns nothing', async () => {
+    stubFetchTimeout()
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('does not treat an issueChallenge timeout as an unknown-outcome burn — issuing a challenge burns nothing', async () => {
+    stubFetchTimeout()
+    await expect(
+      MppAPI.getInstance(OPTIONS).issueChallenge({
+        planId: '123',
+        credits: '1',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('still treats a non-timeout settle failure (e.g. connection refused) as an ordinary network_error', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('fetch failed')) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).settleCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it.each([500, 502, 503, 504, 408])(
+    'surfaces a %i on the burning settle as an unknown outcome, not a definite failure',
+    async (status) => {
+      // A 504 from a gateway means the upstream did not answer in time — it
+      // says nothing about whether the burn committed, which is the exact
+      // condition this error class exists for. Classified as a definite
+      // failure, the middleware logs "settlement failed" and skips
+      // onAfterSettle for credits that may well be gone.
+      stubFetch(status, { message: 'gateway said no' })
+      await expect(
+        MppAPI.getInstance(OPTIONS).settleCredential({
+          credential: 'Payment abc',
+          resource: '/ask',
+          httpVerb: 'POST',
+        }),
+      ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+    },
+  )
+
+  it('keeps a 4xx settle rejection a DEFINITE failure — the backend decided, and nothing burned', async () => {
+    // The other direction of the same corruption: reporting a deliberate
+    // BCK.MPP.0003 as "may have burned" would inflate the seller's records
+    // with burns that never happened.
+    stubFetch(403, { code: 'BCK.MPP.0003', message: 'credential rejected' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).settleCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it.each(['ECONNRESET', 'EPIPE', 'UND_ERR_SOCKET', 'UND_ERR_ABORTED'])(
+    'surfaces a %s on the burning settle as an unknown outcome — the request was already on the wire',
+    async (code) => {
+      // A connection that dies AFTER the settle request was written has
+      // exactly the property this class exists for: the backend may already
+      // have burned and only the answer was lost. Node's fetch surfaces the
+      // socket error as `error.cause`.
+      const failure = new TypeError('fetch failed')
+      ;(failure as { cause?: unknown }).cause = { code }
+      global.fetch = jest.fn().mockRejectedValue(failure) as any
+      await expect(
+        MppAPI.getInstance(OPTIONS).settleCredential({
+          credential: 'Payment abc',
+          resource: '/ask',
+          httpVerb: 'POST',
+        }),
+      ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+    },
+  )
+
+  it.each(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'])(
+    'keeps a %s on the burning settle a DEFINITE failure — the request never reached anything that could burn',
+    async (code) => {
+      // The allow-list is deliberately narrow: blanket-promoting every network
+      // error would inflate a seller's records with burns that never happened,
+      // the same corruption as reclassifying a 4xx, in the other direction.
+      const failure = new TypeError('fetch failed')
+      ;(failure as { cause?: unknown }).cause = { code }
+      global.fetch = jest.fn().mockRejectedValue(failure) as any
+      await expect(
+        MppAPI.getInstance(OPTIONS).settleCredential({
+          credential: 'Payment abc',
+          resource: '/ask',
+          httpVerb: 'POST',
+        }),
+      ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+    },
+  )
+
+  it('does not treat a mid-flight reset on a NON-burning call as an unknown outcome', async () => {
+    const failure = new TypeError('fetch failed')
+    ;(failure as { cause?: unknown }).cause = { code: 'ECONNRESET' }
+    global.fetch = jest.fn().mockRejectedValue(failure) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('does not treat a 5xx on a NON-burning call as an unknown outcome', async () => {
+    stubFetch(503, { message: 'gateway said no' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+})
+
+describe('Payments facade', () => {
+  it('exposes payments.mpp', async () => {
+    const { Payments } = await import('../../../src/payments.js')
+    const payments = Payments.getInstance({
+      nvmApiKey: 'eyJhbGciOiJIUzI1NiJ9.e30.sig',
+      environment: 'sandbox',
+    } as any)
+    expect(payments.mpp).toBeDefined()
+    expect(typeof payments.mpp.issueChallenge).toBe('function')
+  })
+})

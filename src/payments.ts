@@ -16,6 +16,7 @@ import { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
 import { FacilitatorAPI } from './x402/facilitator-api.js'
 import { X402TokenAPI } from './x402/token.js'
 import { DelegationAPI } from './x402/delegation-api.js'
+import { MppAPI } from './mpp/mpp-api.js'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -40,6 +41,18 @@ export class Payments extends BasePaymentsAPI {
   public contracts!: ContractsAPI
   public facilitator!: FacilitatorAPI
   public x402!: X402TokenAPI
+  /**
+   * MPP (Machine Payments Protocol) surface — challenge/credential framing over
+   * the same plans, delegations and credit burn as x402.
+   *
+   * @experimental Shipped ahead of its epic's declared MVP scope, so that the
+   * Express middleware's own dependency on it is reachable rather than hidden
+   * behind an internal handle. The NAME is settled — `payments.mpp` beside
+   * `payments.x402` is what a seller will guess, and renaming it after a tag
+   * costs a major. The SHAPE is not: this surface may change in a minor
+   * release until the epic adopts it.
+   */
+  public mpp!: MppAPI
   private _a2aRegistry?: ClientRegistry
   private _delegation?: DelegationAPI
 
@@ -201,6 +214,7 @@ export class Payments extends BasePaymentsAPI {
     this.contracts = new ContractsAPI(options)
     this.facilitator = FacilitatorAPI.getInstance(options)
     this.x402 = X402TokenAPI.getInstance(options)
+    this.mpp = MppAPI.getInstance(options)
   }
 
   /**
@@ -265,6 +279,7 @@ export class Payments extends BasePaymentsAPI {
     this.contracts?.setOrganizationId(organizationId)
     this.facilitator?.setOrganizationId(organizationId)
     this.x402?.setOrganizationId(organizationId)
+    this.mpp?.setOrganizationId(organizationId)
     // `_delegation` is lazy — the getter forwards `currentOrganizationId`
     // on first access, so only propagate to an already-built instance.
     // (Eagerly constructing it here would change the lazy contract.)

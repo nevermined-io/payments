@@ -46,6 +46,10 @@ export type {
   SettlePermissionsParams,
   SettlePermissionsResult,
 } from './x402/facilitator-api.js'
+
+// MPP (Machine Payments Protocol) public surface
+export * from './mpp/index.js'
+
 // MCP public types
 export type {
   CreditsContext,

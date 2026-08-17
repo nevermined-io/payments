@@ -1,0 +1,313 @@
+/**
+ * The Machine Payments Protocol (MPP) API.
+ *
+ * MPP is a second payment framing over the unchanged Nevermined core: the same
+ * plan, the same delegation and the same credit burn as x402, negotiated with
+ * MPP headers. Sellers issue a challenge and redeem a credential; buyers mint
+ * an MPP-domain access token and present it as a credential.
+ */
+
+import { BasePaymentsAPI } from '../api/base-payments.js'
+import { API_URL_MPP_CHALLENGE, API_URL_MPP_SETTLE, API_URL_MPP_VERIFY } from '../api/nvm-api.js'
+import type { PaymentOptions } from '../common/types.js'
+import type { SettlePermissionsResult, VerifyPermissionsResult } from '../x402/facilitator-api.js'
+import { MppError, MppSettlementOutcomeUnknownError, toMppError } from './errors.js'
+
+/** Only whole, non-negative decimal digits — no sign, no leading/trailing
+ *  whitespace, no hex/octal/binary prefix, no fractional part. `BigInt(x)`
+ *  silently accepts all of those for a string input (`BigInt('0x10')` is 16,
+ *  `BigInt('')` is 0n, `BigInt(' 5 ')` is 5n), which a decimal-string
+ *  contract must reject rather than accept quietly. */
+const DECIMAL_INTEGER_STRING = /^\d+$/
+
+/**
+ * Normalizes `credits` to the exact decimal-string amount that gets sealed
+ * into the challenge and burned. A bare `.toString()` on a JS `number` can
+ * emit scientific notation (`1e+21`), `"NaN"` or `"Infinity"` — all
+ * forwarded unvalidated into an amount this PR's own docs describe as
+ * having "no post-hoc re-pricing as there is with x402": a corrupted amount
+ * here is not correctable downstream, it IS the amount.
+ *
+ * `BigInt(x)` renders an integer-valued number exactly (no scientific
+ * notation) and throws `RangeError` on a non-integer, `NaN` or `Infinity`
+ * instead of silently stringifying them — which is why non-string inputs go
+ * through it. The `string` arm gets its own check instead of relying on
+ * `BigInt`'s string parsing, which is far more permissive than a decimal
+ * string contract should be.
+ */
+export function normalizeCredits(credits: string | number | bigint): string {
+  if (typeof credits === 'string') {
+    if (!DECIMAL_INTEGER_STRING.test(credits)) {
+      throw new MppError(
+        `credits must be a non-negative integer decimal string, got ${JSON.stringify(credits)}`,
+      )
+    }
+    return credits
+  }
+
+  let normalized: string
+  try {
+    normalized = BigInt(credits).toString()
+  } catch (error) {
+    throw new MppError(
+      `credits must be a non-negative integer, got ${credits}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  if (normalized.startsWith('-')) {
+    throw new MppError(`credits must be a non-negative integer, got ${credits}`)
+  }
+  return normalized
+}
+
+/** Deadline on an outbound MPP request so a hung backend cannot hold the
+ *  caller's connection open indefinitely — `middleware.ts` defers the
+ *  buyer's own response until settlement resolves. */
+const REQUEST_TIMEOUT_MS = 30_000
+
+/**
+ * Socket-level failures that can only happen once the request was already on
+ * the wire, so on a burning call the backend may have completed the burn and
+ * only the answer was lost.
+ *
+ * `ECONNRESET` / `EPIPE` mean the peer tore down (or we wrote into) a
+ * connection that had been established; `UND_ERR_SOCKET` is undici's wrapper
+ * for the same thing, and `UND_ERR_ABORTED` covers a mid-flight abort that
+ * did not come through the `TimeoutError` path.
+ */
+const OUTCOME_UNKNOWN_SOCKET_CODES = new Set([
+  'ECONNRESET',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_ABORTED',
+])
+
+/**
+ * Whether a `fetch` rejection is a connection that died AFTER the request was
+ * written — i.e. an unknown settlement outcome rather than a definite failure.
+ *
+ * Deliberately an ALLOW-LIST, not a blanket promotion of every network error.
+ * `ECONNREFUSED`, `ENOTFOUND` and `EAI_AGAIN` all mean the request never
+ * reached anything that could burn, so reporting them as "may have burned"
+ * would inflate a seller's records with burns that never happened — the same
+ * corruption as the 4xx case one screen down, in the other direction. Any code
+ * not named here keeps the definite `network_error` classification.
+ *
+ * Node's `fetch` surfaces the underlying socket error as `error.cause`, so the
+ * code is read from there first and off the error itself as a fallback.
+ */
+function isPostRequestSocketFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  // `cause` is read off a widened shape rather than `Error.cause`: the
+  // package's lib target predates ES2022, so the property is not on the
+  // declared `Error` type even though Node populates it.
+  const { cause, code: ownCode } = error as unknown as { cause?: unknown; code?: unknown }
+  const causeCode = (cause as { code?: unknown } | undefined)?.code
+  return (
+    (typeof causeCode === 'string' && OUTCOME_UNKNOWN_SOCKET_CODES.has(causeCode)) ||
+    (typeof ownCode === 'string' && OUTCOME_UNKNOWN_SOCKET_CODES.has(ownCode))
+  )
+}
+
+export interface IssueMppChallengeParams {
+  /** The Nevermined plan the credits are burned against. */
+  planId: string
+  /** Credits the buyer is asked to redeem. Sent as a decimal string. */
+  credits: string | number | bigint
+  agentId?: string
+  /** The protected resource. Sealed into the challenge and re-asserted at redeem. */
+  resource: string
+  /** HTTP verb of that resource. Part of the same binding. */
+  httpVerb: string
+  /** `sha-256=<base64>` digest binding the challenge to one request body. */
+  digest?: string
+  description?: string
+}
+
+export interface RedeemMppParams {
+  /** The `Authorization: Payment …` value presented by the buyer. */
+  credential: string
+  /** Must equal the resource the challenge was issued for. */
+  resource: string
+  /** Must equal the verb the challenge was issued for. */
+  httpVerb: string
+  /** Digest of the body actually received, when the challenge bound one. */
+  bodyDigest?: string
+}
+
+/**
+ * A discriminated union rather than a flat `paymentReceipt: string`: a
+ * settlement can fail, and `SettlePermissionsResult.success` already says
+ * so, but the flat shape let `{ success: false }` with no receipt typecheck
+ * — a state the seller middleware then had no way to reject at compile time
+ * even though it could not safely attach a receipt header for it.
+ */
+export type MppSettleResult =
+  | (SettlePermissionsResult & { success: true; paymentReceipt: string })
+  | (SettlePermissionsResult & { success: false; paymentReceipt?: string })
+
+export class MppAPI extends BasePaymentsAPI {
+  static getInstance(options: PaymentOptions): MppAPI {
+    return new MppAPI(options)
+  }
+
+  /**
+   * Mints the challenge a plan-protected endpoint returns with its 402.
+   *
+   * Each call returns a distinct challenge even for identical inputs — the id
+   * doubles as the burn idempotency key, so two requests sharing one would
+   * settle as a single burn.
+   */
+  async issueChallenge(
+    params: IssueMppChallengeParams,
+  ): Promise<{ challenge: string; id: string }> {
+    const { planId, credits, agentId, resource, httpVerb, digest, description } = params
+    return this.post<{ challenge: string; id: string }>(API_URL_MPP_CHALLENGE, {
+      planId,
+      credits: normalizeCredits(credits),
+      resource,
+      httpVerb,
+      ...(agentId && { agentId }),
+      ...(digest && { digest }),
+      ...(description && { description }),
+    })
+  }
+
+  /** Runs the full credential and plan checks without burning anything. */
+  async verifyCredential(params: RedeemMppParams): Promise<VerifyPermissionsResult> {
+    return this.post<VerifyPermissionsResult>(API_URL_MPP_VERIFY, this.redeemBody(params))
+  }
+
+  /**
+   * Verifies and burns through the same chokepoint an x402 settlement uses, so
+   * the credits charged are identical on both protocols. Settling the same
+   * credential twice burns once.
+   */
+  async settleCredential(params: RedeemMppParams): Promise<MppSettleResult> {
+    return this.post<MppSettleResult>(API_URL_MPP_SETTLE, this.redeemBody(params), {
+      burns: true,
+    })
+  }
+
+  private redeemBody(params: RedeemMppParams): Record<string, unknown> {
+    const { credential, resource, httpVerb, bodyDigest } = params
+    return {
+      credential,
+      resource,
+      httpVerb,
+      ...(bodyDigest && { bodyDigest }),
+    }
+  }
+
+  /**
+   * One place for the POST + error translation both surfaces share.
+   *
+   * `burns` marks a call where "no answer" is not the same as "did not
+   * happen" — currently only `settleCredential`. For that call alone, a
+   * fetch rejection caused by OUR OWN `AbortSignal.timeout()` firing (not
+   * some other network failure) is raised as {@link MppSettlementOutcomeUnknownError}
+   * instead of the generic `network_error` `MppError` used everywhere else,
+   * so a caller can tell "definitely nothing happened" apart from "the
+   * backend may have already burned the credits; we just didn't hear back".
+   * `error.name === 'TimeoutError'` combined with `instanceof DOMException`
+   * is the documented, empirically-confirmed shape Node's `fetch` throws
+   * when an `AbortSignal.timeout()` deadline fires — as opposed to, say,
+   * connection-refused, which surfaces as a plain `TypeError`.
+   *
+   * The same reasoning covers the other two ways a burning call can end
+   * without a definite answer: an upstream 5xx/408, and a 2xx whose body
+   * could not be read. All three raise {@link MppSettlementOutcomeUnknownError};
+   * only a 4xx — the backend deliberately rejecting — is a definite failure.
+   */
+  private async post<T>(
+    path: string,
+    body: Record<string, unknown>,
+    options: { burns?: boolean } = {},
+  ): Promise<T> {
+    const url = new URL(path, this.environment.backend)
+    const requestOptions = {
+      ...this.getBackendHTTPOptions('POST', body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }
+
+    let response: Response
+    try {
+      response = await fetch(url, requestOptions)
+    } catch (error) {
+      if (options.burns && error instanceof DOMException && error.name === 'TimeoutError') {
+        throw new MppSettlementOutcomeUnknownError()
+      }
+      if (options.burns && isPostRequestSocketFailure(error)) {
+        throw new MppSettlementOutcomeUnknownError(
+          `The connection to the backend failed after the settle request was written: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+      }
+      throw toMppError(
+        'network_error',
+        `Network error during MPP request: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+
+    if (!response.ok) {
+      let message = `MPP request to ${path} failed`
+      let code: string | undefined = `http_${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.message) message = errorData.message
+        if (errorData.code) code = errorData.code
+        if (errorData.hint) message = `${message} — ${errorData.hint}`
+      } catch {
+        // Keep the default message.
+      }
+      // On a burning call, a 5xx (or a 408) is an UNKNOWN outcome, not a
+      // failure. A 504 in particular means an intermediary gave up waiting on
+      // the backend — it says nothing about whether the burn committed, which
+      // is the exact condition MppSettlementOutcomeUnknownError exists for,
+      // and the argument the docstring below makes for an unreadable 2xx
+      // applies word for word. Classified as a definite failure, the
+      // middleware logs "settlement failed" and skips onAfterSettle for
+      // credits that may well be gone.
+      //
+      // Confined to 5xx/408: the backend's own rejections (BCK.MPP.0003 and
+      // friends) come back as 4xx and ARE definite — reporting those as
+      // unknown would corrupt the accounting in the other direction.
+      if (options.burns && (response.status >= 500 || response.status === 408)) {
+        throw new MppSettlementOutcomeUnknownError(
+          `The backend answered ${response.status} without a definite settlement outcome: ${message}`,
+        )
+      }
+      throw toMppError(code, message)
+    }
+
+    // The success path is not exempt from a malformed body: a WAF
+    // interstitial, a gateway HTML page, or a truncated 2xx response would
+    // otherwise raise a raw SyntaxError here — the one call site in this
+    // method that was NOT already wrapped and converted to a typed error.
+    try {
+      return (await response.json()) as T
+    } catch (error) {
+      // On a burning call this is an UNKNOWN outcome, not a failure. The
+      // backend already answered 2xx — the burn committed — and only the
+      // body was lost (our own AbortSignal.timeout() also aborts the body
+      // stream, and a mid-body reset lands here too). Reporting it as a
+      // definite failure is exactly the accounting corruption
+      // MppSettlementOutcomeUnknownError exists to prevent: the middleware
+      // would log "settlement failed" and skip onAfterSettle for credits
+      // that were in fact burned. If anything this case is MORE likely to
+      // have burned than the pre-response timeout the error was introduced
+      // for.
+      if (options.burns) {
+        throw new MppSettlementOutcomeUnknownError(
+          `The backend answered ${response.status} but its body could not be read: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+      }
+      throw toMppError(
+        `http_${response.status}`,
+        `MPP response from ${path} was not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+}
