@@ -8,6 +8,7 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import { mppCredentialFixture } from './credential-fixture.js'
 import { MppCredentialRejectedError } from '../../../src/mpp/errors.js'
 
 // A credential is single-use: the middleware refuses one that has already
@@ -20,7 +21,7 @@ let credentialSeq = 0
 let CREDENTIAL = ''
 beforeEach(() => {
   credentialSeq += 1
-  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+  CREDENTIAL = mppCredentialFixture(`hooks-${credentialSeq}`)
 })
 
 function buildMockPayments(mpp: Record<string, unknown> = {}) {
@@ -158,6 +159,132 @@ describe('onPaymentError on a rejected MPP credential', () => {
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
     } finally {
       await close()
+    }
+  })
+
+  it('does NOT fire on the ordinary credential-less opening request', async () => {
+    // Deliberate divergence from x402, and pinned here because nothing else
+    // pins it: the only existing coverage was incidental (a path where
+    // issueChallenge itself rejects). The mint/redeem handshake makes the
+    // first request of every payment cycle credential-less BY CONSTRUCTION —
+    // a buyer cannot obtain a credential without first being handed a
+    // challenge — so notifying here would fire onPaymentError once per
+    // SUCCESSFUL payment and drown the rejections the hook exists to
+    // surface. A future "restore x402 parity" patch would undo this
+    // silently; it was in fact implemented once and reverted for exactly
+    // this reason.
+    const payments = buildMockPayments()
+    const onPaymentError = jest.fn()
+    const { port, close } = await startServer(payments, { onPaymentError })
+    try {
+      const response = await post(port)
+      expect(response.status).toBe(402)
+      expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
+      expect(onPaymentError).not.toHaveBeenCalled()
+    } finally {
+      await close()
+    }
+  })
+
+  it('DOES fire when an Authorization header arrived but carried no Payment scheme', async () => {
+    // The other half of the same null. extractCredential returns null for
+    // "no header at all" (healthy) and for "a header that is not ours"
+    // (broken), and only the second is a failure: an intermediary rewriting
+    // Authorization — a gateway injecting its own Bearer, a proxy with its
+    // own auth — puts the buyer in a silent infinite loop of mint, pay,
+    // present, rewritten, re-challenge, at the cost of a real issueChallenge
+    // round-trip per iteration, while the seller's metrics show healthy
+    // traffic.
+    const payments = buildMockPayments()
+    const onPaymentError = jest.fn()
+    const { port, close } = await startServer(payments, { onPaymentError })
+    try {
+      const response = await post(port, { authorization: 'Bearer a-gateway-jwt' })
+      expect(response.status).toBe(402)
+      expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
+      expect(onPaymentError).toHaveBeenCalledTimes(1)
+      expect(onPaymentError.mock.calls[0][0].message).toMatch(/no MPP Payment scheme/)
+    } finally {
+      await close()
+    }
+  })
+
+  it('logs an async hook rejection instead of leaving it unhandled', async () => {
+    // The declared type is `(error, req, res) => void`, which happily accepts
+    // an async function — so a rejecting hook is easy for a seller to write,
+    // and try/catch alone never covered it. An unhandled rejection is
+    // process-fatal under Node's default.
+    const payments = buildMockPayments({
+      verifyCredential: jest
+        .fn()
+        .mockResolvedValue({ isValid: false, invalidReason: 'no credits' }),
+    })
+    const onPaymentError = jest.fn(async () => {
+      throw new Error('async seller hook is broken')
+    })
+    const unhandled = jest.fn()
+    process.on('unhandledRejection', unhandled)
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { port, close } = await startServer(payments, { onPaymentError })
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(response.status).toBe(402)
+      await new Promise((r) => setImmediate(r))
+      await new Promise((r) => setImmediate(r))
+      expect(unhandled).not.toHaveBeenCalled()
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'MPP onPaymentError hook failed:',
+        expect.any(Error),
+      )
+    } finally {
+      process.off('unhandledRejection', unhandled)
+      consoleErrorSpy.mockRestore()
+      await close()
+    }
+  })
+
+  it('routes a throwing credits function through onPaymentError instead of Express', async () => {
+    // `credits` is caller-supplied and evaluated per request (a DB lookup, a
+    // rate-table fetch), so a throw is an ordinary seller bug. It used to run
+    // before notifyPaymentError even existed, and handleMppRequest is awaited
+    // outside any try/catch — so the rejection reached Express's default
+    // error handler and the buyer got a 500 with a stack trace, no challenge,
+    // and no way forward, while a configured onPaymentError never fired.
+    const payments = buildMockPayments()
+    const onPaymentError = jest.fn()
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const app = express()
+    app.use(express.json())
+    app.use(
+      paymentMiddleware(
+        payments,
+        {
+          'POST /ask': {
+            planId: '123',
+            credits: () => {
+              throw new Error('rate table lookup failed')
+            },
+            mpp: true,
+          },
+        },
+        { onPaymentError } as any,
+      ),
+    )
+    app.post('/ask', (_req, res) => res.json({ answer: 'ok' }))
+    const server = http.createServer(app)
+    await new Promise<void>((r) => server.listen(0, r))
+    const port = (server.address() as any).port
+    try {
+      const response = await post(port, { authorization: CREDENTIAL })
+      expect(onPaymentError).toHaveBeenCalledTimes(1)
+      expect(onPaymentError.mock.calls[0][0].message).toMatch(/rate table lookup failed/)
+      expect(response.status).toBe(500)
+      const body = await response.text()
+      expect(body).not.toMatch(/at handleMppRequest/)
+      expect(body).not.toMatch(/rate table lookup failed/)
+    } finally {
+      consoleErrorSpy.mockRestore()
+      await new Promise<void>((r) => server.close(() => r()))
     }
   })
 })

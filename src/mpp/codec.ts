@@ -134,6 +134,45 @@ export function extractPaymentScheme(headerValue: string): string | null {
 }
 
 /**
+ * The stable identity of a credential: the challenge id it carries.
+ *
+ * The header bytes are NOT that identity. `PAYMENT_SCHEME_BOUNDARY` is
+ * case-insensitive and {@link extractPaymentScheme} returns the matched slice
+ * verbatim, so `Payment x`, `payment x` and `Payment  x` are three different
+ * strings for one credential — and the body is base64url of JSON the BUYER
+ * assembles, so re-ordering its keys yields more. The backend collapses every
+ * one of them onto a single burn, because its own idempotency key is the
+ * decoded challenge id. Anything at the seller edge enforcing single-use has
+ * to key on the same thing, or a buyer flips one byte of case and buys the
+ * response again.
+ *
+ * @returns the `challenge.id` a token68 credential decodes to, or `null` when
+ * the credential cannot be decoded into one — a structured `key="value"`
+ * scheme (that shape is a challenge, never a credential), undecodable
+ * base64url JSON, or JSON without a non-empty string `challenge.id`. The
+ * backend rejects all of those anyway; returning `null` lets the caller refuse
+ * them without a round-trip rather than fall back to a key it cannot trust.
+ */
+export function extractCredentialChallengeId(credential: string): string | null {
+  const token68 = credential.replace(/^Payment\s+/i, '').trim()
+  if (!token68 || AUTH_PARAM_START.test(token68)) return null
+
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(Buffer.from(token68, 'base64url').toString('utf8'))
+  } catch {
+    return null
+  }
+  if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) return null
+
+  const { challenge } = decoded as { challenge?: unknown }
+  if (typeof challenge !== 'object' || challenge === null || Array.isArray(challenge)) return null
+
+  const { id } = challenge as { id?: unknown }
+  return typeof id === 'string' && id !== '' ? id : null
+}
+
+/**
  * Reads a quoted-string value starting right after its opening `"`,
  * unescaping `\"` to a literal `"` and `\\` to a literal `\` (mirrors
  * mppx's `readQuotedAuthParamValue`, `Challenge.ts:461-465`).

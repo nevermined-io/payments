@@ -1,13 +1,22 @@
 /**
  * Seller-edge helpers for MPP.
  *
- * The edge is a thin, secret-free shim: it never mints a challenge itself, never
- * holds the MPP signing secret and never inspects a credential. It renames
- * headers and forwards opaque strings to the backend.
+ * The edge is a thin, secret-free shim: it never mints a challenge itself and
+ * never holds the MPP signing secret. It renames headers and forwards opaque
+ * strings to the backend.
+ *
+ * It does read exactly one field out of a credential — `challenge.id`, via
+ * {@link mppCredentialId}. That is a deliberate, bounded exception to
+ * "forwards opaque strings", and it is forced: enforcing single-use requires a
+ * stable identity for a credential, and the header bytes are not one (see
+ * {@link extractCredentialChallengeId}). The id is public, unsigned and
+ * already the backend's own burn key, so reading it grants the edge nothing
+ * it could not already observe; nothing here validates, trusts or acts on any
+ * other field, and the credential itself is still forwarded verbatim.
  */
 
 import type { Request } from 'express'
-import { extractPaymentScheme } from '../../mpp/codec.js'
+import { extractCredentialChallengeId, extractPaymentScheme } from '../../mpp/codec.js'
 
 /** MPP HTTP header names, lowercased for `req.headers` lookups. */
 export const MPP_HEADERS = {
@@ -56,4 +65,15 @@ export function extractCredential(req: Request): string | null {
   const header = req.headers[MPP_HEADERS.CREDENTIAL]
   if (!header || typeof header !== 'string') return null
   return extractPaymentScheme(header)
+}
+
+/**
+ * The key the middleware's single-use and in-flight sets are keyed on: the
+ * credential's challenge id, never the header bytes.
+ *
+ * `null` means the credential carries no usable id, which the middleware
+ * treats as a rejection — see {@link extractCredentialChallengeId}.
+ */
+export function mppCredentialId(credential: string): string | null {
+  return extractCredentialChallengeId(credential)
 }

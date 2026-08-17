@@ -9,6 +9,7 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware, X402_HEADERS } from '../../../src/x402/express/index.js'
+import { mppCredentialFixture } from './credential-fixture.js'
 
 const X402_TOKEN = 'mock-x402-token'
 
@@ -83,7 +84,7 @@ describe('x402 token on an MPP-enabled route', () => {
     try {
       const response = await post(port, {
         [X402_HEADERS.PAYMENT_SIGNATURE]: X402_TOKEN,
-        authorization: 'Payment eyJjaGFsbGVuZ2UiOnt9fQ',
+        authorization: mppCredentialFixture('fallback-1'),
       })
 
       expect(response.status).toBe(200)

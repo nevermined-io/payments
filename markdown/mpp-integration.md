@@ -6,6 +6,12 @@ icon: 'handshake'
 
 # MPP Integration
 
+> **Experimental.** The `mpp` route option and the `payments.mpp.*` surface ship
+> ahead of their epic's declared MVP scope. The names are settled — `payments.mpp`
+> beside `payments.x402` is what you would guess, and renaming it after a tag
+> costs a major — but the shapes may change in a minor release until the epic
+> adopts them.
+
 The Machine Payments Protocol (MPP) is a second payment framing over the same
 Nevermined plans, delegations and credits that x402 uses. Turning it on for a
 route does not change the plan, the credits or the route configuration.
@@ -155,11 +161,18 @@ the x402 branch, where the hook takes over: an MPP `402` has to carry a fresh
 wired purely for observability must not strip it.
 
 It fires for rejected credentials, expiries, digest mismatches, body-binding
-refusals and challenge-issuance failures — but **not** for the initial
-credential-less request. In MPP the first request of every payment cycle is
-unpaid by design, so notifying there would fire the hook on every successful
-payment and drown the failures it exists to surface. A hook that throws is
-logged and the challenge is still sent.
+refusals, challenge-issuance failures, a settle that definitively fails, and
+a buyer disconnecting while settlement was still in flight — but **not** for
+the initial credential-less request. In MPP the first request of every
+payment cycle is unpaid by design, so notifying there would fire the hook on
+every successful payment and drown the failures it exists to surface.
+
+It **does** fire when an `Authorization` header is present but carries no
+`Payment` scheme at all — that shape means an intermediary rewrote it (a
+gateway injecting its own `Bearer`, a reverse proxy with its own auth), which
+otherwise puts the buyer in a silent infinite loop with no error visible on
+either side. A hook that throws — synchronously or as a rejected `async`
+function — is logged and the challenge is still sent.
 
 A `credits` function is evaluated once per _request_ handled by this
 middleware — once when the challenge is minted, and again when the paid
@@ -178,21 +191,49 @@ backend cannot refuse that — a replayed settle succeeding _is_ its
 idempotency contract working as designed — so single-use is enforced at the
 seller edge.
 
-Two guards do it, both **within one Node process**:
+Two guards do it, both **within one Node process** and both keyed on the
+credential's `challenge.id` — not on the raw header bytes, which the buyer
+can vary (scheme case, whitespace, JSON key order) without changing which
+credential they are:
 
 - **Concurrent** — a second request presenting a credential that is verified
-  but not yet settled is refused with `409 Conflict`.
+  but not yet settled is refused with `409 Conflict`. Check-and-claim is one
+  atomic step with no `await` in between, so two requests racing the same
+  credential cannot both pass.
 - **Sequential** — a credential that has already bought a response is
   refused with a `402` carrying a **fresh challenge** and
   `code: "BCK.MPP.0003"` (`retryable: false`), for the 300-second lifetime
   of the challenge it came from. After that the challenge has expired and
   the backend refuses the credential anyway.
 
-A credential is only marked spent when a `2xx` is actually delivered for it.
-A request your handler answers with a `4xx`/`5xx` never settles, so the buyer
-keeps their claim and can retry with the same credential.
+A credential that cannot be decoded into a `challenge.id` at all is refused
+the same way, without a backend round-trip — the backend would reject it too.
+
+A credential is only marked spent when a `2xx` is **actually delivered** for
+it — a status code alone is not delivery. If the buyer disconnects before the
+response reaches them, settlement never runs and the credential stays
+theirs to retry with; `onPaymentError` still fires so the loss is visible on
+the seller's side, since MPP has no void or reversal for a burn that already
+committed before the disconnect was noticed. A request your handler answers
+with a `4xx`/`5xx` never settles either, so the buyer keeps their claim there
+too.
 
 Neither guard extends across multiple processes or horizontally-scaled
 instances of this middleware — they do not share the in-memory state, and a
 deployment that scales this middleware horizontally needs its own mitigation
 (e.g. a shared store such as Redis) for both races across instances.
+
+## Settlement outcomes your accounting has to distinguish
+
+`settleCredential` can end three ways: a definite success, a definite
+failure, or **unknown** — the backend answered with a `5xx`/`408`, or timed
+out, or returned a `2xx` whose body could not be read. In all three unknown
+cases the credits may already be burned; reporting them as a definite
+failure would make a real burn silently vanish from your records.
+
+`onAfterSettle`'s third parameter is `unknown` precisely so a definite
+failure and an unknown outcome cannot be confused for the same shape — a
+definite failure reports `creditsToSettle: 0` (nothing burned, as far as this
+side can prove), while an unknown outcome reports the charged amount and
+`{ outcome: 'unknown', reason }`. Narrow to `MppSettlementOutcomeUnknown`
+explicitly before reading `outcome`.

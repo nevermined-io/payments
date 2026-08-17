@@ -168,6 +168,11 @@ export class MppAPI extends BasePaymentsAPI {
    * is the documented, empirically-confirmed shape Node's `fetch` throws
    * when an `AbortSignal.timeout()` deadline fires — as opposed to, say,
    * connection-refused, which surfaces as a plain `TypeError`.
+   *
+   * The same reasoning covers the other two ways a burning call can end
+   * without a definite answer: an upstream 5xx/408, and a 2xx whose body
+   * could not be read. All three raise {@link MppSettlementOutcomeUnknownError};
+   * only a 4xx — the backend deliberately rejecting — is a definite failure.
    */
   private async post<T>(
     path: string,
@@ -203,6 +208,23 @@ export class MppAPI extends BasePaymentsAPI {
         if (errorData.hint) message = `${message} — ${errorData.hint}`
       } catch {
         // Keep the default message.
+      }
+      // On a burning call, a 5xx (or a 408) is an UNKNOWN outcome, not a
+      // failure. A 504 in particular means an intermediary gave up waiting on
+      // the backend — it says nothing about whether the burn committed, which
+      // is the exact condition MppSettlementOutcomeUnknownError exists for,
+      // and the argument the docstring below makes for an unreadable 2xx
+      // applies word for word. Classified as a definite failure, the
+      // middleware logs "settlement failed" and skips onAfterSettle for
+      // credits that may well be gone.
+      //
+      // Confined to 5xx/408: the backend's own rejections (BCK.MPP.0003 and
+      // friends) come back as 4xx and ARE definite — reporting those as
+      // unknown would corrupt the accounting in the other direction.
+      if (options.burns && (response.status >= 500 || response.status === 408)) {
+        throw new MppSettlementOutcomeUnknownError(
+          `The backend answered ${response.status} without a definite settlement outcome: ${message}`,
+        )
       }
       throw toMppError(code, message)
     }
