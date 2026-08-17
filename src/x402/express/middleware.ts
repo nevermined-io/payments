@@ -297,6 +297,53 @@ function requestHasBody(req: Request): boolean {
 }
 
 /**
+ * Arms a probe that answers, at `res.end` time, whether this response is
+ * actually being DELIVERED to the buyer.
+ *
+ * Must be called BEFORE the handler runs — it captures a baseline — and the
+ * returned predicate read inside the `res.end` wrapper.
+ *
+ * Both payment paths in this file bill from that wrapper, and both get this
+ * wrong in a different direction if they simply look at the status code or at
+ * the socket:
+ *
+ * - **A status code is not a delivery.** An aborted request still carries
+ *   `200`: after a client hangs up, `res.closed` and `res.destroyed` are true,
+ *   `res.headersSent` is false, `res.statusCode` is still 200 — and `res.end()`
+ *   still runs the wrapper. Billing on the status alone charges for a response
+ *   that went into a dead socket.
+ * - **A dead socket is not proof of non-delivery.** On a STREAMED response
+ *   delivery happens at `res.write()`, while this is read in the `res.end`
+ *   wrapper: an SSE or token-streaming endpoint — the shape an agent endpoint
+ *   takes — hands the buyer the whole value and only then calls `end()`. A
+ *   buyer who reads the payload and hangs up has been served in full.
+ *
+ * So delivery is: the socket is still alive (we are about to write), OR bytes
+ * for THIS response already reached the wire.
+ *
+ * The DELTA is load-bearing — `socket.bytesWritten` alone is not a usable
+ * signal. It is cumulative for the whole connection, so on a keep-alive socket
+ * that already carried an earlier response it reads non-zero for a response
+ * that has written nothing at all (measured: 249 bytes from the previous
+ * request, delta 0 for this one). Keying on the raw value bills undelivered
+ * buffered responses on every reused connection.
+ *
+ * The socket reference is HELD rather than re-read from `res.socket`, which is
+ * allowed to be nulled once the response detaches.
+ */
+function armDeliveryProbe(res: Response): () => boolean {
+  const socket = res.socket
+  const bytesBeforeHandler = socket?.bytesWritten ?? 0
+
+  return () => {
+    const bytesFlushed = (socket?.bytesWritten ?? bytesBeforeHandler) - bytesBeforeHandler
+    const alreadyDelivered = res.headersSent && bytesFlushed > 0
+    const socketStillAlive = !res.destroyed && !res.closed
+    return socketStillAlive || alreadyDelivered
+  }
+}
+
+/**
  * Helper to send a 402 Payment Required response with proper x402 headers.
  */
 function sendPaymentRequired(
@@ -886,16 +933,9 @@ async function handleMppRequest(args: {
   const originalEnd = res.end.bind(res) as (...a: Parameters<Response['end']>) => Response
   let settlementStarted = false
 
-  // Captured HERE, before next() hands control to the handler, so the
-  // `res.end` wrapper can tell how many bytes THIS response put on the wire.
-  //
-  // The reference is held rather than read from `res.socket` later because
-  // that property is allowed to be nulled once the response detaches, and the
-  // baseline because `bytesWritten` counts the whole connection: on a
-  // keep-alive socket it is already non-zero from the previous response, so
-  // only the delta says anything about this one.
-  const responseSocket = res.socket
-  const socketBytesBeforeHandler = responseSocket?.bytesWritten ?? 0
+  // Armed HERE, before next() hands control to the handler — it captures a
+  // byte baseline, so it has to run first. See armDeliveryProbe.
+  const hasBeenDelivered = armDeliveryProbe(res)
 
   // A seller's own onAfterSettle can throw, and where that lands differed by
   // branch: on the success path it rejected into the settlement .catch() and
@@ -1064,44 +1104,14 @@ async function handleMppRequest(args: {
     ...endArgs: Parameters<Response['end']>
   ): Response {
     const isSuccess = res.statusCode >= 200 && res.statusCode < 300
-    // A STATUS CODE IS NOT A DELIVERY. An aborted request still carries 200:
-    // after a client hangs up, res.closed and res.destroyed are true,
-    // res.headersSent is false, res.statusCode is still 200 — and res.end()
-    // still runs this wrapper. Gating on the status alone therefore burned
-    // the buyer's credits for a response that went into a dead socket, and
-    // MppAPI exposes no void, refund or reversal, so that burn is permanent.
-    //
-    // BUT A DEAD SOCKET IS NOT PROOF OF NON-DELIVERY EITHER, and that is the
-    // whole reason this predicate is not simply `!res.destroyed`. Delivery on
-    // a STREAMED response happens at `res.write()`, while this runs in the
-    // `res.end` wrapper: an SSE or token-streaming endpoint — precisely the
-    // shape an agent endpoint takes — hands the buyer the entire value and
-    // only then calls `end()`. A buyer who reads the payload and hangs up
-    // has been served in full, so refusing to settle there would give the
-    // response away AND leave the credential spendable for the rest of the
-    // 300s challenge TTL. Charge-without-delivery and delivery-without-charge
-    // are two directions of the same bug; the gate has to close both.
-    //
-    // So: bytes already on the wire for THIS response count as delivery, even
-    // if the socket has since gone.
-    //
-    // The delta against a baseline captured before the handler ran is
-    // load-bearing — `socket.bytesWritten` alone is NOT a usable signal. It
-    // is cumulative for the whole connection, so on a keep-alive socket that
-    // already carried an earlier response it reads non-zero for a response
-    // that has written nothing at all (measured: 249 bytes from the previous
-    // request, delta 0 for this one). Keying on the raw value would settle an
-    // undelivered buffered response on every reused connection — reopening
-    // the charge-without-delivery direction one branch over.
-    //
-    // markdown/mpp-integration.md states the invariant as "a credential is
-    // only marked spent when a 2xx is actually delivered for it"; this is
-    // where that becomes true, in both directions.
-    const bytesFlushed =
-      (responseSocket?.bytesWritten ?? socketBytesBeforeHandler) - socketBytesBeforeHandler
-    const alreadyDelivered = res.headersSent && bytesFlushed > 0
-    const socketStillAlive = !res.destroyed && !res.closed
-    const isDelivered = socketStillAlive || alreadyDelivered
+    // MPP's stake in this: MppAPI exposes no void, refund or reversal, so a
+    // burn for a response nobody received is permanent — and in the other
+    // direction a streamed payload the buyer already read must still be paid
+    // for, or the credential stays spendable for the rest of the 300s
+    // challenge TTL. markdown/mpp-integration.md states the invariant as "a
+    // credential is only marked spent when a 2xx is actually delivered for
+    // it"; this is where that becomes true, in both directions.
+    const isDelivered = hasBeenDelivered()
     if (settlementStarted || !isSuccess || !isDelivered) {
       if (isSuccess && !isDelivered && !settlementStarted) {
         console.warn(
@@ -1296,6 +1306,14 @@ export function paymentMiddleware(
         const originalEnd = res.end.bind(res) as (...args: Parameters<Response['end']>) => Response
         let settlementStarted = false
 
+        // Armed before next() for the same reason as the MPP path: it captures
+        // a byte baseline. A route declared `{ planId, credits, mpp: true }`
+        // advertises BOTH protocols on the same 402, so without this an MPP
+        // buyer who disconnects before delivery is correctly not charged while
+        // an x402 buyer doing exactly the same thing is — same route, same
+        // disconnect, two different answers.
+        const hasBeenDelivered = armDeliveryProbe(res)
+
         const runSettlement = (): Promise<void> => {
           return (
             typeof credits === 'function'
@@ -1348,7 +1366,16 @@ export function paymentMiddleware(
           // etc. Skipping 4xx/5xx avoids charging when the handler signals
           // failure — including `sendPaymentRequired`'s 402 which lands here.
           const isSuccess = res.statusCode >= 200 && res.statusCode < 300
-          if (settlementStarted || !isSuccess) {
+          // And only when the response is actually reaching the buyer — an
+          // aborted request still carries 200 through this wrapper, so the
+          // status alone would charge the card for bytes nobody received.
+          const isDelivered = hasBeenDelivered()
+          if (settlementStarted || !isSuccess || !isDelivered) {
+            if (isSuccess && !isDelivered && !settlementStarted) {
+              console.warn(
+                '[paymentMiddleware] x402: the buyer disconnected before any of the response reached them; not settling',
+              )
+            }
             return originalEnd(...args)
           }
           settlementStarted = true
