@@ -44,6 +44,13 @@ export class Payments extends BasePaymentsAPI {
   /**
    * MPP (Machine Payments Protocol) surface — challenge/credential framing over
    * the same plans, delegations and credit burn as x402.
+   *
+   * @experimental Shipped ahead of its epic's declared MVP scope, so that the
+   * Express middleware's own dependency on it is reachable rather than hidden
+   * behind an internal handle. The NAME is settled — `payments.mpp` beside
+   * `payments.x402` is what a seller will guess, and renaming it after a tag
+   * costs a major. The SHAPE is not: this surface may change in a minor
+   * release until the epic adopts it.
    */
   public mpp!: MppAPI
   private _a2aRegistry?: ClientRegistry

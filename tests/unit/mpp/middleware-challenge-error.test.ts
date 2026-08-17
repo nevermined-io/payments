@@ -9,6 +9,7 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import { mppCredentialFixture } from './credential-fixture.js'
 import { MppNotConfiguredError } from '../../../src/mpp/errors.js'
 
 function buildMockPayments(overrides: Record<string, unknown> = {}) {
@@ -107,7 +108,7 @@ describe('MPP challenge issuance failure', () => {
     })
     const { port, close } = await startServer(payments)
     try {
-      const response = await post(port, { authorization: 'Payment eyJjaGFsbGVuZ2UiOnt9fQ' })
+      const response = await post(port, { authorization: mppCredentialFixture('chal-err-1') })
       const body = await response.text()
       expect(body).not.toMatch(/at handleMppRequest/)
       expect(response.status).toBeGreaterThanOrEqual(500)

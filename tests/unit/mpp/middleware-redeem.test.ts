@@ -5,6 +5,7 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import { mppCredentialFixture } from './credential-fixture.js'
 import {
   MppChallengeExpiredError,
   MppCredentialRejectedError,
@@ -23,7 +24,7 @@ let credentialSeq = 0
 let CREDENTIAL = ''
 beforeEach(() => {
   credentialSeq += 1
-  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+  CREDENTIAL = mppCredentialFixture(`redeem-${credentialSeq}`)
 })
 
 function buildMockPayments(mpp: Record<string, unknown> = {}) {
@@ -141,7 +142,15 @@ describe('MPP redemption', () => {
       expect(response.status).toBe(402)
       expect(response.headers.get('www-authenticate')).toBe('Payment id="c1"')
       const body = await response.json()
-      expect(body.message).toBe('no credits')
+      // The fixed string, NOT invalidReason. The sibling rejection path (the
+      // verify-threw one) already sent a fixed message on anti-oracle
+      // grounds; forwarding invalidReason verbatim here contradicted that
+      // rule nineteen lines below it, and contradicted the backend's own
+      // choice to throw BCK.MPP.0003 with suppressReason precisely to keep
+      // the reason off the wire. Latent while the backend never returns a
+      // soft isValid:false — which is why it has to be pinned, not argued.
+      expect(body.message).toBe('Credential rejected')
+      expect(JSON.stringify(body)).not.toContain('no credits')
       expect(body.code).toBe('BCK.MPP.0003')
       // A generic rejection is terminal: presenting a fresh credential
       // against the fresh challenge on this same 402 cannot help, because
@@ -576,7 +585,12 @@ describe('MPP redemption', () => {
         await new Promise((r) => setImmediate(r))
         expect(onAfterSettle).toHaveBeenCalledWith(
           expect.anything(),
-          expect.anything(),
+          // Pinned to the literal, not expect.anything(). This is the branch
+          // whose whole purpose is "the credits may have been burned", so the
+          // charged amount — not 0 — is the value a seller's accounting has
+          // to see; a regression to 0 here would erase a real burn from their
+          // records and an anything() matcher would stay green through it.
+          2,
           expect.objectContaining({ outcome: 'unknown' }),
         )
         // A real burn that we simply lost the answer to must never be logged
@@ -606,6 +620,46 @@ describe('MPP redemption', () => {
         await new Promise((r) => setImmediate(r))
         expect(consoleErrorSpy).toHaveBeenCalledWith('MPP settlement failed:', expect.anything())
         expect(onAfterSettle).not.toHaveBeenCalled()
+      } finally {
+        consoleErrorSpy.mockRestore()
+        await close()
+      }
+    })
+
+    it('notifies onPaymentError and zeroes creditsToSettle when the settle definitively fails', async () => {
+      // The seller has served the resource and not been paid — the most
+      // expensive failure they can have — and stdout used to be the only
+      // record of it. And paymentContext still carried the optimistic
+      // creditsToCharge, so anything reading it from res.on('finish') was
+      // told the full amount had settled when nothing had, contradicting the
+      // resolved-but-failed branch that reports 0 for the same fact.
+      const payments = buildMockPayments({
+        settleCredential: jest.fn().mockRejectedValue(new MppError('backend exploded')),
+      })
+      const onPaymentError = jest.fn()
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+      let creditsSeenOnFinish: number | undefined
+      const { port, close } = await startServer(
+        payments,
+        (req: any, res: any) => {
+          res.on('finish', () => {
+            creditsSeenOnFinish = req.paymentContext?.creditsToSettle
+          })
+          res.json({ answer: 'ok' })
+        },
+        { onPaymentError },
+      )
+      try {
+        const response = await post(port, { authorization: CREDENTIAL })
+        expect(response.status).toBe(200)
+        await new Promise((r) => setImmediate(r))
+        await new Promise((r) => setImmediate(r))
+        expect(onPaymentError).toHaveBeenCalledWith(
+          expect.any(Error),
+          expect.anything(),
+          expect.anything(),
+        )
+        expect(creditsSeenOnFinish).toBe(0)
       } finally {
         consoleErrorSpy.mockRestore()
         await close()

@@ -19,6 +19,7 @@ import {
   buildCredentialHeader,
   parseReceiptHeader,
   extractPaymentScheme,
+  extractCredentialChallengeId,
 } from '../../../src/mpp/codec.js'
 import { MppError } from '../../../src/mpp/errors.js'
 
@@ -81,8 +82,7 @@ describe('parseChallengeHeader', () => {
     expect(challenge.expires).toBe('2026-08-12T10:05:00.000Z')
     expect(challenge.request).toEqual({
       credits: '2',
-      planId:
-        '4474276307604749764008023023678147412997099272789659386199734713561313557107',
+      planId: '4474276307604749764008023023678147412997099272789659386199734713561313557107',
     })
   })
 
@@ -220,9 +220,9 @@ describe('extractPaymentScheme', () => {
   })
 
   it('does not match "Payment" text embedded inside a different, preceding scheme\'s quoted value', () => {
-    expect(
-      extractPaymentScheme('Digest username="my payment plan", Payment abc'),
-    ).toBe('Payment abc')
+    expect(extractPaymentScheme('Digest username="my payment plan", Payment abc')).toBe(
+      'Payment abc',
+    )
   })
 
   it('does not truncate a structured challenge at a comma inside a quoted value', () => {
@@ -435,5 +435,68 @@ describe('parseReceiptHeader — malformed input', () => {
       status: 'success',
       timestamp: '2026-08-12T10:00:30.000Z',
     })
+  })
+})
+
+describe('extractCredentialChallengeId', () => {
+  const CHALLENGE = {
+    id: 'CQszOngfvT1RIGSajipZJvg-lBCEDugWLDF7SD_w1og',
+    realm: 'api.nevermined.app',
+    method: 'nevermined',
+    intent: 'charge',
+    request: 'eyJjcmVkaXRzIjoiMiIsInBsYW5JZCI6IjEyMyJ9',
+  }
+  const CREDENTIAL = `Payment ${Buffer.from(
+    JSON.stringify({ challenge: CHALLENGE, payload: { accessToken: 'x' } }),
+  ).toString('base64url')}`
+
+  it('reads the challenge id out of a credential this SDK built', () => {
+    expect(extractCredentialChallengeId(CREDENTIAL)).toBe(CHALLENGE.id)
+  })
+
+  it('returns the SAME id for byte-variants the backend collapses onto one burn', () => {
+    // This is the whole point: the header bytes are not the credential's
+    // identity. The scheme match is case-insensitive and returns its slice
+    // verbatim, so these three strings differ while naming one credential —
+    // and the backend's idempotency key is this id, so all three settle onto
+    // a single burn. A guard keyed on the bytes is walked around by flipping
+    // one byte of case.
+    const lowercased = CREDENTIAL.replace(/^Payment/, 'payment')
+    const respaced = CREDENTIAL.replace(/^Payment /, 'Payment  ')
+    expect(lowercased).not.toBe(CREDENTIAL)
+    expect(respaced).not.toBe(CREDENTIAL)
+    expect(extractCredentialChallengeId(lowercased)).toBe(CHALLENGE.id)
+    expect(extractCredentialChallengeId(respaced)).toBe(CHALLENGE.id)
+  })
+
+  it('is insensitive to the buyer re-ordering the JSON keys', () => {
+    // The body is base64url of JSON the BUYER assembles, so key order is
+    // theirs to choose and yields yet more distinct byte-strings.
+    const reordered = `Payment ${Buffer.from(
+      JSON.stringify({
+        payload: { accessToken: 'x' },
+        challenge: { intent: 'charge', id: CHALLENGE.id, realm: CHALLENGE.realm },
+      }),
+    ).toString('base64url')}`
+    expect(reordered).not.toBe(CREDENTIAL)
+    expect(extractCredentialChallengeId(reordered)).toBe(CHALLENGE.id)
+  })
+
+  it.each([
+    ['undecodable base64url JSON', 'Payment !!!not-base64url!!!'],
+    ['JSON that is not an object', `Payment ${Buffer.from('[]').toString('base64url')}`],
+    [
+      'an object with no challenge',
+      `Payment ${Buffer.from('{"other":true}').toString('base64url')}`,
+    ],
+    ['a challenge with no id', `Payment ${Buffer.from('{"challenge":{}}').toString('base64url')}`],
+    [
+      'a challenge whose id is not a non-empty string',
+      `Payment ${Buffer.from('{"challenge":{"id":""}}').toString('base64url')}`,
+    ],
+    ['a structured challenge, which is never a credential', 'Payment id="c1", realm="r"'],
+    ['no Payment scheme at all', ''],
+  ])('returns null for %s', (_label, input) => {
+    expect(extractCredentialChallengeId(input)).toBeNull()
   })
 })

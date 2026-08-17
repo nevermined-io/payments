@@ -9,6 +9,7 @@ export {
   buildCredentialHeader,
   parseReceiptHeader,
   extractPaymentScheme,
+  extractCredentialChallengeId,
 } from './codec.js'
 export type { MppChallenge, MppChallengeRequest, MppReceipt } from './types.js'
 export {

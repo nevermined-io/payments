@@ -14,6 +14,7 @@ import express from 'express'
 import http from 'http'
 import { createHash } from 'crypto'
 import { paymentMiddleware, captureRawBody } from '../../../src/x402/express/index.js'
+import { mppCredentialFixture } from './credential-fixture.js'
 
 // A credential is single-use: the middleware refuses one that has already
 // bought a response (see `spentMppCredentials` in middleware.ts). Tests share
@@ -25,7 +26,7 @@ let credentialSeq = 0
 let CREDENTIAL = ''
 beforeEach(() => {
   credentialSeq += 1
-  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+  CREDENTIAL = mppCredentialFixture(`digest-${credentialSeq}`)
 })
 const BODY = JSON.stringify({ q: 'hello' })
 const EXPECTED_DIGEST = `sha-256=${createHash('sha256').update(Buffer.from(BODY)).digest('base64')}`

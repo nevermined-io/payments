@@ -7,6 +7,7 @@ import express from 'express'
 import http from 'http'
 import { Payments } from '../../../src/payments.js'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import { mppCredentialFixture } from '../../unit/mpp/credential-fixture.js'
 
 // A credential is single-use: the middleware refuses one that has already
 // bought a response (see `spentMppCredentials` in middleware.ts). Tests share
@@ -18,7 +19,7 @@ let credentialSeq = 0
 let CREDENTIAL = ''
 beforeEach(() => {
   credentialSeq += 1
-  CREDENTIAL = `Payment eyJjaGFsbGVuZ2UiOnt9fQ${credentialSeq}`
+  CREDENTIAL = mppCredentialFixture(`seller-flow-${credentialSeq}`)
 })
 
 describe('MPP seller flow', () => {

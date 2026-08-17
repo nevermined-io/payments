@@ -321,6 +321,102 @@ describe('MppAPI settle-timeout outcome semantics', () => {
       }),
     ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
   })
+
+  it.each([500, 502, 503, 504, 408])(
+    'surfaces a %i on the burning settle as an unknown outcome, not a definite failure',
+    async (status) => {
+      // A 504 from a gateway means the upstream did not answer in time — it
+      // says nothing about whether the burn committed, which is the exact
+      // condition this error class exists for. Classified as a definite
+      // failure, the middleware logs "settlement failed" and skips
+      // onAfterSettle for credits that may well be gone.
+      stubFetch(status, { message: 'gateway said no' })
+      await expect(
+        MppAPI.getInstance(OPTIONS).settleCredential({
+          credential: 'Payment abc',
+          resource: '/ask',
+          httpVerb: 'POST',
+        }),
+      ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+    },
+  )
+
+  it('keeps a 4xx settle rejection a DEFINITE failure — the backend decided, and nothing burned', async () => {
+    // The other direction of the same corruption: reporting a deliberate
+    // BCK.MPP.0003 as "may have burned" would inflate the seller's records
+    // with burns that never happened.
+    stubFetch(403, { code: 'BCK.MPP.0003', message: 'credential rejected' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).settleCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it.each(['ECONNRESET', 'EPIPE', 'UND_ERR_SOCKET', 'UND_ERR_ABORTED'])(
+    'surfaces a %s on the burning settle as an unknown outcome — the request was already on the wire',
+    async (code) => {
+      // A connection that dies AFTER the settle request was written has
+      // exactly the property this class exists for: the backend may already
+      // have burned and only the answer was lost. Node's fetch surfaces the
+      // socket error as `error.cause`.
+      const failure = new TypeError('fetch failed')
+      ;(failure as { cause?: unknown }).cause = { code }
+      global.fetch = jest.fn().mockRejectedValue(failure) as any
+      await expect(
+        MppAPI.getInstance(OPTIONS).settleCredential({
+          credential: 'Payment abc',
+          resource: '/ask',
+          httpVerb: 'POST',
+        }),
+      ).rejects.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+    },
+  )
+
+  it.each(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'])(
+    'keeps a %s on the burning settle a DEFINITE failure — the request never reached anything that could burn',
+    async (code) => {
+      // The allow-list is deliberately narrow: blanket-promoting every network
+      // error would inflate a seller's records with burns that never happened,
+      // the same corruption as reclassifying a 4xx, in the other direction.
+      const failure = new TypeError('fetch failed')
+      ;(failure as { cause?: unknown }).cause = { code }
+      global.fetch = jest.fn().mockRejectedValue(failure) as any
+      await expect(
+        MppAPI.getInstance(OPTIONS).settleCredential({
+          credential: 'Payment abc',
+          resource: '/ask',
+          httpVerb: 'POST',
+        }),
+      ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+    },
+  )
+
+  it('does not treat a mid-flight reset on a NON-burning call as an unknown outcome', async () => {
+    const failure = new TypeError('fetch failed')
+    ;(failure as { cause?: unknown }).cause = { code: 'ECONNRESET' }
+    global.fetch = jest.fn().mockRejectedValue(failure) as any
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
+
+  it('does not treat a 5xx on a NON-burning call as an unknown outcome', async () => {
+    stubFetch(503, { message: 'gateway said no' })
+    await expect(
+      MppAPI.getInstance(OPTIONS).verifyCredential({
+        credential: 'Payment abc',
+        resource: '/ask',
+        httpVerb: 'POST',
+      }),
+    ).rejects.not.toBeInstanceOf(MppSettlementOutcomeUnknownError)
+  })
 })
 
 describe('Payments facade', () => {
