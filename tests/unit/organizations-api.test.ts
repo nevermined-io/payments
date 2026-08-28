@@ -315,7 +315,7 @@ describe('OrganizationsAPI — workspace surface', () => {
   })
 
   describe('onboardCustomer (#2418)', () => {
-    test('new/returning customer: sends as=customer and returns the REAL nvmApiKey', async () => {
+    test('new/returning customer: sends as=customer and returns hash as the Bearer', async () => {
       const payments = makePayments()
       const calls = installFetchStub(() => ({
         ok: true,
@@ -324,12 +324,17 @@ describe('OrganizationsAPI — workspace surface', () => {
           success: true,
           message: 'Customer onboarded',
           walletResult: {
-            hash: 'lookup-hash',
+            // `hash` is the Bearer credential (`<env>:<JWT>`) — the backend
+            // documents this as the value to send as `Authorization: Bearer …`.
+            hash: 'sandbox:jwt-bearer-token',
             userId: 'us-123',
             userWallet: '0xabc',
-            nvmApiKey: 'nvm-real-usable-key',
+            // `nvmApiKey` is the encrypted server-side blob — explicitly NOT a
+            // Bearer; sending it as a header does not authenticate.
+            nvmApiKey: 'encrypted-blob-not-a-bearer',
             isCustomer: true,
             customerRecorded: true,
+            expiresAt: '2026-09-27T12:00:00.000Z',
             alreadyMember: false,
           },
         },
@@ -344,14 +349,17 @@ describe('OrganizationsAPI — workspace surface', () => {
         email: 'customer@example.com',
         as: 'customer',
       })
-      // The USABLE key is returned — not the (non-usable) lookup hash.
+      // The USABLE Bearer is surfaced as `nvmApiKey` (mirroring createMember) —
+      // the raw `nvmApiKey` blob must never leak through as a credential.
       expect(result).toEqual({
         consentRequired: false,
-        nvmApiKey: 'nvm-real-usable-key',
+        nvmApiKey: 'sandbox:jwt-bearer-token',
         userId: 'us-123',
         userWallet: '0xabc',
         isCustomer: true,
         customerRecorded: true,
+        // The credential expiry the paired docs tell integrators to track.
+        expiresAt: '2026-09-27T12:00:00.000Z',
       })
     })
 
@@ -390,7 +398,7 @@ describe('OrganizationsAPI — workspace surface', () => {
       installFetchStub(() => ({
         ok: true,
         status: 201,
-        // Partial/regressed payload: not consent-pending, yet no nvmApiKey.
+        // Partial/regressed payload: not consent-pending, yet no `hash` (the Bearer).
         body: { success: true, walletResult: { userId: 'us-1', isCustomer: true } },
       }))
 
