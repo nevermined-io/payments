@@ -109,6 +109,7 @@ export class OrganizationsAPI extends BasePaymentsAPI {
       userWallet: wallet.userWallet,
       isCustomer: wallet.isCustomer,
       customerRecorded: wallet.customerRecorded,
+      expiresAt: wallet.expiresAt,
     }
   }
 

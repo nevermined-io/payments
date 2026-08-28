@@ -334,6 +334,7 @@ describe('OrganizationsAPI — workspace surface', () => {
             nvmApiKey: 'encrypted-blob-not-a-bearer',
             isCustomer: true,
             customerRecorded: true,
+            expiresAt: '2026-09-27T12:00:00.000Z',
             alreadyMember: false,
           },
         },
@@ -357,6 +358,8 @@ describe('OrganizationsAPI — workspace surface', () => {
         userWallet: '0xabc',
         isCustomer: true,
         customerRecorded: true,
+        // The credential expiry the paired docs tell integrators to track.
+        expiresAt: '2026-09-27T12:00:00.000Z',
       })
     })
 

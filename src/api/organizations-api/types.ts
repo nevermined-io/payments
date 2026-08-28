@@ -55,6 +55,12 @@ export type CustomerOnboardingResponse =
       isCustomer: boolean
       /** Whether the customer was written to the org's Customers list (best-effort). */
       customerRecorded: boolean
+      /**
+       * ISO-8601 expiry of the credential (#2924). Track it and re-onboard to
+       * refresh before it lapses. Optional: returned for the credential outcome,
+       * but an older backend may omit it.
+       */
+      expiresAt?: string
     }
 
 /**
