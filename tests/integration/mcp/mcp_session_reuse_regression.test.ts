@@ -86,4 +86,25 @@ describe('MCP Session - transport reuse regression', () => {
     const body = await listRes.json()
     expect(body.result.tools.map((t: any) => t.name)).toContain('ping')
   })
+
+  test('standalone GET/SSE is unsupported in stateless mode, so a later POST tears down nothing', async () => {
+    // Review question on #423: does rebuilding a transport on POST close a live
+    // GET/SSE stream on the same session? In this stateless config
+    // (sessionIdGenerator: undefined, enableJsonResponse) the SDK rejects the
+    // standalone SSE stream outright — it never establishes, so there is no
+    // long-lived stream for the subsequent POST to disrupt.
+    const initRes = await post(initialize)
+    const sessionId = initRes.headers.get('mcp-session-id')!
+
+    const sse = await fetch(baseUrl, {
+      method: 'GET',
+      headers: { Accept: 'text/event-stream', 'mcp-session-id': sessionId },
+    })
+    expect(sse.status).not.toBe(200)
+    await sse.body?.cancel()
+
+    // The session id is still usable for JSON-RPC POSTs afterwards.
+    const listRes = await post(toolsList, sessionId)
+    expect(listRes.status).toBe(200)
+  })
 })
