@@ -15,6 +15,7 @@ export default class GetX402AccessToken extends BaseCommand {
     '$ nevermined x402token get-x402-access-token <planId> --payment-type fiat --payment-method-id pm_1AbCdEfGhIjKlM --spending-limit-cents 5000',
     '$ nevermined x402token get-x402-access-token <planId> --spending-limit-cents 100000 --delegation-duration-secs 604800',
     '$ nevermined x402token get-x402-access-token <planId> --auto-resolve-scheme',
+    '$ nevermined x402token get-x402-access-token <planId> --resource-url https://seller.example/api/v1/tasks --http-verb POST --token-version 3',
   ]
 
   static override flags = {
@@ -43,6 +44,20 @@ export default class GetX402AccessToken extends BaseCommand {
     'auto-resolve-scheme': Flags.boolean({
       description: 'Auto-detect crypto vs fiat from plan metadata (overrides --payment-type)',
       default: false,
+      required: false,
+    }),
+    'resource-url': Flags.string({
+      description: 'Protected resource URL the token is minted for. Signed into a v3 token, which then settles only against this URL.',
+      required: false,
+    }),
+    'http-verb': Flags.string({
+      description: 'HTTP verb of the protected resource (e.g. POST). Signed into a v3 token alongside --resource-url.',
+      required: false,
+    }),
+    'token-version': Flags.integer({
+      description: 'EIP-712 token version to request: 2 (default, reusable) or 3 (single-use, bound to --resource-url/--http-verb). A backend without v3 support silently returns 2 — check the tokenVersion field in the output.',
+      min: 2,
+      max: 3,
       required: false,
     }),
   }
@@ -81,6 +96,10 @@ export default class GetX402AccessToken extends BaseCommand {
         tokenOptions,
       )
 
+      // The printed tokenVersion is detected from the returned token, not echoed
+      // from --token-version: a backend that predates v3 drops the request field
+      // without an error and mints v2.
+
       this.formatter.output(result)
     } catch (error) {
       this.handleError(error)
@@ -93,6 +112,25 @@ export default class GetX402AccessToken extends BaseCommand {
         spendingLimitCents: flags['spending-limit-cents'],
         durationSecs: flags['delegation-duration-secs'],
       },
+      ...this.buildTokenBinding(flags),
+    }
+  }
+
+  /**
+   * Resource/verb/version options shared by the crypto and fiat paths.
+   *
+   * Omitted rather than sent empty when the flag is absent: a field absent at
+   * mint is signed as the empty string and must stay absent from the envelope,
+   * so `--resource-url ''` and no flag at all must not produce different bodies.
+   */
+  private buildTokenBinding(flags: any): Partial<X402TokenOptions> {
+    const resourceUrl = flags['resource-url']
+    const httpVerb = flags['http-verb']
+    const tokenVersion = flags['token-version']
+    return {
+      ...(resourceUrl && { resource: { url: resourceUrl } }),
+      ...(httpVerb && { httpVerb: String(httpVerb).toUpperCase() }),
+      ...(tokenVersion === 3 && { tokenVersion: 3 as const }),
     }
   }
 
@@ -116,6 +154,7 @@ export default class GetX402AccessToken extends BaseCommand {
         spendingLimitCents: flags['spending-limit-cents'],
         durationSecs: flags['delegation-duration-secs'],
       },
+      ...this.buildTokenBinding(flags),
     }
   }
 }

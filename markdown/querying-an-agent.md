@@ -47,13 +47,17 @@ The `getX402AccessToken` method takes the plan id plus two optional arguments:
 const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
   planId,
   agentId,       // Optional: restrict the token to a specific agent
-  tokenOptions,  // Optional: X402TokenOptions (scheme, network, delegationConfig)
+  tokenOptions,  // Optional: X402TokenOptions (scheme, network, delegationConfig,
+                 //           resource, httpVerb, tokenVersion)
 )
 ```
 
 Both schemes require `tokenOptions.delegationConfig` — pass
 `{ delegationId }` for a delegation created via
 [`createDelegation`](#card-delegation-tokens-fiat).
+
+`resource`, `httpVerb` and `tokenVersion` opt into a **single-use,
+seller-bound** token — see [Token Reuse](#token-reuse) below.
 
 ### Card-Delegation Tokens (Fiat)
 
@@ -353,7 +357,19 @@ console.log(result.result)
 
 ## Token Reuse
 
-X402 access tokens can be reused for multiple requests until they expire or credits are exhausted:
+Whether a token can be reused depends on the version it was minted under:
+
+| Token version | Reuse | Bound to |
+|---------------|-------|----------|
+| **v2** (default) | Reusable until it expires or credits run out | plan only |
+| **v3** (opt-in)  | **Single-use** — consumed by its first settlement | plan + agent + resource URL + HTTP verb |
+
+A v3 token replayed on a second paid request settles against a spent nonce and
+fails with `BCK.X402.0059`. Mint one token per paid request instead.
+
+### Reusing a v2 token
+
+X402 v2 access tokens can be reused for multiple requests until they expire or credits are exhausted:
 
 ```typescript
 // Generate token once
@@ -377,6 +393,48 @@ for (const city of ['San Francisco', 'New York', 'London']) {
   console.log(`${city}:`, result)
 }
 ```
+
+### Minting a v3 token per request
+
+```typescript
+import { detectAccessTokenVersion } from '@nevermined-io/payments'
+
+for (const city of ['San Francisco', 'New York', 'London']) {
+  // One token per paid request: a v3 token is spent by the first settlement.
+  const { accessToken, tokenVersion } = await subscriberPayments.x402.getX402AccessToken(
+    planId,
+    agentId,
+    {
+      delegationConfig: { delegationId },
+      resource: { url: agentUrl },
+      httpVerb: 'POST',
+      tokenVersion: 3,
+    },
+  )
+
+  const response = await fetch(agentUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'payment-signature': accessToken,
+    },
+    body: JSON.stringify({ prompt: `Weather in ${city}` }),
+  })
+
+  console.log(`${city}:`, await response.json(), `(token v${tokenVersion})`)
+}
+```
+
+The `resource.url` you mint with must be the **same string the seller
+advertises** in its `paymentRequired` (origin + path are compared, query ignored;
+anything unparseable is compared literally). Sellers using this SDK's Express
+middleware advertise a relative path (`req.originalUrl`), so bind to that, not to
+the absolute URL you fetch. A mismatch is rejected with `BCK.X402.0013`.
+
+`tokenVersion` is detected from the token that came back, never echoed from the
+request: a backend that does not support v3 yet drops `tokenVersion: 3` silently
+and mints a reusable v2 token. Use `detectAccessTokenVersion(accessToken)` to
+make the same check on a token obtained elsewhere.
 
 ## Check Balance Before Querying
 

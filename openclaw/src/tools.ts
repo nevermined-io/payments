@@ -73,6 +73,9 @@ export function createTools(
           paymentMethodId: { type: 'string', description: 'Stripe payment method ID (pm_...). Required for fiat; auto-selects first enrolled card if omitted.' },
           spendingLimitCents: { type: 'number', description: 'Max spend in cents for fiat (default: 1000 = $10)' },
           delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
+          resourceUrl: { type: 'string', description: 'The protected resource URL the token is for. Signed into a v3 token, which then only settles against this URL.' },
+          httpVerb: { type: 'string', description: 'HTTP verb of that resource (e.g. POST). Signed into a v3 token; must match what the seller advertises.' },
+          tokenVersion: { type: 'number', description: 'Request token version 3 (single-use, seller-bound). Defaults to the backend default (2, reusable).' },
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
@@ -80,10 +83,20 @@ export function createTools(
         const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, paymentType)
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
         const agentId = str(params, 'agentId') ?? config.agentId
+        const resourceUrl = str(params, 'resourceUrl')
+        const httpVerb = str(params, 'httpVerb')
 
-        const tokenOptions = await buildTokenOptions(getPayments, params, config)
+        const tokenOptions = await buildTokenOptions(getPayments, params, config, {
+          explicit: {
+            ...(resourceUrl && { resource: { url: resourceUrl } }),
+            ...(httpVerb && { httpVerb: httpVerb.toUpperCase() }),
+          },
+        })
         const token = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
-        return result({ accessToken: token.accessToken })
+        // tokenVersion is read off the minted token, not echoed from the request:
+        // a backend without v3 support drops `tokenVersion: 3` silently. A `3`
+        // here means the token is single-use — spend it on one request only.
+        return result({ accessToken: token.accessToken, tokenVersion: token.tokenVersion })
       },
     },
 
@@ -180,7 +193,11 @@ export function createTools(
 
         warnIfInsecureUrl(agentUrl)
 
-        const tokenOptions = await buildTokenOptions(getPayments, params, config)
+        // On a v3 request the token is bound to the call this tool is about to
+        // make. On v2 nothing is bound — see TokenBinding.
+        const tokenOptions = await buildTokenOptions(getPayments, params, config, {
+          derived: { resource: { url: agentUrl }, httpVerb: method.toUpperCase() },
+        })
         const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
 
         const response = await fetch(agentUrl, {
@@ -399,13 +416,42 @@ export function createTools(
 
 // --- Helpers ---
 
+/**
+ * Resource/verb binding for a minted token.
+ *
+ * Signed into a v3 token, so it must name the exact endpoint the token will be
+ * settled against — the seller's verify/settle passes the same pair, and a
+ * mismatch is rejected.
+ *
+ * NOT inert on a v2 token: the backend compares a token's `resource.url`
+ * against the seller's `paymentRequired.resource.url`, so binding a v2 token to
+ * a URL the seller does not advertise verbatim turns a working verify into
+ * `BCK.X402.0013`. Hence `derived` bindings are applied ONLY when v3 is
+ * requested, while a URL the caller passed explicitly is always honoured.
+ */
+interface TokenBinding {
+  resource?: { url: string }
+  httpVerb?: string
+}
+
 async function buildTokenOptions(
   getPayments: () => Payments,
   params: Record<string, unknown>,
   config: NeverminedPluginConfig,
+  binding: { explicit?: TokenBinding; derived?: TokenBinding } = {},
 ): Promise<X402TokenOptions | undefined> {
+  const tokenVersion = num(params, 'tokenVersion')
+  const wantsV3 = tokenVersion === 3
+  const versionOption = wantsV3 ? ({ tokenVersion: 3 } as const) : {}
+  const extras = {
+    ...(wantsV3 ? binding.derived : {}),
+    ...binding.explicit,
+    ...versionOption,
+  }
   const paymentType = str(params, 'paymentType') ?? config.paymentType ?? 'crypto'
-  if (paymentType !== 'fiat') return undefined
+  if (paymentType !== 'fiat') {
+    return Object.keys(extras).length > 0 ? extras : undefined
+  }
 
   let paymentMethodId = str(params, 'paymentMethodId')
   const methods = await getPayments().delegation.listPaymentMethods()
@@ -425,6 +471,7 @@ async function buildTokenOptions(
       spendingLimitCents: Number(str(params, 'spendingLimitCents') ?? config.defaultSpendingLimitCents ?? 1000),
       durationSecs: Number(str(params, 'delegationDurationSecs') ?? config.defaultDelegationDurationSecs ?? 3600),
     },
+    ...extras,
   }
 }
 
@@ -450,6 +497,14 @@ function str(params: Record<string, unknown>, key: string): string | undefined {
   const v = params[key]
   if (v === undefined || v === null || v === '') return undefined
   return String(v)
+}
+
+/** Reads a numeric parameter, tolerating the string form an LLM often emits. */
+function num(params: Record<string, unknown>, key: string): number | undefined {
+  const v = str(params, key)
+  if (v === undefined) return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
 }
 
 function requireStr(params: Record<string, unknown>, key: string): string {

@@ -26,6 +26,12 @@ export type {
 
 // x402 utilities and types
 export { buildPaymentRequired, resolveNetwork, resolveScheme } from './x402/facilitator-api.js'
+export {
+  detectAccessTokenVersion,
+  isSingleUseAccessToken,
+  isAccessTokenAlreadyUsed,
+  X402_TOKEN_ALREADY_USED_CODE,
+} from './x402/token-version.js'
 export { DelegationAPI } from './x402/delegation-api.js'
 export type {
   PaymentMethodSummary,

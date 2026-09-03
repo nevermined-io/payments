@@ -661,6 +661,39 @@ export interface CreateDelegationResponse {
 }
 
 /**
+ * The protected resource a token is minted for.
+ *
+ * Load-bearing from token v3 on: `url` is inside the EIP-712 signature, so a
+ * v3 token only settles against the seller endpoint it names. Ignored by the
+ * v1/v2 signature, which covers `[from, sessionKeysProvider, sessionKeys, planId]`
+ * only — sending it there is harmless but binds nothing.
+ */
+export interface X402TokenResource {
+  /** The protected resource URL, e.g. `https://seller.example/api/v1/tasks`. */
+  url: string
+  /** Human-readable description. */
+  description?: string
+  /** Expected response MIME type (e.g. `application/json`). */
+  mimeType?: string
+}
+
+/**
+ * EIP-712 struct version the backend signs the access token under.
+ *
+ * - `2` — today's default: reusable bearer token, signature covers
+ *   `[from, sessionKeysProvider, sessionKeys, planId]`.
+ * - `3` — appends `agentId`, `resourceUrl`, `httpVerb` and a one-time `nonce`
+ *   to the signed struct, making the token seller/resource-bound and
+ *   **single-use**: it is consumed on the first `POST /x402/settle`.
+ *
+ * Opt-in. Never assume the token you got back is the version you asked for —
+ * a backend that predates the v3 struct silently drops the field (its
+ * `ValidationPipe` whitelists without `forbidNonWhitelisted`) and mints v2.
+ * Read the version off the token with {@link detectAccessTokenVersion}.
+ */
+export type X402TokenVersion = 2 | 3
+
+/**
  * Options for x402 token generation that control scheme and delegation behavior.
  */
 export interface X402TokenOptions {
@@ -670,4 +703,21 @@ export interface X402TokenOptions {
   network?: string
   /** Delegation configuration for both erc4337 and card-delegation schemes */
   delegationConfig?: DelegationConfig
+  /**
+   * The protected resource the token is minted for. Signed into a v3 token,
+   * which then only settles against this URL. Without it the backend has
+   * nothing to bind to and skips endpoint validation.
+   */
+  resource?: X402TokenResource
+  /**
+   * HTTP verb of the protected resource (e.g. `POST`). Signed into a v3 token
+   * alongside {@link X402TokenOptions.resource}.
+   */
+  httpVerb?: string
+  /**
+   * Request a specific EIP-712 token version. Omitted means the backend
+   * default (currently `2`). Requesting `3` is a request, not a guarantee —
+   * always read the version back off the minted token.
+   */
+  tokenVersion?: X402TokenVersion
 }

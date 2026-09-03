@@ -27,7 +27,8 @@ export class ClientRegistry {
    * @returns The PaymentsClient instance
    */
   public async getClient(options: ClientRegistryOptions): Promise<PaymentsClient> {
-    const { agentBaseUrl, agentId, planId, agentCardPath, delegationConfig } = options
+    const { agentBaseUrl, agentId, planId, agentCardPath, delegationConfig, tokenVersion } =
+      options
     if (!agentBaseUrl || !agentId || !planId) {
       throw PaymentsError.validation('Missing required fields')
     }
@@ -42,6 +43,7 @@ export class ClientRegistry {
         planId,
         agentCardPath,
         delegationConfig,
+        tokenVersion,
       )
       this.clients.set(key, client)
     }

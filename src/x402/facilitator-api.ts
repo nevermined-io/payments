@@ -52,6 +52,7 @@ import {
 } from '../common/types.js'
 import type { EnvironmentName } from '../environments.js'
 import type { Payments } from '../payments.js'
+import { X402_TOKEN_ALREADY_USED_CODE } from './token-version.js'
 
 /**
  * x402 Resource information
@@ -551,6 +552,19 @@ export class FacilitatorAPI extends BasePaymentsAPI {
           if (errorData.hint) errorMessage = `${errorMessage} — ${errorData.hint}`
         } catch {
           // Use default error message
+        }
+        // A spent single-use (v3) token is not a decline and not a forgery: the
+        // token was valid and has already been settled once. Say what to do
+        // about it, because the wrong reaction — retrying with the same token —
+        // is the one a generic settlement failure invites.
+        if (errorCode === X402_TOKEN_ALREADY_USED_CODE) {
+          throw PaymentsError.fromBackend(errorMessage, {
+            message:
+              'this x402 access token was already used. Single-use (v3) tokens are consumed by ' +
+              'their first settlement — mint a new token for this request instead of retrying ' +
+              'with the same one.',
+            code: errorCode,
+          })
         }
         throw PaymentsError.fromBackend(errorMessage, {
           message: errorMessage,

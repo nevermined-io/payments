@@ -1,7 +1,7 @@
 import { Payments } from '../index.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { resolveScheme } from '../x402/facilitator-api.js'
-import type { X402TokenOptions, DelegationConfig } from '../common/types.js'
+import type { X402TokenOptions, DelegationConfig, X402TokenVersion } from '../common/types.js'
 import {
   MessageSendParams,
   SendMessageResponse,
@@ -30,6 +30,7 @@ export class PaymentsClient extends A2AClient {
   private readonly agentId: string
   private readonly planId: string
   private readonly delegationConfig?: DelegationConfig
+  private readonly tokenVersion?: X402TokenVersion
   private accessToken: string | null
 
   /**
@@ -39,6 +40,7 @@ export class PaymentsClient extends A2AClient {
    * @param agentId - The ID of the agent.
    * @param planId - The ID of the plan.
    * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent-card.json').
+   * @param tokenVersion - Optional EIP-712 token version to request (`3` = single-use, bound to this agent's endpoint).
    */
   private constructor(
     agentCard: AgentCard,
@@ -46,12 +48,14 @@ export class PaymentsClient extends A2AClient {
     agentId: string,
     planId: string,
     delegationConfig?: DelegationConfig,
+    tokenVersion?: X402TokenVersion,
   ) {
     super(agentCard)
     this.payments = payments
     this.agentId = agentId
     this.planId = planId
     this.delegationConfig = delegationConfig
+    this.tokenVersion = tokenVersion
     this.accessToken = null
   }
 
@@ -66,9 +70,10 @@ export class PaymentsClient extends A2AClient {
     planId: string,
     agentCardPath = AGENT_CARD_WELL_KNOWN_PATH,
     delegationConfig?: DelegationConfig,
+    tokenVersion?: X402TokenVersion,
   ): Promise<PaymentsClient> {
     const agentCard = await PaymentsClient._fetchAgentCard(agentBaseUrl, agentCardPath)
-    return new PaymentsClient(agentCard, payments, agentId, planId, delegationConfig)
+    return new PaymentsClient(agentCard, payments, agentId, planId, delegationConfig, tokenVersion)
   }
 
   /**
@@ -116,7 +121,38 @@ export class PaymentsClient extends A2AClient {
   }
 
   /**
-   * Gets and caches the access token for this client instance.
+   * The A2A service endpoint this client talks to, or `undefined` if it cannot
+   * be resolved.
+   *
+   * Used as the `resource.url` a token is minted for. Resolution failures are
+   * swallowed rather than propagated: before v3 the RPC paths never needed the
+   * endpoint at mint time, and a token minted without a resource still works
+   * (it is simply not bound to one), so a lookup problem here must not turn
+   * into a new failure mode for minting.
+   */
+  private async _resolveResourceUrl(): Promise<string | undefined> {
+    try {
+      const endpoint = await (this as any)._getServiceEndpoint()
+      return typeof endpoint === 'string' && endpoint.length > 0 ? endpoint : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * Gets the access token for this client instance, caching it only when the
+   * token is reusable.
+   *
+   * A v2 token is a reusable bearer credential, so it is cached for the client's
+   * lifetime exactly as before. A **v3 token is consumed by its first
+   * settlement**, so caching one would make every paid call after the first
+   * settle against a spent nonce (`BCK.X402.0059`) — a v3 token is therefore
+   * minted per request and never stored.
+   *
+   * The version is read off the minted token, never inferred from what was
+   * requested: a backend that predates the v3 struct silently mints v2, and a
+   * backend whose default has flipped to v3 mints v3 without being asked.
+   *
    * @returns The access token string.
    */
   private async _getX402AccessToken(): Promise<string> {
@@ -129,23 +165,51 @@ export class PaymentsClient extends A2AClient {
         `${scheme} scheme requires delegationConfig. Pass it to PaymentsClient.create().`,
       )
     }
+    // The resource binding is attached ONLY when v3 was explicitly requested.
+    // It is not inert on a v2 token: the backend compares the token's
+    // `resource.url` against the seller's `paymentRequired.resource.url`
+    // (origin + path, falling back to an exact string compare for anything it
+    // cannot parse as a URL), and sellers built on this SDK advertise a
+    // RELATIVE path (`req.originalUrl`). Sending an absolute service endpoint
+    // on a v2 mint would therefore turn a working verify into
+    // `BCK.X402.0013` for every such seller.
+    //
+    // Every A2A call is a POST to the one JSON-RPC service endpoint, so one
+    // binding covers all of them. A v3 caller must make sure the seller
+    // advertises this same URL string.
+    let binding: Pick<X402TokenOptions, 'resource' | 'httpVerb' | 'tokenVersion'> = {}
+    if (this.tokenVersion === 3) {
+      const resourceUrl = await this._resolveResourceUrl()
+      binding = {
+        ...(resourceUrl && { resource: { url: resourceUrl } }),
+        httpVerb: 'POST',
+        tokenVersion: 3,
+      }
+    }
     let tokenOptions: X402TokenOptions | undefined
     if (scheme !== 'nvm:erc4337') {
-      tokenOptions = { scheme, delegationConfig: this.delegationConfig }
+      tokenOptions = { scheme, delegationConfig: this.delegationConfig, ...binding }
     } else {
-      tokenOptions = { delegationConfig: this.delegationConfig }
+      tokenOptions = { delegationConfig: this.delegationConfig, ...binding }
     }
     const accessParams = await this.payments.x402.getX402AccessToken(
       this.planId,
       this.agentId,
       tokenOptions,
     )
-    this.accessToken = accessParams.accessToken
-    return this.accessToken
+    // Cache unless the token is single-use. Phrased as "not v3" rather than
+    // "is v2" so an unrecognised or missing version keeps today's caching
+    // behaviour instead of silently turning every call into a fresh mint.
+    if (accessParams.tokenVersion !== 3) {
+      this.accessToken = accessParams.accessToken
+    }
+    return accessParams.accessToken
   }
 
   /**
    * Clears the cached access token for this client instance.
+   *
+   * A no-op when the last token was single-use (v3): those are never cached.
    */
   public clearToken() {
     this.accessToken = null

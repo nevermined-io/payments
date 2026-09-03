@@ -40,7 +40,7 @@ function createMockPayments() {
       orderFiatPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } }),
     },
     x402: {
-      getX402AccessToken: jest.fn<() => Promise<unknown>>().mockResolvedValue({ accessToken: 'tok_test_123' }),
+      getX402AccessToken: jest.fn<() => Promise<unknown>>().mockResolvedValue({ accessToken: 'tok_test_123', tokenVersion: 2 }),
     },
     agents: {
       registerAgentAndPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({
@@ -427,7 +427,29 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
         'plan-default', 'agent-default', undefined,
       )
-      expect(result).toEqual({ accessToken: 'tok_test_123' })
+      // tokenVersion is reported so the caller knows whether the token is
+      // single-use (3) or reusable (2).
+      expect(result).toEqual({ accessToken: 'tok_test_123', tokenVersion: 2 })
+    })
+
+    test('nevermined_getAccessToken — forwards an explicit resource and verb', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_getAccessToken')!
+      await tool.execute('call-1', {
+        resourceUrl: 'https://agent.example.com/tasks',
+        httpVerb: 'get',
+        tokenVersion: 3,
+      })
+
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default',
+        {
+          resource: { url: 'https://agent.example.com/tasks' },
+          httpVerb: 'GET',
+          tokenVersion: 3,
+        },
+      )
     })
 
     test('nevermined_orderPlan — without confirm, returns a quote and does not order', async () => {
@@ -517,7 +539,7 @@ describe('OpenClaw Nevermined Plugin', () => {
           },
         },
       )
-      expect(result).toEqual({ accessToken: 'tok_test_123' })
+      expect(result).toEqual({ accessToken: 'tok_test_123', tokenVersion: 2 })
     })
 
     test('nevermined_getAccessToken — fiat auto-selects first enrolled card', async () => {
@@ -591,6 +613,33 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(JSON.parse(fetchInit.body as string)).toEqual({ prompt: 'What is AI?' })
 
       expect(result).toEqual({ answer: 'hello' })
+    })
+
+    test('nevermined_queryAgent — a v3 request binds the token to the agent URL', async () => {
+      const mockFetch = globalThis.fetch as jest.Mock<typeof fetch>
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ answer: 'hello' }),
+      } as Response)
+
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_queryAgent')!
+      await tool.execute('call-1', {
+        agentUrl: 'https://agent.example.com/tasks',
+        prompt: 'What is AI?',
+        tokenVersion: 3,
+      })
+
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default',
+        {
+          resource: { url: 'https://agent.example.com/tasks' },
+          httpVerb: 'POST',
+          tokenVersion: 3,
+        },
+      )
     })
 
     test('handles 402 response', async () => {

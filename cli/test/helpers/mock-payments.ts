@@ -29,6 +29,8 @@ export interface MockAgent {
 
 export interface MockX402Token {
   accessToken: string
+  /** EIP-712 version of the returned token: 3 means single-use. */
+  tokenVersion: 2 | 3
 }
 
 export class MockPlansAPI {
@@ -98,9 +100,17 @@ export class MockAgentsAPI {
 }
 
 export class MockX402TokenAPI {
-  async getX402AccessToken(planId: string): Promise<MockX402Token> {
+  async getX402AccessToken(
+    planId: string,
+    _agentId?: string,
+    tokenOptions?: { tokenVersion?: number },
+  ): Promise<MockX402Token> {
     return {
       accessToken: `mock-token-for-${planId}`,
+      // Mirrors the SDK: the version reported is the one the token actually
+      // carries. The mock has no real token to read, so it echoes a requested
+      // v3 and otherwise reports the backend default.
+      tokenVersion: tokenOptions?.tokenVersion === 3 ? 3 : 2,
     }
   }
 }

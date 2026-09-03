@@ -8,8 +8,9 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_CREATE_PERMISSION } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions, X402TokenOptions } from '../common/types.js'
+import { PaymentOptions, X402TokenOptions, X402TokenVersion } from '../common/types.js'
 import { buildX402TokenRequestBody } from './token-request.js'
+import { detectAccessTokenVersion } from './token-version.js'
 
 /**
  * X402 Token API for generating access tokens.
@@ -40,11 +41,20 @@ export class X402TokenAPI extends BasePaymentsAPI {
    * (spending limits / `providerPaymentMethodId` / `cardId`, i.e. no
    * `delegationId`) is **deprecated** and emits a runtime warning.
    *
+   * Pass `resource` / `httpVerb` to bind the token to one seller endpoint, and
+   * `tokenVersion: 3` to ask for the single-use, seller/resource-bound token.
+   * v3 is opt-in and the request may be silently downgraded by a backend that
+   * predates it, so the returned `tokenVersion` is read off the minted token
+   * rather than echoed back from the request — branch on that, never on what
+   * you asked for.
+   *
    * @param planId - The unique identifier of the payment plan
    * @param agentId - The unique identifier of the AI agent (optional)
-   * @param tokenOptions - Options controlling scheme and delegation behavior (optional)
+   * @param tokenOptions - Options controlling scheme, resource binding, token version and delegation behavior (optional)
    * @returns A promise that resolves to an object containing:
    *   - accessToken: The X402 access token string
+   *   - tokenVersion: The EIP-712 version the returned token was actually signed
+   *     under (`3` means single-use — mint a new token per paid request)
    *
    * @throws PaymentsError if the request fails
    *
@@ -61,12 +71,30 @@ export class X402TokenAPI extends BasePaymentsAPI {
    *   delegationConfig: { delegationId },
    * })
    * ```
+   *
+   * @example
+   * ```typescript
+   * // Single-use, bound to one seller endpoint. Mint one per paid request.
+   * const { accessToken, tokenVersion } = await payments.x402.getX402AccessToken(
+   *   planId,
+   *   agentId,
+   *   {
+   *     delegationConfig: { delegationId },
+   *     resource: { url: 'https://seller.example/api/v1/tasks' },
+   *     httpVerb: 'POST',
+   *     tokenVersion: 3,
+   *   },
+   * )
+   * if (tokenVersion === 2) {
+   *   // The backend does not support v3 yet; this token is still reusable.
+   * }
+   * ```
    */
   async getX402AccessToken(
     planId: string,
     agentId?: string,
     tokenOptions?: X402TokenOptions,
-  ): Promise<{ accessToken: string; [key: string]: any }> {
+  ): Promise<{ accessToken: string; tokenVersion: X402TokenVersion; [key: string]: any }> {
     const urlPath = API_URL_CREATE_PERMISSION
     const url = new URL(urlPath, this.environment.backend)
 
@@ -91,7 +119,11 @@ export class X402TokenAPI extends BasePaymentsAPI {
         }
         throw PaymentsError.internal(`${errorMessage} (HTTP ${response.status})`)
       }
-      return await response.json()
+      const result = await response.json()
+      // Detected, never echoed: `tokenVersion: 3` is dropped without an error by
+      // a backend that predates the v3 struct, so the only trustworthy source of
+      // the version is the token itself.
+      return { ...result, tokenVersion: detectAccessTokenVersion(result?.accessToken) }
     } catch (error) {
       if (error instanceof PaymentsError) {
         throw error

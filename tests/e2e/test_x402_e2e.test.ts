@@ -18,6 +18,10 @@ import type {
 import { ZeroAddress } from '../../src/environments.js'
 import { Payments } from '../../src/payments.js'
 import { getCryptoPriceConfig, getDynamicCreditsConfig } from '../../src/plans.js'
+import {
+  detectAccessTokenVersion,
+  isAccessTokenAlreadyUsed,
+} from '../../src/x402/token-version.js'
 import { makeWaitForAgent, retryWithBackoff, waitForCondition } from '../utils.js'
 import { createPaymentsBuilder, createPaymentsSubscriber } from './fixtures.js'
 
@@ -263,6 +267,112 @@ describe('X402 Delegation Flow', () => {
     expect(response.accessToken).not.toBeNull()
     expect(response.accessToken.length).toBeGreaterThan(0)
     console.log('Successfully reused delegation for another token generation')
+  })
+
+  // --- Single-use, seller/resource-bound tokens (v3) ---
+  //
+  // v3 is opt-in and gated on the backend supporting it. A deployment that
+  // predates nvm-monorepo#2646 DROPS `tokenVersion: 3` without an error and
+  // mints v2, so these legs branch on the version detected from the returned
+  // token — never on the version requested. Until staging carries the v3
+  // struct they exercise the request path and log a skip.
+  const V3_RESOURCE_URL = 'https://e2e.nevermined.test/x402/tasks'
+
+  const v3PaymentRequired = () => ({
+    x402Version: 2,
+    resource: { url: V3_RESOURCE_URL },
+    accepts: [
+      {
+        scheme: 'nvm:erc4337',
+        network: 'eip155:84532',
+        planId,
+        extra: { agentId, httpVerb: 'POST' },
+      },
+    ],
+    extensions: {},
+  })
+
+  const mintV3Token = async () => {
+    const response = await retryWithBackoff(
+      () =>
+        paymentsSubscriber.x402.getX402AccessToken(planId, agentId, {
+          delegationConfig: { delegationId },
+          resource: { url: V3_RESOURCE_URL },
+          httpVerb: 'POST',
+          tokenVersion: 3,
+        }),
+      { label: 'X402 v3 Access Token Generation', attempts: 3 },
+    )
+    return response
+  }
+
+  test('should request a v3 token and report the version actually minted', async () => {
+    expect(planId).not.toBeNull()
+    expect(delegationId).not.toBeNull()
+
+    const response = await mintV3Token()
+
+    expect(response.accessToken).toBeDefined()
+    expect(response.accessToken.length).toBeGreaterThan(0)
+    // The reported version must agree with the token itself, whichever version
+    // the backend actually minted.
+    expect(response.tokenVersion).toBe(detectAccessTokenVersion(response.accessToken))
+    console.log(`Backend minted a v${response.tokenVersion} token for a tokenVersion: 3 request`)
+  })
+
+  test('a v3 token settles exactly once; a second settle reports BCK.X402.0059', async () => {
+    expect(planId).not.toBeNull()
+    expect(delegationId).not.toBeNull()
+
+    const { accessToken, tokenVersion } = await mintV3Token()
+
+    if (tokenVersion !== 3) {
+      console.log(
+        'Skipping single-use assertions: this backend does not support token v3 yet ' +
+          '(tokenVersion was stripped and a v2 token was minted).',
+      )
+      return
+    }
+
+    const paymentRequired = v3PaymentRequired()
+
+    // verify() never consumes the token — it stays repeatable.
+    const firstVerify = await paymentsAgent.facilitator.verifyPermissions({
+      paymentRequired,
+      x402AccessToken: accessToken,
+      maxAmount: 1n,
+    })
+    expect(firstVerify.isValid).toBe(true)
+    const secondVerify = await paymentsAgent.facilitator.verifyPermissions({
+      paymentRequired,
+      x402AccessToken: accessToken,
+      maxAmount: 1n,
+    })
+    expect(secondVerify.isValid).toBe(true)
+
+    // settle() consumes it.
+    const settlement = await paymentsAgent.facilitator.settlePermissions({
+      paymentRequired,
+      x402AccessToken: accessToken,
+      maxAmount: 1n,
+    })
+    expect(settlement.success).toBe(true)
+
+    // The second settle must be refused as spent — not retried, not accepted.
+    // Deliberately NOT wrapped in retryWithBackoff: a replay is exactly what
+    // must not be retried.
+    const replayError = await paymentsAgent.facilitator
+      .settlePermissions({
+        paymentRequired,
+        x402AccessToken: accessToken,
+        maxAmount: 1n,
+      })
+      .then(() => null)
+      .catch((error) => error)
+
+    expect(replayError).not.toBeNull()
+    expect(isAccessTokenAlreadyUsed(replayError)).toBe(true)
+    expect(String(replayError.message)).toContain('mint a new token')
   })
 
   test('should generate X402 access token with auto-created delegation (Pattern A)', async () => {
