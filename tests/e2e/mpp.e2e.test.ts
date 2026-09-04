@@ -170,6 +170,24 @@ describe('MPP end to end (payments.mpp.fetch)', () => {
       { label: 'payments.mpp.fetch against locally-mounted MPP route', attempts: 3 },
     )
 
+    // Logged BEFORE the assertions: when the seller's settlement is refused the
+    // helper still resolves, and the accounting on the result is the only record
+    // of what happened — asserting first discards it on every CI failure.
+    console.log(
+      'MPP fetch result:',
+      JSON.stringify(
+        {
+          paid: result.paid,
+          settled: result.settled,
+          credentialsPresented: result.credentialsPresented,
+          creditsPresented: result.creditsPresented,
+          status: result.response?.status,
+          receipt: result.receipt,
+        },
+        null,
+        2,
+      ),
+    )
     expect(result.paid).toBe(true)
     expect(result.settled).toBe(true)
     expect(result.credentialsPresented).toBe(1)
