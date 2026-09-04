@@ -276,11 +276,15 @@ describe('X402 Delegation Flow', () => {
   // mints v2, so these legs branch on the version detected from the returned
   // token — never on the version requested. Until staging carries the v3
   // struct they exercise the request path and log a skip.
-  const V3_RESOURCE_URL = 'https://e2e.nevermined.test/x402/tasks'
+  // Must be an endpoint the agent actually registers (see the agentApi above):
+  // the backend checks the token's resource against the agent's endpoint
+  // allowlist and answers "Endpoint not included in the agent api" for anything
+  // else — before any v3 semantics are reached.
+  const v3ResourceUrl = () => `https://myagent.ai/api/v1/secret/${agentId}/tasks`
 
   const v3PaymentRequired = () => ({
     x402Version: 2,
-    resource: { url: V3_RESOURCE_URL },
+    resource: { url: v3ResourceUrl() },
     accepts: [
       {
         scheme: 'nvm:erc4337',
@@ -297,7 +301,7 @@ describe('X402 Delegation Flow', () => {
       () =>
         paymentsSubscriber.x402.getX402AccessToken(planId, agentId, {
           delegationConfig: { delegationId },
-          resource: { url: V3_RESOURCE_URL },
+          resource: { url: v3ResourceUrl() },
           httpVerb: 'POST',
           tokenVersion: 3,
         }),
