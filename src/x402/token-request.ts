@@ -14,8 +14,16 @@ export function buildX402TokenRequestBody(params: {
   agentId?: string
   tokenOptions?: X402TokenOptions
   environmentName: EnvironmentName
+  /**
+   * Which mint this body is for. MPP has no token version at all — it is not
+   * "x402 v2 by another name": the two protocols stopped sharing a version
+   * ladder (nvm-monorepo#3266), and `MppService.createPermission` refuses ANY
+   * `tokenVersion` with `BCK.MPP.0007`, `2` included. Sending one would 400 the
+   * mint, so this builder refuses it here, where the caller can be told why.
+   */
+  protocol?: 'x402' | 'mpp'
 }): Record<string, any> {
-  const { planId, agentId, tokenOptions, environmentName } = params
+  const { planId, agentId, tokenOptions, environmentName, protocol = 'x402' } = params
   const scheme = tokenOptions?.scheme ?? 'nvm:erc4337'
   const network = tokenOptions?.network ?? getDefaultNetwork(scheme, environmentName)
 
@@ -81,6 +89,20 @@ export function buildX402TokenRequestBody(params: {
   // diverge.
   const { resource, httpVerb, tokenVersion } = tokenOptions
 
+  // MPP's single-use unit is the CHALLENGE, not the token: one MPP access token
+  // is presented across many challenges by design, so the x402 v3 per-token
+  // nonce would kill every buyer's second challenge. The backend enforces this
+  // by refusing the field outright; refuse it here too rather than let the
+  // caller discover it as a 400 whose cause is a field they set two layers up.
+  if (protocol === 'mpp' && tokenVersion !== undefined) {
+    throw PaymentsError.validation(
+      'tokenVersion is not supported on MPP access tokens: MPP and x402 no longer share a ' +
+        'token version ladder, and the backend refuses any tokenVersion on an MPP mint ' +
+        '(BCK.MPP.0007). Omit the field — an MPP token is reusable across challenges, and the ' +
+        'challenge is what is single-use.',
+    )
+  }
+
   // Build x402-aligned request body
   return {
     ...(resource && { resource }),
@@ -96,11 +118,12 @@ export function buildX402TokenRequestBody(params: {
     // Add delegation config for both erc4337 and card-delegation schemes.
     // delegationConfig is guaranteed present here (the absence check above throws).
     delegationConfig: tokenOptions.delegationConfig,
-    // Opt-in only. Left out entirely when unset so a v2 mint stays byte-identical
-    // to what it was before v3 existed. A backend that predates the v3 struct
-    // drops this field silently (ValidationPipe whitelists without
-    // forbidNonWhitelisted) and returns v2 — which is why no caller may infer
-    // the version from what it asked for. See detectAccessTokenVersion().
+    // Opt-in only, and x402-only (the MPP guard above has already thrown).
+    // Left out entirely when unset so a v2 mint stays byte-identical to what it
+    // was before v3 existed. A backend that predates the v3 struct drops this
+    // field silently (ValidationPipe whitelists without forbidNonWhitelisted)
+    // and returns v2 — which is why no caller may infer the version from what
+    // it asked for. See detectAccessTokenVersion().
     ...(tokenVersion !== undefined && { tokenVersion }),
   }
 }

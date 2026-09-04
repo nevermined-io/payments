@@ -694,6 +694,20 @@ export interface X402TokenResource {
 export type X402TokenVersion = 2 | 3
 
 /**
+ * Options accepted by the MPP token mint: everything {@link X402TokenOptions}
+ * takes except `tokenVersion`.
+ *
+ * MPP and x402 stopped sharing a token version ladder (nvm-monorepo#3266). MPP
+ * signs one struct and names no version for it, because its single-use unit is
+ * the **challenge**, not the token — one MPP access token is presented across
+ * many challenges by design, so an x402 v3 per-token nonce would reject every
+ * buyer's second challenge. The backend refuses ANY `tokenVersion` on an MPP
+ * mint with `BCK.MPP.0007`, `2` included, so the field is omitted from the type
+ * rather than accepted and ignored.
+ */
+export type MppTokenOptions = Omit<X402TokenOptions, 'tokenVersion'>
+
+/**
  * Options for x402 token generation that control scheme and delegation behavior.
  */
 export interface X402TokenOptions {

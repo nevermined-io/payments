@@ -230,8 +230,9 @@ backend without v3 support drops the field silently and mints v2. The
 `resource.url` a token is minted with must equal the one the seller advertises
 (origin + path); a mismatch is rejected with `BCK.X402.0013`, which is why the
 SDK's own clients attach a resource binding only when v3 is explicitly requested.
-MPP does not pin v3: one MPP token spans many challenges, so it crosses over on
-the same schedule as x402.
+MPP carries no token version at all: one MPP token spans many challenges, so the
+protocols no longer share a version ladder and an MPP mint refuses any
+`tokenVersion` (`BCK.MPP.0007`).
 
 ### 2. Registering and Authenticating MCP Server
 

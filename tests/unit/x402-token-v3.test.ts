@@ -20,6 +20,7 @@ import {
   X402_TOKEN_ALREADY_USED_CODE,
 } from '../../src/x402/token-version.js'
 import { PaymentsError } from '../../src/common/payments.error.js'
+import { buildX402TokenRequestBody } from '../../src/x402/token-request.js'
 import { buildPaymentRequired } from '../../src/x402/facilitator-api.js'
 
 const TEST_API_KEY =
@@ -284,5 +285,36 @@ describe('settlePermissions — BCK.X402.0059 is its own, actionable error', () 
     expect(error.code).toBe('BCK.X402.0005')
     expect(isAccessTokenAlreadyUsed(error)).toBe(false)
     expect(error.message).not.toContain('mint a new token')
+  })
+})
+
+describe('MPP mints carry no token version', () => {
+  // MPP and x402 stopped sharing a version ladder (nvm-monorepo#3266): MPP's
+  // single-use unit is the CHALLENGE, and one access token is presented across
+  // many challenges, so `MppService.createPermission` refuses ANY `tokenVersion`
+  // with `BCK.MPP.0007` — `2` included, since that ordinal is x402's.
+  const build = (tokenVersion?: 2 | 3, protocol: 'x402' | 'mpp' = 'mpp') =>
+    buildX402TokenRequestBody({
+      planId: 'plan-1',
+      agentId: 'agent-1',
+      environmentName: 'staging_sandbox',
+      protocol,
+      tokenOptions: {
+        delegationConfig: { delegationId: 'del-1' },
+        ...(tokenVersion !== undefined && { tokenVersion }),
+      },
+    })
+
+  test('an MPP mint with no tokenVersion builds a body without the field', () => {
+    expect(build()).not.toHaveProperty('tokenVersion')
+  })
+
+  test.each([2, 3] as const)('an MPP mint refuses tokenVersion %i before the request', (v) => {
+    expect(() => build(v)).toThrow(PaymentsError)
+    expect(() => build(v)).toThrow(/BCK\.MPP\.0007/)
+  })
+
+  test('the same option is still accepted on the x402 route', () => {
+    expect(build(3, 'x402')).toMatchObject({ tokenVersion: 3 })
   })
 })

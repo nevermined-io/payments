@@ -50,6 +50,7 @@ export type {
   CreateDelegationPayload,
   CreateDelegationResponse,
   X402TokenOptions,
+  MppTokenOptions,
   X402TokenResource,
   X402TokenVersion,
 } from '../common/types.js'
