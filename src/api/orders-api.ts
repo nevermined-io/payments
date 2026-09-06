@@ -87,6 +87,11 @@ export interface Order {
  * refused with `BCK.ORDER.0003`. `Payments.setOrganizationId` (the
  * `X-Current-Org-Id` header) does not substitute for an org-scoped key.
  *
+ * This client is the merchant's: a `Payments` instance is always constructed
+ * with an NVM API key. The buyer never needs one — the buyer's browser confirms
+ * the `clientSecret` with Stripe.js and can poll `GET /api/v1/orders/:id`
+ * directly, which is why {@link OrdersAPI.getOrder} sends no key on that call.
+ *
  * @see nvm-monorepo `apps/api/src/orders/README.md` (epic #3238)
  */
 export class OrdersAPI extends BasePaymentsAPI {
@@ -133,8 +138,9 @@ export class OrdersAPI extends BasePaymentsAPI {
    *
    * @remarks
    * The endpoint is anonymous — the unguessable id is the sole access control —
-   * so no API key is sent. The response never includes the merchant identity
-   * or the fee, and carries `clientSecret` only while the Order is payable.
+   * so this call sends no API key (the `Payments` instance still needs one to
+   * be constructed). The response never includes the merchant identity or the
+   * fee, and carries `clientSecret` only while the Order is payable.
    *
    * @param orderId - The unguessable Order id returned by {@link createOrder}.
    * @returns @see {@link Order}

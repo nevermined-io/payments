@@ -14,6 +14,7 @@
 
 import { Payments } from '../../src/payments.js'
 import { API_VERSION_HEADER, LOCKED_API_VERSION } from '../../src/common/api-version.js'
+import { CURRENT_ORG_ID_HEADER } from '../../src/api/base-payments.js'
 import type { CreateOrderResult, Order } from '../../src/api/orders-api.js'
 
 const TEST_API_KEY =
@@ -56,11 +57,19 @@ describe('OrdersAPI — payments.orders', () => {
     restoreFetch()
   })
 
-  test('is wired into Payments and follows the instance org pin', () => {
+  test('is wired into Payments and forwards the instance org pin to the wire', async () => {
+    const calls = installFetchStub(() => ({
+      ok: true,
+      status: 201,
+      body: { orderId: 'ord_1', status: 'requires_payment' },
+    }))
     const payments = makePayments()
     expect(payments.orders).toBeDefined()
+
     payments.setOrganizationId('org-abc')
-    expect(payments.orders.getOrganizationId()).toBe('org-abc')
+    await payments.orders.createOrder({ amountMinor: 100 })
+
+    expect(calls[0].init.headers[CURRENT_ORG_ID_HEADER]).toBe('org-abc')
   })
 
   describe('createOrder', () => {
