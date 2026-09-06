@@ -23,7 +23,11 @@ export type OrderStatus =
  * resolved server-side and is deliberately NOT part of this contract.
  */
 export interface CreateOrderOptions {
-  /** Charge amount in USD cents: $1.00 – $999,999.99 (`100` – `99_999_999`). */
+  /**
+   * Charge amount in USD cents (at least `100`, i.e. $1.00). The API validates
+   * the upper bound (`BCK.ORDER.0001`); a deployment may enforce a lower
+   * per-order cap (`BCK.ORDER.0003`).
+   */
   amountMinor: number
   /** ISO currency, lower-cased. Phase 1 is USD-only; defaults to `'usd'`. */
   currency?: 'usd'
@@ -33,9 +37,9 @@ export interface CreateOrderOptions {
   buyerRef?: string
   /** A retried create with the same key returns the same Order + `clientSecret` (max 255 chars). */
   idempotencyKey?: string
-  /** Cart line items, recorded verbatim and opaque to the API. */
+  /** Cart line items — merchant-defined structure, recorded verbatim (keys are not transformed), opaque to the API. */
   lineItems?: Array<Record<string, unknown>>
-  /** Opaque merchant metadata, recorded verbatim. */
+  /** Merchant-defined metadata, recorded verbatim (keys are not transformed), opaque to the API. */
   metadata?: Record<string, unknown>
   /** Stripe capture mode. Phase 1 supports `'automatic'` only (the default). */
   captureMode?: 'automatic'

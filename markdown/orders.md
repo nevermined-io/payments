@@ -30,11 +30,11 @@ const payments = Payments.getInstance({
 })
 
 const { orderId, status, clientSecret } = await payments.orders.createOrder({
-  amountMinor: 3437, // USD cents: $34.37 ($1.00 - $999,999.99)
+  amountMinor: 3437, // USD cents: $34.37
   description: 'Cart checkout - 3 items',
   buyerRef: 'merchant-order-4821',
   idempotencyKey: 'merchant-order-4821',
-  lineItems: [{ sku: 'PRO-PLAN', quantity: 1, amountMinor: 3437 }],
+  lineItems: [{ sku: 'PRO-PLAN', quantity: 1, unit_price: 3437 }],
   metadata: { channel: 'web' },
 })
 
@@ -45,13 +45,13 @@ console.log(clientSecret) // hand this to the browser (Stripe.js confirm)
 
 | Option | Type | Description |
 |---|---|---|
-| `amountMinor` | `number` | Charge amount in USD cents, `100` to `99_999_999`. |
+| `amountMinor` | `number` | Charge amount in USD cents (at least `100`, i.e. $1.00). The API validates the upper bound (`BCK.ORDER.0001`); a deployment may enforce a lower per-order cap (`BCK.ORDER.0003`). |
 | `currency` | `'usd'` | ISO currency, lower-cased. Default and only value in Phase 1. |
 | `description` | `string` | Optional. Human-readable description (max 1024 chars). |
 | `buyerRef` | `string` | Optional. Your own reference for the buyer or cart (max 255 chars). |
 | `idempotencyKey` | `string` | Optional. A retried create with the same key returns the same Order and `clientSecret`; a conflicting body is refused with `BCK.ORDER.0007`. |
-| `lineItems` | `Record<string, unknown>[]` | Optional. Recorded verbatim, opaque to the API. |
-| `metadata` | `Record<string, unknown>` | Optional. Recorded verbatim, opaque to the API. |
+| `lineItems` | `Record<string, unknown>[]` | Optional. Merchant-defined structure, recorded verbatim (keys are not transformed), opaque to the API. |
+| `metadata` | `Record<string, unknown>` | Optional. Merchant-defined structure, recorded verbatim (keys are not transformed), opaque to the API. |
 | `captureMode` | `'automatic'` | Optional. The only value in Phase 1. |
 | `paymentProvider` | `'stripe'` | Optional. The only value in Phase 1. |
 
