@@ -35,7 +35,12 @@ export interface CreateOrderOptions {
   description?: string
   /** Opaque merchant-supplied buyer reference, e.g. the merchant's own order id (max 255 chars). */
   buyerRef?: string
-  /** A retried create with the same key returns the same Order + `clientSecret` (max 255 chars). */
+  /**
+   * Idempotency key (max 255 chars). A retry with the same key returns the
+   * original Order unchanged (and its `clientSecret` while the Order is still
+   * payable); the other fields of the retry are ignored, not merged. A retry
+   * with a different `amountMinor` or `currency` is refused with `BCK.ORDER.0007`.
+   */
   idempotencyKey?: string
   /** Cart line items — merchant-defined structure, recorded verbatim (keys are not transformed), opaque to the API. */
   lineItems?: Array<Record<string, unknown>>

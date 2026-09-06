@@ -49,7 +49,7 @@ console.log(clientSecret) // hand this to the browser (Stripe.js confirm)
 | `currency` | `'usd'` | ISO currency, lower-cased. Default and only value in Phase 1. |
 | `description` | `string` | Optional. Human-readable description (max 1024 chars). |
 | `buyerRef` | `string` | Optional. Your own reference for the buyer or cart (max 255 chars). |
-| `idempotencyKey` | `string` | Optional. A retried create with the same key returns the same Order and `clientSecret`; a conflicting body is refused with `BCK.ORDER.0007`. |
+| `idempotencyKey` | `string` | Optional. A retry with the same key returns the original Order unchanged (and its `clientSecret` while the Order is still payable); the other fields of the retry are ignored, not merged. A retry with a different `amountMinor` or `currency` is refused with `BCK.ORDER.0007`. |
 | `lineItems` | `Record<string, unknown>[]` | Optional. Merchant-defined structure, recorded verbatim (keys are not transformed), opaque to the API. |
 | `metadata` | `Record<string, unknown>` | Optional. Merchant-defined structure, recorded verbatim (keys are not transformed), opaque to the API. |
 | `captureMode` | `'automatic'` | Optional. The only value in Phase 1. |
@@ -95,7 +95,7 @@ Errors throw `PaymentsError` with `code` set to the backend catalogue code:
 | `BCK.ORDER.0003` | 403 | The key is not an active organization, or the amount exceeds the per-order cap. |
 | `BCK.ORDER.0004` | 500 | The merchant has no Connect account able to receive card payments. |
 | `BCK.ORDER.0005` | 500 | The PaymentIntent could not be created; the Order is `failed`, no money moved. |
-| `BCK.ORDER.0007` | 409 | Idempotency-key conflict. |
+| `BCK.ORDER.0007` | 409 | Idempotency key reused with a different `amountMinor` or `currency`. |
 | `BCK.ORDER.0010` | 429 | Velocity cap exceeded on `createOrder`. Retry after backoff. |
 | `http_429` | 429 | The `getOrder` read throttle (no catalogue code). Back off and retry. |
 
