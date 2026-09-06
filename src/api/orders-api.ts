@@ -117,7 +117,9 @@ export class OrdersAPI extends BasePaymentsAPI {
    *   (invalid request), `BCK.ORDER.0003` (not an active organization / over the
    *   per-order cap), `BCK.ORDER.0007` (idempotency-key conflict),
    *   `BCK.ORDER.0010` (velocity cap — retryable), `BCK.ORDER.0004`/`0005`
-   *   (Connect account / PaymentIntent failure, no money moved).
+   *   (Connect account / PaymentIntent failure, no money moved). A refusal
+   *   without a catalogue code (e.g. a gateway or throttle response) carries
+   *   `http_<status>` instead.
    * @example
    * ```
    *  const { orderId, clientSecret } = await payments.orders.createOrder({
@@ -132,7 +134,7 @@ export class OrdersAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_CREATE_ORDER, this.environment.backend)
     const response = await fetch(url, this.getBackendHTTPOptions('POST', body))
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to create order', await safeParseJson(response))
+      throw PaymentsError.fromBackend('Unable to create order', await backendError(response))
     }
     return response.json()
   }
@@ -149,6 +151,11 @@ export class OrdersAPI extends BasePaymentsAPI {
    * @param orderId - The unguessable Order id returned by {@link createOrder}.
    * @returns @see {@link Order}
    * @throws PaymentsError with code `BCK.ORDER.0002` when no Order has this id.
+   *   The read endpoint is rate-limited — all anonymous callers behind one IP
+   *   share a bucket of 60 requests per minute — and a throttled call carries
+   *   no catalogue code, so it surfaces as code `http_429`. That is distinct
+   *   from the create-side velocity cap `BCK.ORDER.0010`; poll sparingly and
+   *   back off on `http_429`.
    * @example
    * ```
    *  const order = await payments.orders.getOrder(orderId)
@@ -156,12 +163,24 @@ export class OrdersAPI extends BasePaymentsAPI {
    * ```
    */
   public async getOrder(orderId: string): Promise<Order> {
-    const query = API_URL_GET_ORDER.replace(':orderId', orderId)
+    const query = API_URL_GET_ORDER.replace(':orderId', encodeURIComponent(orderId))
     const url = new URL(query, this.environment.backend)
     const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to get order', await safeParseJson(response))
+      throw PaymentsError.fromBackend('Unable to get order', await backendError(response))
     }
     return response.json()
   }
+}
+
+/**
+ * Backend error envelope with an `http_<status>` fallback `code`, so a refusal
+ * that is not an `NVMException` (the read endpoint's throttle is a Nest
+ * `ThrottlerException` with no `code`) is still branchable by callers instead
+ * of collapsing to the generic `payments_error`. A catalogue `code` in the body
+ * always wins. Same convention as the Python SDK's `PaymentsError.from_response`.
+ */
+async function backendError(response: Response): Promise<Record<string, unknown>> {
+  const body = (await safeParseJson(response)) as Record<string, unknown>
+  return { code: `http_${response.status}`, ...body }
 }

@@ -156,6 +156,27 @@ describe('OrdersAPI — payments.orders', () => {
       expect(init.headers[API_VERSION_HEADER]).toBe(LOCKED_API_VERSION)
     })
 
+    test('URL-encodes the order id so a stray character cannot retarget the request', async () => {
+      const calls = installFetchStub(() => ({ ok: true, body: order }))
+      await makePayments().orders.getOrder('ord_x?foo=1')
+      expect(calls[0].url.pathname).toBe('/api/v1/orders/ord_x%3Ffoo%3D1')
+      expect(calls[0].url.search).toBe('')
+    })
+
+    test('surfaces the read throttle (no catalogue code) as http_429', async () => {
+      // Nest ThrottlerException body: no `code`, unlike NVMException envelopes.
+      installFetchStub(() => ({
+        ok: false,
+        status: 429,
+        body: { statusCode: 429, message: 'ThrottlerException: Too Many Requests' },
+      }))
+      await expect(makePayments().orders.getOrder('ord_1')).rejects.toMatchObject({
+        name: 'PaymentsError',
+        code: 'http_429',
+        message: expect.stringContaining('Too Many Requests'),
+      })
+    })
+
     test('surfaces BCK.ORDER.0002 on a miss', async () => {
       installFetchStub(() => ({
         ok: false,
