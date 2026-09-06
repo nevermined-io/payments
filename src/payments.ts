@@ -13,6 +13,7 @@ import { PaymentsA2AServer } from './a2a/server.js'
 import { buildPaymentAgentCard } from './a2a/agent-card.js'
 import * as mcpModule from './mcp/index.js'
 import { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
+import { OrdersAPI } from './api/orders-api.js'
 import { FacilitatorAPI } from './x402/facilitator-api.js'
 import { X402TokenAPI } from './x402/token.js'
 import { DelegationAPI } from './x402/delegation-api.js'
@@ -27,6 +28,7 @@ import { MppAPI } from './mpp/mpp-api.js'
  *
  * Each of these functionalities is encapsulated in its own API class:
  * - `plans`: Manages AI Plans, including registration and ordering and retrieving plan details.
+ * - `orders`: Browser-fiat Orders — merchant-initiated, off-plan charges for an arbitrary amount.
  * - `agents`: Handles AI Agents, including registration of AI Agents and access token generation.
  * - `requests`: Manages requests received by AI Agents, including validation and tracking.
  * - `observability`: Provides observability and logging utilities for AI Agents with Helicone integration
@@ -38,6 +40,7 @@ export class Payments extends BasePaymentsAPI {
   public requests!: AgentRequestsAPI
   public observability!: ObservabilityAPI
   public organizations!: OrganizationsAPI
+  public orders!: OrdersAPI
   public contracts!: ContractsAPI
   public facilitator!: FacilitatorAPI
   public x402!: X402TokenAPI
@@ -210,6 +213,7 @@ export class Payments extends BasePaymentsAPI {
     this.requests = AgentRequestsAPI.getInstance(options)
     this.observability = ObservabilityAPI.getInstance(options)
     this.organizations = OrganizationsAPI.getInstance(options)
+    this.orders = OrdersAPI.getInstance(options)
     this.query = AIQueryApi.getInstance()
     this.contracts = new ContractsAPI(options)
     this.facilitator = FacilitatorAPI.getInstance(options)
@@ -276,6 +280,7 @@ export class Payments extends BasePaymentsAPI {
     this.requests?.setOrganizationId(organizationId)
     this.observability?.setOrganizationId(organizationId)
     this.organizations?.setOrganizationId(organizationId)
+    this.orders?.setOrganizationId(organizationId)
     this.contracts?.setOrganizationId(organizationId)
     this.facilitator?.setOrganizationId(organizationId)
     this.x402?.setOrganizationId(organizationId)
