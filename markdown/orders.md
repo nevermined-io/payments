@@ -1,0 +1,110 @@
+---
+title: "Orders"
+description: "Charge an arbitrary amount by card without a payment plan: create a browser-fiat Order and read its status"
+icon: "cart-shopping"
+---
+
+# Orders
+
+This guide covers browser-fiat **Orders**: a merchant-initiated, off-plan charge for an arbitrary amount (the Stripe PaymentIntent analog) that the buyer's browser confirms client-side. No payment plan, no buyer Nevermined account, no delegation.
+
+## Overview
+
+1. `payments.orders.createOrder(...)` — the merchant creates the Order server-side and receives a Stripe `clientSecret`.
+2. The merchant hands the `clientSecret` to its checkout page, which confirms the payment with Stripe.js.
+3. `payments.orders.getOrder(orderId)` — anyone holding the unguessable `orderId` reads the buyer-safe status. No API key is sent on the wire.
+
+## Requirements
+
+`createOrder` needs an **organization-scoped** NVM API key: the API resolves the merchant organization from the key's own org tag. A personal key is refused with `BCK.ORDER.0003`, and `payments.setOrganizationId(...)` does not substitute for an org-scoped key. The organization must be active and have a Stripe Connect account able to receive card payments.
+
+## Create an Order
+
+```typescript
+import { Payments, EnvironmentName } from '@nevermined-io/payments'
+
+// Initialize with the merchant's organization-scoped API key
+const payments = Payments.getInstance({
+  nvmApiKey: process.env.NVM_API_KEY!,
+  environment: 'sandbox' as EnvironmentName,
+})
+
+const { orderId, status, clientSecret } = await payments.orders.createOrder({
+  amountMinor: 3437, // USD cents: $34.37 ($1.00 - $999,999.99)
+  description: 'Cart checkout - 3 items',
+  buyerRef: 'merchant-order-4821',
+  idempotencyKey: 'merchant-order-4821',
+  lineItems: [{ sku: 'PRO-PLAN', quantity: 1, amountMinor: 3437 }],
+  metadata: { channel: 'web' },
+})
+
+console.log(orderId) // ord_... - the buyer-facing access control
+console.log(status) // 'requires_payment'
+console.log(clientSecret) // hand this to the browser (Stripe.js confirm)
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `amountMinor` | `number` | Charge amount in USD cents, `100` to `99_999_999`. |
+| `currency` | `'usd'` | ISO currency, lower-cased. Default and only value in Phase 1. |
+| `description` | `string` | Optional. Human-readable description (max 1024 chars). |
+| `buyerRef` | `string` | Optional. Your own reference for the buyer or cart (max 255 chars). |
+| `idempotencyKey` | `string` | Optional. A retried create with the same key returns the same Order and `clientSecret`; a conflicting body is refused with `BCK.ORDER.0007`. |
+| `lineItems` | `Record<string, unknown>[]` | Optional. Recorded verbatim, opaque to the API. |
+| `metadata` | `Record<string, unknown>` | Optional. Recorded verbatim, opaque to the API. |
+| `captureMode` | `'automatic'` | Optional. The only value in Phase 1. |
+| `paymentProvider` | `'stripe'` | Optional. The only value in Phase 1. |
+
+## Read an Order
+
+```typescript
+const order = await payments.orders.getOrder(orderId)
+
+console.log(order.status) // 'requires_payment' | 'paid' | 'refunded' | 'partially_refunded' | 'disputed' | 'failed'
+console.log(order.amountMinor) // 3437
+console.log(order.amountRefundedMinor) // 0
+console.log(order.clientSecret) // present only while the Order is payable
+
+if (order.status === 'paid') {
+  // fulfil the order
+}
+```
+
+The read is anonymous on the wire (the unguessable id is the access control) and returns a buyer-safe projection: it never includes the merchant identity, the Connect account or the fee.
+
+## Order lifecycle
+
+| Status | Meaning |
+|---|---|
+| `requires_payment` | Created; the browser has not confirmed yet. `clientSecret` is available. |
+| `paid` | Payment succeeded. |
+| `failed` | Payment failed, or the PaymentIntent could not be created. No money moved. |
+| `refunded` / `partially_refunded` | Refunded in full / in part (see `amountRefundedMinor`). |
+| `disputed` | A chargeback is open. |
+
+## Error codes
+
+Errors throw `PaymentsError` with `code` set to the backend catalogue code:
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `BCK.ORDER.0001` | 400 | Invalid request (amount out of range, unsupported currency / capture mode / provider). |
+| `BCK.ORDER.0002` | 404 | No Order with this id. |
+| `BCK.ORDER.0003` | 403 | The key is not an active organization, or the amount exceeds the per-order cap. |
+| `BCK.ORDER.0004` | 500 | The merchant has no Connect account able to receive card payments. |
+| `BCK.ORDER.0005` | 500 | The PaymentIntent could not be created; the Order is `failed`, no money moved. |
+| `BCK.ORDER.0007` | 409 | Idempotency-key conflict. |
+| `BCK.ORDER.0010` | 429 | Velocity cap exceeded. Retry after backoff. |
+
+```typescript
+import { PaymentsError } from '@nevermined-io/payments'
+
+try {
+  await payments.orders.createOrder({ amountMinor: 3437 })
+} catch (error) {
+  if (error instanceof PaymentsError && error.code === 'BCK.ORDER.0010') {
+    // back off and retry
+  }
+  throw error
+}
+```
