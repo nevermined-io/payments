@@ -47,6 +47,7 @@ export type {
   VerifyPermissionsResult,
   SettlePermissionsParams,
   SettlePermissionsResult,
+  X402BillingModel,
 } from './x402/facilitator-api.js'
 
 // MPP (Machine Payments Protocol) public surface

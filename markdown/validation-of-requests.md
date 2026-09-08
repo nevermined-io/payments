@@ -148,12 +148,15 @@ app.post('/api/v1/tasks', async (req, res) => {
       maxAmount: 1n,  // Credits to burn
     })
 
-    // Return success with payment metadata
+    // Return success with payment metadata. Pass `billingModel` through — it is
+    // what tells the caller how to read the credit fields (see below).
     return res.json({
       result,
       transaction: settlement.transaction,
+      billingModel: settlement.billingModel,
       creditsUsed: settlement.creditsRedeemed,
       remainingBalance: settlement.remainingBalance,
+      orderTx: settlement.orderTx,
     })
 
   } catch (error) {
@@ -161,6 +164,30 @@ app.post('/api/v1/tasks', async (req, res) => {
   }
 })
 ```
+
+### Was the buyer charged?
+
+`settlement.success` tells you the settle worked. What to check **in addition** depends
+on `settlement.billingModel`:
+
+| `billingModel` | Success criterion | Credit fields |
+| -------------- | ----------------- | ------------- |
+| `credits` | `success === true && Number(creditsRedeemed) > 0` | `creditsRedeemed` is the amount burned, `remainingBalance` what is left |
+| `pay-as-you-go` | `success === true` **and** a non-empty `orderTx` (fiat rails) / `transaction` (crypto rails) | always the string `'0'` — no balance exists on this plan shape |
+
+```typescript
+const settled =
+  settlement.success &&
+  (settlement.billingModel === 'pay-as-you-go'
+    ? Boolean(settlement.orderTx || settlement.transaction)
+    : Number(settlement.creditsRedeemed ?? '0') > 0)
+```
+
+Do not gate on `creditsRedeemed` without reading `billingModel` first: a pay-as-you-go plan
+holds no credit balance, so `creditsRedeemed > 0` can never hold there and a real charge
+reads as a decline. On a card rail that invites a retry of a payment that already succeeded,
+and repeated attempts feed issuer fraud scoring. Note also that these fields are **strings** —
+`'0'` is truthy while `Number('0') > 0` is false.
 
 ## Return 402 Payment Required
 
@@ -270,7 +297,9 @@ app.post('/api/v1/tasks', async (req, res) => {
       success: settlement.success,
       network: settlement.network,
       transaction: settlement.transaction,
+      billingModel: settlement.billingModel,
       creditsRedeemed: settlement.creditsRedeemed,
+      orderTx: settlement.orderTx,
     }
 
     res.writeHead(200, {
@@ -394,6 +423,8 @@ const settlement = await agentPayments.facilitator.settlePermissions({
 5. **Log Transactions**: Record transaction hashes for audit trails
 6. **Dynamic Pricing**: Calculate credits based on actual resource usage
 7. **Token Validation**: Never skip verification even if token looks valid
+8. **Branch on `billingModel`**: Never decide "was the buyer charged?" from
+   `creditsRedeemed` alone — see [Was the buyer charged?](#was-the-buyer-charged) above
 
 ## Related Documentation
 
