@@ -69,8 +69,6 @@ export interface HttpRouterConfig extends OAuthConfig {
   enableOAuthDiscovery?: boolean
   /** Enable dynamic client registration (/register) */
   enableClientRegistration?: boolean
-  /** Enable health check endpoint (/health) */
-  enableHealthCheck?: boolean
   /** Enable server info endpoint (/) */
   enableServerInfo?: boolean
   /** Custom CORS origins (default: '*') */
@@ -194,7 +192,6 @@ export interface ServerInfoResponse {
   description?: string
   endpoints: {
     mcp: string
-    health?: string
     register?: string
   }
   oauth?: {
