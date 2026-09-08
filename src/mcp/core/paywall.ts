@@ -237,10 +237,16 @@ export class PaywallDecorator {
           ...(creditsResult && { [X402_PAYMENT_RESPONSE_META_KEY]: creditsResult }),
           [NEVERMINED_CREDITS_META_KEY]: {
             ...(creditsResult?.transaction && { txHash: creditsResult.transaction }),
+            // `creditsRedeemed` is meaningless without this: a pay-as-you-go plan
+            // holds no balance, so it reads '0' on a settle that DID charge the
+            // buyer. Omitted (not '') when the settle carried no discriminator,
+            // so a consumer can tell "absent" from "present and empty".
+            ...(creditsResult?.billingModel && { billingModel: creditsResult.billingModel }),
             creditsRedeemed: creditsResult?.success
               ? (creditsResult.creditsRedeemed ?? credits.toString())
               : '0',
             remainingBalance: creditsResult?.remainingBalance,
+            ...(creditsResult?.orderTx && { orderTx: creditsResult.orderTx }),
             planId: authResult.planId,
             subscriberAddress: authResult.subscriberAddress,
             success: creditsResult ? creditsResult.success : true,
@@ -396,10 +402,14 @@ function wrapAsyncIterable<T>(
         // Nevermined-namespaced observability (NOT part of the x402 spec).
         [NEVERMINED_CREDITS_META_KEY]: {
           ...(settlement?.transaction && { txHash: settlement.transaction }),
+          // See the non-streaming site: without `billingModel`, `creditsRedeemed`
+          // cannot be read — it is '0' on a pay-as-you-go settle that charged.
+          ...(settlement?.billingModel && { billingModel: settlement.billingModel }),
           creditsRedeemed: settlement?.success
             ? (settlement.creditsRedeemed ?? credits.toString())
             : '0',
           remainingBalance: settlement?.remainingBalance,
+          ...(settlement?.orderTx && { orderTx: settlement.orderTx }),
           planId,
           subscriberAddress,
           success: settlement ? settlement.success : true,

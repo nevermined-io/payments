@@ -21,6 +21,7 @@ export type {
   VerifyPermissionsResult,
   SettlePermissionsParams,
   SettlePermissionsResult,
+  X402BillingModel,
 } from './facilitator-api.js'
 
 // Delegation exports
