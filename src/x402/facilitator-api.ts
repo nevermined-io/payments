@@ -219,6 +219,12 @@ export type X402BillingModel = 'credits' | 'pay-as-you-go'
  * Mind the type as well: these fields are **strings**. `'0'` is truthy while
  * `Number('0') > 0` is false, so two plausible-looking checks disagree.
  *
+ * If `billingModel` is **absent**, you are talking to a Nevermined API that
+ * predates the discriminator: apply the `credits` rule, and never read a missing
+ * discriminator as pay-as-you-go. All three fields are optional; if
+ * `creditsRedeemed` is absent too there is no balance information to check, and
+ * `success === true` is the whole answer.
+ *
  * @example
  * ```typescript
  * const settled =
@@ -250,9 +256,11 @@ export interface SettlePermissionsResult {
   /**
    * Which billing model this settle was priced under (Nevermined extension).
    *
-   * Present regardless of `success` — check `success` before treating it as
-   * evidence of a charge. Read it before `creditsRedeemed` / `remainingBalance`:
-   * see the interface docs above for the per-model success criterion.
+   * Reported whether or not the settle succeeded — so check `success` before
+   * treating it as evidence of a charge. It is absent entirely against a
+   * Nevermined API that predates the discriminator, which is why it is optional;
+   * treat that case as `credits`. Read it before `creditsRedeemed` /
+   * `remainingBalance`: see the interface docs above for the per-model criterion.
    */
   billingModel?: X402BillingModel
   /**
