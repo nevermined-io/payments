@@ -221,9 +221,7 @@ export type X402BillingModel = 'credits' | 'pay-as-you-go'
  *
  * If `billingModel` is **absent**, you are talking to a Nevermined API that
  * predates the discriminator: apply the `credits` rule, and never read a missing
- * discriminator as pay-as-you-go. All three fields are optional; if
- * `creditsRedeemed` is absent too there is no balance information to check, and
- * `success === true` is the whole answer.
+ * discriminator as pay-as-you-go.
  *
  * @example
  * ```typescript
