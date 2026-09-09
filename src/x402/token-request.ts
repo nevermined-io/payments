@@ -116,42 +116,41 @@ export function buildX402TokenRequestBody(params: {
   // the same comparison — but MPP has no v3 to opt into, so a binding there is
   // never signed and can only narrow what the credential verifies against.
   if (boundUrl || httpVerb) {
-    // An EXPLICIT `tokenVersion: 2` plus a binding has no good outcome, so it
-    // is refused rather than warned about — the same answer payments-py gives
+    // A binding on anything but a v3 mint has no good outcome, so it is refused
+    // rather than warned about — the same answer payments-py gives
     // (`token_request.py`). The presence of `resource.url` is what arms the
     // backend's endpoint allowlist (`erc4337-scheme.handler.ts`; without it the
     // backend logs "resource.url not provided in token … skipping endpoint
     // validation"), while a v2 signature binds nothing — so the caller either
-    // arms a check they did not configure or fails verification later with
+    // arms a check they did not configure (`BCK.PROTOCOL.0031` for an agent
+    // registered with `endpoints`) or fails verification later with
     // `BCK.X402.0013`. Neither is worth a log line nobody reads at mint time.
     //
-    // An OMITTED `tokenVersion` is different and stays a warning: the version
-    // is then the backend's default, which is v3 for clients pinned at 1.31 or
-    // later (nvm-monorepo#3292) — and for those the binding is exactly right.
-    // Throwing there would make this SDK refuse the shape the backend is moving
-    // to.
-    if (protocol === 'x402' && tokenVersion === 2) {
+    // This covers an OMITTED `tokenVersion` as well as an explicit `2`, because
+    // today they mint the same thing: `core-kit`'s minter is
+    // `(options.tokenVersion ?? 2) === 3`, the handler adds no default, and no
+    // versioning gate fills the field in — verified against a live mint, which
+    // comes back v2. Once nvm-monorepo#3292 makes v3 the default (it is open at
+    // the time of writing), the omitted case becomes the shape the backend is
+    // moving to and this guard should narrow to `tokenVersion === 2`.
+    if (protocol === 'x402' && tokenVersion !== 3) {
       throw PaymentsError.validation(
-        'resource/httpVerb were supplied together with an explicit tokenVersion: 2. A v2 token ' +
-          'signs neither, so the binding cannot hold — but the backend still compares the ' +
-          'resource against what the seller advertises, and arms its endpoint allowlist on it. ' +
-          'Pass tokenVersion: 3 to bind the token, or drop resource/httpVerb.',
+        `resource/httpVerb were supplied with tokenVersion ${tokenVersion ?? '(omitted, defaults to 2)'}. ` +
+          'Only a v3 token signs them, so the binding cannot hold — but the backend still ' +
+          'compares the resource against what the seller advertises, and arms its endpoint ' +
+          'allowlist on it. Pass tokenVersion: 3 to bind the token, or drop resource/httpVerb.',
       )
     }
     if (protocol === 'mpp') {
+      // MPP is warned, not refused: it has no v3 to opt into, so there is no
+      // "correct" version to point the caller at, and the binding still narrows
+      // what the credential verifies against rather than arming a signature
+      // that cannot hold.
       console.warn(
         '[mpp] resource/httpVerb were supplied on an MPP mint. MPP tokens carry no version and ' +
           'nothing is signed over them, but the backend still compares the resource against what ' +
           'the seller advertises — a mismatch fails the credential. Omit them unless the string ' +
           'matches the seller exactly.',
-      )
-    } else if (tokenVersion === undefined) {
-      console.warn(
-        '[x402] resource/httpVerb were supplied without tokenVersion: 3. They are NOT inert on a ' +
-          'v2 token: the backend compares the token resource against the URL the seller advertises ' +
-          "in its paymentRequired, and a mismatch fails verification with BCK.X402.0013. Pass " +
-          'tokenVersion: 3 for a seller-bound token, or omit resource/httpVerb, or make sure the ' +
-          'string matches what the seller advertises exactly.',
       )
     }
   }

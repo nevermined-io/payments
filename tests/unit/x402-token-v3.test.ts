@@ -420,29 +420,27 @@ describe('the binding fields on a non-v3 mint', () => {
   const bindingWarning = (): string | undefined =>
     warnSpy.mock.calls.map((args) => String(args[0])).find((msg) => msg.includes('BCK.X402.0013'))
 
-  test('a resource without tokenVersion 3 is forwarded, but warns', () => {
-    const body = build({ resource: { url: 'https://seller.example/ask' } })
-
-    expect(body.resource).toEqual({ url: 'https://seller.example/ask' })
-    expect(bindingWarning()).toBeDefined()
-  })
-
-  test('an explicit tokenVersion 2 plus a binding is refused, not warned about', () => {
-    // The combination has no good outcome — a v2 signature binds nothing, yet
-    // the resource still arms the backend's endpoint allowlist and is compared
-    // against what the seller advertises. payments-py refuses it too; the two
-    // SDKs answer the same call the same way.
-    expect(() => build({ resource: { url: '/ask' }, tokenVersion: 2 })).toThrow(PaymentsError)
-    expect(() => build({ resource: { url: '/ask' }, tokenVersion: 2 })).toThrow(/tokenVersion: 3/)
-  })
-
-  test('an omitted tokenVersion plus a binding still warns rather than throwing', () => {
-    // Here the version is the backend's default, which is v3 for clients pinned
-    // at 1.31 or later — and for those the binding is exactly right.
-    const body = build({ resource: { url: '/ask' } })
+  test('a v3 binding is accepted and forwarded', () => {
+    const body = build({ resource: { url: '/ask' }, httpVerb: 'POST', tokenVersion: 3 })
 
     expect(body.resource).toEqual({ url: '/ask' })
-    expect(bindingWarning()).toBeDefined()
+    expect(body.accepted.extra.httpVerb).toBe('POST')
+  })
+
+  test.each([
+    ['an explicit tokenVersion 2', 2 as const],
+    ['an omitted tokenVersion (defaults to 2 today)', undefined],
+  ])('%s plus a binding is refused, not warned about', (_label, tokenVersion) => {
+    // The combination has no good outcome — only a v3 signature covers the
+    // binding, yet the resource still arms the backend's endpoint allowlist and
+    // is compared against what the seller advertises. Both cases mint the same
+    // v2 token today (`core-kit`: `(options.tokenVersion ?? 2) === 3`), so both
+    // are refused; the omitted one relaxes when nvm-monorepo#3292 flips the
+    // default. payments-py answers the same call the same way.
+    const call = () => build({ resource: { url: '/ask' }, ...(tokenVersion && { tokenVersion }) })
+
+    expect(call).toThrow(PaymentsError)
+    expect(call).toThrow(/tokenVersion: 3/)
   })
 
   test('the same binding with tokenVersion 3 is silent', () => {

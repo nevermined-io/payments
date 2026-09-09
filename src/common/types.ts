@@ -741,8 +741,10 @@ export interface X402TokenOptions {
    *
    * Must be the **exact string the seller advertises**; see
    * {@link X402TokenResource}. Supplying it without `tokenVersion: 3` is
-   * allowed but warns, because it binds a reusable token to a URL for no
-   * benefit and can only cost you a `BCK.X402.0013`.
+   * **refused**: only a v3 signature covers the binding, while the resource
+   * still arms the backend's endpoint allowlist and is compared against what
+   * the seller advertises — so it can only cost you a `BCK.PROTOCOL.0031` or a
+   * `BCK.X402.0013`.
    */
   resource?: X402TokenResource
   /**
