@@ -116,6 +116,50 @@ describe('paymentMiddleware settlement coverage (#1728)', () => {
     }
   })
 
+  test('withholds a buffered paid response when settlement fails', async () => {
+    const error = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const settleSpy = jest.fn().mockRejectedValue(new Error('facilitator unavailable'))
+    const { port, close } = await startServer((_req, res) => {
+      res.json({ secret: 'paid answer' })
+    }, settleSpy)
+
+    try {
+      const result = await postWithToken(port)
+
+      expect(result.status).toBe(402)
+      expect(result.body).not.toContain('paid answer')
+      expect(result.paymentResponseHeader).toBeUndefined()
+      expect(settleSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      error.mockRestore()
+      await close()
+    }
+  })
+
+  test('withholds a buffered paid response when settlement reports failure', async () => {
+    const error = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const settleSpy = jest.fn().mockResolvedValue({
+      success: false,
+      errorReason: 'insufficient credits',
+      transaction: '',
+      network: 'stripe',
+    })
+    const { port, close } = await startServer((_req, res) => {
+      res.json({ secret: 'paid answer' })
+    }, settleSpy)
+
+    try {
+      const result = await postWithToken(port)
+
+      expect(result.status).toBe(402)
+      expect(result.body).not.toContain('paid answer')
+      expect(result.paymentResponseHeader).toBeUndefined()
+    } finally {
+      error.mockRestore()
+      await close()
+    }
+  })
+
   test('settles when handler uses res.send', async () => {
     const settleSpy = jest.fn().mockResolvedValue(baseSettlement)
     const { port, close } = await startServer((req, res) => {
