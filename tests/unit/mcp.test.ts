@@ -197,6 +197,82 @@ describe('MCP Integration', () => {
       expect(out._meta['nevermined/credits'].success).toBe(true)
     })
 
+    test('surfaces billingModel + orderTx on a pay-as-you-go receipt, where creditsRedeemed is "0"', async () => {
+      // A REAL pay-as-you-go settle: the buyer was charged, but the plan holds no
+      // credit balance, so both credit fields read '0'. Without `billingModel` a
+      // consumer of this key cannot tell this from a credits settle that burned
+      // nothing, and retrying a card charge that already succeeded is exactly the
+      // thing to avoid. See nevermined-io/nvm-monorepo#2999.
+      const settleResult = {
+        success: true,
+        transaction: 'pi_3U6tgrBYvSRKcV421ehH4bnX',
+        network: 'stripe',
+        billingModel: 'pay-as-you-go',
+        creditsRedeemed: '0',
+        remainingBalance: '0',
+        orderTx: 'pi_3U6tgrBYvSRKcV421ehH4bnX',
+      }
+      const mockInstance = new PaymentsMock(settleResult)
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+
+      const base = async (_args: any, _extra?: any) => ({
+        content: [{ type: 'text', text: 'ok' }],
+      })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
+      const out = await wrapped({}, extra)
+
+      const nvm = out._meta['nevermined/credits']
+      // The discriminator, and the reference that actually proves the charge.
+      expect(nvm.billingModel).toBe('pay-as-you-go')
+      expect(nvm.orderTx).toBe('pi_3U6tgrBYvSRKcV421ehH4bnX')
+      // The trap this guards: a successful charge reporting '0' credits.
+      expect(nvm.success).toBe(true)
+      expect(nvm.creditsRedeemed).toBe('0')
+      expect(nvm.remainingBalance).toBe('0')
+    })
+
+    test('omits billingModel and orderTx entirely when the settle carries neither', async () => {
+      // Omitted rather than emitted empty, so a consumer can distinguish
+      // "absent" from "present and empty".
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '0xabc',
+        network: 'eip155:84532',
+        creditsRedeemed: '5',
+      })
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+
+      const base = async (_args: any, _extra?: any) => ({
+        content: [{ type: 'text', text: 'ok' }],
+      })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
+      const out = await wrapped({}, extra)
+
+      const nvm = out._meta['nevermined/credits']
+      expect('billingModel' in nvm).toBe(false)
+      expect('orderTx' in nvm).toBe(false)
+      // The pre-existing keys are untouched by the addition.
+      expect(nvm.creditsRedeemed).toBe('5')
+      expect(nvm.txHash).toBe('0xabc')
+      expect(nvm.success).toBe(true)
+    })
+
     test('should not include txHash when transaction is empty', async () => {
       // Backend returns empty transaction (no blockchain tx)
       const settleResult = {
@@ -558,6 +634,51 @@ describe('MCP Integration', () => {
       expect(lastChunk._meta['nevermined/credits'].planId).toBe('plan123')
       expect(lastChunk._meta['nevermined/credits'].subscriberAddress).toBe('0x123subscriber')
       expect(lastChunk._meta['nevermined/credits'].success).toBe(true)
+    })
+
+    test('surfaces billingModel + orderTx on a streaming pay-as-you-go receipt', async () => {
+      // Same guard as the non-streaming site — the two _meta builders are
+      // separate code, so a test on one proves nothing about the other.
+      const settleResult = {
+        success: true,
+        transaction: 'pi_3StreamPayg',
+        network: 'stripe',
+        billingModel: 'pay-as-you-go',
+        creditsRedeemed: '0',
+        remainingBalance: '0',
+        orderTx: 'pi_3StreamPayg',
+      }
+      const mockInstance = new PaymentsMock(settleResult)
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+      async function* makeIterable(chunks: string[]) {
+        for (const c of chunks) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          yield c
+        }
+      }
+      const base = async (_args: any, _extra?: any) => makeIterable(['chunk1', 'chunk2'])
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
+      const iterable = await wrapped({}, extra)
+
+      const collected: any[] = []
+      for await (const chunk of iterable) {
+        collected.push(chunk)
+      }
+
+      const nvm = collected[collected.length - 1]._meta['nevermined/credits']
+      expect(nvm.billingModel).toBe('pay-as-you-go')
+      expect(nvm.orderTx).toBe('pi_3StreamPayg')
+      expect(nvm.success).toBe(true)
+      expect(nvm.creditsRedeemed).toBe('0')
     })
 
     test('should redeem when consumer stops stream early', async () => {

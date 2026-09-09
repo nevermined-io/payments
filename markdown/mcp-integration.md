@@ -450,6 +450,7 @@ On a successful paid call, the SDK injects the settlement receipt under `_meta["
       transaction: '0xabc...',
       network: 'eip155:84532',
       payer: '0x123...',
+      billingModel: 'credits',
       creditsRedeemed: '5',
       remainingBalance: '95',
     },
@@ -457,6 +458,7 @@ On a successful paid call, the SDK injects the settlement receipt under `_meta["
     'nevermined/credits': {
       success: true,
       txHash: '0xabc...',
+      billingModel: 'credits',
       creditsRedeemed: '5',
       planId: 'plan-123',
       subscriberAddress: '0x123...',
@@ -466,6 +468,15 @@ On a successful paid call, the SDK injects the settlement receipt under `_meta["
 ```
 
 Free / no-credit calls omit the `x402/payment-response` key (no settlement occurred); `nevermined/credits` is still attached with `creditsRedeemed: '0'`.
+
+> **On a pay-as-you-go plan, a paid call also reports `creditsRedeemed: '0'`.** Those plans hold no
+> credit balance — each call is charged directly — so both credit fields read `'0'` even though the
+> buyer *was* charged. Read `billingModel` off `_meta["x402/payment-response"]` to tell the two apart:
+> `'pay-as-you-go'` means the charge is referenced by `orderTx` (fiat rails) or `transaction` (crypto
+> rails), and `creditsRedeemed` carries no information. Both keys carry the discriminator: the whole
+> settle receipt is passed through under `x402/payment-response`, and `nevermined/credits` carries
+> `billingModel` and `orderTx` alongside its condensed fields. See
+> [Was the buyer charged?](./validation-of-requests#was-the-buyer-charged).
 
 ### Payment required
 

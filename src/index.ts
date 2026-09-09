@@ -12,6 +12,8 @@ export { ContractsAPI } from './api/contracts-api.js'
 export { CURRENT_ORG_ID_HEADER } from './api/base-payments.js'
 export type { PublicationOptions } from './api/base-payments.js'
 export { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
+export { OrdersAPI } from './api/orders-api.js'
+export type { CreateOrderOptions, CreateOrderResult, Order, OrderStatus } from './api/orders-api.js'
 export {
   OrganizationMemberRole,
   OrganizationType,
@@ -51,6 +53,7 @@ export type {
   VerifyPermissionsResult,
   SettlePermissionsParams,
   SettlePermissionsResult,
+  X402BillingModel,
 } from './x402/facilitator-api.js'
 
 // MPP (Machine Payments Protocol) public surface
