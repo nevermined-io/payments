@@ -209,6 +209,40 @@ describe('PaymentsClient — single-use (v3) tokens', () => {
     expect(mint).toHaveBeenCalledTimes(1)
   })
 
+  test('a silent v3-to-v2 downgrade is reported, not just cached', async () => {
+    // Caching a genuinely reusable token is correct; being the only trace of it
+    // is not. A caller who asked for single-use + seller binding and got
+    // neither has to be able to find out.
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { payments } = buildPayments([V2_TOKEN])
+    const { client } = await buildClient(payments, 3)
+
+    await client.sendA2AMessage({ message: {} } as any)
+    await client.sendA2AMessage({ message: {} } as any)
+
+    const downgradeWarnings = warn.mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.includes('tokenVersion 3 was requested'))
+    // Once per client, not once per call.
+    expect(downgradeWarnings).toHaveLength(1)
+    expect(client.getLastMintedTokenVersion()).toBe(2)
+    warn.mockRestore()
+  })
+
+  test('a v3 token that arrives as asked warns about nothing', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { payments } = buildPayments([v3TokenWithNonce('0xaaa')])
+    const { client } = await buildClient(payments, 3)
+
+    await client.sendA2AMessage({ message: {} } as any)
+
+    expect(warn.mock.calls.map((c) => String(c[0])).join(' ')).not.toContain(
+      'tokenVersion 3 was requested',
+    )
+    expect(client.getLastMintedTokenVersion()).toBe(3)
+    warn.mockRestore()
+  })
+
   test('v3 never requested but the backend returns v3: the token is NOT cached', async () => {
     // The case that matters once the backend default flips: a client that
     // trusted its own request would replay a single-use token.

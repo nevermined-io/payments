@@ -649,14 +649,27 @@ describe('OpenClaw Nevermined Plugin', () => {
         tokenVersion: 3,
       })
 
+      // Bound to the path the Express seller advertises (`req.originalUrl`),
+      // not to the absolute URL this tool fetches — the absolute form is the
+      // BCK.X402.0013 mismatch.
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
         'plan-default', 'agent-default',
         {
-          resource: { url: 'https://agent.example.com/tasks' },
+          resource: { url: '/tasks' },
           httpVerb: 'POST',
           tokenVersion: 3,
         },
       )
+    })
+
+    test('nevermined_queryAgent — tokenVersion is reachable from the tool schema', async () => {
+      // The derived binding is only usable if a model can ask for it.
+      const { tools } = registerWithMock()
+
+      const schema = tools.get('nevermined_queryAgent')!.parameters as {
+        properties: Record<string, unknown>
+      }
+      expect(schema.properties).toHaveProperty('tokenVersion')
     })
 
     test('handles 402 response', async () => {

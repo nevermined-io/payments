@@ -326,12 +326,13 @@ describe('X402 Delegation Flow', () => {
     expect(response.tokenVersion).toBe(carriesNonce ? 3 : 2)
     console.log(`Backend minted a v${response.tokenVersion} token for a tokenVersion: 3 request`)
 
-    if (response.tokenVersion === 3) {
-      // The rest of the v3 binding is signed alongside the nonce.
-      expect(authorization.resourceUrl).toBe(v3ResourceUrl())
-      expect(authorization.httpVerb).toBe('POST')
-      expect(authorization.agentId).toBe(agentId)
-    }
+    // The rest of the v3 binding is signed alongside the nonce. Unconditional
+    // for the same reason as the sibling test: a backend that answers a
+    // `tokenVersion: 3` request with v2 is a regression, not a skip.
+    expect(response.tokenVersion).toBe(3)
+    expect(authorization.resourceUrl).toBe(v3ResourceUrl())
+    expect(authorization.httpVerb).toBe('POST')
+    expect(authorization.agentId).toBe(agentId)
   })
 
   test('a v3 token settles exactly once; a second settle reports BCK.X402.0059', async () => {
@@ -340,13 +341,14 @@ describe('X402 Delegation Flow', () => {
 
     const { accessToken, tokenVersion } = await mintV3Token()
 
-    if (tokenVersion !== 3) {
-      console.log(
-        'Skipping single-use assertions: this backend does not support token v3 yet ' +
-          '(tokenVersion was stripped and a v2 token was minted).',
-      )
-      return
-    }
+    // Asserted, not skipped. Single-use is the property this whole feature
+    // exists to add, and a `return` here would let the test pass green having
+    // verified none of it — CI output cannot tell "verified" from "did not
+    // run". v3 has been available since backend v1.30.0 and an explicit
+    // `tokenVersion: 3` is never downgraded by the version gate, so a v2 token
+    // here means the environment regressed, which is exactly what should go
+    // red.
+    expect(tokenVersion).toBe(3)
 
     const paymentRequired = v3PaymentRequired()
 

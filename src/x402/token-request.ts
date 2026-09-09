@@ -109,14 +109,29 @@ export function buildX402TokenRequestBody(params: {
   // A binding on a token that is not v3 is legal but rarely intended, and its
   // failure mode (verify rejecting with BCK.X402.0013 at the seller) points
   // nowhere near this call. Say so once, here, where the cause is visible.
-  if ((boundUrl || httpVerb) && tokenVersion !== 3 && protocol === 'x402') {
-    console.warn(
-      '[x402] resource/httpVerb were supplied without tokenVersion: 3. They are NOT inert on a ' +
-        'v2 token: the backend compares the token resource against the URL the seller advertises ' +
-        "in its paymentRequired, and a mismatch fails verification with BCK.X402.0013. Pass " +
-        'tokenVersion: 3 for a seller-bound token, or omit resource/httpVerb, or make sure the ' +
-        'string matches what the seller advertises exactly.',
-    )
+  //
+  // MPP gets the same warning for the same reason: the MPP mint accepts
+  // `resource`/`httpVerb` (its DTO is `OmitType(GenerateX402TokenDto,
+  // ['tokenVersion'])`, so only the version is refused) and forwards them into
+  // the same comparison — but MPP has no v3 to opt into, so a binding there is
+  // never signed and can only narrow what the credential verifies against.
+  if (boundUrl || httpVerb) {
+    if (protocol === 'mpp') {
+      console.warn(
+        '[mpp] resource/httpVerb were supplied on an MPP mint. MPP tokens carry no version and ' +
+          'nothing is signed over them, but the backend still compares the resource against what ' +
+          'the seller advertises — a mismatch fails the credential. Omit them unless the string ' +
+          'matches the seller exactly.',
+      )
+    } else if (tokenVersion !== 3) {
+      console.warn(
+        '[x402] resource/httpVerb were supplied without tokenVersion: 3. They are NOT inert on a ' +
+          'v2 token: the backend compares the token resource against the URL the seller advertises ' +
+          "in its paymentRequired, and a mismatch fails verification with BCK.X402.0013. Pass " +
+          'tokenVersion: 3 for a seller-bound token, or omit resource/httpVerb, or make sure the ' +
+          'string matches what the seller advertises exactly.',
+      )
+    }
   }
 
   // MPP's single-use unit is the CHALLENGE, not the token: one MPP access token

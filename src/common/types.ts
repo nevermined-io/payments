@@ -677,7 +677,12 @@ export interface CreateDelegationResponse {
  * not to the absolute URL you fetch.
  */
 export interface X402TokenResource {
-  /** The protected resource URL, e.g. `https://seller.example/api/v1/tasks`. */
+  /**
+   * The protected resource URL, **as the seller advertises it** — e.g.
+   * `/api/v1/tasks` from a `paymentMiddleware` seller, or the absolute
+   * `https://seller.example/api/v1/tasks` from one that advertises it that way
+   * (this SDK's A2A server does).
+   */
   url: string
   /** Human-readable description. */
   description?: string

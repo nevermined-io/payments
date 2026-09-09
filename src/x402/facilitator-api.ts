@@ -664,7 +664,24 @@ export class FacilitatorAPI extends BasePaymentsAPI {
           code: errorCode,
         })
       }
-      return await response.json()
+      const result = (await response.json()) as SettlePermissionsResult
+      // Settlement failure has two shapes. A refused settle (a spent v3 token,
+      // a forged one) arrives as a non-2xx and throws above. A settle the
+      // backend accepted but could not complete — no credits available and the
+      // auto-order reverting, say — arrives as 200 with `success: false` and an
+      // `errorReason`, and is returned verbatim because the reason and the
+      // billing model are what the caller needs to react.
+      //
+      // Returned, but not unremarked: nothing else in the SDK surfaces it, so a
+      // caller that forgets to check `success` bills a request it was never
+      // paid for and sees no trace at the layer that made the call.
+      if (result?.success === false) {
+        console.warn(
+          `[x402] settlePermissions returned success: false (${result.errorReason ?? 'no reason given'}). ` +
+            'No credits were burned — check `success` before treating the request as paid.',
+        )
+      }
+      return result
     } catch (error) {
       if (error instanceof PaymentsError) {
         throw error

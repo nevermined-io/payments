@@ -35,9 +35,15 @@ function readAuthorization(accessToken: string): Record<string, any> | undefined
  * The EIP-712 version the given access token was actually signed under.
  *
  * `3` when `payload.authorization.nonce` is a non-empty string, `2` otherwise.
- * A token that cannot be decoded reads as `2` — the conservative answer for a
- * *version* check, since v2 semantics (reusable, not seller-bound) are what
- * every pre-v3 token and every non-Nevermined blob already gets.
+ *
+ * A token that cannot be decoded also reads as `2`. That is the conservative
+ * answer for a *version* question — v2 is what every pre-v3 token and every
+ * non-Nevermined blob already is — but note it is the permissive answer for the
+ * *reuse* question a caller asks next: `2` means "safe to cache and replay".
+ * The gap is unreachable today, since an undecodable token is unusable anyway
+ * (the backend rejects it on the first presentation, so there is nothing to
+ * replay), but a future change to the envelope format would turn every v3 token
+ * into a cached one here. Any such change must revisit this function first.
  *
  * Note this is deliberately NOT the same as trusting the token: nothing here
  * is verified. It answers "which settle semantics does this token have", which
@@ -50,7 +56,8 @@ function readAuthorization(accessToken: string): Record<string, any> | undefined
  * ```typescript
  * const { accessToken } = await payments.x402.getX402AccessToken(planId, agentId, {
  *   delegationConfig: { delegationId },
- *   resource: { url: 'https://seller.example/api/v1/tasks' },
+ *   // The string the seller advertises, not the URL you fetch.
+ *   resource: { url: '/api/v1/tasks' },
  *   httpVerb: 'POST',
  *   tokenVersion: 3,
  * })

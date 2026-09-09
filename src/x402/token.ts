@@ -75,12 +75,15 @@ export class X402TokenAPI extends BasePaymentsAPI {
    * @example
    * ```typescript
    * // Single-use, bound to one seller endpoint. Mint one per paid request.
+   * // `resource.url` must be the string the seller advertises in its 402
+   * // `paymentRequired` — sellers built on this SDK's `paymentMiddleware`
+   * // advertise `req.originalUrl`, i.e. a relative path.
    * const { accessToken, tokenVersion } = await payments.x402.getX402AccessToken(
    *   planId,
    *   agentId,
    *   {
    *     delegationConfig: { delegationId },
-   *     resource: { url: 'https://seller.example/api/v1/tasks' },
+   *     resource: { url: '/api/v1/tasks' },
    *     httpVerb: 'POST',
    *     tokenVersion: 3,
    *   },

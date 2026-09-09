@@ -32,6 +32,8 @@ export class PaymentsClient extends A2AClient {
   private readonly delegationConfig?: DelegationConfig
   private readonly tokenVersion?: X402TokenVersion
   private accessToken: string | null
+  private lastMintedTokenVersion: X402TokenVersion | null = null
+  private downgradeWarned = false
 
   /**
    * Creates a new PaymentsClient instance.
@@ -186,14 +188,16 @@ export class PaymentsClient extends A2AClient {
     // It is not inert on a v2 token: the backend compares the token's
     // `resource.url` against the seller's `paymentRequired.resource.url`
     // (origin + path, falling back to an exact string compare for anything it
-    // cannot parse as a URL), and sellers built on this SDK advertise a
-    // RELATIVE path (`req.originalUrl`). Sending an absolute service endpoint
-    // on a v2 mint would therefore turn a working verify into
-    // `BCK.X402.0013` for every such seller.
+    // cannot parse as a URL), so a resource that does not match what the seller
+    // advertises fails verification with `BCK.X402.0013` — a binding nobody
+    // asked for can only cost the caller a failed verify.
     //
-    // Every A2A call is a POST to the one JSON-RPC service endpoint, so one
-    // binding covers all of them. A v3 caller must make sure the seller
-    // advertises this same URL string.
+    // The ABSOLUTE service endpoint is the right string for this client's
+    // counterparty specifically: an A2A seller built on this SDK advertises
+    // `new URL(req.originalUrl, protocol + host)` (`src/a2a/server.ts`), not
+    // the relative `req.originalUrl` that the Express `paymentMiddleware`
+    // advertises for plain HTTP agents. Every A2A call is a POST to the one
+    // JSON-RPC service endpoint, so a single binding covers all of them.
     let binding: Pick<X402TokenOptions, 'resource' | 'httpVerb' | 'tokenVersion'> = {}
     if (this.tokenVersion === 3) {
       binding = {
@@ -213,6 +217,20 @@ export class PaymentsClient extends A2AClient {
       this.agentId,
       tokenOptions,
     )
+    this.lastMintedTokenVersion = accessParams.tokenVersion ?? null
+    // A caller who asked for v3 and got v2 asked for single-use + seller
+    // binding and received neither. Caching it is still the correct handling of
+    // a genuinely reusable token, but it must not be the only trace: say so
+    // once, and expose the minted version so callers can branch the way
+    // getX402AccessToken's own return value lets them.
+    if (this.tokenVersion === 3 && accessParams.tokenVersion !== 3 && !this.downgradeWarned) {
+      this.downgradeWarned = true
+      console.warn(
+        `[x402] tokenVersion 3 was requested but the backend minted v${accessParams.tokenVersion}. ` +
+          'This token is reusable and bound to nothing, and it is cached for the lifetime of this ' +
+          'client. Read PaymentsClient.getLastMintedTokenVersion() to branch on it.',
+      )
+    }
     // Cache unless the token is single-use. Phrased as "not v3" rather than
     // "is v2" so an unrecognised or missing version keeps today's caching
     // behaviour instead of silently turning every call into a fresh mint.
@@ -220,6 +238,20 @@ export class PaymentsClient extends A2AClient {
       this.accessToken = accessParams.accessToken
     }
     return accessParams.accessToken
+  }
+
+  /**
+   * The EIP-712 version of the token this client minted most recently, or
+   * `null` before the first paid call.
+   *
+   * The version a client was constructed with is a *request*; this is what the
+   * backend actually minted. They differ whenever a deployment predates the v3
+   * struct (it drops the field and mints v2) or once its default flips the
+   * other way — so a caller that needs single-use semantics to hold should
+   * check this rather than assume its own argument was honoured.
+   */
+  public getLastMintedTokenVersion(): X402TokenVersion | null {
+    return this.lastMintedTokenVersion
   }
 
   /**

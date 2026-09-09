@@ -415,3 +415,57 @@ describe('the binding fields on a non-v3 mint', () => {
     expect(body.accepted.extra.httpVerb).toBe('POST')
   })
 })
+
+describe('settlePermissions — a 200 that did not burn is not silent', () => {
+  let originalFetch: typeof fetch
+  let payments: Payments
+  let warnSpy: jest.SpyInstance
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    payments = Payments.getInstance({
+      nvmApiKey: TEST_API_KEY,
+      environment: 'staging_sandbox',
+    })
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    warnSpy.mockRestore()
+  })
+
+  const settle = () =>
+    payments.facilitator.settlePermissions({
+      paymentRequired: buildPaymentRequired('plan-1', { endpoint: '/ask', agentId: 'agent-1' }),
+      x402AccessToken: v2Token(),
+    })
+
+  const settleWarning = (): string | undefined =>
+    warnSpy.mock.calls.map((args) => String(args[0])).find((m) => m.includes('success: false'))
+
+  test('a 200 with success:false is returned verbatim AND reported', async () => {
+    // The caller still gets the body — `errorReason` and `billingModel` are what
+    // they need to react — but a failed burn must not look exactly like a paid
+    // one at the layer that made the call.
+    global.fetch = jest.fn(async () =>
+      jsonResponse({ success: false, errorReason: 'Cannot order plan', creditsRedeemed: '0' }),
+    ) as unknown as typeof fetch
+
+    const result = await settle()
+
+    expect(result.success).toBe(false)
+    expect(result.errorReason).toBe('Cannot order plan')
+    expect(settleWarning()).toContain('Cannot order plan')
+  })
+
+  test('a successful settle says nothing', async () => {
+    global.fetch = jest.fn(async () =>
+      jsonResponse({ success: true, transaction: '0xtx', creditsRedeemed: '1' }),
+    ) as unknown as typeof fetch
+
+    await settle()
+
+    expect(settleWarning()).toBeUndefined()
+  })
+})

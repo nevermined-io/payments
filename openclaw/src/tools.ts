@@ -179,6 +179,7 @@ export function createTools(
           paymentMethodId: { type: 'string', description: 'Stripe payment method ID (pm_...). Required for fiat; auto-selects first enrolled card if omitted.' },
           spendingLimitCents: { type: 'number', description: 'Max spend in cents for fiat (default: 1000 = $10)' },
           delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
+          tokenVersion: { type: 'number', description: 'Request token version 3: a single-use token bound to this agent endpoint. Defaults to the backend default (2, reusable).' },
         },
         required: ['agentUrl', 'prompt'],
       },
@@ -195,8 +196,20 @@ export function createTools(
 
         // On a v3 request the token is bound to the call this tool is about to
         // make. On v2 nothing is bound — see TokenBinding.
+        //
+        // Bound to the PATH, not to `agentUrl`: this tool presents a
+        // `payment-signature` header to a plain HTTP endpoint, i.e. its
+        // counterparty is an Express `paymentMiddleware` seller, and that
+        // middleware advertises `req.originalUrl` — a relative path with its
+        // query string. Binding the absolute URL would mint a token that fails
+        // the seller's own verify with BCK.X402.0013. A seller that advertises
+        // something else is served by `nevermined_getAccessToken`, whose
+        // `resourceUrl` is passed through verbatim.
         const tokenOptions = await buildTokenOptions(getPayments, params, config, {
-          derived: { resource: { url: agentUrl }, httpVerb: method.toUpperCase() },
+          derived: {
+            resource: { url: sellerResourcePath(agentUrl) },
+            httpVerb: method.toUpperCase(),
+          },
         })
         const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
 
@@ -504,6 +517,23 @@ function str(params: Record<string, unknown>, key: string): string | undefined {
   const v = params[key]
   if (v === undefined || v === null || v === '') return undefined
   return String(v)
+}
+
+/**
+ * The resource string an Express `paymentMiddleware` seller advertises for this
+ * URL: `req.originalUrl`, i.e. path + query, never the origin.
+ *
+ * Falls back to the input when it is not a parseable URL — the backend then
+ * compares it literally, which is the best that can be done with a string this
+ * tool cannot interpret.
+ */
+function sellerResourcePath(agentUrl: string): string {
+  try {
+    const parsed = new URL(agentUrl)
+    return `${parsed.pathname}${parsed.search}`
+  } catch {
+    return agentUrl
+  }
 }
 
 /** Reads a numeric parameter, tolerating the string form an LLM often emits. */

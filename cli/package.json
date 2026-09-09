@@ -21,7 +21,7 @@
     "generate": "tsx src/generator/generate.ts",
     "sync-check": "tsx src/generator/sync-check.ts",
     "test": "pnpm test:unit && pnpm test:integration",
-    "test:unit": "jest test/unit/simple.test.ts test/unit/output-formatter-basic.test.ts",
+    "test:unit": "jest test/unit/simple.test.ts test/unit/output-formatter-basic.test.ts test/unit/x402.test.ts",
     "test:unit:all": "jest --testPathPattern=test/unit",
     "test:integration": "jest test/integration/cli-basic.test.ts test/integration/generated-commands.test.ts",
     "test:integration:config": "jest test/integration/config-workflow.test.ts",
