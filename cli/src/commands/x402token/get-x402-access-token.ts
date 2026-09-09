@@ -15,7 +15,7 @@ export default class GetX402AccessToken extends BaseCommand {
     '$ nevermined x402token get-x402-access-token <planId> --payment-type fiat --payment-method-id pm_1AbCdEfGhIjKlM --spending-limit-cents 5000',
     '$ nevermined x402token get-x402-access-token <planId> --spending-limit-cents 100000 --delegation-duration-secs 604800',
     '$ nevermined x402token get-x402-access-token <planId> --auto-resolve-scheme',
-    '$ nevermined x402token get-x402-access-token <planId> --resource-url https://seller.example/api/v1/tasks --http-verb POST --token-version 3',
+    '$ nevermined x402token get-x402-access-token <planId> --resource-url /api/v1/tasks --http-verb POST --token-version 3',
   ]
 
   static override flags = {
@@ -47,7 +47,7 @@ export default class GetX402AccessToken extends BaseCommand {
       required: false,
     }),
     'resource-url': Flags.string({
-      description: 'Protected resource URL the token is minted for. Signed into a v3 token, which then settles only against this URL.',
+      description: 'Protected resource, EXACTLY as the seller advertises it in its 402 (a paymentMiddleware seller advertises a relative path such as /ask). Signed into a v3 token, which then settles only against it; a mismatch fails verification with BCK.X402.0013.',
       required: false,
     }),
     'http-verb': Flags.string({

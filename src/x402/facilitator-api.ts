@@ -669,16 +669,31 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       // a forged one) arrives as a non-2xx and throws above. A settle the
       // backend accepted but could not complete — no credits available and the
       // auto-order reverting, say — arrives as 200 with `success: false` and an
-      // `errorReason`, and is returned verbatim because the reason and the
-      // billing model are what the caller needs to react.
+      // `errorReason`, and is returned verbatim because the reason, the billing
+      // model and the credit fields are what the caller needs to react.
       //
-      // Returned, but not unremarked: nothing else in the SDK surfaces it, so a
-      // caller that forgets to check `success` bills a request it was never
-      // paid for and sees no trace at the layer that made the call.
-      if (result?.success === false) {
+      // Returned, but not unremarked. The settlement object does reach callers
+      // (the Express middleware base64s it into `payment-response` and hands it
+      // to `onAfterSettle`; the LangChain decorator stores it as
+      // `lastSettlement()`), but of the in-tree consumers only the MCP paywall
+      // actually branches on `success` — so a caller that forgets to check it
+      // serves a request it was never paid for with nothing in the log.
+      //
+      // `!== true` rather than `=== false`: a 200 whose body has no `success`
+      // at all is not a settlement either, and reading an absent field as a
+      // success is the failure this warning exists to prevent.
+      if (result?.success !== true) {
+        // Deliberately claims nothing about what was charged. This layer reads
+        // `success` and nothing else — it never inspects `creditsRedeemed` or
+        // `orderTx` — and on a card rail an auto-order can have charged the
+        // buyer before the burn failed. Saying "no credits were burned" here
+        // would invite exactly the retry the SettlePermissionsResult docblock
+        // warns against.
         console.warn(
-          `[x402] settlePermissions returned success: false (${result.errorReason ?? 'no reason given'}). ` +
-            'No credits were burned — check `success` before treating the request as paid.',
+          `[x402] settlePermissions did not settle (${result?.errorReason ?? 'no reason given'}). ` +
+            'Do not treat the request as paid. ' +
+            `creditsRedeemed=${result?.creditsRedeemed ?? 'unset'}, orderTx=${result?.orderTx ?? 'none'}, ` +
+            `billingModel=${result?.billingModel ?? 'unset'} — read those before assuming nothing was charged.`,
         )
       }
       return result

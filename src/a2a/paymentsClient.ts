@@ -223,7 +223,12 @@ export class PaymentsClient extends A2AClient {
     // a genuinely reusable token, but it must not be the only trace: say so
     // once, and expose the minted version so callers can branch the way
     // getX402AccessToken's own return value lets them.
-    if (this.tokenVersion === 3 && accessParams.tokenVersion !== 3 && !this.downgradeWarned) {
+    if (accessParams.tokenVersion === 3) {
+      // The current downgrade episode is over: a later one is new information
+      // and gets its own warning, rather than being swallowed by a flag set
+      // once for the lifetime of the client.
+      this.downgradeWarned = false
+    } else if (this.tokenVersion === 3 && !this.downgradeWarned) {
       this.downgradeWarned = true
       console.warn(
         `[x402] tokenVersion 3 was requested but the backend minted v${accessParams.tokenVersion}. ` +
@@ -249,6 +254,11 @@ export class PaymentsClient extends A2AClient {
    * struct (it drops the field and mints v2) or once its default flips the
    * other way — so a caller that needs single-use semantics to hold should
    * check this rather than assume its own argument was honoured.
+   *
+   * Per-client state answering a per-call question: there is no mint lock, so
+   * two concurrent paid calls on a fresh client both mint and the last writer
+   * wins. Today they agree — the backend does not change its answer mid-flight
+   * — but read this before or after a call, not racing one.
    */
   public getLastMintedTokenVersion(): X402TokenVersion | null {
     return this.lastMintedTokenVersion
@@ -257,10 +267,18 @@ export class PaymentsClient extends A2AClient {
   /**
    * Clears the cached access token for this client instance.
    *
-   * A no-op when the last token was single-use (v3): those are never cached.
+   * A no-op for the token itself when the last one was single-use (v3): those
+   * are never cached. `getLastMintedTokenVersion()` resets to `null` either
+   * way — after a clear there is no token in use, and reporting the version of
+   * one that has been discarded is worse than reporting nothing.
+   *
+   * The downgrade flag is deliberately NOT reset here: it tracks the current
+   * downgrade episode, which a clear does not end. It is cleared when a v3
+   * token is actually minted.
    */
   public clearToken() {
     this.accessToken = null
+    this.lastMintedTokenVersion = null
   }
 
   /**

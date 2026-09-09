@@ -673,8 +673,10 @@ export interface CreateDelegationResponse {
  * parseable URL) for **any** token that carries a resource. Binding a token to
  * a URL the seller does not advertise verbatim therefore fails verification
  * with `BCK.X402.0013`. Sellers built on this SDK's `paymentMiddleware`
- * advertise `req.originalUrl` — a **relative** path — so bind to that string,
- * not to the absolute URL you fetch.
+ * advertise `req.originalUrl` — a **relative** path — so for such a seller bind
+ * to that string, not to the absolute URL you fetch. See {@link
+ * X402TokenResource.url} for a seller that advertises the absolute form, which
+ * this SDK's own A2A server does.
  */
 export interface X402TokenResource {
   /**

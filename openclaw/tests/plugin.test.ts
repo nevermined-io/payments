@@ -629,7 +629,9 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect((fetchInit.headers as Record<string, string>)['payment-signature']).toBe('tok_test_123')
       expect(JSON.parse(fetchInit.body as string)).toEqual({ prompt: 'What is AI?' })
 
-      expect(result).toEqual({ answer: 'hello' })
+      // The minted version rides along with the agent's answer, so a caller can
+      // tell a single-use token from a reusable one.
+      expect(result).toEqual({ answer: 'hello', tokenVersion: 2 })
     })
 
     test('nevermined_queryAgent — a v3 request binds the token to the agent URL', async () => {
@@ -736,7 +738,7 @@ describe('OpenClaw Nevermined Plugin', () => {
           },
         },
       )
-      expect(result).toEqual({ answer: 'fiat response' })
+      expect(result).toEqual({ answer: 'fiat response', tokenVersion: 2 })
     })
   })
 

@@ -351,6 +351,46 @@ describe('MPP mints carry no token version', () => {
   test('the same option is still accepted on the x402 route', () => {
     expect(build(3, 'x402')).toMatchObject({ tokenVersion: 3 })
   })
+
+  test('a binding on an MPP mint is forwarded, but warns', () => {
+    // MPP accepts `resource`/`httpVerb` (its DTO omits only `tokenVersion`) and
+    // compares them like x402 does, but has no version to opt into — so the
+    // binding is never signed there and can only narrow what verifies.
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const body = buildX402TokenRequestBody({
+      planId: 'plan-1',
+      agentId: 'agent-1',
+      environmentName: 'staging_sandbox',
+      protocol: 'mpp',
+      tokenOptions: {
+        delegationConfig: { delegationId: 'del-1' },
+        resource: { url: '/ask' },
+        httpVerb: 'POST',
+      },
+    })
+
+    expect(body.resource).toEqual({ url: '/ask' })
+    expect(
+      warnSpy.mock.calls.map((args) => String(args[0])).find((m) => m.includes('[mpp]')),
+    ).toBeDefined()
+    warnSpy.mockRestore()
+  })
+
+  test('an MPP mint with no binding says nothing', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    buildX402TokenRequestBody({
+      planId: 'plan-1',
+      agentId: 'agent-1',
+      environmentName: 'staging_sandbox',
+      protocol: 'mpp',
+      tokenOptions: { delegationConfig: { delegationId: 'del-1' } },
+    })
+
+    expect(warnSpy.mock.calls.map((args) => String(args[0])).join(' ')).not.toContain('[mpp]')
+    warnSpy.mockRestore()
+  })
 })
 
 describe('the binding fields on a non-v3 mint', () => {
@@ -442,7 +482,7 @@ describe('settlePermissions — a 200 that did not burn is not silent', () => {
     })
 
   const settleWarning = (): string | undefined =>
-    warnSpy.mock.calls.map((args) => String(args[0])).find((m) => m.includes('success: false'))
+    warnSpy.mock.calls.map((args) => String(args[0])).find((m) => m.includes('did not settle'))
 
   test('a 200 with success:false is returned verbatim AND reported', async () => {
     // The caller still gets the body — `errorReason` and `billingModel` are what
@@ -456,7 +496,23 @@ describe('settlePermissions — a 200 that did not burn is not silent', () => {
 
     expect(result.success).toBe(false)
     expect(result.errorReason).toBe('Cannot order plan')
-    expect(settleWarning()).toContain('Cannot order plan')
+    const warning = settleWarning()
+    expect(warning).toContain('Cannot order plan')
+    // Hands over the fields rather than asserting what was charged: this layer
+    // reads `success` and nothing else, and on a card rail an auto-order can
+    // have charged before the burn failed.
+    expect(warning).toContain('creditsRedeemed=0')
+    expect(warning).not.toContain('No credits were burned')
+  })
+
+  test('a 200 whose body has no success field is reported too', async () => {
+    // Reading an absent `success` as a success is the failure this warning
+    // exists to prevent.
+    global.fetch = jest.fn(async () => jsonResponse({ transaction: '0xtx' })) as unknown as typeof fetch
+
+    await settle()
+
+    expect(settleWarning()).toBeDefined()
   })
 
   test('a successful settle says nothing', async () => {

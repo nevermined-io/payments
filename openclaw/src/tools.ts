@@ -75,7 +75,7 @@ export function createTools(
           delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
           resourceUrl: { type: 'string', description: 'The protected resource URL the token is for. Only used with tokenVersion 3, which binds the token to this URL; ignored otherwise. Must match exactly what the seller advertises.' },
           httpVerb: { type: 'string', description: 'HTTP verb of that resource (e.g. POST). Only used with tokenVersion 3; must match what the seller advertises.' },
-          tokenVersion: { type: 'number', description: 'Request token version 3 (single-use, seller-bound). Defaults to the backend default (2, reusable).' },
+          tokenVersion: { type: 'number', enum: [2, 3], description: 'Request token version 3 (single-use, bound to resourceUrl/httpVerb). Defaults to the backend default (2, reusable).' },
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
@@ -179,7 +179,7 @@ export function createTools(
           paymentMethodId: { type: 'string', description: 'Stripe payment method ID (pm_...). Required for fiat; auto-selects first enrolled card if omitted.' },
           spendingLimitCents: { type: 'number', description: 'Max spend in cents for fiat (default: 1000 = $10)' },
           delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
-          tokenVersion: { type: 'number', description: 'Request token version 3: a single-use token bound to this agent endpoint. Defaults to the backend default (2, reusable).' },
+          tokenVersion: { type: 'number', enum: [2, 3], description: "Request token version 3: a single-use token bound to this agent's path, as the seller advertises it. Defaults to the backend default (2, reusable)." },
         },
         required: ['agentUrl', 'prompt'],
       },
@@ -197,21 +197,40 @@ export function createTools(
         // On a v3 request the token is bound to the call this tool is about to
         // make. On v2 nothing is bound — see TokenBinding.
         //
-        // Bound to the PATH, not to `agentUrl`: this tool presents a
-        // `payment-signature` header to a plain HTTP endpoint, i.e. its
-        // counterparty is an Express `paymentMiddleware` seller, and that
-        // middleware advertises `req.originalUrl` — a relative path with its
-        // query string. Binding the absolute URL would mint a token that fails
-        // the seller's own verify with BCK.X402.0013. A seller that advertises
-        // something else is served by `nevermined_getAccessToken`, whose
-        // `resourceUrl` is passed through verbatim.
+        // Bound to the PATH, not to `agentUrl`. The assumption is stated rather
+        // than derived: this tool targets a plain HTTP agent protected by the
+        // Express `paymentMiddleware`, which advertises `req.originalUrl` — a
+        // relative path with its query string — so the absolute form would mint
+        // a token that fails the seller's own verify with BCK.X402.0013. (The
+        // `payment-signature` header proves nothing about which seller is on
+        // the other end: this SDK's A2A server accepts the same header and
+        // advertises an ABSOLUTE URL.)
+        //
+        // A seller that advertises something else has no v3 path through this
+        // tool — `nevermined_getAccessToken` takes an explicit `resourceUrl`
+        // but only mints, it does not call the agent. Use it and make the HTTP
+        // call yourself.
         const tokenOptions = await buildTokenOptions(getPayments, params, config, {
           derived: {
             resource: { url: sellerResourcePath(agentUrl) },
             httpVerb: method.toUpperCase(),
           },
         })
-        const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
+        const { accessToken, tokenVersion } = await getPayments().x402.getX402AccessToken(
+          planId,
+          agentId,
+          tokenOptions,
+        )
+        // Asking for v3 and getting v2 means the token is reusable and bound to
+        // nothing. Nothing else on this path would say so: the ignored-binding
+        // warning covers explicit params only, and this tool passes derived
+        // ones.
+        if (num(params, 'tokenVersion') === 3 && tokenVersion !== 3) {
+          console.warn(
+            `[nevermined] tokenVersion 3 was requested but the backend minted v${tokenVersion}. ` +
+              'The token is reusable and not bound to this endpoint.',
+          )
+        }
 
         const response = await fetch(agentUrl, {
           method,
@@ -240,7 +259,10 @@ export function createTools(
         }
 
         const body = await response.json()
-        return result(body)
+        // `tokenVersion` reports what was actually minted, never what was asked
+        // for — the same contract as `nevermined_getAccessToken`. A `3` means
+        // the token was single-use and bound to this endpoint's path.
+        return result({ ...body, tokenVersion })
       },
     },
 

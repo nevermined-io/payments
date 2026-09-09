@@ -218,15 +218,50 @@ describe('PaymentsClient — single-use (v3) tokens', () => {
     const { client } = await buildClient(payments, 3)
 
     await client.sendA2AMessage({ message: {} } as any)
+    // The clear is what makes this a test of the once-flag rather than of the
+    // cache: without it the second send replays the cached token and never
+    // re-enters the mint path, so exactly one warning is inevitable whether the
+    // flag exists or not.
+    client.clearToken()
     await client.sendA2AMessage({ message: {} } as any)
 
     const downgradeWarnings = warn.mock.calls
       .map((c) => String(c[0]))
       .filter((m) => m.includes('tokenVersion 3 was requested'))
-    // Once per client, not once per call.
+    // Once per downgrade episode, not once per mint.
     expect(downgradeWarnings).toHaveLength(1)
     expect(client.getLastMintedTokenVersion()).toBe(2)
     warn.mockRestore()
+  })
+
+  test('a downgrade after a v3 mint warns again — the episode ended', async () => {
+    // The flag tracks the current downgrade episode. A client that recovers to
+    // v3 and later slips back to v2 is new information, not a repeat.
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { payments } = buildPayments([V2_TOKEN, v3TokenWithNonce('0xaaa'), V2_TOKEN])
+    const { client } = await buildClient(payments, 3)
+
+    await client.sendA2AMessage({ message: {} } as any) // v2 → warns
+    client.clearToken()
+    await client.sendA2AMessage({ message: {} } as any) // v3 → episode over
+    await client.sendA2AMessage({ message: {} } as any) // v2 again → warns again
+
+    const downgradeWarnings = warn.mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.includes('tokenVersion 3 was requested'))
+    expect(downgradeWarnings).toHaveLength(2)
+    warn.mockRestore()
+  })
+
+  test('clearToken() drops the reported version instead of reporting a discarded token', async () => {
+    const { payments } = buildPayments([V2_TOKEN])
+    const { client } = await buildClient(payments, 3)
+
+    await client.sendA2AMessage({ message: {} } as any)
+    expect(client.getLastMintedTokenVersion()).toBe(2)
+
+    client.clearToken()
+    expect(client.getLastMintedTokenVersion()).toBeNull()
   })
 
   test('a v3 token that arrives as asked warns about nothing', async () => {
