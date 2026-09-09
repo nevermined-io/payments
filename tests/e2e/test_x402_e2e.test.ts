@@ -18,10 +18,7 @@ import type {
 import { ZeroAddress } from '../../src/environments.js'
 import { Payments } from '../../src/payments.js'
 import { getCryptoPriceConfig, getDynamicCreditsConfig } from '../../src/plans.js'
-import {
-  detectAccessTokenVersion,
-  isAccessTokenAlreadyUsed,
-} from '../../src/x402/token-version.js'
+import { isAccessTokenAlreadyUsed } from '../../src/x402/token-version.js'
 import { makeWaitForAgent, retryWithBackoff, waitForCondition } from '../utils.js'
 import { createPaymentsBuilder, createPaymentsSubscriber } from './fixtures.js'
 
@@ -318,10 +315,23 @@ describe('X402 Delegation Flow', () => {
 
     expect(response.accessToken).toBeDefined()
     expect(response.accessToken.length).toBeGreaterThan(0)
-    // The reported version must agree with the token itself, whichever version
-    // the backend actually minted.
-    expect(response.tokenVersion).toBe(detectAccessTokenVersion(response.accessToken))
+
+    // Independent oracle: decode the envelope here rather than calling
+    // detectAccessTokenVersion, which is what produced `tokenVersion` in the
+    // first place — comparing those two is f(x) === f(x) and holds however
+    // wrong f is. The discriminator is a non-empty signed nonce.
+    const authorization = JSON.parse(Buffer.from(response.accessToken, 'base64').toString('utf-8'))
+      ?.payload?.authorization
+    const carriesNonce = typeof authorization?.nonce === 'string' && authorization.nonce !== ''
+    expect(response.tokenVersion).toBe(carriesNonce ? 3 : 2)
     console.log(`Backend minted a v${response.tokenVersion} token for a tokenVersion: 3 request`)
+
+    if (response.tokenVersion === 3) {
+      // The rest of the v3 binding is signed alongside the nonce.
+      expect(authorization.resourceUrl).toBe(v3ResourceUrl())
+      expect(authorization.httpVerb).toBe('POST')
+      expect(authorization.agentId).toBe(agentId)
+    }
   })
 
   test('a v3 token settles exactly once; a second settle reports BCK.X402.0059', async () => {
@@ -361,18 +371,11 @@ describe('X402 Delegation Flow', () => {
       maxAmount: 1n,
     })
     console.log(`v3 settle #1: ${JSON.stringify(settlement)}`)
-
-    if (!settlement.success) {
-      // Nothing was burned, so nothing spent the nonce and there is no replay to
-      // observe. This is the environment's burn path failing (the free test plan
-      // cannot be auto-ordered — `errorReason: "Cannot order plan"`, the same
-      // wall the sibling settle test is skipped for), not a v3 defect: the
-      // single-use semantics only exist downstream of a successful settle.
-      console.log(
-        `Skipping the replay assertion: settlement did not burn (${settlement.errorReason ?? 'no reason given'}).`,
-      )
-      return
-    }
+    // Asserted, not skipped: single-use only exists downstream of a settle that
+    // burned, so a settle that does not burn must fail this test rather than
+    // let it pass green having verified nothing. (This used to return early to
+    // survive the `Cannot order plan` wall — nvm-monorepo#3296, fixed.)
+    expect(settlement.success).toBe(true)
 
     // The second settle must be refused as spent — not retried, not accepted.
     // Deliberately NOT wrapped in retryWithBackoff: a replay is exactly what

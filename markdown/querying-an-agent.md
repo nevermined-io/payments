@@ -396,8 +396,21 @@ for (const city of ['San Francisco', 'New York', 'London']) {
 
 ### Minting a v3 token per request
 
+The `resource.url` must be the **exact string the seller advertises** in its
+`paymentRequired`, not the URL you fetch. Read it off the 402 the seller
+returned — that is the only source that cannot drift:
+
 ```typescript
 import { detectAccessTokenVersion } from '@nevermined-io/payments'
+
+// From the seller's 402: `payment-required` header, base64 of the
+// X402PaymentRequired document. Sellers built on this SDK's paymentMiddleware
+// advertise `req.originalUrl` here, i.e. a RELATIVE path such as `/ask`.
+const paymentRequired = JSON.parse(
+  Buffer.from(challengeResponse.headers.get('payment-required')!, 'base64').toString('utf-8'),
+)
+const sellerResourceUrl = paymentRequired.resource.url // e.g. '/ask'
+const sellerHttpVerb = paymentRequired.accepts[0].extra?.httpVerb ?? 'POST'
 
 for (const city of ['San Francisco', 'New York', 'London']) {
   // One token per paid request: a v3 token is spent by the first settlement.
@@ -406,8 +419,8 @@ for (const city of ['San Francisco', 'New York', 'London']) {
     agentId,
     {
       delegationConfig: { delegationId },
-      resource: { url: agentUrl },
-      httpVerb: 'POST',
+      resource: { url: sellerResourceUrl },
+      httpVerb: sellerHttpVerb,
       tokenVersion: 3,
     },
   )
@@ -425,11 +438,12 @@ for (const city of ['San Francisco', 'New York', 'London']) {
 }
 ```
 
-The `resource.url` you mint with must be the **same string the seller
-advertises** in its `paymentRequired` (origin + path are compared, query ignored;
-anything unparseable is compared literally). Sellers using this SDK's Express
-middleware advertise a relative path (`req.originalUrl`), so bind to that, not to
-the absolute URL you fetch. A mismatch is rejected with `BCK.X402.0013`.
+The comparison is origin + path, with the query string ignored; anything the
+backend cannot parse as a URL is compared literally, which is why a relative
+path must match character for character. A mismatch is rejected with
+`BCK.X402.0013` — and note this applies to **any** token carrying a resource,
+not only v3, so do not attach one to a v2 mint "just in case": the SDK warns if
+you do.
 
 `tokenVersion` is detected from the token that came back, never echoed from the
 request: a backend that does not support v3 yet drops `tokenVersion: 3` silently
