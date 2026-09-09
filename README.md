@@ -286,6 +286,39 @@ const agentHTTPOptions = {
 const response = await fetch(new URL(agentURL), agentHTTPOptions)
 ```
 
+#### Single-Use Access Tokens (v3)
+
+By default an access token is reusable for as long as the plan has credits. Opt
+into a **single-use, seller-bound** token by passing the resource it is for plus
+`tokenVersion: 3`:
+
+```typescript
+// `resource.url` must be the exact string the seller advertises in its 402
+// `paymentRequired`, NOT the URL you fetch — sellers built on this SDK's
+// paymentMiddleware advertise `req.originalUrl`, i.e. a relative path.
+const { accessToken, tokenVersion } = await payments.x402.getX402AccessToken(
+  creditsPlanId,
+  agentId,
+  {
+    delegationConfig: { delegationId },
+    resource: { url: paymentRequired.resource.url }, // e.g. '/ask'
+    httpVerb: 'POST',
+    tokenVersion: 3,
+  },
+)
+```
+
+A v3 token signs `agentId`, `resourceUrl`, `httpVerb` and a one-time `nonce`, so
+it only settles against that one endpoint and is consumed by its first
+settlement — mint a new one per paid request, and never cache it. The
+`resource.url` must be the exact string the seller advertises in its
+`paymentRequired` (origin + path), otherwise verification fails with
+`BCK.X402.0013` — a check that applies to any token carrying a resource, not
+just v3. Settling the token twice fails with `BCK.X402.0059`, which
+`isAccessTokenAlreadyUsed(error)` identifies. Always read the returned `tokenVersion` rather than assuming the
+version you requested: a backend without v3 support silently returns v2. See
+[markdown/x402.md](./markdown/x402.md) for the full contract.
+
 ## MCP (Model Context Protocol)
 
 ### What is MCP?

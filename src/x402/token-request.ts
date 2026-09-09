@@ -14,8 +14,16 @@ export function buildX402TokenRequestBody(params: {
   agentId?: string
   tokenOptions?: X402TokenOptions
   environmentName: EnvironmentName
+  /**
+   * Which mint this body is for. MPP has no token version at all — it is not
+   * "x402 v2 by another name": the two protocols stopped sharing a version
+   * ladder (nvm-monorepo#3266), and `MppService.createPermission` refuses ANY
+   * `tokenVersion` with `BCK.MPP.0007`, `2` included. Sending one would 400 the
+   * mint, so this builder refuses it here, where the caller can be told why.
+   */
+  protocol?: 'x402' | 'mpp'
 }): Record<string, any> {
-  const { planId, agentId, tokenOptions, environmentName } = params
+  const { planId, agentId, tokenOptions, environmentName, protocol = 'x402' } = params
   const scheme = tokenOptions?.scheme ?? 'nvm:erc4337'
   const network = tokenOptions?.network ?? getDefaultNetwork(scheme, environmentName)
 
@@ -67,18 +75,127 @@ export function buildX402TokenRequestBody(params: {
     )
   }
 
+  // `resource` and `httpVerb` are what a v3 token is bound to: they go inside
+  // the EIP-712 signature next to `agentId` and the one-time nonce, so a v3
+  // token minted for one seller endpoint cannot be presented to another.
+  //
+  // On a v1/v2 token they are outside the signature — but NOT inert. The
+  // backend compares a token's `resource.url` against the seller's
+  // `paymentRequired.resource.url` (origin + path, exact string when it cannot
+  // parse either as a URL) for ANY token that carries one, so a v2 token bound
+  // to a URL the seller does not advertise verbatim fails verification with
+  // `BCK.X402.0013`. Measured against staging, not inferred.
+  //
+  // They are still forwarded when the caller supplies them — this is the
+  // low-level builder, and a caller that names a resource means it (binding a
+  // v2 token to the URL the seller really advertises is valid, and once the
+  // backend default flips to v3 the binding is needed without anyone asking for
+  // a version). What the builder will not do is let that happen silently: see
+  // the warning below.
+  //
+  // Omitted rather than sent empty when the caller did not supply them: a field
+  // absent at mint is signed as the empty string AND must stay absent from the
+  // unsigned envelope, so sending `{ url: '' }` and sending nothing must not
+  // diverge — which is why the guard below tests `resource?.url`, not the
+  // object.
+  const { resource, tokenVersion } = tokenOptions
+  // Normalized here, once, rather than in each consumer: sellers advertise
+  // `req.method`, i.e. upper case, and `httpVerb: 'post'` mints a token that
+  // can never match. Both in-tree consumers already upper-cased it themselves;
+  // a direct SDK caller had no such defence.
+  const httpVerb = tokenOptions.httpVerb?.toUpperCase()
+  const boundUrl = resource?.url
+
+  // A binding on a token that is not v3 is legal but rarely intended, and its
+  // failure mode (verify rejecting with BCK.X402.0013 at the seller) points
+  // nowhere near this call. Say so once, here, where the cause is visible.
+  //
+  // MPP gets the same warning for the same reason: the MPP mint accepts
+  // `resource`/`httpVerb` (its DTO is `OmitType(GenerateX402TokenDto,
+  // ['tokenVersion'])`, so only the version is refused) and forwards them into
+  // the same comparison — but MPP has no v3 to opt into, so a binding there is
+  // never signed and can only narrow what the credential verifies against.
+  if (boundUrl || httpVerb) {
+    // A binding on anything but a v3 mint has no good outcome, so it is refused
+    // rather than warned about — the same answer payments-py gives
+    // (`token_request.py`). The presence of `resource.url` is what arms the
+    // backend's endpoint allowlist (`erc4337-scheme.handler.ts`; without it the
+    // backend logs "resource.url not provided in token … skipping endpoint
+    // validation"), while a v2 signature binds nothing — so the caller either
+    // arms a check they did not configure (`BCK.PROTOCOL.0031` for an agent
+    // registered with `endpoints`) or fails verification later with
+    // `BCK.X402.0013`. Neither is worth a log line nobody reads at mint time.
+    //
+    // This covers an OMITTED `tokenVersion` as well as an explicit `2`, because
+    // today they mint the same thing: `core-kit`'s minter is
+    // `(options.tokenVersion ?? 2) === 3`, the handler adds no default, and no
+    // versioning gate fills the field in — verified against a live mint, which
+    // comes back v2. Once nvm-monorepo#3292 makes v3 the default (it is open at
+    // the time of writing), the omitted case becomes the shape the backend is
+    // moving to and this guard should narrow to `tokenVersion === 2`.
+    if (protocol === 'x402' && tokenVersion !== 3) {
+      throw PaymentsError.validation(
+        `resource/httpVerb were supplied with tokenVersion ${tokenVersion ?? '(omitted, defaults to 2)'}. ` +
+          'Only a v3 token signs them, so the binding cannot hold — but the backend still ' +
+          'compares the resource against what the seller advertises, and arms its endpoint ' +
+          'allowlist on it. Pass tokenVersion: 3 to bind the token, or drop resource/httpVerb.',
+      )
+    }
+    if (protocol === 'mpp') {
+      // MPP is warned, not refused: it has no v3 to opt into, so there is no
+      // "correct" version to point the caller at, and the binding still narrows
+      // what the credential verifies against rather than arming a signature
+      // that cannot hold.
+      console.warn(
+        '[mpp] resource/httpVerb were supplied on an MPP mint. MPP tokens carry no version and ' +
+          'nothing is signed over them, but the backend still compares the resource against what ' +
+          'the seller advertises — a mismatch fails the credential. Omit them unless the string ' +
+          'matches the seller exactly.',
+      )
+    }
+  }
+
+  // MPP's single-use unit is the CHALLENGE, not the token: one MPP access token
+  // is presented across many challenges by design, so the x402 v3 per-token
+  // nonce would kill every buyer's second challenge. The backend enforces this
+  // by refusing the field outright; refuse it here too rather than let the
+  // caller discover it as a 400 whose cause is a field they set two layers up.
+  if (protocol === 'mpp' && tokenVersion !== undefined) {
+    throw PaymentsError.validation(
+      'tokenVersion is not supported on MPP access tokens: MPP and x402 no longer share a ' +
+        'token version ladder, and the backend refuses any tokenVersion on an MPP mint ' +
+        '(BCK.MPP.0007). Omit the field — an MPP token is reusable across challenges, and the ' +
+        'challenge is what is single-use.',
+    )
+  }
+
   // Build x402-aligned request body
   return {
+    ...(boundUrl && { resource }),
     accepted: {
       scheme,
       network,
       planId,
       extra: {
         ...(agentId && { agentId }),
+        ...(httpVerb && { httpVerb }),
       },
     },
     // Add delegation config for both erc4337 and card-delegation schemes.
     // delegationConfig is guaranteed present here (the absence check above throws).
     delegationConfig: tokenOptions.delegationConfig,
+    // Opt-in only, and x402-only (the MPP guard above has already thrown).
+    // Left out entirely when unset so a v2 mint stays byte-identical to what it
+    // was before v3 existed. A backend that predates the v3 struct drops this
+    // field silently (ValidationPipe whitelists without forbidNonWhitelisted)
+    // and returns v2 — which is why no caller may infer the version from what
+    // it asked for. See detectAccessTokenVersion().
+    //
+    // `tokenVersion: 3` WITHOUT a resource is deliberately allowed, not an
+    // oversight: the backend signs an absent binding member as the empty
+    // string, so the result is a single-use token bound to nothing. That is a
+    // supported mode — single-use without seller binding — and the only one
+    // available when the caller does not know the seller's advertised URL.
+    ...(tokenVersion !== undefined && { tokenVersion }),
   }
 }

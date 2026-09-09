@@ -19,7 +19,7 @@
  */
 
 import { PaymentsError } from '../common/payments.error.js'
-import type { DelegationConfig, X402TokenOptions } from '../common/types.js'
+import type { DelegationConfig, MppTokenOptions } from '../common/types.js'
 import { buildCredentialHeader, parseChallengeHeader, parseReceiptHeader } from './codec.js'
 import { MppError, MppSpendOutcomeUnknownError, isRetryableMppCode, toMppError } from './errors.js'
 import type { MppSpendReport } from './errors.js'
@@ -147,11 +147,16 @@ export interface MppFetchResult {
   paid: boolean
 }
 
-/** Mints an MPP access token for a plan. Supplied by `MppAPI`. */
+/**
+ * Mints an MPP access token for a plan. Supplied by `MppAPI`.
+ *
+ * No `tokenVersion`: MPP carries none (nvm-monorepo#3266) — see
+ * {@link MppTokenOptions}.
+ */
 export type MppTokenMinter = (
   planId: string,
   agentId?: string,
-  tokenOptions?: X402TokenOptions,
+  tokenOptions?: MppTokenOptions,
 ) => Promise<{ accessToken: string }>
 
 /**
@@ -526,6 +531,12 @@ export async function mppFetch(
         )
       }
 
+      // No resource/verb binding and no `tokenVersion` here: MPP carries no
+      // token version at all (nvm-monorepo#3266). One MPP access token is
+      // presented across many challenges — genuinely distinct operations, not
+      // retries of one — so a per-token nonce would kill every buyer's second
+      // challenge, which is why the two protocols stopped sharing a version
+      // ladder. This loop mints a fresh token per credential regardless.
       const { accessToken } = await mintToken(
         planId,
         options.agentId ?? challenge.request.agentId,

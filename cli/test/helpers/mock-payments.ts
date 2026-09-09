@@ -29,6 +29,8 @@ export interface MockAgent {
 
 export interface MockX402Token {
   accessToken: string
+  /** EIP-712 version of the returned token: 3 means single-use. */
+  tokenVersion: 2 | 3
 }
 
 export class MockPlansAPI {
@@ -98,9 +100,19 @@ export class MockAgentsAPI {
 }
 
 export class MockX402TokenAPI {
-  async getX402AccessToken(planId: string): Promise<MockX402Token> {
+  async getX402AccessToken(
+    planId: string,
+    _agentId?: string,
+    tokenOptions?: { tokenVersion?: number },
+  ): Promise<MockX402Token> {
     return {
       accessToken: `mock-token-for-${planId}`,
+      // NOT what the SDK does: the SDK reads the version off the minted token
+      // and never echoes the request. This mock has no decodable envelope to
+      // read (`mock-token-for-…` is not a token), so it echoes — which means
+      // CLI tests cannot cover version detection, only that the field is
+      // plumbed through.
+      tokenVersion: tokenOptions?.tokenVersion === 3 ? 3 : 2,
     }
   }
 }

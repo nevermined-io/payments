@@ -40,7 +40,7 @@ function createMockPayments() {
       orderFiatPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } }),
     },
     x402: {
-      getX402AccessToken: jest.fn<() => Promise<unknown>>().mockResolvedValue({ accessToken: 'tok_test_123' }),
+      getX402AccessToken: jest.fn<() => Promise<unknown>>().mockResolvedValue({ accessToken: 'tok_test_123', tokenVersion: 2 }),
     },
     agents: {
       registerAgentAndPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({
@@ -427,7 +427,46 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
         'plan-default', 'agent-default', undefined,
       )
-      expect(result).toEqual({ accessToken: 'tok_test_123' })
+      // tokenVersion is reported so the caller knows whether the token is
+      // single-use (3) or reusable (2).
+      expect(result).toEqual({ accessToken: 'tok_test_123', tokenVersion: 2 })
+    })
+
+    test('nevermined_getAccessToken — forwards an explicit resource and verb', async () => {
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_getAccessToken')!
+      await tool.execute('call-1', {
+        resourceUrl: 'https://agent.example.com/tasks',
+        httpVerb: 'get',
+        tokenVersion: 3,
+      })
+
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default',
+        {
+          resource: { url: 'https://agent.example.com/tasks' },
+          httpVerb: 'GET',
+          tokenVersion: 3,
+        },
+      )
+    })
+
+    test('nevermined_getAccessToken — a resource without tokenVersion 3 is ignored, not sent', async () => {
+      // The caller here is a model filling in a tool schema. A resourceUrl on a
+      // v2 token does not bind it — it can only fail the seller's verification
+      // with BCK.X402.0013 — so it is dropped with a warning instead.
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_getAccessToken')!
+      await tool.execute('call-1', { resourceUrl: 'https://agent.example.com/tasks' })
+
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default', undefined,
+      )
+      expect(warn.mock.calls.map((c) => String(c[0])).join(' ')).toContain('BCK.X402.0013')
+      warn.mockRestore()
     })
 
     test('nevermined_orderPlan — without confirm, returns a quote and does not order', async () => {
@@ -517,7 +556,7 @@ describe('OpenClaw Nevermined Plugin', () => {
           },
         },
       )
-      expect(result).toEqual({ accessToken: 'tok_test_123' })
+      expect(result).toEqual({ accessToken: 'tok_test_123', tokenVersion: 2 })
     })
 
     test('nevermined_getAccessToken — fiat auto-selects first enrolled card', async () => {
@@ -590,7 +629,94 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect((fetchInit.headers as Record<string, string>)['payment-signature']).toBe('tok_test_123')
       expect(JSON.parse(fetchInit.body as string)).toEqual({ prompt: 'What is AI?' })
 
-      expect(result).toEqual({ answer: 'hello' })
+      // The minted version rides along with the agent's answer, so a caller can
+      // tell a single-use token from a reusable one.
+      // The agent's body rides under `response`, untouched; our metadata sits
+      // beside it.
+      expect(result).toEqual({ response: { answer: 'hello' }, tokenVersion: 2 })
+    })
+
+    test('nevermined_queryAgent — a v3 request binds the token to the agent URL', async () => {
+      const mockFetch = globalThis.fetch as jest.Mock<typeof fetch>
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ answer: 'hello' }),
+      } as Response)
+
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_queryAgent')!
+      const result = parseResult(await tool.execute('call-1', {
+        agentUrl: 'https://agent.example.com/tasks',
+        prompt: 'What is AI?',
+        tokenVersion: 3,
+      })) as Record<string, unknown>
+
+      // Bound to the path the Express seller advertises (`req.originalUrl`),
+      // not to the absolute URL this tool fetches — the absolute form is the
+      // BCK.X402.0013 mismatch.
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default',
+        {
+          resource: { url: '/tasks' },
+          httpVerb: 'POST',
+          tokenVersion: 3,
+        },
+      )
+      // The mock always mints v2, so this call is a downgrade — which must be
+      // reported, not left as incidental console noise.
+      expect(warn.mock.calls.map((c) => String(c[0])).join(' ')).toContain(
+        'tokenVersion 3 was requested',
+      )
+      expect(result.tokenVersion).toBe(2)
+      warn.mockRestore()
+    })
+
+    test("nevermined_queryAgent — the agent's body is returned whole, whatever its shape", async () => {
+      // Spreading it would reshape a top-level array into an index-keyed object
+      // and clobber an agent's own `tokenVersion` field with ours.
+      const mockFetch = globalThis.fetch as jest.Mock<typeof fetch>
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([1, 2, 3]),
+      } as Response)
+
+      const { tools } = registerWithMock()
+
+      const tool = tools.get('nevermined_queryAgent')!
+      const result = parseResult(await tool.execute('call-1', {
+        agentUrl: 'https://agent.example.com/tasks',
+        prompt: 'What is AI?',
+      })) as Record<string, unknown>
+
+      expect(result.response).toEqual([1, 2, 3])
+      expect(result.tokenVersion).toBe(2)
+    })
+
+    test('nevermined_queryAgent — tokenVersion is reachable from the tool schema', async () => {
+      // The derived binding is only usable if a model can ask for it.
+      const { tools } = registerWithMock()
+
+      const schema = tools.get('nevermined_queryAgent')!.parameters as {
+        properties: Record<string, unknown>
+      }
+      expect(schema.properties).toHaveProperty('tokenVersion')
+    })
+
+    test('both tokenVersion schemas constrain the value to 2 or 3', async () => {
+      // Unconstrained, a `5` passes the schema and quietly mints the reusable
+      // default on the one path that never warns.
+      const { tools } = registerWithMock()
+
+      for (const name of ['nevermined_queryAgent', 'nevermined_getAccessToken']) {
+        const schema = tools.get(name)!.parameters as {
+          properties: Record<string, { enum?: number[] }>
+        }
+        expect(schema.properties.tokenVersion.enum).toEqual([2, 3])
+      }
     })
 
     test('handles 402 response', async () => {
@@ -657,7 +783,7 @@ describe('OpenClaw Nevermined Plugin', () => {
           },
         },
       )
-      expect(result).toEqual({ answer: 'fiat response' })
+      expect(result).toEqual({ response: { answer: 'fiat response' }, tokenVersion: 2 })
     })
   })
 

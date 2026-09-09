@@ -15,7 +15,7 @@ import {
   API_URL_MPP_VERIFY,
 } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import type { PaymentOptions, X402TokenOptions } from '../common/types.js'
+import type { MppTokenOptions, PaymentOptions } from '../common/types.js'
 import type { SettlePermissionsResult, VerifyPermissionsResult } from '../x402/facilitator-api.js'
 import { buildX402TokenRequestBody } from '../x402/token-request.js'
 import { MppError, MppSettlementOutcomeUnknownError, toMppError } from './errors.js'
@@ -199,20 +199,27 @@ export class MppAPI extends BasePaymentsAPI {
   /**
    * Mints an access token signed under the `Nevermined-MPP` EIP-712 domain.
    *
-   * Same inputs and same settlement rail as {@link X402TokenAPI.getX402AccessToken};
-   * the token verifies only on the MPP routes, which is what keeps the two
-   * protocols isolated even though the tokens are byte-identical on the wire.
+   * Same inputs and same settlement rail as {@link X402TokenAPI.getX402AccessToken}
+   * minus `tokenVersion`; the token verifies only on the MPP routes, which is
+   * what keeps the two protocols isolated.
+   *
+   * MPP carries **no token version** (nvm-monorepo#3266): its single-use unit is
+   * the challenge, not the token, so one MPP token is presented across many
+   * challenges by design. The parameter type says so, and a JavaScript caller
+   * that sends one anyway is refused before the request — the backend answers
+   * `BCK.MPP.0007` for any value, `2` included.
    */
   async getMppAccessToken(
     planId: string,
     agentId?: string,
-    tokenOptions?: X402TokenOptions,
+    tokenOptions?: MppTokenOptions,
   ): Promise<{ accessToken: string }> {
     const body = buildX402TokenRequestBody({
       planId,
       agentId,
       tokenOptions,
       environmentName: this.environmentName,
+      protocol: 'mpp',
     })
     return this.post<{ accessToken: string }>(API_URL_MPP_CREATE_PERMISSION, body)
   }

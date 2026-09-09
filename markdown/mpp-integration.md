@@ -186,6 +186,35 @@ request presents its credential — so twice per full payment cycle, not once.
 Anything with a side effect (metering, a counter, a DB write) in that
 function runs twice.
 
+## MPP access tokens carry no version
+
+An MPP access token is the buyer's **reusable** credential — one token is
+presented across many challenges, and the *challenge* is the single-use part
+(its id doubles as the settlement id). x402's token-version ladder therefore
+does not apply here: `payments.mpp.getMppAccessToken` and `payments.mpp.fetch`
+take `MppTokenOptions`, which is `X402TokenOptions` without `tokenVersion`.
+
+Passing a version anyway is refused before the request goes out. The backend
+refuses **any** value with `BCK.MPP.0007` — `2` included, because that ordinal
+belongs to x402's ladder and would name a different struct here.
+
+```typescript
+// x402: opt into the single-use, seller-bound token. `resource.url` is the
+// string the seller advertises in its 402 — a `paymentMiddleware` seller
+// advertises `req.originalUrl`, i.e. the relative path below.
+await payments.x402.getX402AccessToken(planId, agentId, {
+  delegationConfig: { delegationId },
+  resource: { url: '/ask' },
+  httpVerb: 'POST',
+  tokenVersion: 3,
+})
+
+// MPP: no version knob at all.
+await payments.mpp.getMppAccessToken(planId, agentId, {
+  delegationConfig: { delegationId },
+})
+```
+
 ## A credential buys exactly one response
 
 Verifying a credential burns nothing, and settling the same credential twice

@@ -61,6 +61,7 @@ import {
 } from '../common/types.js'
 import type { EnvironmentName } from '../environments.js'
 import type { Payments } from '../payments.js'
+import { X402_TOKEN_ALREADY_USED_CODE } from './token-version.js'
 
 /**
  * x402 Resource information
@@ -636,12 +637,66 @@ export class FacilitatorAPI extends BasePaymentsAPI {
         } catch {
           // Use default error message
         }
+        // A spent single-use (v3) token is not a decline and not a forgery: the
+        // token was valid and has already been settled once. Say what to do
+        // about it, because the wrong reaction — retrying with the same token —
+        // is the one a generic settlement failure invites.
+        //
+        // This branch covers the THROWN shape, which is the one the backend
+        // uses here: `BCK.X402.0059` is catalogued as `httpStatus: 402`, so it
+        // arrives as a non-2xx and `isAccessTokenAlreadyUsed` fires on the
+        // PaymentsError. Verified end-to-end against staging: a second settle
+        // of the same v3 token rejects with that code. Settle can also report
+        // failure as 200 + `success: false` (e.g. `errorReason: "Cannot order
+        // plan"`), but a spent token is not one of those cases — read
+        // `success`/`errorReason` on the returned result for those.
+        if (errorCode === X402_TOKEN_ALREADY_USED_CODE) {
+          throw PaymentsError.fromBackend(errorMessage, {
+            message:
+              'this x402 access token was already used. Single-use (v3) tokens are consumed by ' +
+              'their first settlement — mint a new token for this request instead of retrying ' +
+              'with the same one.',
+            code: errorCode,
+          })
+        }
         throw PaymentsError.fromBackend(errorMessage, {
           message: errorMessage,
           code: errorCode,
         })
       }
-      return await response.json()
+      const result = (await response.json()) as SettlePermissionsResult
+      // Settlement failure has two shapes. A refused settle (a spent v3 token,
+      // a forged one) arrives as a non-2xx and throws above. A settle the
+      // backend accepted but could not complete — no credits available and the
+      // auto-order reverting, say — arrives as 200 with `success: false` and an
+      // `errorReason`, and is returned verbatim because the reason, the billing
+      // model and the credit fields are what the caller needs to react.
+      //
+      // Returned, but not unremarked. The settlement object does reach callers
+      // (the Express middleware base64s it into `payment-response` and hands it
+      // to `onAfterSettle`; the LangChain decorator stores it as
+      // `lastSettlement()`), but of the in-tree consumers only the MCP paywall
+      // actually branches on `success` — so a caller that forgets to check it
+      // serves a request it was never paid for with nothing in the log.
+      //
+      // `!== true` rather than `=== false`: a 200 whose body has no `success`
+      // at all is not a settlement either, and reading an absent field as a
+      // success is the failure this warning exists to prevent.
+      if (result?.success !== true) {
+        // Deliberately claims nothing about what was charged. This layer reads
+        // `success` and nothing else — it never inspects `creditsRedeemed` or
+        // `orderTx` — and on a card rail an auto-order can have charged the
+        // buyer before the burn failed. Saying "no credits were burned" here
+        // would invite exactly the retry the SettlePermissionsResult docblock
+        // warns against.
+        console.warn(
+          `[x402] settlePermissions did not settle (${result?.errorReason ?? 'no reason given'}). ` +
+            'Do not treat the request as paid. ' +
+            `creditsRedeemed=${result?.creditsRedeemed ?? 'unset'}, orderTx=${result?.orderTx ?? 'none'}, ` +
+            `billingModel=${result?.billingModel ?? 'unset'} — read those before assuming nothing was charged.`,
+        )
+      }
+      return result
     } catch (error) {
       if (error instanceof PaymentsError) {
         throw error

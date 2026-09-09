@@ -417,6 +417,41 @@ const settlement = await agentPayments.facilitator.settlePermissions({
 })
 ```
 
+## Single-Use (v3) Tokens on the Seller Side
+
+Buyers may present a **v3** access token: bound to one resource URL and HTTP
+verb, and **consumed by its first settlement**. The seller side needs no
+protocol change — relay the `payment-signature` value to verify and settle
+**byte-for-byte**, exactly as with a v2 token. Two consequences to be aware of:
+
+- **`paymentRequired` must match what the token was minted for.** The backend
+  compares the token's `resource.url` with yours (origin + path, query ignored;
+  an unparseable string is compared literally) and rejects a mismatch with
+  `BCK.X402.0013`. Whatever you pass as `endpoint` is what buyers must mint
+  against — `paymentMiddleware` advertises `req.originalUrl`, i.e. a relative
+  path. Keep it stable, and document it for your buyers.
+- **`verifyPermissions` never consumes the token**, so verify-then-settle is
+  unchanged and verification stays repeatable. Only `settlePermissions` spends it.
+
+A second settlement of the same token fails with **`BCK.X402.0059`** — which is
+neither a decline nor a forgery (`BCK.X402.0005`): the token was valid and has
+already been spent. Never retry it; the buyer must mint a new one.
+
+```typescript
+import { isAccessTokenAlreadyUsed } from '@nevermined-io/payments'
+
+try {
+  await agentPayments.facilitator.settlePermissions({ paymentRequired, x402AccessToken: accessToken })
+} catch (error) {
+  if (isAccessTokenAlreadyUsed(error)) {
+    return res.status(402).json({
+      error: 'This access token was already used. Please mint a new one.',
+    })
+  }
+  throw error
+}
+```
+
 ## Best Practices
 
 1. **Always Verify First**: Call `verifyPermissions` before executing tasks
@@ -428,6 +463,8 @@ const settlement = await agentPayments.facilitator.settlePermissions({
 7. **Token Validation**: Never skip verification even if token looks valid
 8. **Branch on `billingModel`**: Never decide "was the buyer charged?" from
    `creditsRedeemed` alone — see [Was the buyer charged?](#was-the-buyer-charged) above
+9. **Never Retry a Spent Token**: Treat `BCK.X402.0059` as "mint a new token", not as a transient settlement failure
+10. **Relay Tokens Verbatim**: Do not re-encode, trim or normalise `payment-signature` — a v3 envelope that disagrees with its signature is rejected as forgery
 
 ## Related Documentation
 

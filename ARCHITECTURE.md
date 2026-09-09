@@ -218,6 +218,22 @@ const result = await payments.facilitator.verifyPermissions({ planId, x402Access
 await payments.facilitator.settlePermissions({ planId, maxAmount, x402AccessToken, ... })
 ```
 
+**Access token versions.** A v2 token (today's default) is a reusable bearer
+credential scoped to a plan. A v3 token — opt in with `tokenVersion: 3` plus
+`resource` / `httpVerb` — additionally signs `agentId`, `resourceUrl`,
+`httpVerb` and a one-time `nonce`, which binds it to a single seller endpoint
+and makes it **single-use**: the first `settlePermissions` consumes it, and a
+second returns `BCK.X402.0059`. Mint a v3 token per paid request; never cache
+one. The version must be read off the returned token (`tokenVersion`, or
+`detectAccessTokenVersion`) rather than assumed from the request, because a
+backend without v3 support drops the field silently and mints v2. The
+`resource.url` a token is minted with must equal the one the seller advertises
+(origin + path); a mismatch is rejected with `BCK.X402.0013`, which is why the
+SDK's own clients attach a resource binding only when v3 is explicitly requested.
+MPP carries no token version at all: one MPP token spans many challenges, so the
+protocols no longer share a version ladder and an MPP mint refuses any
+`tokenVersion` (`BCK.MPP.0007`).
+
 ### 2. Registering and Authenticating MCP Server
 
 ```typescript

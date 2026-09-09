@@ -661,6 +661,68 @@ export interface CreateDelegationResponse {
 }
 
 /**
+ * The protected resource a token is minted for.
+ *
+ * Load-bearing from token v3 on: `url` is inside the EIP-712 signature, so a
+ * v3 token only settles against the seller endpoint it names.
+ *
+ * Outside the v1/v2 signature, which covers `from` / `sessionKeysProvider` /
+ * `sessionKeys` / `planId` only — but **not** inert there: the backend compares
+ * this URL against the one the seller advertises in its `paymentRequired`
+ * (origin + path; an exact string comparison when either side is not a
+ * parseable URL) for **any** token that carries a resource. Binding a token to
+ * a URL the seller does not advertise verbatim therefore fails verification
+ * with `BCK.X402.0013`. Sellers built on this SDK's `paymentMiddleware`
+ * advertise `req.originalUrl` — a **relative** path — so for such a seller bind
+ * to that string, not to the absolute URL you fetch. See {@link
+ * X402TokenResource.url} for a seller that advertises the absolute form, which
+ * this SDK's own A2A server does.
+ */
+export interface X402TokenResource {
+  /**
+   * The protected resource URL, **as the seller advertises it** — e.g.
+   * `/api/v1/tasks` from a `paymentMiddleware` seller, or the absolute
+   * `https://seller.example/api/v1/tasks` from one that advertises it that way
+   * (this SDK's A2A server does).
+   */
+  url: string
+  /** Human-readable description. */
+  description?: string
+  /** Expected response MIME type (e.g. `application/json`). */
+  mimeType?: string
+}
+
+/**
+ * EIP-712 struct version the backend signs the access token under.
+ *
+ * - `2` — today's default: reusable bearer token, signature covers
+ *   `[from, sessionKeysProvider, sessionKeys, planId]`.
+ * - `3` — appends `agentId`, `resourceUrl`, `httpVerb` and a one-time `nonce`
+ *   to the signed struct, making the token seller/resource-bound and
+ *   **single-use**: it is consumed on the first `POST /x402/settle`.
+ *
+ * Opt-in. Never assume the token you got back is the version you asked for —
+ * a backend that predates the v3 struct silently drops the field (its
+ * `ValidationPipe` whitelists without `forbidNonWhitelisted`) and mints v2.
+ * Read the version off the token with {@link detectAccessTokenVersion}.
+ */
+export type X402TokenVersion = 2 | 3
+
+/**
+ * Options accepted by the MPP token mint: everything {@link X402TokenOptions}
+ * takes except `tokenVersion`.
+ *
+ * MPP and x402 stopped sharing a token version ladder (nvm-monorepo#3266). MPP
+ * signs one struct and names no version for it, because its single-use unit is
+ * the **challenge**, not the token — one MPP access token is presented across
+ * many challenges by design, so an x402 v3 per-token nonce would reject every
+ * buyer's second challenge. The backend refuses ANY `tokenVersion` on an MPP
+ * mint with `BCK.MPP.0007`, `2` included, so the field is omitted from the type
+ * rather than accepted and ignored.
+ */
+export type MppTokenOptions = Omit<X402TokenOptions, 'tokenVersion'>
+
+/**
  * Options for x402 token generation that control scheme and delegation behavior.
  */
 export interface X402TokenOptions {
@@ -670,4 +732,32 @@ export interface X402TokenOptions {
   network?: string
   /** Delegation configuration for both erc4337 and card-delegation schemes */
   delegationConfig?: DelegationConfig
+  /**
+   * The protected resource the token is minted for. Signed into a v3 token,
+   * which then only settles against this URL. Without it the backend has
+   * nothing to bind to and skips endpoint validation, so `tokenVersion: 3`
+   * alone yields a single-use token bound to nothing — a supported mode, but
+   * not the seller binding.
+   *
+   * Must be the **exact string the seller advertises**; see
+   * {@link X402TokenResource}. Supplying it without `tokenVersion: 3` is
+   * **refused**: only a v3 signature covers the binding, while the resource
+   * still arms the backend's endpoint allowlist and is compared against what
+   * the seller advertises — so it can only cost you a `BCK.PROTOCOL.0031` or a
+   * `BCK.X402.0013`.
+   */
+  resource?: X402TokenResource
+  /**
+   * HTTP verb of the protected resource (e.g. `POST`). Signed into a v3 token
+   * alongside {@link X402TokenOptions.resource}, and compared against the verb
+   * the seller advertises. Upper-cased by the SDK before it is sent, so
+   * `'post'` and `'POST'` are equivalent.
+   */
+  httpVerb?: string
+  /**
+   * Request a specific EIP-712 token version. Omitted means the backend
+   * default (currently `2`). Requesting `3` is a request, not a guarantee —
+   * always read the version back off the minted token.
+   */
+  tokenVersion?: X402TokenVersion
 }

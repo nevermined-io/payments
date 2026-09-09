@@ -18,6 +18,7 @@ import type {
 import { ZeroAddress } from '../../src/environments.js'
 import { Payments } from '../../src/payments.js'
 import { getCryptoPriceConfig, getDynamicCreditsConfig } from '../../src/plans.js'
+import { isAccessTokenAlreadyUsed } from '../../src/x402/token-version.js'
 import { makeWaitForAgent, retryWithBackoff, waitForCondition } from '../utils.js'
 import { createPaymentsBuilder, createPaymentsSubscriber } from './fixtures.js'
 
@@ -185,11 +186,11 @@ describe('X402 Delegation Flow', () => {
     console.log(`Verify permissions response: ${JSON.stringify(response)}`)
   })
 
-  // Skipped: the settle itself succeeds (the response carries `remainingBalance`),
-  // but `getPlanBalance()` returns 0 for this free, delegation-based plan on the
-  // rotated staging test account, so the balance-poll assertion can't be met.
-  // Not a burn failure — re-enable once the settle vs get-plan-balance
-  // discrepancy is reconciled. Unrelated to onboardCustomer.
+  // Skipped: this free, delegation-based plan cannot be burned against on the
+  // shared test account — settle answers `success: false` with
+  // `errorReason: "Cannot order plan"` and a balance of 0, so neither the burn
+  // nor the balance poll can be met. Re-enable once the test account can order
+  // (or hold credits on) the plans these tests create.
   test.skip('should settle (burn) credits using X402 access token', async () => {
     expect(planId).not.toBeNull()
     expect(x402AccessToken).not.toBeNull()
@@ -263,6 +264,136 @@ describe('X402 Delegation Flow', () => {
     expect(response.accessToken).not.toBeNull()
     expect(response.accessToken.length).toBeGreaterThan(0)
     console.log('Successfully reused delegation for another token generation')
+  })
+
+  // --- Single-use, seller/resource-bound tokens (v3) ---
+  //
+  // v3 is opt-in and gated on the backend supporting it. A deployment that
+  // predates nvm-monorepo#2646 DROPS `tokenVersion: 3` without an error and
+  // mints v2, so these legs branch on the version detected from the returned
+  // token — never on the version requested. Until staging carries the v3
+  // struct they exercise the request path and log a skip.
+  // Must be an endpoint the agent actually registers (see the agentApi above):
+  // the backend checks the token's resource against the agent's endpoint
+  // allowlist and answers "Endpoint not included in the agent api" for anything
+  // else — before any v3 semantics are reached.
+  const v3ResourceUrl = () => `https://myagent.ai/api/v1/secret/${agentId}/tasks`
+
+  const v3PaymentRequired = () => ({
+    x402Version: 2,
+    resource: { url: v3ResourceUrl() },
+    accepts: [
+      {
+        scheme: 'nvm:erc4337',
+        network: 'eip155:84532',
+        planId,
+        extra: { agentId, httpVerb: 'POST' },
+      },
+    ],
+    extensions: {},
+  })
+
+  const mintV3Token = async () => {
+    const response = await retryWithBackoff(
+      () =>
+        paymentsSubscriber.x402.getX402AccessToken(planId, agentId, {
+          delegationConfig: { delegationId },
+          resource: { url: v3ResourceUrl() },
+          httpVerb: 'POST',
+          tokenVersion: 3,
+        }),
+      { label: 'X402 v3 Access Token Generation', attempts: 3 },
+    )
+    return response
+  }
+
+  test('should request a v3 token and report the version actually minted', async () => {
+    expect(planId).not.toBeNull()
+    expect(delegationId).not.toBeNull()
+
+    const response = await mintV3Token()
+
+    expect(response.accessToken).toBeDefined()
+    expect(response.accessToken.length).toBeGreaterThan(0)
+
+    // Independent oracle: decode the envelope here rather than calling
+    // detectAccessTokenVersion, which is what produced `tokenVersion` in the
+    // first place — comparing those two is f(x) === f(x) and holds however
+    // wrong f is. The discriminator is a non-empty signed nonce.
+    const authorization = JSON.parse(Buffer.from(response.accessToken, 'base64').toString('utf-8'))
+      ?.payload?.authorization
+    const carriesNonce = typeof authorization?.nonce === 'string' && authorization.nonce !== ''
+    expect(response.tokenVersion).toBe(carriesNonce ? 3 : 2)
+    console.log(`Backend minted a v${response.tokenVersion} token for a tokenVersion: 3 request`)
+
+    // The rest of the v3 binding is signed alongside the nonce. Unconditional
+    // for the same reason as the sibling test: a backend that answers a
+    // `tokenVersion: 3` request with v2 is a regression, not a skip.
+    expect(response.tokenVersion).toBe(3)
+    expect(authorization.resourceUrl).toBe(v3ResourceUrl())
+    expect(authorization.httpVerb).toBe('POST')
+    expect(authorization.agentId).toBe(agentId)
+  })
+
+  test('a v3 token settles exactly once; a second settle reports BCK.X402.0059', async () => {
+    expect(planId).not.toBeNull()
+    expect(delegationId).not.toBeNull()
+
+    const { accessToken, tokenVersion } = await mintV3Token()
+
+    // Asserted, not skipped. Single-use is the property this whole feature
+    // exists to add, and a `return` here would let the test pass green having
+    // verified none of it — CI output cannot tell "verified" from "did not
+    // run". v3 has been available since backend v1.30.0 and an explicit
+    // `tokenVersion: 3` is never downgraded by the version gate, so a v2 token
+    // here means the environment regressed, which is exactly what should go
+    // red.
+    expect(tokenVersion).toBe(3)
+
+    const paymentRequired = v3PaymentRequired()
+
+    // verify() never consumes the token — it stays repeatable.
+    const firstVerify = await paymentsAgent.facilitator.verifyPermissions({
+      paymentRequired,
+      x402AccessToken: accessToken,
+      maxAmount: 1n,
+    })
+    expect(firstVerify.isValid).toBe(true)
+    const secondVerify = await paymentsAgent.facilitator.verifyPermissions({
+      paymentRequired,
+      x402AccessToken: accessToken,
+      maxAmount: 1n,
+    })
+    expect(secondVerify.isValid).toBe(true)
+
+    // settle() consumes it.
+    const settlement = await paymentsAgent.facilitator.settlePermissions({
+      paymentRequired,
+      x402AccessToken: accessToken,
+      maxAmount: 1n,
+    })
+    console.log(`v3 settle #1: ${JSON.stringify(settlement)}`)
+    // Asserted, not skipped: single-use only exists downstream of a settle that
+    // burned, so a settle that does not burn must fail this test rather than
+    // let it pass green having verified nothing. (This used to return early to
+    // survive the `Cannot order plan` wall — nvm-monorepo#3296, fixed.)
+    expect(settlement.success).toBe(true)
+
+    // The second settle must be refused as spent — not retried, not accepted.
+    // Deliberately NOT wrapped in retryWithBackoff: a replay is exactly what
+    // must not be retried.
+    const replayError = await paymentsAgent.facilitator
+      .settlePermissions({
+        paymentRequired,
+        x402AccessToken: accessToken,
+        maxAmount: 1n,
+      })
+      .then(() => null)
+      .catch((error) => error)
+
+    expect(replayError).not.toBeNull()
+    expect(isAccessTokenAlreadyUsed(replayError)).toBe(true)
+    expect(String(replayError.message)).toContain('mint a new token')
   })
 
   test('should generate X402 access token with auto-created delegation (Pattern A)', async () => {

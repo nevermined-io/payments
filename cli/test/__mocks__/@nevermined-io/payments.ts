@@ -29,6 +29,8 @@ export interface MockAgent {
 
 export interface MockX402Token {
   accessToken: string
+  /** EIP-712 version of the returned token: 3 means single-use. */
+  tokenVersion: 2 | 3
 }
 
 const mockPlans: MockPlan[] = [
@@ -58,6 +60,7 @@ const mockAgents: MockAgent[] = [
 const mockPaymentMethods = [
   {
     id: 'pm_test_visa_4242',
+    type: 'card',
     brand: 'visa',
     last4: '4242',
     expMonth: 12,
@@ -65,6 +68,7 @@ const mockPaymentMethods = [
   },
   {
     id: 'pm_test_mc_5555',
+    type: 'card',
     brand: 'mastercard',
     last4: '5555',
     expMonth: 6,
@@ -105,10 +109,19 @@ export const Payments = {
       }),
     },
     x402: {
-      getX402AccessToken: jest.fn(async (planId: string, _agentId?: string, _redemptionLimit?: any, _orderLimit?: string, _expiration?: string, tokenOptions?: any): Promise<MockX402Token> => {
+      // Signature matches the SDK: (planId, agentId, tokenOptions). It used to
+      // carry three extra positional parameters the SDK dropped long ago, which
+      // pushed `tokenOptions` to slot 6 — so the scheme was never read and the
+      // two fiat cases in `test/unit/x402.test.ts` were failing unnoticed (that
+      // file is not part of the `test:unit` CI target).
+      getX402AccessToken: jest.fn(async (planId: string, _agentId?: string, tokenOptions?: any): Promise<MockX402Token> => {
         const suffix = tokenOptions?.scheme === 'nvm:card-delegation' ? '-fiat' : ''
         return {
           accessToken: `mock-token-for-${planId}${suffix}`,
+          // NOT what the SDK does — it reads the version off the minted token.
+          // This mock has no decodable envelope, so it echoes; CLI tests cover
+          // that the field is plumbed through, never the detection itself.
+          tokenVersion: tokenOptions?.tokenVersion === 3 ? 3 : 2,
         }
       }),
     },

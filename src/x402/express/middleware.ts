@@ -73,6 +73,7 @@ import {
   type MppRouteOption,
 } from './mpp-support.js'
 import { computeBodyDigest, getRawBody } from './raw-body.js'
+import { isAccessTokenAlreadyUsed, X402_TOKEN_ALREADY_USED_CODE } from '../token-version.js'
 import {
   MppError,
   MppCredentialRejectedError,
@@ -444,6 +445,57 @@ function isCredentialSpent(credentialId: string): boolean {
   if (expiresAt === undefined) return false
   if (expiresAt <= Date.now()) {
     spentMppCredentials.delete(credentialId)
+    return false
+  }
+  return true
+}
+
+/**
+ * How long a spent x402 access token stays refused.
+ *
+ * A v3 token has no expiry the seller can read, so this is a memory bound
+ * rather than a semantic one: past it the backend still refuses the token with
+ * `BCK.X402.0059`, and the only thing lost is this edge's ability to refuse it
+ * BEFORE running the handler. An hour is far longer than any plausible replay
+ * window and keeps the map small.
+ */
+const SPENT_X402_TOKEN_TTL_MS = 3_600_000
+
+/**
+ * Access tokens whose settlement was refused as already spent
+ * (`BCK.X402.0059`), and the instant each stops being worth remembering.
+ *
+ * Single-use (v3) tokens turn a previously harmless swallow into free service.
+ * `verify()` is a dry run the seller may repeat, so the backend deliberately
+ * never consults the nonce there — only `settle` spends it. A buyer replaying a
+ * spent token therefore verifies clean, the handler runs, and settlement throws
+ * afterwards. Under v2 that cost the seller nothing (settle always burned); a
+ * v3 replay would be served for free, repeatably, by anyone who has seen one
+ * used token.
+ *
+ * So single-use is the seller edge's job here, exactly as it is for MPP
+ * credentials — see {@link spentMppCredentials}, whose shape this mirrors.
+ *
+ * Same process-local caveat: this does not span processes or horizontally
+ * scaled instances, which need a shared store this package does not provide.
+ */
+const spentX402Tokens = new Map<string, number>()
+
+function markX402TokenSpent(token: string): void {
+  const now = Date.now()
+  for (const [spent, expiresAt] of spentX402Tokens) {
+    if (expiresAt > now) break
+    spentX402Tokens.delete(spent)
+  }
+  spentX402Tokens.set(token, now + SPENT_X402_TOKEN_TTL_MS)
+}
+
+/** Whether this access token has already been settled once at this edge. */
+function isX402TokenSpent(token: string): boolean {
+  const expiresAt = spentX402Tokens.get(token)
+  if (expiresAt === undefined) return false
+  if (expiresAt <= Date.now()) {
+    spentX402Tokens.delete(token)
     return false
   }
   return true
@@ -1250,6 +1302,25 @@ export function paymentMiddleware(
         return
       }
 
+      // A token this edge already settled once is refused here, before the
+      // handler runs. `verify` cannot catch it — the backend never consults the
+      // nonce there — so without this the buyer is served and settlement fails
+      // afterwards, which for a single-use token means free service.
+      if (isX402TokenSpent(token)) {
+        const error = new Error('Payment required: this x402 access token was already used')
+        if (onPaymentError) {
+          onPaymentError(error, req, res)
+          return
+        }
+        sendPaymentRequired(
+          res,
+          paymentRequired,
+          'This x402 access token was already used. Single-use (v3) tokens are consumed by their ' +
+            'first settlement — mint a new token for this request.',
+        )
+        return
+      }
+
       // Calculate credits to verify
       const creditsToVerify = typeof credits === 'function' ? await credits(req, res) : credits
 
@@ -1353,9 +1424,22 @@ export function paymentMiddleware(
                 })
             })
             .catch((settleError) => {
+              // A settle refused as already-spent is not a transient failure:
+              // the token bought a response once and must not buy another.
+              // Remember it so the NEXT request is refused before the handler
+              // runs, and tell the buffered path below to withhold this body.
+              if (isAccessTokenAlreadyUsed(settleError)) {
+                markX402TokenSpent(token)
+                spentTokenRefusal = settleError
+              }
               console.error('Payment settlement failed:', settleError)
             })
         }
+
+        // Set when settlement was refused because the token had already been
+        // spent, so the `end` wrapper can withhold a body that was never paid
+        // for. Only reachable on a single-use (v3) token.
+        let spentTokenRefusal: unknown = null
 
         ;(res as unknown as { end: Response['end'] }).end = function (
           this: Response,
@@ -1389,8 +1473,30 @@ export function paymentMiddleware(
           }
 
           // Buffered response path: defer the real `end` until settlement
-          // finishes so the receipt header makes it into the same response.
+          // finishes so the receipt header makes it into the same response —
+          // and so a settlement refused as already-spent can still withhold the
+          // body the handler produced.
           runSettlement().finally(() => {
+            if (spentTokenRefusal && !res.headersSent) {
+              // The handler already ran, so the work is done and wasted; what
+              // must not happen is delivering it. Replace the body with the
+              // 402 the buyer would have got had `verify` been able to see the
+              // spent nonce.
+              const payload = JSON.stringify({
+                error:
+                  'This x402 access token was already used. Single-use (v3) tokens are consumed ' +
+                  'by their first settlement — mint a new token for this request.',
+                code: X402_TOKEN_ALREADY_USED_CODE,
+              })
+              res.statusCode = 402
+              res.removeHeader('ETag')
+              res.setHeader('Content-Type', 'application/json')
+              res.setHeader('Content-Length', Buffer.byteLength(payload))
+              // `originalEnd` is Express's overloaded `end`; the 3-arg form
+              // (chunk, encoding, callback) is the one its type accepts here.
+              originalEnd(payload, 'utf8')
+              return
+            }
             originalEnd(...args)
           })
           return res

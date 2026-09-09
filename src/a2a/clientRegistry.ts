@@ -21,18 +21,28 @@ export class ClientRegistry {
 
   /**
    * Gets (or creates) a PaymentsClient for the given agentBaseUrl, agentId, and planId.
-   * The combination of these three is used as a unique key.
+   * That triple plus the requested `tokenVersion` is the cache key.
    * It derives the Agent Card path when needed.
+   *
+   * `tokenVersion` is part of the key rather than ignored on a hit: it decides
+   * whether the client mints a single-use, seller-bound token per paid call or
+   * caches one reusable token for its lifetime. Keying without it would hand a
+   * caller who asked for v3 a client that mints v2 — the security control
+   * dropped silently, with nothing on the returned client to detect it — and,
+   * in the other direction, would put a caller who wanted the cached v2 path on
+   * per-call v3 mints because someone else asked first.
+   *
    * @param options - ClientRegistryOptions with agentBaseUrl, agentId, planId (all required).
    * @returns The PaymentsClient instance
    */
   public async getClient(options: ClientRegistryOptions): Promise<PaymentsClient> {
-    const { agentBaseUrl, agentId, planId, agentCardPath, delegationConfig } = options
+    const { agentBaseUrl, agentId, planId, agentCardPath, delegationConfig, tokenVersion } =
+      options
     if (!agentBaseUrl || !agentId || !planId) {
       throw PaymentsError.validation('Missing required fields')
     }
 
-    const key = `${agentBaseUrl}::${agentId}::${planId}`
+    const key = `${agentBaseUrl}::${agentId}::${planId}::v${tokenVersion ?? 'default'}`
     let client = this.clients.get(key)
     if (!client) {
       client = await PaymentsClient.create(
@@ -42,6 +52,7 @@ export class ClientRegistry {
         planId,
         agentCardPath,
         delegationConfig,
+        tokenVersion,
       )
       this.clients.set(key, client)
     }

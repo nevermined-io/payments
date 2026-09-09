@@ -4,6 +4,12 @@
 
 export { X402TokenAPI } from './token.js'
 export {
+  detectAccessTokenVersion,
+  isSingleUseAccessToken,
+  isAccessTokenAlreadyUsed,
+  X402_TOKEN_ALREADY_USED_CODE,
+} from './token-version.js'
+export {
   FacilitatorAPI,
   buildPaymentRequired,
   resolveNetwork,
@@ -45,5 +51,8 @@ export type {
   CreateDelegationPayload,
   CreateDelegationResponse,
   X402TokenOptions,
+  MppTokenOptions,
+  X402TokenResource,
+  X402TokenVersion,
 } from '../common/types.js'
 export { X402_SCHEME_NETWORKS, getDefaultNetwork, isValidScheme } from '../common/types.js'
