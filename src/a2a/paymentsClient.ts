@@ -121,22 +121,39 @@ export class PaymentsClient extends A2AClient {
   }
 
   /**
-   * The A2A service endpoint this client talks to, or `undefined` if it cannot
-   * be resolved.
+   * The A2A service endpoint this client talks to — the `resource.url` a v3
+   * token is bound to.
    *
-   * Used as the `resource.url` a token is minted for. Resolution failures are
-   * swallowed rather than propagated: before v3 the RPC paths never needed the
-   * endpoint at mint time, and a token minted without a resource still works
-   * (it is simply not bound to one), so a lookup problem here must not turn
-   * into a new failure mode for minting.
+   * Resolution failures are RAISED, not swallowed. This runs only on the v3
+   * path, where the caller explicitly asked for a seller-bound token: minting
+   * without the resource would hand them a single-use token bound to nothing,
+   * reporting `tokenVersion: 3`, with no signal that half the guarantee was
+   * dropped. Failing here loses a call; failing quietly loses the control.
+   *
+   * The lookup reaches into `_getServiceEndpoint`, which `@a2a-js/sdk` declares
+   * `private` and whose own source says it "can be made synchronous or
+   * deleted" — so a dependency bump can break it. That is exactly why this must
+   * be loud: the alternative is every v3 token silently becoming unbound.
    */
-  private async _resolveResourceUrl(): Promise<string | undefined> {
+  private async _resolveResourceUrl(): Promise<string> {
+    let endpoint: unknown
     try {
-      const endpoint = await (this as any)._getServiceEndpoint()
-      return typeof endpoint === 'string' && endpoint.length > 0 ? endpoint : undefined
-    } catch {
-      return undefined
+      endpoint = await (this as any)._getServiceEndpoint()
+    } catch (error) {
+      throw PaymentsError.internal(
+        'Could not resolve the A2A service endpoint to bind a tokenVersion 3 access token to: ' +
+          `${error instanceof Error ? error.message : String(error)}. A v3 token is bound to one ` +
+          'resource URL, so it cannot be minted without it. Use tokenVersion 2, or fix the agent ' +
+          'card / service endpoint.',
+      )
     }
+    if (typeof endpoint !== 'string' || endpoint.length === 0) {
+      throw PaymentsError.internal(
+        'The A2A service endpoint resolved to an empty value, so a tokenVersion 3 access token ' +
+          'cannot be bound to it. Use tokenVersion 2, or fix the agent card / service endpoint.',
+      )
+    }
+    return endpoint
   }
 
   /**
@@ -179,9 +196,8 @@ export class PaymentsClient extends A2AClient {
     // advertises this same URL string.
     let binding: Pick<X402TokenOptions, 'resource' | 'httpVerb' | 'tokenVersion'> = {}
     if (this.tokenVersion === 3) {
-      const resourceUrl = await this._resolveResourceUrl()
       binding = {
-        ...(resourceUrl && { resource: { url: resourceUrl } }),
+        resource: { url: await this._resolveResourceUrl() },
         httpVerb: 'POST',
         tokenVersion: 3,
       }

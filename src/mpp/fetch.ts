@@ -531,13 +531,12 @@ export async function mppFetch(
         )
       }
 
-      // No resource/verb binding and no `tokenVersion` here: MPP does NOT pin
-      // token v3 (nvm-monorepo#3177). One MPP access token is reused across many
-      // challenges — genuinely distinct operations, not retries of one — so a
-      // per-token nonce would kill every buyer's second challenge. MPP crosses to
-      // v3 on the same schedule as x402, once one token is minted per paid
-      // request. This loop already mints a fresh token per credential, so it is
-      // ready for that flip.
+      // No resource/verb binding and no `tokenVersion` here: MPP carries no
+      // token version at all (nvm-monorepo#3266). One MPP access token is
+      // presented across many challenges — genuinely distinct operations, not
+      // retries of one — so a per-token nonce would kill every buyer's second
+      // challenge, which is why the two protocols stopped sharing a version
+      // ladder. This loop mints a fresh token per credential regardless.
       const { accessToken } = await mintToken(
         planId,
         options.agentId ?? challenge.request.agentId,

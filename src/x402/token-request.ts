@@ -77,17 +77,47 @@ export function buildX402TokenRequestBody(params: {
 
   // `resource` and `httpVerb` are what a v3 token is bound to: they go inside
   // the EIP-712 signature next to `agentId` and the one-time nonce, so a v3
-  // token minted for one seller endpoint cannot be presented to another. They
-  // are inert for v1/v2 (whose signature covers `[from, sessionKeysProvider,
-  // sessionKeys, planId]` only) but still worth sending — without `resource.url`
-  // the backend logs `resource.url not provided in token … skipping endpoint
-  // validation` and has nothing to bind to.
+  // token minted for one seller endpoint cannot be presented to another.
+  //
+  // On a v1/v2 token they are outside the signature — but NOT inert. The
+  // backend compares a token's `resource.url` against the seller's
+  // `paymentRequired.resource.url` (origin + path, exact string when it cannot
+  // parse either as a URL) for ANY token that carries one, so a v2 token bound
+  // to a URL the seller does not advertise verbatim fails verification with
+  // `BCK.X402.0013`. Measured against staging, not inferred.
+  //
+  // They are still forwarded when the caller supplies them — this is the
+  // low-level builder, and a caller that names a resource means it (binding a
+  // v2 token to the URL the seller really advertises is valid, and once the
+  // backend default flips to v3 the binding is needed without anyone asking for
+  // a version). What the builder will not do is let that happen silently: see
+  // the warning below.
   //
   // Omitted rather than sent empty when the caller did not supply them: a field
   // absent at mint is signed as the empty string AND must stay absent from the
   // unsigned envelope, so sending `{ url: '' }` and sending nothing must not
-  // diverge.
-  const { resource, httpVerb, tokenVersion } = tokenOptions
+  // diverge — which is why the guard below tests `resource?.url`, not the
+  // object.
+  const { resource, tokenVersion } = tokenOptions
+  // Normalized here, once, rather than in each consumer: sellers advertise
+  // `req.method`, i.e. upper case, and `httpVerb: 'post'` mints a token that
+  // can never match. Both in-tree consumers already upper-cased it themselves;
+  // a direct SDK caller had no such defence.
+  const httpVerb = tokenOptions.httpVerb?.toUpperCase()
+  const boundUrl = resource?.url
+
+  // A binding on a token that is not v3 is legal but rarely intended, and its
+  // failure mode (verify rejecting with BCK.X402.0013 at the seller) points
+  // nowhere near this call. Say so once, here, where the cause is visible.
+  if ((boundUrl || httpVerb) && tokenVersion !== 3 && protocol === 'x402') {
+    console.warn(
+      '[x402] resource/httpVerb were supplied without tokenVersion: 3. They are NOT inert on a ' +
+        'v2 token: the backend compares the token resource against the URL the seller advertises ' +
+        "in its paymentRequired, and a mismatch fails verification with BCK.X402.0013. Pass " +
+        'tokenVersion: 3 for a seller-bound token, or omit resource/httpVerb, or make sure the ' +
+        'string matches what the seller advertises exactly.',
+    )
+  }
 
   // MPP's single-use unit is the CHALLENGE, not the token: one MPP access token
   // is presented across many challenges by design, so the x402 v3 per-token
@@ -105,7 +135,7 @@ export function buildX402TokenRequestBody(params: {
 
   // Build x402-aligned request body
   return {
-    ...(resource && { resource }),
+    ...(boundUrl && { resource }),
     accepted: {
       scheme,
       network,
@@ -124,6 +154,12 @@ export function buildX402TokenRequestBody(params: {
     // field silently (ValidationPipe whitelists without forbidNonWhitelisted)
     // and returns v2 — which is why no caller may infer the version from what
     // it asked for. See detectAccessTokenVersion().
+    //
+    // `tokenVersion: 3` WITHOUT a resource is deliberately allowed, not an
+    // oversight: the backend signs an absent binding member as the empty
+    // string, so the result is a single-use token bound to nothing. That is a
+    // supported mode — single-use without seller binding — and the only one
+    // available when the caller does not know the seller's advertised URL.
     ...(tokenVersion !== undefined && { tokenVersion }),
   }
 }

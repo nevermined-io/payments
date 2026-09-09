@@ -233,6 +233,40 @@ describe('getX402AccessToken — v3 request body and version detection', () => {
   })
 })
 
+describe('getX402AccessToken — malformed mint responses', () => {
+  let originalFetch: typeof fetch
+  let payments: Payments
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    payments = Payments.getInstance({
+      nvmApiKey: TEST_API_KEY,
+      environment: 'staging_sandbox',
+    })
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  test.each([
+    ['no accessToken at all', {}],
+    ['an empty accessToken', { accessToken: '' }],
+    ['a non-string accessToken', { accessToken: 42 }],
+  ])('a 2xx with %s throws instead of returning an unusable token', async (_label, body) => {
+    // Without the guard the caller gets `accessToken: undefined` typed as
+    // `string`, presents it as the payment-signature, and the failure surfaces
+    // at the seller as an unparseable token — three layers from the cause.
+    global.fetch = jest.fn(async () => jsonResponse(body)) as unknown as typeof fetch
+
+    await expect(
+      payments.x402.getX402AccessToken('plan-1', 'agent-1', {
+        delegationConfig: { delegationId: 'del-1' },
+      }),
+    ).rejects.toThrow(/no accessToken/)
+  })
+})
+
 describe('settlePermissions — BCK.X402.0059 is its own, actionable error', () => {
   let originalFetch: typeof fetch
   let payments: Payments
@@ -316,5 +350,68 @@ describe('MPP mints carry no token version', () => {
 
   test('the same option is still accepted on the x402 route', () => {
     expect(build(3, 'x402')).toMatchObject({ tokenVersion: 3 })
+  })
+})
+
+describe('the binding fields on a non-v3 mint', () => {
+  // The backend compares a token's resource against the seller's advertised
+  // paymentRequired for ANY token that carries one, so this combination is
+  // legal but rarely intended — and its failure surfaces at the seller, not
+  // here. The builder forwards it (the caller may know the seller's URL) but
+  // never silently.
+  let warnSpy: jest.SpyInstance
+
+  beforeEach(() => {
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
+  const build = (tokenOptions: Record<string, unknown>) =>
+    buildX402TokenRequestBody({
+      planId: 'plan-1',
+      agentId: 'agent-1',
+      environmentName: 'staging_sandbox',
+      tokenOptions: { delegationConfig: { delegationId: 'del-1' }, ...tokenOptions } as never,
+    })
+
+  const bindingWarning = (): string | undefined =>
+    warnSpy.mock.calls.map((args) => String(args[0])).find((msg) => msg.includes('BCK.X402.0013'))
+
+  test('a resource without tokenVersion 3 is forwarded, but warns', () => {
+    const body = build({ resource: { url: 'https://seller.example/ask' } })
+
+    expect(body.resource).toEqual({ url: 'https://seller.example/ask' })
+    expect(bindingWarning()).toBeDefined()
+  })
+
+  test('the same binding with tokenVersion 3 is silent', () => {
+    build({ resource: { url: 'https://seller.example/ask' }, httpVerb: 'POST', tokenVersion: 3 })
+
+    expect(bindingWarning()).toBeUndefined()
+  })
+
+  test('a mint with no binding at all is silent', () => {
+    build({})
+
+    expect(bindingWarning()).toBeUndefined()
+  })
+
+  test('an empty resource url is treated as absent, not sent as an empty string', () => {
+    // A field absent at mint is signed as the empty string and must stay absent
+    // from the envelope, so `{ url: '' }` and "not passed" must not diverge.
+    const body = build({ resource: { url: '' }, tokenVersion: 3 })
+
+    expect(body).not.toHaveProperty('resource')
+  })
+
+  test('httpVerb is upper-cased before it is sent', () => {
+    // Sellers advertise `req.method`. A lower-case verb mints a token that can
+    // never match, and the SDK core — not each consumer — is where that is fixed.
+    const body = build({ httpVerb: 'post', tokenVersion: 3 })
+
+    expect(body.accepted.extra.httpVerb).toBe('POST')
   })
 })

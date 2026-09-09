@@ -68,6 +68,49 @@ describe('ClientRegistry', () => {
     expect(PaymentsClient.create).toHaveBeenCalledTimes(2)
   })
 
+  test('a v3 request does not resolve to a cached v2 client', async () => {
+    // The cache key carries tokenVersion. Without it, the second caller — who
+    // explicitly asked for a single-use, seller-bound token — would silently get
+    // the v2 client cached by the first, which mints reusable tokens and caches
+    // one for its whole lifetime.
+    const registry = createRegistry()
+    const base = { agentBaseUrl: 'https://agent.example', agentId: 'agent1', planId: '1' }
+
+    const v2Client = await registry.getClient(base)
+    const v3Client = await registry.getClient({ ...base, tokenVersion: 3 as const })
+
+    expect(v3Client).not.toBe(v2Client)
+    expect(PaymentsClient.create).toHaveBeenCalledTimes(2)
+    expect((PaymentsClient.create as jest.Mock).mock.calls[1][6]).toBe(3)
+  })
+
+  test('a default request does not resolve to a cached v3 client', async () => {
+    // The inverse: whoever asks first must not put everyone else on per-call
+    // v3 mints.
+    const registry = createRegistry()
+    const base = { agentBaseUrl: 'https://agent.example', agentId: 'agent1', planId: '1' }
+
+    const v3Client = await registry.getClient({ ...base, tokenVersion: 3 as const })
+    const v2Client = await registry.getClient(base)
+
+    expect(v2Client).not.toBe(v3Client)
+    expect(PaymentsClient.create).toHaveBeenCalledTimes(2)
+    expect((PaymentsClient.create as jest.Mock).mock.calls[1][6]).toBeUndefined()
+  })
+
+  test('two v3 requests still share one client', async () => {
+    const registry = createRegistry()
+    const opts = {
+      agentBaseUrl: 'https://agent.example',
+      agentId: 'agent1',
+      planId: '1',
+      tokenVersion: 3 as const,
+    }
+
+    expect(await registry.getClient(opts)).toBe(await registry.getClient(opts))
+    expect(PaymentsClient.create).toHaveBeenCalledTimes(1)
+  })
+
   test('should raise error when missing parameter', async () => {
     const registry = createRegistry()
     await expect(

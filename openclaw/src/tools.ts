@@ -73,8 +73,8 @@ export function createTools(
           paymentMethodId: { type: 'string', description: 'Stripe payment method ID (pm_...). Required for fiat; auto-selects first enrolled card if omitted.' },
           spendingLimitCents: { type: 'number', description: 'Max spend in cents for fiat (default: 1000 = $10)' },
           delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
-          resourceUrl: { type: 'string', description: 'The protected resource URL the token is for. Signed into a v3 token, which then only settles against this URL.' },
-          httpVerb: { type: 'string', description: 'HTTP verb of that resource (e.g. POST). Signed into a v3 token; must match what the seller advertises.' },
+          resourceUrl: { type: 'string', description: 'The protected resource URL the token is for. Only used with tokenVersion 3, which binds the token to this URL; ignored otherwise. Must match exactly what the seller advertises.' },
+          httpVerb: { type: 'string', description: 'HTTP verb of that resource (e.g. POST). Only used with tokenVersion 3; must match what the seller advertises.' },
           tokenVersion: { type: 'number', description: 'Request token version 3 (single-use, seller-bound). Defaults to the backend default (2, reusable).' },
         },
       },
@@ -426,8 +426,10 @@ export function createTools(
  * NOT inert on a v2 token: the backend compares a token's `resource.url`
  * against the seller's `paymentRequired.resource.url`, so binding a v2 token to
  * a URL the seller does not advertise verbatim turns a working verify into
- * `BCK.X402.0013`. Hence `derived` bindings are applied ONLY when v3 is
- * requested, while a URL the caller passed explicitly is always honoured.
+ * `BCK.X402.0013`. Both `derived` and `explicit` bindings are therefore applied
+ * ONLY when v3 is requested: "the caller meant it" does not hold here, since
+ * the caller is a model filling in a tool schema, and a `resourceUrl` supplied
+ * without `tokenVersion: 3` would break the payment it was meant to authorize.
  */
 interface TokenBinding {
   resource?: { url: string }
@@ -443,10 +445,15 @@ async function buildTokenOptions(
   const tokenVersion = num(params, 'tokenVersion')
   const wantsV3 = tokenVersion === 3
   const versionOption = wantsV3 ? ({ tokenVersion: 3 } as const) : {}
-  const extras = {
-    ...(wantsV3 ? binding.derived : {}),
-    ...binding.explicit,
-    ...versionOption,
+  const extras = wantsV3
+    ? { ...binding.derived, ...binding.explicit, ...versionOption }
+    : {}
+  if (!wantsV3 && (binding.explicit?.resource || binding.explicit?.httpVerb)) {
+    console.warn(
+      '[nevermined] resourceUrl/httpVerb were ignored because tokenVersion 3 was not requested. ' +
+        'They only bind a token on v3; on a v2 token they can only fail verification ' +
+        '(BCK.X402.0013). Pass tokenVersion: 3 to bind the token.',
+    )
   }
   const paymentType = str(params, 'paymentType') ?? config.paymentType ?? 'crypto'
   if (paymentType !== 'fiat') {

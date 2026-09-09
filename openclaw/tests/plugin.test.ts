@@ -452,6 +452,23 @@ describe('OpenClaw Nevermined Plugin', () => {
       )
     })
 
+    test('nevermined_getAccessToken — a resource without tokenVersion 3 is ignored, not sent', async () => {
+      // The caller here is a model filling in a tool schema. A resourceUrl on a
+      // v2 token does not bind it — it can only fail the seller's verification
+      // with BCK.X402.0013 — so it is dropped with a warning instead.
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const { tools, mockPayments } = registerWithMock()
+
+      const tool = tools.get('nevermined_getAccessToken')!
+      await tool.execute('call-1', { resourceUrl: 'https://agent.example.com/tasks' })
+
+      expect(mockPayments.x402.getX402AccessToken).toHaveBeenCalledWith(
+        'plan-default', 'agent-default', undefined,
+      )
+      expect(warn.mock.calls.map((c) => String(c[0])).join(' ')).toContain('BCK.X402.0013')
+      warn.mockRestore()
+    })
+
     test('nevermined_orderPlan — without confirm, returns a quote and does not order', async () => {
       const { tools, mockPayments } = registerWithMock()
 

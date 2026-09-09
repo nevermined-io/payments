@@ -61,6 +61,13 @@ function readAuthorization(accessToken: string): Record<string, any> | undefined
  */
 export function detectAccessTokenVersion(accessToken: string): X402TokenVersion {
   const nonce = readAuthorization(accessToken)?.nonce
+  // The string check mirrors the backend's own discriminator verbatim
+  // (`AgentX402AccessToken.ts`: `typeof authorization?.nonce === 'string' &&
+  // authorization.nonce.trim() !== ''`), and `generateTokenNonce()` emits 32
+  // bytes of CSPRNG output hex-encoded — a string on the wire, always.
+  // Accepting a non-string nonce as v3 would make this SDK disagree with the
+  // server about what a v3 token is, which is worse than either error it could
+  // prevent.
   return typeof nonce === 'string' && nonce.trim() !== '' ? 3 : 2
 }
 

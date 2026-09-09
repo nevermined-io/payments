@@ -127,6 +127,20 @@ export default class GetX402AccessToken extends BaseCommand {
     const resourceUrl = flags['resource-url']
     const httpVerb = flags['http-verb']
     const tokenVersion = flags['token-version']
+
+    // The three flags are one set. A resource on a v2 token is not inert — the
+    // backend compares it with the URL the seller advertises and rejects a
+    // mismatch with BCK.X402.0013 — so binding without asking for v3 can only
+    // cost the caller a failed verification. Refuse the combination instead of
+    // minting a token that will not verify.
+    if ((resourceUrl || httpVerb) && tokenVersion !== 3) {
+      this.error(
+        '--resource-url / --http-verb bind the token to one seller endpoint, which only ' +
+          'takes effect with --token-version 3. Add --token-version 3, or drop the binding flags.',
+        { exit: 1 },
+      )
+    }
+
     return {
       ...(resourceUrl && { resource: { url: resourceUrl } }),
       ...(httpVerb && { httpVerb: String(httpVerb).toUpperCase() }),

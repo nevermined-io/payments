@@ -107,9 +107,11 @@ export class MockX402TokenAPI {
   ): Promise<MockX402Token> {
     return {
       accessToken: `mock-token-for-${planId}`,
-      // Mirrors the SDK: the version reported is the one the token actually
-      // carries. The mock has no real token to read, so it echoes a requested
-      // v3 and otherwise reports the backend default.
+      // NOT what the SDK does: the SDK reads the version off the minted token
+      // and never echoes the request. This mock has no decodable envelope to
+      // read (`mock-token-for-…` is not a token), so it echoes — which means
+      // CLI tests cannot cover version detection, only that the field is
+      // plumbed through.
       tokenVersion: tokenOptions?.tokenVersion === 3 ? 3 : 2,
     }
   }

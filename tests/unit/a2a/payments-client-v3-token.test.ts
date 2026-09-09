@@ -173,15 +173,51 @@ describe('PaymentsClient — single-use (v3) tokens', () => {
     expect(mint.mock.calls[0][2]).not.toHaveProperty('tokenVersion')
   })
 
-  test('an unresolvable service endpoint still mints, just without a resource', async () => {
-    // Before v3 the RPC paths never needed the endpoint at mint time; a lookup
-    // failure must not become a new way for minting to fail.
+  test('an unresolvable service endpoint fails the v3 mint instead of unbinding it', async () => {
+    // A v3 caller asked for a token bound to one seller endpoint. Minting one
+    // bound to nothing — still reporting tokenVersion 3 — would drop half the
+    // guarantee with no signal at all, so the lookup failure surfaces.
     const { mint, payments } = buildPayments([v3TokenWithNonce('0xaaa')])
     const { client } = await buildClient(payments, 3)
     ;(client as any)._getServiceEndpoint = jest.fn().mockRejectedValue(new Error('no endpoint'))
 
-    await expect(client.sendA2AMessage({ message: {} } as any)).resolves.toBeDefined()
-    expect(mint.mock.calls[0][2]).not.toHaveProperty('resource')
-    expect(mint.mock.calls[0][2]).toMatchObject({ httpVerb: 'POST', tokenVersion: 3 })
+    await expect(client.sendA2AMessage({ message: {} } as any)).rejects.toThrow(
+      /tokenVersion 3 access token/,
+    )
+    expect(mint).not.toHaveBeenCalled()
+  })
+
+  test('an empty service endpoint fails the v3 mint too', async () => {
+    const { mint, payments } = buildPayments([v3TokenWithNonce('0xaaa')])
+    const { client } = await buildClient(payments, 3)
+    ;(client as any)._getServiceEndpoint = jest.fn().mockResolvedValue('')
+
+    await expect(client.sendA2AMessage({ message: {} } as any)).rejects.toThrow(/empty value/)
+    expect(mint).not.toHaveBeenCalled()
+  })
+
+  test('v3 requested but the backend downgrades to v2: the token IS cached', async () => {
+    // The caching decision follows the token, not the request. Branching on the
+    // request instead would mint per call here for no reason — and, in the
+    // mirror case below, replay a spent nonce.
+    const { mint, payments } = buildPayments([V2_TOKEN])
+    const { client } = await buildClient(payments, 3)
+
+    await client.sendA2AMessage({ message: {} } as any)
+    await client.sendA2AMessage({ message: {} } as any)
+
+    expect(mint).toHaveBeenCalledTimes(1)
+  })
+
+  test('v3 never requested but the backend returns v3: the token is NOT cached', async () => {
+    // The case that matters once the backend default flips: a client that
+    // trusted its own request would replay a single-use token.
+    const { mint, payments } = buildPayments([v3TokenWithNonce('0xaaa'), v3TokenWithNonce('0xbbb')])
+    const { client } = await buildClient(payments)
+
+    await client.sendA2AMessage({ message: {} } as any)
+    await client.sendA2AMessage({ message: {} } as any)
+
+    expect(mint).toHaveBeenCalledTimes(2)
   })
 })

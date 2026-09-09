@@ -120,10 +120,22 @@ export class X402TokenAPI extends BasePaymentsAPI {
         throw PaymentsError.internal(`${errorMessage} (HTTP ${response.status})`)
       }
       const result = await response.json()
+      // A 2xx with no usable token is a broken response, not a token: without
+      // this guard the caller gets `{ accessToken: undefined }` typed as
+      // `string`, sends `undefined` as the `payment-signature`, and the failure
+      // surfaces at the seller as an unparseable token — three layers from the
+      // cause.
+      if (typeof result?.accessToken !== 'string' || result.accessToken.length === 0) {
+        throw PaymentsError.internal(
+          'X402 token request succeeded but the response carried no accessToken',
+        )
+      }
       // Detected, never echoed: `tokenVersion: 3` is dropped without an error by
       // a backend that predates the v3 struct, so the only trustworthy source of
-      // the version is the token itself.
-      return { ...result, tokenVersion: detectAccessTokenVersion(result?.accessToken) }
+      // the version is the token itself. The override after the spread is
+      // deliberate — a `tokenVersion` echoed by the backend is discarded in
+      // favour of the one read off the token.
+      return { ...result, tokenVersion: detectAccessTokenVersion(result.accessToken) }
     } catch (error) {
       if (error instanceof PaymentsError) {
         throw error

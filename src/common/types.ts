@@ -664,9 +664,17 @@ export interface CreateDelegationResponse {
  * The protected resource a token is minted for.
  *
  * Load-bearing from token v3 on: `url` is inside the EIP-712 signature, so a
- * v3 token only settles against the seller endpoint it names. Ignored by the
- * v1/v2 signature, which covers `[from, sessionKeysProvider, sessionKeys, planId]`
- * only — sending it there is harmless but binds nothing.
+ * v3 token only settles against the seller endpoint it names.
+ *
+ * Outside the v1/v2 signature, which covers `from` / `sessionKeysProvider` /
+ * `sessionKeys` / `planId` only — but **not** inert there: the backend compares
+ * this URL against the one the seller advertises in its `paymentRequired`
+ * (origin + path; an exact string comparison when either side is not a
+ * parseable URL) for **any** token that carries a resource. Binding a token to
+ * a URL the seller does not advertise verbatim therefore fails verification
+ * with `BCK.X402.0013`. Sellers built on this SDK's `paymentMiddleware`
+ * advertise `req.originalUrl` — a **relative** path — so bind to that string,
+ * not to the absolute URL you fetch.
  */
 export interface X402TokenResource {
   /** The protected resource URL, e.g. `https://seller.example/api/v1/tasks`. */
@@ -720,12 +728,21 @@ export interface X402TokenOptions {
   /**
    * The protected resource the token is minted for. Signed into a v3 token,
    * which then only settles against this URL. Without it the backend has
-   * nothing to bind to and skips endpoint validation.
+   * nothing to bind to and skips endpoint validation, so `tokenVersion: 3`
+   * alone yields a single-use token bound to nothing — a supported mode, but
+   * not the seller binding.
+   *
+   * Must be the **exact string the seller advertises**; see
+   * {@link X402TokenResource}. Supplying it without `tokenVersion: 3` is
+   * allowed but warns, because it binds a reusable token to a URL for no
+   * benefit and can only cost you a `BCK.X402.0013`.
    */
   resource?: X402TokenResource
   /**
    * HTTP verb of the protected resource (e.g. `POST`). Signed into a v3 token
-   * alongside {@link X402TokenOptions.resource}.
+   * alongside {@link X402TokenOptions.resource}, and compared against the verb
+   * the seller advertises. Upper-cased by the SDK before it is sent, so
+   * `'post'` and `'POST'` are equivalent.
    */
   httpVerb?: string
   /**

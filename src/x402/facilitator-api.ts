@@ -641,6 +641,15 @@ export class FacilitatorAPI extends BasePaymentsAPI {
         // token was valid and has already been settled once. Say what to do
         // about it, because the wrong reaction — retrying with the same token —
         // is the one a generic settlement failure invites.
+        //
+        // This branch covers the THROWN shape, which is the one the backend
+        // uses here: `BCK.X402.0059` is catalogued as `httpStatus: 402`, so it
+        // arrives as a non-2xx and `isAccessTokenAlreadyUsed` fires on the
+        // PaymentsError. Verified end-to-end against staging: a second settle
+        // of the same v3 token rejects with that code. Settle can also report
+        // failure as 200 + `success: false` (e.g. `errorReason: "Cannot order
+        // plan"`), but a spent token is not one of those cases — read
+        // `success`/`errorReason` on the returned result for those.
         if (errorCode === X402_TOKEN_ALREADY_USED_CODE) {
           throw PaymentsError.fromBackend(errorMessage, {
             message:
