@@ -199,10 +199,12 @@ refuses **any** value with `BCK.MPP.0007` — `2` included, because that ordinal
 belongs to x402's ladder and would name a different struct here.
 
 ```typescript
-// x402: opt into the single-use, seller-bound token.
+// x402: opt into the single-use, seller-bound token. `resource.url` is the
+// string the seller advertises in its 402 — a `paymentMiddleware` seller
+// advertises `req.originalUrl`, i.e. the relative path below.
 await payments.x402.getX402AccessToken(planId, agentId, {
   delegationConfig: { delegationId },
-  resource: { url: 'https://seller.example/ask' },
+  resource: { url: '/ask' },
   httpVerb: 'POST',
   tokenVersion: 3,
 })

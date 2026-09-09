@@ -631,7 +631,9 @@ describe('OpenClaw Nevermined Plugin', () => {
 
       // The minted version rides along with the agent's answer, so a caller can
       // tell a single-use token from a reusable one.
-      expect(result).toEqual({ answer: 'hello', tokenVersion: 2 })
+      // The agent's body rides under `response`, untouched; our metadata sits
+      // beside it.
+      expect(result).toEqual({ response: { answer: 'hello' }, tokenVersion: 2 })
     })
 
     test('nevermined_queryAgent — a v3 request binds the token to the agent URL', async () => {
@@ -642,14 +644,15 @@ describe('OpenClaw Nevermined Plugin', () => {
         json: () => Promise.resolve({ answer: 'hello' }),
       } as Response)
 
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
       const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_queryAgent')!
-      await tool.execute('call-1', {
+      const result = parseResult(await tool.execute('call-1', {
         agentUrl: 'https://agent.example.com/tasks',
         prompt: 'What is AI?',
         tokenVersion: 3,
-      })
+      })) as Record<string, unknown>
 
       // Bound to the path the Express seller advertises (`req.originalUrl`),
       // not to the absolute URL this tool fetches — the absolute form is the
@@ -662,6 +665,35 @@ describe('OpenClaw Nevermined Plugin', () => {
           tokenVersion: 3,
         },
       )
+      // The mock always mints v2, so this call is a downgrade — which must be
+      // reported, not left as incidental console noise.
+      expect(warn.mock.calls.map((c) => String(c[0])).join(' ')).toContain(
+        'tokenVersion 3 was requested',
+      )
+      expect(result.tokenVersion).toBe(2)
+      warn.mockRestore()
+    })
+
+    test("nevermined_queryAgent — the agent's body is returned whole, whatever its shape", async () => {
+      // Spreading it would reshape a top-level array into an index-keyed object
+      // and clobber an agent's own `tokenVersion` field with ours.
+      const mockFetch = globalThis.fetch as jest.Mock<typeof fetch>
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([1, 2, 3]),
+      } as Response)
+
+      const { tools } = registerWithMock()
+
+      const tool = tools.get('nevermined_queryAgent')!
+      const result = parseResult(await tool.execute('call-1', {
+        agentUrl: 'https://agent.example.com/tasks',
+        prompt: 'What is AI?',
+      })) as Record<string, unknown>
+
+      expect(result.response).toEqual([1, 2, 3])
+      expect(result.tokenVersion).toBe(2)
     })
 
     test('nevermined_queryAgent — tokenVersion is reachable from the tool schema', async () => {
@@ -672,6 +704,19 @@ describe('OpenClaw Nevermined Plugin', () => {
         properties: Record<string, unknown>
       }
       expect(schema.properties).toHaveProperty('tokenVersion')
+    })
+
+    test('both tokenVersion schemas constrain the value to 2 or 3', async () => {
+      // Unconstrained, a `5` passes the schema and quietly mints the reusable
+      // default on the one path that never warns.
+      const { tools } = registerWithMock()
+
+      for (const name of ['nevermined_queryAgent', 'nevermined_getAccessToken']) {
+        const schema = tools.get(name)!.parameters as {
+          properties: Record<string, { enum?: number[] }>
+        }
+        expect(schema.properties.tokenVersion.enum).toEqual([2, 3])
+      }
     })
 
     test('handles 402 response', async () => {
@@ -738,7 +783,7 @@ describe('OpenClaw Nevermined Plugin', () => {
           },
         },
       )
-      expect(result).toEqual({ answer: 'fiat response', tokenVersion: 2 })
+      expect(result).toEqual({ response: { answer: 'fiat response' }, tokenVersion: 2 })
     })
   })
 

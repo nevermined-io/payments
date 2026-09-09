@@ -427,6 +427,24 @@ describe('the binding fields on a non-v3 mint', () => {
     expect(bindingWarning()).toBeDefined()
   })
 
+  test('an explicit tokenVersion 2 plus a binding is refused, not warned about', () => {
+    // The combination has no good outcome — a v2 signature binds nothing, yet
+    // the resource still arms the backend's endpoint allowlist and is compared
+    // against what the seller advertises. payments-py refuses it too; the two
+    // SDKs answer the same call the same way.
+    expect(() => build({ resource: { url: '/ask' }, tokenVersion: 2 })).toThrow(PaymentsError)
+    expect(() => build({ resource: { url: '/ask' }, tokenVersion: 2 })).toThrow(/tokenVersion: 3/)
+  })
+
+  test('an omitted tokenVersion plus a binding still warns rather than throwing', () => {
+    // Here the version is the backend's default, which is v3 for clients pinned
+    // at 1.31 or later — and for those the binding is exactly right.
+    const body = build({ resource: { url: '/ask' } })
+
+    expect(body.resource).toEqual({ url: '/ask' })
+    expect(bindingWarning()).toBeDefined()
+  })
+
   test('the same binding with tokenVersion 3 is silent', () => {
     build({ resource: { url: 'https://seller.example/ask' }, httpVerb: 'POST', tokenVersion: 3 })
 

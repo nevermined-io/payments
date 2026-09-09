@@ -166,7 +166,7 @@ export function createTools(
       name: 'nevermined_queryAgent',
       label: 'Nevermined Query Agent',
       description:
-        'Query a Nevermined AI agent end-to-end: acquires an x402 access token, sends the prompt to the agent, and returns the response. Supports crypto (default) and fiat (credit card) payment types.',
+        "Query a Nevermined AI agent end-to-end: acquires an x402 access token, sends the prompt to the agent, and returns { response, tokenVersion } — the agent's body untouched under `response`, and the version of the token actually minted. Supports crypto (default) and fiat (credit card) payment types.",
       parameters: {
         type: 'object' as const,
         properties: {
@@ -248,6 +248,7 @@ export function createTools(
           return result({
             error: `Payment required — insufficient credits. ${guidance}`,
             status: 402,
+            tokenVersion,
           })
         }
 
@@ -255,14 +256,20 @@ export function createTools(
           return result({
             error: `Agent returned HTTP ${response.status}: ${response.statusText}`,
             status: response.status,
+            tokenVersion,
           })
         }
 
         const body = await response.json()
+        // The agent's body is returned WHOLE, under its own key. Spreading it
+        // would reshape anything that is not a plain object — a top-level JSON
+        // array becomes index-keyed, a string char-keyed, a number vanishes —
+        // and would clobber an agent's own `tokenVersion` field with ours.
+        //
         // `tokenVersion` reports what was actually minted, never what was asked
         // for — the same contract as `nevermined_getAccessToken`. A `3` means
         // the token was single-use and bound to this endpoint's path.
-        return result({ ...body, tokenVersion })
+        return result({ response: body, tokenVersion })
       },
     },
 

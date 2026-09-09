@@ -22,7 +22,8 @@ import { paymentMiddleware, X402_HEADERS } from '../../src/x402/express/index.js
  * `+`/`/` characters after encoding, so any re-encoding or url-safe rewrite on
  * the relay path shows up as a mismatch.
  */
-const V3_TOKEN = Buffer.from(
+const encodeV3Token = (nonce: string): string =>
+  Buffer.from(
   JSON.stringify({
     x402Version: 2,
     accepted: {
@@ -40,12 +41,21 @@ const V3_TOKEN = Buffer.from(
         agentId: 'agent-1',
         resourceUrl: 'https://seller.example/protected',
         httpVerb: 'POST',
-        nonce: '0xfeedface00ff',
+        nonce,
       },
     },
     extensions: {},
   }),
 ).toString('base64')
+
+/** Relay case. */
+const V3_TOKEN = encodeV3Token('0xfeedface00ff')
+/**
+ * Replay case. A DIFFERENT token: the spent-token store is module-level (it has
+ * to be — it spans requests), so a shared one would leak the refusal from one
+ * test into the other.
+ */
+const V3_TOKEN_REPLAYED = encodeV3Token('0xfeedface0100')
 
 function buildMockPayments(verifySpy: jest.Mock, settleSpy: jest.Mock) {
   return {
@@ -78,6 +88,36 @@ async function startServer(verifySpy: jest.Mock, settleSpy: jest.Mock) {
   }
 }
 
+/** Like {@link postWithToken} but keeps the status AND the body. */
+async function postWithTokenFull(
+  port: number,
+  token: string,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: '127.0.0.1',
+        port,
+        path: '/protected',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [X402_HEADERS.PAYMENT_SIGNATURE]: token,
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf-8') }),
+        )
+      },
+    )
+    req.on('error', reject)
+    req.end(JSON.stringify({ query: 'hello' }))
+  })
+}
+
 async function postWithToken(port: number, token: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -100,6 +140,48 @@ async function postWithToken(port: number, token: string): Promise<number> {
     req.end(JSON.stringify({ query: 'hello' }))
   })
 }
+
+/**
+ * A settle refused as already-spent, the shape the backend uses for a replayed
+ * v3 token: `BCK.X402.0059` is catalogued `httpStatus: 402`, so it arrives as a
+ * rejected promise rather than a `success: false` body.
+ */
+const spentTokenError = () =>
+  Object.assign(new Error('Access token has already been used'), {
+    code: 'BCK.X402.0059',
+  })
+
+describe('paymentMiddleware — a replayed single-use token is not served', () => {
+  // The backend spends the nonce at settle only — `verify` is a dry run the
+  // seller may repeat, so it never consults it. A replayed v3 token therefore
+  // verifies clean and the handler runs; what must not happen is the buyer
+  // keeping the response.
+  test('the body is withheld and the reused token is refused on the next request', async () => {
+    const verifySpy = jest
+      .fn()
+      .mockResolvedValue({ isValid: true, agentRequestId: 'req-1', agentRequest: undefined })
+    const settleSpy = jest.fn().mockRejectedValue(spentTokenError())
+    const { port, close } = await startServer(verifySpy, settleSpy)
+
+    try {
+      // First replay: verify passes, the handler runs, settle is refused — the
+      // buffered path still holds the body, so it is replaced with a 402.
+      const first = await postWithTokenFull(port, V3_TOKEN_REPLAYED)
+      expect(first.status).toBe(402)
+      expect(first.body).toContain('BCK.X402.0059')
+      // The handler's body (`{ answer: 'ok' }`) never reaches the buyer.
+      expect(first.body).not.toContain('answer')
+
+      // Second: refused before the handler runs at all.
+      const second = await postWithTokenFull(port, V3_TOKEN_REPLAYED)
+      expect(second.status).toBe(402)
+      expect(verifySpy).toHaveBeenCalledTimes(1)
+      expect(settleSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      await close()
+    }
+  })
+})
 
 describe('paymentMiddleware — v3 token relay', () => {
   test('the token reaches verify and settle byte-for-byte', async () => {
