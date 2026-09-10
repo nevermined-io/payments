@@ -105,14 +105,42 @@ When writing examples or documentation:
 Before submitting changes, run these checks:
 
 ```bash
-pnpm build && pnpm lint && pnpm test:unit
+pnpm build && pnpm lint && pnpm typecheck:tests && pnpm test:unit
 ```
 
 For full validation including integration tests:
 
 ```bash
-pnpm build && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm test:e2e
+pnpm build && pnpm lint && pnpm typecheck:tests && pnpm test:unit && pnpm test:integration && pnpm test:e2e
 ```
+
+### `pnpm build` does NOT typecheck the tests — `pnpm typecheck:tests` does
+
+Two separate reasons, so neither existing gate catches a type error under `tests/`:
+
+- `pnpm build` is `tsc` against the root `tsconfig.json`, whose `exclude` lists `tests`.
+- **ts-jest transpiles without checking**, because the root config sets `isolatedModules: true`
+  and ts-jest honours that by using `transpileModule`. A test file asserting
+  `const x: SettlePermissionsResult = { success: 123, nope: 'drift' }` **passes**.
+
+`pnpm typecheck:tests` (`tsc --noEmit -p tests/tsconfig.json`) is the only thing that reads
+them, and it runs in CI's `lint_build` job as of #437. Run it after touching a test file —
+particularly a fixture — because neither a green build nor a green suite says anything about
+whether that fixture still matches the model.
+
+### Test doubles must be constrained to a model type imported from `src/`
+
+`PaymentsMock` used to take `settleResult?: any`, which let every settle/verify double drift
+from `SettlePermissionsResult` unnoticed (#433). Doubles now either narrow the *parameter*
+(`PaymentsMock(settleResult: SettlePermissionsResult)`) or `satisfies` the literal. Two rules:
+
+- **Constrain against the model, never a shape written next to the fixture.** A
+  `Promise<{ success: boolean; transaction: string; … }>` annotation is not a check; it is the
+  fixture repeated, and it goes stale in exactly the same way.
+- **Raw `fetch`/`Response` stubs stay untyped on purpose.** They model what a *server* sends,
+  and some specs post a deliberately malformed body — `x402-token-v3` sends one with no
+  `success` field to prove the SDK reports rather than trusts it. Constraining those to the
+  model would make such a test unwritable.
 
 ### After Modifying Source Files
 
@@ -122,7 +150,8 @@ When you modify source files, especially:
 - Authentication/authorization logic
 
 You MUST:
-1. Run `pnpm build` to verify TypeScript compilation
+1. Run `pnpm build` to verify TypeScript compilation, and `pnpm typecheck:tests` if you touched
+   anything under `tests/` — `pnpm build` cannot see those files (see above)
 2. Run `pnpm test:unit` to verify unit tests pass
 3. If modifying E2E-related code, run `pnpm test:e2e`
 4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. Validate with `./scripts/generate-docs.sh`. On merge to main, the `update-docs.yml` workflow runs `generate-docs.sh` and auto-creates a PR with any changes. On tag push, `publish-docs.yml` publishes to docs_mintlify. However, `generate-docs.sh` only validates structure — it does NOT auto-update code examples, so those must be updated manually.
@@ -174,7 +203,7 @@ CI is configured in `.github/workflows/testing.yml` and runs on every push:
 
 | Job | Description | Depends On |
 |-----|-------------|------------|
-| `lint_build` | Install, build, lint | - |
+| `lint_build` | Install, build, typecheck tests, lint | - |
 | `cli_sync_check` | Build + test CLI against local SDK | lint_build |
 | `openclaw_check` | Build + test OpenClaw against local SDK | lint_build |
 | `unit_integration` | Unit + integration tests | lint_build |
