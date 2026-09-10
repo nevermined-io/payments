@@ -41,6 +41,42 @@ import type {
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
 
 /**
+ * The credits a settle actually redeemed, for `event.metadata.creditsCharged`.
+ *
+ * Reads {@link SettlePermissionsResult.creditsRedeemed} per billing model rather
+ * than trusting it flat, because it does not mean the same thing under both:
+ *
+ * - `credits` — the plan holds a balance and `creditsRedeemed` is what came out
+ *   of it. Report it. It can legitimately differ from the credits the request
+ *   asked to burn (margin-based pricing), which is the whole reason to report
+ *   the settled figure rather than the requested one.
+ * - `pay-as-you-go` — the plan holds no credit balance at all, so
+ *   `creditsRedeemed` is the string `'0'` *even on a settle that charged the
+ *   buyer*. Returning that `0` would tell a buyer they were charged nothing for
+ *   a payment that really happened, so report nothing instead. The charge is
+ *   referenced by `orderTx` (fiat) or `transaction` (crypto); the credits the
+ *   request asked to burn remain on the event as `creditsUsed`, so nothing is
+ *   lost by omitting a figure that has no meaning on this billing model.
+ * - absent — a Nevermined API older than the discriminator (`creditsRedeemed`
+ *   has been on the settle response since 2026-03-25, `billingModel` only since
+ *   2026-08-06). Apply the `credits` rule: a missing discriminator must never be
+ *   read as pay-as-you-go.
+ *
+ * Mind the type: these are **strings**. `'0'` is truthy while `Number('0') > 0`
+ * is false, so a truthiness check and a numeric one disagree on exactly the
+ * value that matters.
+ *
+ * @param settlement - The settlement receipt as the facilitator returned it
+ * @returns The credits redeemed, or `undefined` when the billing model has no
+ *   credits to report or the backend reported no usable figure
+ */
+function resolveCreditsCharged(settlement: SettlePermissionsResult): number | undefined {
+  if (settlement.billingModel === 'pay-as-you-go') return undefined
+  const redeemed = Number(settlement.creditsRedeemed)
+  return Number.isFinite(redeemed) ? redeemed : undefined
+}
+
+/**
  * Options for configuring the PaymentsRequestHandler
  */
 export interface PaymentsRequestHandlerOptions {
@@ -560,7 +596,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
               // There is no `txHash` on the wire — see handleTaskFinalization.
               if (response && event.metadata) {
                 event.metadata.txHash = response.transaction
-                event.metadata.creditsCharged = event.metadata.creditsUsed
+                // Left unset when the billing model has no credits to report —
+                // see resolveCreditsCharged. `creditsUsed` still carries what
+                // the request asked to burn.
+                const creditsCharged = resolveCreditsCharged(response)
+                if (creditsCharged !== undefined) {
+                  event.metadata.creditsCharged = creditsCharged
+                }
               }
 
               // x402 v2 A2A transport: stamp the settlement receipt onto the
@@ -867,16 +909,14 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           // Update event metadata with redemption results. `txHash` is the A2A
           // metadata key, not a wire field: the settle response reports the
           // transaction id as `transaction`.
+          const creditsCharged = resolveCreditsCharged(response)
           event.metadata = {
             ...event.metadata,
             txHash: response.transaction,
-            // The credits this request asked to burn. The settle response does
-            // report what was actually redeemed, as `creditsRedeemed`, but
-            // reading it here would change behaviour and is not free: it is the
-            // string '0' on `billingModel: 'pay-as-you-go'` plans even when the
-            // buyer WAS charged, so a truthiness read reports 0 on a real
-            // charge. See SettlePermissionsResult before wiring it up.
-            creditsCharged: creditsToBurn,
+            // The credits actually redeemed, omitted entirely when the billing
+            // model has none to report — see resolveCreditsCharged. The credits
+            // this request asked to burn stay available as `creditsUsed`.
+            ...(creditsCharged !== undefined && { creditsCharged }),
           }
         }
       } catch (err) {
