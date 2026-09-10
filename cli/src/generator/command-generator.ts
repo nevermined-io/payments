@@ -362,7 +362,14 @@ ${runMethod}
    */
   private isComplexType(type: string): boolean {
     // Strip '| undefined' suffix from optional types before checking
-    const baseType = type.replace(/\s*\|\s*undefined$/, '').trim()
+    let baseType = type.replace(/\s*\|\s*undefined$/, '').trim()
+
+    // Unwrap a single generic utility wrapper (e.g. `Partial<PaginationOptions>`,
+    // `Readonly<FooConfig>`) so the wrapped type is what the checks below see —
+    // otherwise the trailing `>` defeats the suffix match and an optional
+    // options object leaks out as a raw string flag that's silently ignored.
+    const wrapped = baseType.match(/^\w+<(.+)>$/)
+    if (wrapped) baseType = wrapped[1].trim()
 
     // Complex objects have literal braces or are explicitly 'object'
     // Exclude template literal types like `0x${string}` which are just strings

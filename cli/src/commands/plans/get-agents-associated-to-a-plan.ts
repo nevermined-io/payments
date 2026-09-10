@@ -13,7 +13,7 @@ export default class GetAgentsAssociatedToAPlan extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    'pagination': Flags.string({ required: false }),
+
   }
 
   static override args = {
@@ -30,7 +30,7 @@ export default class GetAgentsAssociatedToAPlan extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.plans.getAgentsAssociatedToAPlan(args.plan, flags['pagination'])
+      const result = await payments.plans.getAgentsAssociatedToAPlan(args.plan)
 
       this.formatter.output(result)
     } catch (error) {
