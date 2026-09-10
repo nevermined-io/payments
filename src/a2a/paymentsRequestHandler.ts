@@ -245,13 +245,17 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @param bearerToken - The bearer token for authentication
    * @param creditsUsed - The number of credits to burn
    * @param httpContext - Optional HTTP context with endpoint and method information
-   * @returns Promise resolving to the redemption result
+   * @returns The settlement receipt, verbatim as the facilitator returned it. A
+   *   settle the backend accepted but could not complete comes back as
+   *   `success: false` with an `errorReason` rather than throwing — see
+   *   {@link SettlePermissionsResult} for which fields evidence a charge under
+   *   which billing model.
    */
   private async executeRedemption(
     bearerToken: string,
     creditsUsed: bigint | number,
     httpContext?: HttpRequestContext,
-  ): Promise<any> {
+  ): Promise<SettlePermissionsResult> {
     const decodedAccessToken = decodeAccessToken(bearerToken)
     if (!decodedAccessToken) {
       throw PaymentsError.unauthorized('Invalid access token.')
@@ -551,12 +555,12 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
                 httpContext,
               )
 
-              // Update event metadata with response data
+              // `txHash` is the A2A metadata key a buyer is shown for payment
+              // support; the settle response reports that id as `transaction`.
+              // There is no `txHash` on the wire — see handleTaskFinalization.
               if (response && event.metadata) {
-                event.metadata.txHash = response.txHash ?? response.transaction
-                event.metadata.creditsCharged = response.amountOfCredits
-                  ? Number(response.amountOfCredits)
-                  : event.metadata.creditsUsed
+                event.metadata.txHash = response.transaction
+                event.metadata.creditsCharged = event.metadata.creditsUsed
               }
 
               // x402 v2 A2A transport: stamp the settlement receipt onto the
@@ -567,11 +571,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
               if (httpContext?.inBand) {
                 const task = resultManager.getCurrentTask()
                 if (task) {
-                  this.recordInBandSettlement(
-                    task,
-                    httpContext,
-                    response as SettlePermissionsResult,
-                  )
+                  this.recordInBandSettlement(task, httpContext, response)
                   await resultManager.processEvent(task)
                 }
               }
@@ -862,16 +862,21 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             BigInt(creditsToBurn),
             httpContext,
           )
-          settlement = response as SettlePermissionsResult
+          settlement = response
 
-          // Update event metadata with redemption results
+          // Update event metadata with redemption results. `txHash` is the A2A
+          // metadata key, not a wire field: the settle response reports the
+          // transaction id as `transaction`.
           event.metadata = {
             ...event.metadata,
-            txHash: response.txHash ?? response.transaction,
-            // Store the actual credits charged (especially important for margin-based)
-            creditsCharged: response.amountOfCredits
-              ? Number(response.amountOfCredits)
-              : creditsToBurn,
+            txHash: response.transaction,
+            // The credits this request asked to burn. The settle response does
+            // report what was actually redeemed, as `creditsRedeemed`, but
+            // reading it here would change behaviour and is not free: it is the
+            // string '0' on `billingModel: 'pay-as-you-go'` plans even when the
+            // buyer WAS charged, so a truthiness read reports 0 on a real
+            // charge. See SettlePermissionsResult before wiring it up.
+            creditsCharged: creditsToBurn,
           }
         }
       } catch (err) {
