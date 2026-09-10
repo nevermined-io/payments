@@ -123,25 +123,33 @@ export abstract class BasePaymentsAPI {
    * (`<prefix>:<jwt>`); the key wins whenever its prefix is recognized. The
    * deprecated `environment` option is still honored as a fallback when the
    * key has no recognized prefix (e.g. local/custom dev), and ultimately
-   * defaults to `custom`. Passing `environment` emits a one-time deprecation
-   * warning.
+   * defaults to `custom`.
+   *
+   * The deprecation warning fires only when a passed `environment` is actually
+   * overridden by the key prefix (i.e. silently ignored). When it matches the
+   * derived environment, or is the fallback that's actually used, it's harmless
+   * — documented snippets still pass a matching `environment`, so nagging every
+   * new integration would be pure noise (#431).
    */
   private resolveEnvironmentName(options: PaymentOptions): EnvironmentName {
     const fromKey = getEnvironmentFromApiKey(options.nvmApiKey)
+    const resolved = fromKey ?? options.environment ?? 'custom'
 
-    if (options.environment && !environmentOptionDeprecationWarned) {
+    if (
+      options.environment &&
+      options.environment !== resolved &&
+      !environmentOptionDeprecationWarned
+    ) {
       environmentOptionDeprecationWarned = true
-      const override =
-        fromKey && fromKey !== options.environment
-          ? ` It is ignored in favor of the environment derived from the API key ('${fromKey}').`
-          : ''
       console.warn(
         "[DEPRECATED] The 'environment' option is deprecated; the environment is now derived " +
-          `from the NVM API key prefix.${override} Remove the 'environment' option to silence this warning.`,
+          `from the NVM API key prefix. Your value ('${options.environment}') is ignored in favor of ` +
+          `the environment derived from the API key ('${resolved}'). Remove the 'environment' option ` +
+          'to silence this warning.',
       )
     }
 
-    return fromKey ?? options.environment ?? 'custom'
+    return resolved
   }
 
   /**
