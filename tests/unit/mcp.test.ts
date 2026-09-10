@@ -156,10 +156,51 @@ describe('MCP Integration', () => {
       expect(out._meta['x402/payment-response'].success).toBe(true)
       // Nevermined observability is namespaced
       expect(out._meta['nevermined/credits'].success).toBe(true)
-      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('3')
+      // This settle double reports NO `creditsRedeemed` (it is bare
+      // `{ success: true }`), and the tool asked to burn 3n. The key is
+      // therefore ABSENT.
+      //
+      // It used to assert `'3'` — which is the credits the request ASKED to
+      // burn, published under the name of the figure the settle REPORTED. The
+      // assertion was pinning the `?? credits.toString()` substitution this
+      // change removes, so it read as a safety property while asserting the
+      // defect. `toBe(undefined)` would not be enough here: the point is that
+      // the key is not emitted at all.
+      expect(out._meta['nevermined/credits']).not.toHaveProperty('creditsRedeemed')
       // txHash should be undefined since our mock doesn't return it
       expect(out._meta['nevermined/credits'].txHash).toBeUndefined()
     })
+
+    it('publishes creditsRedeemed when the settle actually reports one', async () => {
+      // The positive control for the test above. Without it, deleting the
+      // creditsRedeemed emission entirely would pass — "the key is absent" is
+      // satisfied just as well by never emitting it at all.
+      //
+      // Note the figure the settle reports (7) deliberately differs from the
+      // credits the tool asks to burn (3n), so this cannot pass by reading the
+      // wrong one.
+      const mockInstance = new PaymentsMock({ success: true, creditsRedeemed: '7' })
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+
+      const base = async (_args: any, _extra?: any) => ({
+        content: [{ type: 'text', text: 'ok' }],
+      })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 3n,
+        planId: 'plan123',
+      })
+      const out = await wrapped(
+        {},
+        { requestInfo: { headers: { authorization: 'Bearer token' } } },
+      )
+
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('7')
+    })
+
 
     test('should add metadata with x402 receipt info including txHash', async () => {
       // x402 SettlePermissionsResult with transaction hash

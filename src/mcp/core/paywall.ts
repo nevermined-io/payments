@@ -197,7 +197,6 @@ export class PaywallDecorator {
             onFinally,
             effectivePlanId,
             authResult.subscriberAddress,
-            credits,
           )
         }
 
@@ -242,9 +241,22 @@ export class PaywallDecorator {
             // buyer. Omitted (not '') when the settle carried no discriminator,
             // so a consumer can tell "absent" from "present and empty".
             ...(creditsResult?.billingModel && { billingModel: creditsResult.billingModel }),
-            creditsRedeemed: creditsResult?.success
-              ? (creditsResult.creditsRedeemed ?? credits.toString())
-              : '0',
+            // ⚠️ NO `?? credits.toString()` FALLBACK. That substituted the credits
+            // this request ASKED to burn and published them under the name
+            // `creditsRedeemed` — a figure the settle never reported, labelled as
+            // one it did. The A2A handler was corrected the same way in #438/#439;
+            // the two protocols must not tell a buyer different things about the
+            // same money.
+            //
+            // A successful settle that reports no figure now OMITS the key rather
+            // than inventing one. Omission is the honest answer and it is
+            // distinguishable: `remainingBalance`, `orderTx` and the full spec
+            // receipt under X402_PAYMENT_RESPONSE_META_KEY are all still here.
+            ...(creditsResult?.success
+              ? creditsResult.creditsRedeemed !== undefined && {
+                  creditsRedeemed: creditsResult.creditsRedeemed,
+                }
+              : { creditsRedeemed: '0' }),
             remainingBalance: creditsResult?.remainingBalance,
             ...(creditsResult?.orderTx && { orderTx: creditsResult.orderTx }),
             planId: authResult.planId,
@@ -376,7 +388,6 @@ function wrapAsyncIterable<T>(
   onFinally: () => Promise<any>,
   planId: string,
   subscriberAddress: Address,
-  credits: bigint,
 ) {
   async function* generator() {
     let creditsResult: any = null
@@ -405,9 +416,13 @@ function wrapAsyncIterable<T>(
           // See the non-streaming site: without `billingModel`, `creditsRedeemed`
           // cannot be read — it is '0' on a pay-as-you-go settle that charged.
           ...(settlement?.billingModel && { billingModel: settlement.billingModel }),
-          creditsRedeemed: settlement?.success
-            ? (settlement.creditsRedeemed ?? credits.toString())
-            : '0',
+          // See the non-streaming site: no `?? credits.toString()` substitution.
+          // A successful settle that reported no figure omits the key.
+          ...(settlement?.success
+            ? settlement.creditsRedeemed !== undefined && {
+                creditsRedeemed: settlement.creditsRedeemed,
+              }
+            : { creditsRedeemed: '0' }),
           remainingBalance: settlement?.remainingBalance,
           ...(settlement?.orderTx && { orderTx: settlement.orderTx }),
           planId,
