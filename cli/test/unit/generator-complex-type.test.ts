@@ -25,6 +25,8 @@ describe('CommandGenerator.isComplexType', () => {
     'Partial<PaginationOptions> | undefined',
     'FooConfig',
     'Readonly<BarMetadata>',
+    'Record<string, string>',
+    "Pick<PaginationOptions, 'page'>",
     'object',
     '{ page: number; offset: number }',
   ])('treats %s as a complex type', (type) => {

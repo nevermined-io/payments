@@ -108,9 +108,11 @@ describe('environment resolution at Payments.getInstance', () => {
   test('falls back to the environment option for an unrecognized key prefix without warning', () => {
     const payments = Payments.getInstance({
       nvmApiKey: keyWithPrefix('local'),
-      environment: 'custom',
+      environment: 'sandbox',
     })
-    expect(payments.getEnvironmentName()).toBe('custom')
+    // Use a value distinct from the ultimate 'custom' default so this pins the
+    // fallback path: drop `?? options.environment` and it becomes 'custom' here.
+    expect(payments.getEnvironmentName()).toBe('sandbox')
     // The option is actually used (not overridden), so it is doing its job —
     // stay quiet rather than telling the caller to remove a load-bearing option.
     expect(deprecationWarnings()).toHaveLength(0)

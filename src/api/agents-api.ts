@@ -249,7 +249,7 @@ export class AgentsAPI extends BasePaymentsAPI {
    *
    * @example
    * ```
-   *  const result = payments.agents.getAgentPlans(planId, { page: 1, offset: 10 })
+   *  const result = payments.agents.getAgentPlans(agentId, { page: 1, offset: 10 })
    *  // {
    *  //  total: 10,
    *  //  page: 1,

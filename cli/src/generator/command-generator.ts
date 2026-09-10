@@ -364,12 +364,18 @@ ${runMethod}
     // Strip '| undefined' suffix from optional types before checking
     let baseType = type.replace(/\s*\|\s*undefined$/, '').trim()
 
-    // Unwrap a single generic utility wrapper (e.g. `Partial<PaginationOptions>`,
+    // Unwrap a generic wrapper (e.g. `Partial<PaginationOptions>`,
     // `Readonly<FooConfig>`) so the wrapped type is what the checks below see —
     // otherwise the trailing `>` defeats the suffix match and an optional
     // options object leaks out as a raw string flag that's silently ignored.
     const wrapped = baseType.match(/^\w+<(.+)>$/)
-    if (wrapped) baseType = wrapped[1].trim()
+    if (wrapped) {
+      const inner = wrapped[1].trim()
+      // Multi-argument generics (`Record<K,V>`, `Pick<T,K>`, `Map<K,V>`, …)
+      // always denote an object type — complex, no further unwrapping needed.
+      if (inner.includes(',')) return true
+      baseType = inner
+    }
 
     // Complex objects have literal braces or are explicitly 'object'
     // Exclude template literal types like `0x${string}` which are just strings
