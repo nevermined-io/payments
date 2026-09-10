@@ -80,33 +80,42 @@ describe('environment resolution at Payments.getInstance', () => {
     expect(deprecationWarnings()).toHaveLength(0)
   })
 
-  test('key prefix wins over a conflicting environment option', () => {
+  test('key prefix wins over a conflicting environment option and warns once', () => {
     const payments = Payments.getInstance({
       nvmApiKey: keyWithPrefix('live'),
       environment: 'staging_sandbox',
     })
     expect(payments.getEnvironmentName()).toBe('live')
-  })
-
-  test('passing environment emits a single deprecation warning', () => {
-    Payments.getInstance({
-      nvmApiKey: keyWithPrefix('sandbox-staging'),
-      environment: 'staging_sandbox',
-    })
-    // getInstance constructs several sub-API instances from the same options,
-    // but the warning must fire at most once per process.
+    // The passed value is silently overridden by the key — warn (once) so the
+    // caller knows their 'staging_sandbox' is ignored. getInstance constructs
+    // several sub-API instances from the same options, but the warning must fire
+    // at most once per process.
     expect(deprecationWarnings()).toHaveLength(1)
     expect(deprecationWarnings()[0]).toMatch(/environment.*derived.*API key/i)
   })
 
-  test('falls back to the environment option for an unrecognized key prefix', () => {
+  test('passing an environment that matches the key prefix does not warn (#431)', () => {
+    const payments = Payments.getInstance({
+      nvmApiKey: keyWithPrefix('sandbox-staging'),
+      environment: 'staging_sandbox',
+    })
+    expect(payments.getEnvironmentName()).toBe('staging_sandbox')
+    // Redundant but harmless — documented snippets still pass a matching
+    // `environment`, so nagging every new integration is pure noise.
+    expect(deprecationWarnings()).toHaveLength(0)
+  })
+
+  test('falls back to the environment option for an unrecognized key prefix without warning', () => {
     const payments = Payments.getInstance({
       nvmApiKey: keyWithPrefix('local'),
-      environment: 'custom',
+      environment: 'sandbox',
     })
-    expect(payments.getEnvironmentName()).toBe('custom')
-    // The option was used (fallback), so the deprecation warning still fires.
-    expect(deprecationWarnings()).toHaveLength(1)
+    // Use a value distinct from the ultimate 'custom' default so this pins the
+    // fallback path: drop `?? options.environment` and it becomes 'custom' here.
+    expect(payments.getEnvironmentName()).toBe('sandbox')
+    // The option is actually used (not overridden), so it is doing its job —
+    // stay quiet rather than telling the caller to remove a load-bearing option.
+    expect(deprecationWarnings()).toHaveLength(0)
   })
 
   test('falls back to custom when neither key prefix nor option resolves', () => {
