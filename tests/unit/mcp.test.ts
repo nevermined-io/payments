@@ -110,7 +110,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -142,7 +142,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -183,7 +183,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -226,7 +226,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => ({
         content: [{ type: 'text', text: 'ok' }],
@@ -261,7 +261,7 @@ describe('MCP Integration', () => {
       })
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => ({
         content: [{ type: 'text', text: 'ok' }],
@@ -295,7 +295,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -330,7 +330,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -362,7 +362,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock(redeemResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -409,7 +409,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -433,7 +433,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:x', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:x', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { res: true }
@@ -452,7 +452,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:x', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:x', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { res: true }
@@ -474,7 +474,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'srv' })
 
       const captured: any = {}
 
@@ -533,7 +533,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { ok: true }
@@ -562,7 +562,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -614,7 +614,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -667,7 +667,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -701,7 +701,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -758,7 +758,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const oldHandler = async (args: any, extra?: any) => {
         return {
@@ -792,7 +792,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       let capturedContext: any = null
 
@@ -821,7 +821,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       let capturedContext: any = null
 
@@ -864,7 +864,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const businessLogicHandler = async (args: any, extra?: any, context?: any) => {
         if (!context) {

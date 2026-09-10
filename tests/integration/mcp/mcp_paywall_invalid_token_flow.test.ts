@@ -95,7 +95,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('invalid-token')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: `Weather in ${args.city}` }] }
@@ -131,7 +131,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('invalid-token')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: 'result' }] }
@@ -159,7 +159,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('not-subscriber')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: 'result' }] }
@@ -190,7 +190,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('none')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return {
@@ -225,7 +225,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('none')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'multi-tool-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'multi-tool-server' })
 
     const simpleHandler = async () => ({ content: [{ type: 'text', text: 'simple' }] })
     const complexHandler = async () => ({ content: [{ type: 'text', text: 'complex' }] })
@@ -269,7 +269,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('insufficient-balance')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: 'result' }] }
@@ -296,7 +296,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('insufficient-balance')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: 'result' }] }
@@ -329,7 +329,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('invalid-token')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
     const wrapped = mcp.withPaywall(handler, {

@@ -82,7 +82,7 @@ describe('MCP Integration', () => {
   test('should validate and burn credits with minimal mocks', async () => {
     const payments = new PaymentsMinimal() as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp-int' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent', serverName: 'mcp-int' })
 
     const handler = async (_args: any) => {
       return { content: [{ type: 'text', text: 'hello' }] }
@@ -103,7 +103,7 @@ describe('MCP Integration', () => {
   test('should trigger payment required when not subscriber', async () => {
     const payments = new PaymentsMinimal(false) as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp-int' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent', serverName: 'mcp-int' })
 
     const handler = async (_args: any) => {
       return { content: [{ type: 'text', text: 'hello' }] }
@@ -184,7 +184,7 @@ describe('MCP Integration', () => {
 
     const payments = new PaymentsWithX402(true) as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent:abc123', serverName: 'weather-service' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent:abc123', serverName: 'weather-service' })
 
     const capturedContexts: any[] = []
 
