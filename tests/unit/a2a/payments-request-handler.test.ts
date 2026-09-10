@@ -514,6 +514,29 @@ describe('PaymentsRequestHandler', () => {
       expect(event.metadata?.creditsCharged).toBe(3)
     })
 
+    test('a credits plan that redeemed nothing reports 0, not "not applicable"', async () => {
+      // Zero redemption on a credits plan is a FIGURE, not an absence: "zero
+      // credits came out of your balance" is a different claim from a
+      // pay-as-you-go plan's "credits do not apply here". Only the billing model
+      // decides which one is reported — never the value — so a `redeemed > 0`
+      // style check (the shape SettlePermissionsResult uses to answer the
+      // different question "was this settled?") must not creep in here.
+      const { event } = await finalize(
+        settleResponse({ billingModel: 'credits', creditsRedeemed: '0' }),
+      )
+      expect(event.metadata).toHaveProperty('creditsCharged')
+      expect(event.metadata?.creditsCharged).toBe(0)
+    })
+
+    test('an unparseable creditsRedeemed is omitted, never published as NaN', async () => {
+      // NaN would survive into A2A metadata and JSON.stringify to `null`, which
+      // is a claim about the charge rather than an admission of not knowing.
+      const { event } = await finalize(
+        settleResponse({ billingModel: 'credits', creditsRedeemed: 'not-a-number' }),
+      )
+      expect(event.metadata).not.toHaveProperty('creditsCharged')
+    })
+
     test('reports nothing when the backend reports no usable figure', async () => {
       // Older still: no `creditsRedeemed` at all. Nothing is known about what was
       // redeemed, so nothing is claimed — the requested burn is not a substitute.
