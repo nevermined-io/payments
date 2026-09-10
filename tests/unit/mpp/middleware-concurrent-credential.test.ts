@@ -17,6 +17,10 @@ import express from 'express'
 import http from 'http'
 import net from 'net'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import type {
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
+import type { MppSettleResult } from '../../../src/mpp/mpp-api.js'
 import { mppCredentialFixture } from './credential-fixture.js'
 
 // Per-case credential: single-use is enforced process-wide, so a constant
@@ -36,14 +40,14 @@ function buildMockPayments(mpp: Record<string, unknown> = {}) {
   return {
     mpp: {
       issueChallenge: jest.fn().mockResolvedValue({ challenge: 'Payment id="c1"', id: 'c1' }),
-      verifyCredential: jest.fn().mockResolvedValue({ isValid: true }),
+      verifyCredential: jest.fn().mockResolvedValue({ isValid: true } satisfies VerifyPermissionsResult),
       settleCredential: jest.fn().mockResolvedValue({
         success: true,
         transaction: '0x',
         network: 'eip155:84532',
         creditsRedeemed: '2',
         paymentReceipt: 'receipt-b64',
-      }),
+      } satisfies MppSettleResult),
       ...mpp,
     },
     facilitator: { verifyPermissions: jest.fn(), settlePermissions: jest.fn() },

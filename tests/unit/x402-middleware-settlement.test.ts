@@ -14,6 +14,10 @@ import type { Request, Response } from 'express'
 import http from 'http'
 import net from 'net'
 import { paymentMiddleware, X402_HEADERS } from '../../src/x402/express/index.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 
 // Use the same mock token shape the rest of the test suite uses so the
 // middleware's verify call gets past the shape checks.
@@ -23,7 +27,11 @@ const MOCK_TOKEN = 'mock-x402-token'
 function buildMockPayments(opts: { settleSpy: jest.Mock; verifySpy?: jest.Mock }) {
   const verify =
     opts.verifySpy ??
-    jest.fn().mockResolvedValue({ isValid: true, agentRequest: undefined, agentRequestId: 'req-1' })
+    jest.fn().mockResolvedValue({
+      isValid: true,
+      agentRequest: undefined,
+      agentRequestId: 'req-1',
+    } satisfies VerifyPermissionsResult)
   return {
     facilitator: {
       verifyPermissions: verify,
@@ -96,9 +104,11 @@ async function postWithToken(port: number): Promise<{
 describe('paymentMiddleware settlement coverage (#1728)', () => {
   const baseSettlement = {
     success: true,
+    transaction: '',
+    network: 'stripe',
     creditsRedeemed: '1',
     orderTx: '0xabc',
-  }
+  } satisfies SettlePermissionsResult
 
   test('settles when handler uses res.json', async () => {
     const settleSpy = jest.fn().mockResolvedValue(baseSettlement)

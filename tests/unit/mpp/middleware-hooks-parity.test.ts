@@ -8,6 +8,11 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import type {
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
+import type { MppSettleResult } from '../../../src/mpp/mpp-api.js'
+import type { StartAgentRequest } from '../../../src/common/types.js'
 import { mppCredentialFixture } from './credential-fixture.js'
 import { MppCredentialRejectedError } from '../../../src/mpp/errors.js'
 
@@ -24,6 +29,31 @@ beforeEach(() => {
   CREDENTIAL = mppCredentialFixture(`hooks-${credentialSeq}`)
 })
 
+/**
+ * The `agentRequest` the verify double hands back. Complete rather than a
+ * two-key stand-in: the middleware relays it verbatim, so the assertion below
+ * compares against this same object — a partial one only ever proved that two
+ * copies of the same shorthand matched.
+ */
+const AGENT_REQUEST: StartAgentRequest = {
+  agentRequestId: 'req-1',
+  agentName: 'agent-1',
+  agentId: 'agent-1',
+  balance: {
+    planId: '123',
+    planName: 'Test Plan',
+    planType: 'credits',
+    holderAddress: '0x1111111111111111111111111111111111111111',
+    balance: 100n,
+    creditsContract: '0x2222222222222222222222222222222222222222',
+    isSubscriber: true,
+    pricePerCredit: 1,
+  },
+  urlMatching: 'POST /ask',
+  verbMatching: 'POST',
+  batch: false,
+}
+
 function buildMockPayments(mpp: Record<string, unknown> = {}) {
   return {
     mpp: {
@@ -31,21 +61,31 @@ function buildMockPayments(mpp: Record<string, unknown> = {}) {
       verifyCredential: jest.fn().mockResolvedValue({
         isValid: true,
         agentRequestId: 'req-1',
-        agentRequest: { agentRequestId: 'req-1', agentId: 'agent-1' },
-      }),
+        agentRequest: AGENT_REQUEST,
+      } satisfies VerifyPermissionsResult),
       settleCredential: jest.fn().mockResolvedValue({
         success: true,
         transaction: '0x',
         network: 'eip155:84532',
         creditsRedeemed: '2',
         paymentReceipt: 'receipt-b64',
-      }),
+      } satisfies MppSettleResult),
       ...mpp,
     },
     facilitator: { verifyPermissions: jest.fn(), settlePermissions: jest.fn() },
     getEnvironmentName: () => 'sandbox',
     plans: { getPlan: jest.fn().mockResolvedValue({ registry: { price: { isCrypto: true } } }) },
   } as any
+}
+
+/**
+ * `StartAgentRequest.balance.balance` is a `bigint`, which `JSON.stringify`
+ * refuses outright — so anything relaying a payment context over the wire has
+ * to narrow it first. Mirrored on the assertion side so the two comparands are
+ * the same object put through the same transform.
+ */
+function jsonSafe<T>(value: T): unknown {
+  return JSON.parse(JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)))
 }
 
 async function startServer(
@@ -64,7 +104,8 @@ async function startServer(
   )
   app.post(
     '/ask',
-    handler ?? ((req: any, res: any) => res.json({ paymentContext: req.paymentContext ?? null })),
+    handler ??
+      ((req: any, res: any) => res.json(jsonSafe({ paymentContext: req.paymentContext ?? null }))),
   )
   const server = http.createServer(app)
   await new Promise<void>((r) => server.listen(0, r))
@@ -384,7 +425,7 @@ describe('MPP PaymentContext observability fields', () => {
       expect(response.status).toBe(200)
       const { paymentContext } = await response.json()
       expect(paymentContext.agentRequestId).toBe('req-1')
-      expect(paymentContext.agentRequest).toEqual({ agentRequestId: 'req-1', agentId: 'agent-1' })
+      expect(paymentContext.agentRequest).toEqual(jsonSafe(AGENT_REQUEST))
     } finally {
       await close()
     }

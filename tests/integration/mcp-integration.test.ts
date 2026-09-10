@@ -4,6 +4,10 @@
 
 import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 import * as utils from '../../src/utils.js'
 
 // Mock decodeAccessToken to provide x402-compliant token structure
@@ -42,14 +46,14 @@ class PaymentsMinimal {
         this.subscriber = subscriber
       }
 
-      async verifyPermissions(params: any) {
+      async verifyPermissions(params: any): Promise<VerifyPermissionsResult> {
         if (!this.subscriber) {
           throw new Error('Subscriber not found')
         }
         return { isValid: true }
       }
 
-      async settlePermissions(params: any) {
+      async settlePermissions(params: any): Promise<SettlePermissionsResult> {
         return {
           success: true,
           transaction: '0x1234567890abcdef',
@@ -136,14 +140,14 @@ describe('MCP Integration', () => {
             this.outer = outer
             this.subscriber = subscriber
           }
-          async verifyPermissions(params: any) {
+          async verifyPermissions(params: any): Promise<VerifyPermissionsResult> {
             if (!this.subscriber) {
               throw new Error('Subscriber not found')
             }
             return { isValid: true }
           }
 
-          async settlePermissions(params: any) {
+          async settlePermissions(params: any): Promise<SettlePermissionsResult> {
             const planId = params.paymentRequired?.accepts?.[0]?.planId || 'plan-123'
             const maxAmount = params.maxAmount || 0n
             const hash = `${planId}-${maxAmount}`

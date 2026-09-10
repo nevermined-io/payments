@@ -5,6 +5,10 @@
 
 import { buildMcpIntegration } from '../../../src/mcp/index.js'
 import type { Payments } from '../../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
@@ -46,14 +50,14 @@ class PaymentsMockWithFailures {
   ) {
     this.failureMode = failureMode
     this.facilitator = {
-      verifyPermissions: jest.fn(async (params: any) => {
+      verifyPermissions: jest.fn(async (params: any): Promise<VerifyPermissionsResult> => {
         this.calls.push(['verifyPermissions', params])
         if (this.failureMode === 'invalid-token' || this.failureMode === 'not-subscriber') {
           return { isValid: false, invalidReason: 'Payment required' }
         }
         return { isValid: true }
       }),
-      settlePermissions: jest.fn(async (params: any) => {
+      settlePermissions: jest.fn(async (params: any): Promise<SettlePermissionsResult> => {
         this.calls.push(['settle', params])
         if (this.failureMode === 'insufficient-balance') {
           throw new Error('Insufficient balance for redemption')

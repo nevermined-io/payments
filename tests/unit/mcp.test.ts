@@ -4,6 +4,10 @@
 
 import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 import * as utils from '../../src/utils.js'
 
 // Mock decodeAccessToken to provide x402-compliant token structure
@@ -33,19 +37,26 @@ class PaymentsMock {
   public agents: any
   public facilitator: any
 
-  constructor(settleResult?: any) {
-    const settle_result = settleResult || { success: true }
+  constructor(settleResult?: SettlePermissionsResult) {
+    // The real facilitator always answers with `transaction` + `network`, so the
+    // default stands in for a settle that burned nothing rather than for a
+    // response missing half its required fields.
+    const settle_result: SettlePermissionsResult = settleResult || {
+      success: true,
+      transaction: '',
+      network: 'eip155:84532',
+    }
 
     class Facilitator {
       private parent: PaymentsMock
-      private settle_result: any
+      private settle_result: SettlePermissionsResult
 
-      constructor(parent: PaymentsMock, settle_result: any) {
+      constructor(parent: PaymentsMock, settle_result: SettlePermissionsResult) {
         this.parent = parent
         this.settle_result = settle_result
       }
 
-      async verifyPermissions(input: any) {
+      async verifyPermissions(input: any): Promise<VerifyPermissionsResult> {
         const planId =
           typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
@@ -61,7 +72,7 @@ class PaymentsMock {
         return { isValid: true }
       }
 
-      async settlePermissions(input: any) {
+      async settlePermissions(input: any): Promise<SettlePermissionsResult> {
         const planId =
           typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
@@ -168,7 +179,7 @@ describe('MCP Integration', () => {
         transaction: '0x1234567890abcdef',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
@@ -211,7 +222,7 @@ describe('MCP Integration', () => {
         creditsRedeemed: '0',
         remainingBalance: '0',
         orderTx: 'pi_3U6tgrBYvSRKcV421ehH4bnX',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
@@ -280,7 +291,7 @@ describe('MCP Integration', () => {
         transaction: '',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
@@ -315,7 +326,7 @@ describe('MCP Integration', () => {
         network: 'eip155:84532',
         creditsRedeemed: '10', // Backend may return different value than requested
         remainingBalance: '90',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
@@ -342,7 +353,12 @@ describe('MCP Integration', () => {
       // Post-execution settlement failure: under the x402 v2 MCP transport the
       // tool content is suppressed and an in-band payment error is returned
       // (default onRedeemError "ignore" no longer delivers paid content).
-      const redeemResult = { success: false, errorReason: 'Insufficient credits' }
+      const redeemResult = {
+        success: false,
+        errorReason: 'Insufficient credits',
+        transaction: '',
+        network: 'eip155:84532',
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(redeemResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
@@ -594,7 +610,7 @@ describe('MCP Integration', () => {
         transaction: '0xstream123',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
@@ -647,7 +663,7 @@ describe('MCP Integration', () => {
         creditsRedeemed: '0',
         remainingBalance: '0',
         orderTx: 'pi_3StreamPayg',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)

@@ -6,6 +6,10 @@ import request from 'supertest'
 import { PaymentsA2AServer } from '../../../src/a2a/server.js'
 import type { AgentCard, AgentExecutor } from '../../../src/a2a/types.js'
 import type { Payments } from '../../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
 import * as utils from '../../../src/utils.js'
 
 const mockDecodeToken = (_token: string) => ({
@@ -66,15 +70,13 @@ describe('PaymentsA2AServer', () => {
       facilitator: {
         verifyPermissions: jest.fn().mockResolvedValue({
           isValid: true,
-        }),
-        settlePermissions: jest
-          .fn()
-          .mockResolvedValue({
-            success: true,
-            transaction: '0x1234567890abcdef',
-            network: 'eip155:84532',
-            creditsRedeemed: '1',
-          }),
+        } satisfies VerifyPermissionsResult),
+        settlePermissions: jest.fn().mockResolvedValue({
+          success: true,
+          transaction: '0x1234567890abcdef',
+          network: 'eip155:84532',
+          creditsRedeemed: '1',
+        } satisfies SettlePermissionsResult),
       },
       agents: {
         getAgentPlans: jest.fn().mockResolvedValue({ plans: [] }),
