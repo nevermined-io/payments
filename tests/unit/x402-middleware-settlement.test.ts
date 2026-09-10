@@ -102,10 +102,15 @@ async function postWithToken(port: number): Promise<{
 }
 
 describe('paymentMiddleware settlement coverage (#1728)', () => {
+  // `transaction` and `network` are required on the model and were missing here;
+  // these tests read neither, so the values only have to be coherent. They match
+  // the pre-existing hex `orderTx`, i.e. a crypto rail whose settle had to order
+  // credits first — deliberately NOT a PSP name, which would pin a fiat rail
+  // inside a test that is about response methods, not rails.
   const baseSettlement = {
     success: true,
-    transaction: '',
-    network: 'stripe',
+    transaction: '0xsettletx',
+    network: 'eip155:84532',
     creditsRedeemed: '1',
     orderTx: '0xabc',
   } satisfies SettlePermissionsResult

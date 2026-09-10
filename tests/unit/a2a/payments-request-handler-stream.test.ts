@@ -59,7 +59,21 @@ describe('PaymentsRequestHandler streaming', () => {
       get: jest.fn().mockResolvedValue(undefined),
     }
 
+    // Complete rather than `as unknown as AgentCard`: that double assertion is
+    // the one escape the typecheck gate cannot see through, so a card that
+    // drifted from the SDK's would stay invisible — in the PR whose point is
+    // making such drift visible. Only `capabilities` carries anything this spec
+    // reads; the other eight are AgentCard's required fields, present so the
+    // compiler can still check the shape.
     mockAgentCard = {
+      protocolVersion: '0.3.0',
+      name: 'test-agent',
+      description: 'Streaming credit-burn fixture',
+      url: 'https://example.test/a2a',
+      version: '1.0.0',
+      defaultInputModes: ['text/plain'],
+      defaultOutputModes: ['text/plain'],
+      skills: [],
       capabilities: {
         extensions: [
           {
@@ -70,7 +84,7 @@ describe('PaymentsRequestHandler streaming', () => {
           },
         ],
       },
-    } as unknown as AgentCard
+    }
   })
 
   test('should burn credits when streaming final event with creditsUsed', async () => {

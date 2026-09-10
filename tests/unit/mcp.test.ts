@@ -38,12 +38,16 @@ class PaymentsMock {
   public facilitator: any
 
   constructor(settleResult?: SettlePermissionsResult) {
-    // The real facilitator always answers with `transaction` + `network`, so the
-    // default stands in for a settle that burned nothing rather than for a
-    // response missing half its required fields.
+    // An ordinary successful crypto settle. `transaction` and `network` are
+    // required on the model, so the previous `{ success: true }` was a response
+    // the facilitator cannot produce — but an EMPTY `transaction` would not do
+    // either: the model documents it as the failure marker, so pairing it with
+    // `success: true` would teach every future fixture a contradiction.
+    // `creditsRedeemed` is deliberately absent, so tests inheriting this default
+    // still exercise the paywall's fallback to the requested credit amount.
     const settle_result: SettlePermissionsResult = settleResult || {
       success: true,
-      transaction: '',
+      transaction: '0xdefaultsettletx',
       network: 'eip155:84532',
     }
 
@@ -139,7 +143,17 @@ describe('MCP Integration', () => {
     })
 
     test('should add metadata to result after successful redemption', async () => {
-      const mockInstance = new PaymentsMock()
+      // Explicit rather than the constructor default, because this test turns on
+      // what `transaction` holds: the paywall gates `txHash` on it being truthy,
+      // so an empty one — what the backend sends when the settle had no on-chain
+      // transaction, as the "transaction is empty" test below also models — must
+      // produce no `txHash` key at all. Inheriting a default would let a change
+      // to that default silently change which invariant this proves.
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '',
+        network: 'eip155:84532',
+      })
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
@@ -168,7 +182,7 @@ describe('MCP Integration', () => {
       // Nevermined observability is namespaced
       expect(out._meta['nevermined/credits'].success).toBe(true)
       expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('3')
-      // txHash should be undefined since our mock doesn't return it
+      // No txHash key, because the settle carried no transaction to report.
       expect(out._meta['nevermined/credits'].txHash).toBeUndefined()
     })
 
