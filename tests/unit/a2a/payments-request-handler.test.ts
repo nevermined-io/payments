@@ -51,7 +51,9 @@ describe('PaymentsRequestHandler', () => {
     mockPayments = {
       getEnvironmentName: jest.fn().mockReturnValue('sandbox'),
       facilitator: {
-        settlePermissions: jest.fn().mockResolvedValue({ txHash: '0xabc', amountOfCredits: 5n }),
+        settlePermissions: jest
+          .fn()
+          .mockResolvedValue({ success: true, transaction: '0xabc', network: 'eip155:84532' }),
       },
     }
 
@@ -77,7 +79,17 @@ describe('PaymentsRequestHandler', () => {
 
   describe('handleTaskFinalization', () => {
     test('should burn credits when event has creditsUsed', async () => {
-      const settleMock = jest.fn().mockResolvedValue({ txHash: '0xabc', amountOfCredits: 5n })
+      // The settle response as the facilitator really returns it: the transaction
+      // id is `transaction`, and there is no `txHash` or `amountOfCredits` on the
+      // wire (#438). `creditsRedeemed` is deliberately 3 rather than 5 so the
+      // `creditsCharged` assertion below distinguishes the credits this request
+      // ASKED to burn from the credits the settle reports redeeming.
+      const settleMock = jest.fn().mockResolvedValue({
+        success: true,
+        transaction: '0xabc',
+        network: 'eip155:84532',
+        creditsRedeemed: '3',
+      })
       mockPayments.facilitator.settlePermissions = settleMock
 
       const handler = new PaymentsRequestHandler(
@@ -130,6 +142,8 @@ describe('PaymentsRequestHandler', () => {
         x402AccessToken: 'BEARER_TOKEN',
         maxAmount: 5n,
       })
+      // `txHash` is the A2A metadata key, sourced from the wire's `transaction`;
+      // `creditsCharged` reports the requested burn (5), not `creditsRedeemed` (3).
       expect(event.metadata?.txHash).toBe('0xabc')
       expect(event.metadata?.creditsCharged).toBe(5)
       expect(taskRef.metadata?.txHash).toBe('0xabc')
@@ -138,7 +152,9 @@ describe('PaymentsRequestHandler', () => {
     })
 
     test('should not burn credits when event has no creditsUsed', async () => {
-      const settleMock = jest.fn().mockResolvedValue({ txHash: '0xabc' })
+      const settleMock = jest
+        .fn()
+        .mockResolvedValue({ success: true, transaction: '0xabc', network: 'eip155:84532' })
       mockPayments.facilitator.settlePermissions = settleMock
 
       const handler = new PaymentsRequestHandler(
@@ -169,7 +185,9 @@ describe('PaymentsRequestHandler', () => {
     })
 
     test('should not burn credits when event has no metadata', async () => {
-      const settleMock = jest.fn().mockResolvedValue({ txHash: '0xabc' })
+      const settleMock = jest
+        .fn()
+        .mockResolvedValue({ success: true, transaction: '0xabc', network: 'eip155:84532' })
       mockPayments.facilitator.settlePermissions = settleMock
 
       const handler = new PaymentsRequestHandler(
