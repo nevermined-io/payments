@@ -232,7 +232,30 @@ export interface PlanBalance {
   planName: string
   planType: string
   holderAddress: Address
-  balance: bigint
+  /**
+   * Credit balance as a DECIMAL STRING, e.g. `'950'` — not a `bigint`.
+   *
+   * ⚠️ It is a string because that is what the deserializer produces, not as a
+   * preference. `PlanBalance` is constructed nowhere in `src/`: it only ever
+   * arrives from `getPlanBalance`, which ends in a bare `return response.json()`,
+   * and JSON has no bigint. It was declared `bigint` (#440) while the API sent a
+   * quoted string, so `balance > 100n` threw `Cannot mix BigInt and other types`
+   * in code that typechecked clean, and `typeof balance === 'bigint'` silently
+   * took the wrong branch. This reaches sellers as public API — `PlanBalance` is
+   * on `req.paymentContext.agentRequest.balance`.
+   *
+   * The value can exceed `Number.MAX_SAFE_INTEGER`, so do NOT route it through
+   * `Number`. For arithmetic, convert explicitly:
+   *
+   * ```ts
+   * BigInt(ctx.agentRequest.balance.balance) > 100n
+   * ```
+   *
+   * The outbound direction already has its counterpart: `jsonReplacer`
+   * (`common/helper.ts`) narrows bigints to strings on request bodies. This is
+   * the inbound side of the same boundary.
+   */
+  balance: string
   creditsContract: Address
   isSubscriber: boolean
   pricePerCredit: number
