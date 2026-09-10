@@ -31,6 +31,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # `pnpm build` compiles src only — tsconfig.json excludes `tests`, and
+      # ts-jest transpiles without checking (the root `isolatedModules: true`),
+      # so nothing else in CI ever typechecks a test file.
+      - name: Typecheck tests
+        run: pnpm typecheck:tests
+
       - name: Lint
         run: pnpm lint
 
