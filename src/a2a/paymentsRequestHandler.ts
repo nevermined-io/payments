@@ -66,14 +66,73 @@ const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejecte
  * is false, so a truthiness check and a numeric one disagree on exactly the
  * value that matters.
  *
+ * Three ways this returns `undefined`, and they mean different things — the
+ * first is a design decision, the other two are faults, which is why only the
+ * faults warn:
+ *
+ * 1. the billing model has no credits figure to report (pay-as-you-go, or any
+ *    discriminator that is present and is not `credits`) — silent, by design;
+ * 2. `creditsRedeemed` is absent, or not a plain decimal string — warns;
+ * 3. the value is a decimal string too large for a JS number — warns.
+ *
  * @param settlement - The settlement receipt as the facilitator returned it
- * @returns The credits redeemed, or `undefined` when the billing model has no
- *   credits to report or the backend reported no usable figure
+ * @returns The credits redeemed, or `undefined` per the three cases above
  */
+/**
+ * A decimal string, and nothing else — no sign, no whitespace, no `0x`/`1e3`,
+ * no fractional part. `Number()` accepts every one of those, and worse, maps the
+ * empty-ish family (`''`, `'   '`, `null`, `[]`, `false`) to **0** rather than
+ * `NaN`, so `Number.isFinite` does not catch them. Publishing that 0 would say
+ * "you were charged nothing" on a settle we simply could not read — the same
+ * class of lie this helper exists to prevent on pay-as-you-go.
+ *
+ * Same reasoning, same shape as `DECIMAL_INTEGER_STRING` in `mpp/mpp-api.ts`.
+ */
+const DECIMAL_INTEGER_STRING = /^\d+$/
+
 function resolveCreditsCharged(settlement: SettlePermissionsResult): number | undefined {
-  if (settlement.billingModel === 'pay-as-you-go') return undefined
-  const redeemed = Number(settlement.creditsRedeemed)
-  return Number.isFinite(redeemed) ? redeemed : undefined
+  // ALLOWLIST, not a denylist. `=== 'pay-as-you-go'` let every other value fall
+  // into the credits branch and publish a `0`: `null`, `''`, `'PAY-AS-YOU-GO'`,
+  // a future third billing model, a non-string. The response is an unchecked
+  // `as SettlePermissionsResult` over `response.json()`, so the union type
+  // provides no runtime guarantee and the wrong values are reachable.
+  //
+  // `undefined` still means `credits` — that is the documented ruling above and
+  // it is preserved exactly. What changes is that a discriminator which is
+  // present but not `credits` now omits rather than reporting a zero.
+  if (settlement.billingModel !== undefined && settlement.billingModel !== 'credits') {
+    return undefined
+  }
+
+  const raw = settlement.creditsRedeemed
+  if (typeof raw !== 'string' || !DECIMAL_INTEGER_STRING.test(raw)) {
+    // Silence here would be indistinguishable from the pay-as-you-go omission,
+    // which is a deliberate design decision rather than a fault. Warn, as
+    // `x402/express/middleware.ts` does on this same field.
+    if (raw !== undefined) {
+      console.warn(
+        `[PaymentsRequestHandler] settle reported an unusable creditsRedeemed ` +
+          `(${JSON.stringify(raw)}); omitting creditsCharged rather than publishing a figure`,
+      )
+    }
+    return undefined
+  }
+
+  const redeemed = Number(raw)
+  if (!Number.isSafeInteger(redeemed)) {
+    // The wire carries this as a string precisely because it can exceed what a
+    // JS number represents. Above 2^53 the conversion is silently wrong
+    // (`'9007199254740993'` becomes 9007199254740992), and a wrong number is
+    // worse than no number: the exact value is still on the task, verbatim, in
+    // the `x402.payment.receipts` entry that `recordPaymentSuccess` writes.
+    console.warn(
+      `[PaymentsRequestHandler] creditsRedeemed ${raw} exceeds Number.MAX_SAFE_INTEGER; ` +
+        `omitting creditsCharged rather than publishing a rounded figure`,
+    )
+    return undefined
+  }
+
+  return redeemed
 }
 
 /**

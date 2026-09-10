@@ -455,6 +455,88 @@ describe('PaymentsRequestHandler', () => {
       return { event, taskRef }
     }
 
+    /**
+     * #439 review — the guard used to be a DENYLIST (`=== 'pay-as-you-go'`), so
+     * every other value fell into the credits branch and published a `0`
+     * meaning "you were charged nothing". The response is an unchecked
+     * `as SettlePermissionsResult` over `response.json()`, so the union type
+     * gives no runtime protection and each of these is reachable on the wire.
+     *
+     * `undefined` is deliberately NOT in this list — a missing discriminator
+     * still means `credits`, which is the documented ruling and is pinned by
+     * its own test below.
+     */
+    test.each([
+      ['null', null],
+      ['empty string', ''],
+      ['wrong case', 'PAY-AS-YOU-GO'],
+      ['camelCase', 'payAsYouGo'],
+      ['padded', ' pay-as-you-go '],
+      ['a third billing model', 'subscription'],
+      ['a non-string', 0],
+    ])(
+      'a billingModel that is present but not `credits` (%s) omits rather than publishing 0',
+      async (_label, billingModel) => {
+        const { event, taskRef } = await finalize(
+          settleResponse({ billingModel, creditsRedeemed: '0', orderTx: 'pi_x' }),
+        )
+        expect(event.metadata).not.toHaveProperty('creditsCharged')
+        expect(taskRef.metadata).not.toHaveProperty('creditsCharged')
+      },
+    )
+
+    /**
+     * #439 review — `Number()` maps the empty-ish family to **0**, not `NaN`,
+     * so `Number.isFinite` waves them through. Each of these used to publish
+     * `creditsCharged: 0` on a credits plan. `'-5'`, `'0x10'` and `'1e3'` are
+     * the same class: accepted by `Number()`, forbidden by the decimal-string
+     * contract the wire actually promises.
+     */
+    test.each([
+      ['empty string', ''],
+      ['whitespace', '   '],
+      ['null', null],
+      ['an array', []],
+      ['false', false],
+      ['true', true],
+      ['a negative', '-5'],
+      ['hex', '0x10'],
+      ['exponent', '1e3'],
+      ['a fraction', '1.5'],
+    ])('an unusable creditsRedeemed (%s) omits rather than coercing', async (_label, redeemed) => {
+      const { event, taskRef } = await finalize(
+        settleResponse({ billingModel: 'credits', creditsRedeemed: redeemed }),
+      )
+      expect(event.metadata).not.toHaveProperty('creditsCharged')
+      expect(taskRef.metadata).not.toHaveProperty('creditsCharged')
+    })
+
+    /**
+     * #439 review — the wire carries this as a string precisely because it can
+     * exceed what a JS number represents. `Number('9007199254740993')` is
+     * 9007199254740992: silently off by one. A wrong number is worse than none,
+     * and the exact value survives verbatim in the `x402.payment.receipts`
+     * entry, so omitting loses nothing.
+     */
+    test('a creditsRedeemed above MAX_SAFE_INTEGER omits rather than publishing a rounded figure', async () => {
+      const { event } = await finalize(
+        settleResponse({ billingModel: 'credits', creditsRedeemed: '9007199254740993' }),
+      )
+      expect(event.metadata).not.toHaveProperty('creditsCharged')
+    })
+
+    /**
+     * The negative control for all three groups above. Making the guard stricter
+     * must not make it refuse the ordinary case — without this, deleting the
+     * whole helper body and returning `undefined` would pass every test here.
+     */
+    test('an ordinary decimal string is still published', async () => {
+      const { event } = await finalize(
+        settleResponse({ billingModel: 'credits', creditsRedeemed: '42' }),
+      )
+      expect(event.metadata?.creditsCharged).toBe(42)
+    })
+
     test('credits plan reports what was redeemed, not what was requested', async () => {
       const { event, taskRef } = await finalize(
         settleResponse({ billingModel: 'credits', creditsRedeemed: '3' }),

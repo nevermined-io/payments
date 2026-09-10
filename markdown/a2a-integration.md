@@ -240,6 +240,50 @@ eventBus.publish({
 })
 ```
 
+### What the SDK adds to `metadata` after settlement
+
+Your executor sets `creditsUsed`. After the request settles, the SDK adds two more
+keys to the same `metadata` object, on the status-update event and on the stored
+task:
+
+| key | meaning |
+| --- | --- |
+| `txHash` | The settlement transaction, from the facilitator's receipt. |
+| `creditsCharged` | The credits the settle **actually redeemed**. |
+
+**`creditsCharged` is not always present, and its absence is meaningful.** It
+reports what was redeemed, which is not necessarily what you asked to burn —
+under margin-based pricing the two differ. The SDK omits the key entirely rather
+than report a figure that would be false:
+
+| situation | `creditsCharged` |
+| --- | --- |
+| credits plan | the credits redeemed |
+| credits plan, nothing redeemed | `0` — a real figure, not an absence |
+| **pay-as-you-go** | **key absent** |
+| the backend reported no usable figure | **key absent** (and the SDK warns) |
+
+Pay-as-you-go is the case to understand. Such a plan holds no credit balance, so
+`creditsRedeemed` is the string `'0'` **even on a settle that charged the buyer**.
+Publishing that as `creditsCharged: 0` would tell a buyer they were charged
+nothing for a payment that really happened, so nothing is published instead. The
+charge is referenced by `orderTx` (fiat) or `transaction` (crypto), and the full
+settlement receipt is on the task under `x402.payment.receipts`.
+
+**Read it with `in`, not truthiness** — `0` is a legitimate value:
+
+```typescript
+if ('creditsCharged' in task.metadata) {
+  console.log(`Redeemed ${task.metadata.creditsCharged} credits`)
+} else {
+  // Pay-as-you-go, or no usable figure. `creditsUsed` still tells you what the
+  // request asked to burn.
+}
+```
+
+The credits your request asked to burn remain on the event as `creditsUsed`,
+untouched, so nothing is lost by the omission.
+
 ### Message Event (Streaming)
 
 ```typescript
