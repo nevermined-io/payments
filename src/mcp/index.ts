@@ -17,7 +17,7 @@
  *
  * // Configure MCP integration
  * payments.mcp.configure({
- *   planId: process.env.NVM_PLAN_ID!, // required
+ *   planId: process.env.NVM_PLAN_ID!, // optional — omit it if every tool sets its own
  *   agentId: process.env.NVM_AGENT_ID, // optional
  *   serverName: 'my-mcp-server'
  * })
@@ -34,7 +34,7 @@
  * // Start a managed server with all OAuth endpoints
  * const { baseUrl, stop } = await payments.mcp.startServer({
  *   port: 5001,
- *   planId: process.env.NVM_PLAN_ID!, // required
+ *   planId: process.env.NVM_PLAN_ID!, // optional — falls back to configure()
  *   agentId: process.env.NVM_AGENT_ID, // optional
  *   serverName: 'my-mcp-server',
  *   tools: ['hello_world']
@@ -513,7 +513,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```typescript
    * const { baseUrl, stop } = await payments.mcp.startServer({
    *   port: 5001,
-   *   planId: process.env.NVM_PLAN_ID!, // required
+   *   planId: process.env.NVM_PLAN_ID!, // optional — falls back to configure()
    *   serverName: 'my-mcp-server',
    *   tools: ['hello_world', 'weather']
    * })
