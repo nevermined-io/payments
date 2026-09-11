@@ -238,7 +238,7 @@ export interface PlanBalance {
    * ⚠️ It is a string because that is what the deserializer produces, not as a
    * preference. `PlanBalance` is constructed nowhere in `src/`: it only ever
    * arrives from `getPlanBalance`, which ends in a bare `return response.json()`,
-   * and JSON has no bigint. It was declared `bigint` (#440) while the API sent a
+   * and JSON has no bigint. It had been declared `bigint` since 2025-05-26 while the API sent a
    * quoted string, so `balance > 100n` threw `Cannot mix BigInt and other types`
    * in code that typechecked clean, and `typeof balance === 'bigint'` silently
    * took the wrong branch. This reaches sellers as public API — `PlanBalance` is
