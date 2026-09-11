@@ -203,7 +203,7 @@ CI is configured in `.github/workflows/testing.yml` and runs on every push:
 
 | Job | Description | Depends On |
 |-----|-------------|------------|
-| `lint_build` | Install, build, typecheck tests, lint | - |
+| `lint_build` | Install, build, lint, typecheck tests | Typecheck tests runs LAST on purpose — see the comment in `testing.yml`: it is the newest and noisiest gate, and running it before Lint would fail-fast past lint errors that used to surface in the same run. Do not reorder to match a doc; fix the doc. |
 | `cli_sync_check` | Build + test CLI against local SDK | lint_build |
 | `openclaw_check` | Build + test OpenClaw against local SDK | lint_build |
 | `unit_integration` | Unit + integration tests | lint_build |
