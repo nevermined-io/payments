@@ -30,7 +30,7 @@ const VALIDATION: StartAgentRequest = {
     planName: 'Test Plan',
     planType: 'credits',
     holderAddress: '0x1111111111111111111111111111111111111111',
-    balance: 100n,
+    balance: '100',
     creditsContract: '0x2222222222222222222222222222222222222222',
     isSubscriber: true,
     pricePerCredit: 1,

@@ -44,7 +44,7 @@ const AGENT_REQUEST: StartAgentRequest = {
     planName: 'Test Plan',
     planType: 'credits',
     holderAddress: '0x1111111111111111111111111111111111111111',
-    balance: 100n,
+    balance: '100',
     creditsContract: '0x2222222222222222222222222222222222222222',
     isSubscriber: true,
     pricePerCredit: 1,
@@ -79,13 +79,21 @@ function buildMockPayments(mpp: Record<string, unknown> = {}) {
 }
 
 /**
- * `StartAgentRequest.balance.balance` is a `bigint`, which `JSON.stringify`
- * refuses outright — so anything relaying a payment context over the wire has
- * to narrow it first. Mirrored on the assertion side so the two comparands are
- * the same object put through the same transform.
+ * Puts a fixture through the same JSON round-trip the wire does, so the two
+ * comparands are the same object transformed the same way — the handler relays
+ * the payment context via `res.json()`, and the assertion compares against what
+ * came back over HTTP.
+ *
+ * It used to carry a `bigint -> string` replacer as well, because
+ * `StartAgentRequest.balance.balance` was declared `bigint` and
+ * `JSON.stringify` refuses one outright. That declaration was a fiction — the
+ * value only ever arrives from `response.json()`, so it was always a string —
+ * and #440/#441 corrected the type. The replacer is gone with it: no bigint
+ * remains in this file, and if one is ever reintroduced, `JSON.stringify`
+ * throwing here is the right, loud answer rather than a silent coercion.
  */
 function jsonSafe<T>(value: T): unknown {
-  return JSON.parse(JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)))
+  return JSON.parse(JSON.stringify(value))
 }
 
 async function startServer(
