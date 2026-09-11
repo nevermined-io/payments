@@ -51,11 +51,14 @@ payments.mcp.configure({
 })
 ```
 
-> **`planId` is required; `agentId` is optional.** The x402 facilitator is
+> **`planId` and `agentId` are both optional.** The x402 facilitator is
 > plan-centric — verify/settle resolve everything from the plan and the
 > subscriber's token. `agentId` is informational only (it also populates the
 > OAuth `client_id` when present). A per-tool `planId` option overrides the
-> server-level plan.
+> server-level plan — and stands in for it entirely, so a server whose every
+> handler sets its own plan needs no `planId` here at all. What is required is
+> that a plan be resolvable by the time a handler is registered: with neither,
+> registration throws `Server misconfiguration: missing planId`.
 
 ## Register Tools with Credits
 
@@ -401,7 +404,7 @@ async function fetchAlerts() {
 | Option          | Type                   | Description                                                                                                                                                                                                                             |
 | --------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `credits`       | `bigint` or `function` | Credits to consume per call                                                                                                                                                                                                             |
-| `planId`        | `string`               | Per-handler plan ID override. A server-level `planId` (set via `configure`/`start`) is required; set this only to charge a different plan for this handler.                                                                               |
+| `planId`        | `string`               | Per-handler plan ID override. Optional when a server-level `planId` is set via `configure`/`start`; required per handler when there is none. With neither, registration throws `Server misconfiguration: missing planId`.                                                                               |
 | `maxAmount`     | `bigint`               | Max credits to verify during authentication (default: `1n`)                                                                                                                                                                             |
 | `onRedeemError` | `string`               | On post-execution settlement failure: `'ignore'` (default) returns the in-band payment error; `'propagate'` throws a JSON-RPC error. Tool content is always suppressed either way (paid content is never delivered without settlement). |
 
