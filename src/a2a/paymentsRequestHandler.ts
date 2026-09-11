@@ -57,6 +57,13 @@ const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejecte
  *   referenced by `orderTx` (fiat) or `transaction` (crypto); the credits the
  *   request asked to burn remain on the event as `creditsUsed`, so nothing is
  *   lost by omitting a figure that has no meaning on this billing model.
+ *
+ *   ⚠️ MCP does the OPPOSITE and that is deliberate — a settled decision (repo
+ *   owner, on the #443 review), not drift. `_meta['nevermined/credits']` reports
+ *   the `'0'` because it emits `billingModel` BESIDE it, so a consumer can read
+ *   it; `creditsCharged` here has no discriminator next to it, so a bare `0`
+ *   would say "you were charged nothing" about a charge that succeeded. Do not
+ *   reconcile the two.
  * - absent — a Nevermined API older than the discriminator (`creditsRedeemed`
  *   has been on the settle response since 2026-03-25, `billingModel` only since
  *   2026-08-06). Apply the `credits` rule: a missing discriminator must never be
