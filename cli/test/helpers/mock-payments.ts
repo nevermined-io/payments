@@ -14,7 +14,8 @@ export interface MockPlanBalance {
   planName: string
   planType: string
   holderAddress: string
-  balance: bigint
+  /** Decimal string — the wire shape. See PlanBalance.balance (#440). */
+  balance: string
   creditsContract: string
   isSubscriber: boolean
   pricePerCredit: number
@@ -72,7 +73,7 @@ export class MockPlansAPI {
       planName: plan.name,
       planType: plan.planType,
       holderAddress: '0x1234567890123456789012345678901234567890',
-      balance: BigInt(1000),
+      balance: '1000',
       creditsContract: '0x0987654321098765432109876543210987654321',
       isSubscriber: true,
       pricePerCredit: 0.01,
