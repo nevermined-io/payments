@@ -16,7 +16,7 @@ function createMockPayments() {
         planName: 'Test Plan',
         planType: 'credits',
         holderAddress: '0x1234',
-        balance: 100n,
+        balance: '100',
         creditsContract: '0xabcd',
         isSubscriber: true,
         pricePerCredit: 1,
