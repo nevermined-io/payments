@@ -530,6 +530,45 @@ describe('PaymentsRequestHandler', () => {
      * must not make it refuse the ordinary case — without this, deleting the
      * whole helper body and returning `undefined` would pass every test here.
      */
+    /**
+     * #439 review — `resolveCreditsCharged` read only `billingModel` and
+     * `creditsRedeemed`, never `success`. `settlePermissions` does NOT throw on
+     * a settle the backend accepted but could not complete — it returns 200 with
+     * `success: false` verbatim — so a FAILED settle published `creditsCharged`
+     * as though it were a measured redemption. With `creditsRedeemed: '7'` it
+     * reported 7 credits charged for a settle that charged nothing.
+     *
+     * That is a lie rather than noise, because the published contract defines
+     * `0` as "a real figure, not an absence": any number here asserts the settle
+     * completed.
+     */
+    test.each([
+      ['a failed settle reporting 0', '0'],
+      ['a failed settle reporting a non-zero figure', '7'],
+    ])('%s publishes nothing', async (_label, redeemed) => {
+      const { event, taskRef } = await finalize(
+        settleResponse({ success: false, billingModel: 'credits', creditsRedeemed: redeemed }),
+      )
+      expect(event.metadata).not.toHaveProperty('creditsCharged')
+      expect(taskRef.metadata).not.toHaveProperty('creditsCharged')
+    })
+
+    /**
+     * `!== true`, not `=== false`. An absent `billingModel` is a documented
+     * legacy shape read as `credits`; an absent `success` is not — the field has
+     * always been there and is declared non-optional, so its absence means a
+     * malformed response, which is exactly when not to publish a figure.
+     */
+    test('a settle with no success field at all publishes nothing', async () => {
+      const { event } = await finalize({
+        transaction: '0xabc',
+        network: 'eip155:84532',
+        billingModel: 'credits',
+        creditsRedeemed: '7',
+      } as any)
+      expect(event.metadata).not.toHaveProperty('creditsCharged')
+    })
+
     test('an ordinary decimal string is still published', async () => {
       const { event } = await finalize(
         settleResponse({ billingModel: 'credits', creditsRedeemed: '42' }),

@@ -104,17 +104,40 @@ function resolveCreditsCharged(settlement: SettlePermissionsResult): number | un
     return undefined
   }
 
+  // A FAILED settle has no measured redemption to report, so it gets no figure.
+  // `settlePermissions` does not throw on one — it returns 200 with
+  // `success: false` verbatim — so without this a failure published
+  // `creditsCharged` as though it were measured: `{success: false,
+  // creditsRedeemed: '7'}` reported 7 credits charged for a settle that charged
+  // nothing. The published contract makes that a lie rather than merely noise,
+  // because `markdown/a2a-integration.md` defines `0` as "a real figure, not an
+  // absence" — a number here asserts the settle completed.
+  //
+  // ⚠️ `!== true`, not `=== false`, and the asymmetry with `billingModel` above
+  // is deliberate. An ABSENT `billingModel` is a documented legacy shape (APIs
+  // predating the field) and is read as `credits`; an absent `success` is not a
+  // legacy shape — the field has always been there and is declared
+  // non-optional — so its absence means the response is malformed, and a
+  // malformed response is exactly when not to publish a figure.
+  //
+  // Silent, like the pay-as-you-go branch: a failed settle is a legitimate
+  // outcome the caller already sees on `success`, not a reporting fault.
+  if (settlement.success !== true) {
+    return undefined
+  }
+
   const raw = settlement.creditsRedeemed
   if (typeof raw !== 'string' || !DECIMAL_INTEGER_STRING.test(raw)) {
     // Silence here would be indistinguishable from the pay-as-you-go omission,
     // which is a deliberate design decision rather than a fault. Warn, as
     // `x402/express/middleware.ts` does on this same field.
-    if (raw !== undefined) {
-      console.warn(
-        `[PaymentsRequestHandler] settle reported an unusable creditsRedeemed ` +
+    console.warn(
+      raw === undefined
+        ? `[PaymentsRequestHandler] settle reported no creditsRedeemed; omitting ` +
+          `creditsCharged rather than publishing a figure`
+        : `[PaymentsRequestHandler] settle reported an unusable creditsRedeemed ` +
           `(${JSON.stringify(raw)}); omitting creditsCharged rather than publishing a figure`,
-      )
-    }
+    )
     return undefined
   }
 
