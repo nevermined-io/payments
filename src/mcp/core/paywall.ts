@@ -46,6 +46,18 @@ let authHeaderDeprecationWarned = false
  * test on one proves nothing about the other, which is why each has its own
  * regression test below this file.
  *
+ * ⚠️ The two protocols deliberately DIVERGE here, and it is a settled decision
+ * (repo owner, on the #443 review) rather than an oversight — do not "fix" one
+ * to match the other:
+ *
+ * | surface | pay-as-you-go | why |
+ * | --- | --- | --- |
+ * | MCP `creditsRedeemed` (here) | reports `'0'` | it is the WIRE field name, and
+ *   `billingModel` is emitted beside it, so a consumer can read the `'0'` |
+ * | A2A `creditsCharged` (#439) | OMITS | it is a DERIVED summary with no
+ *   discriminator beside it, so a bare `0` would read as "you were charged
+ *   nothing" on a charge that succeeded |
+ *
  * The rule, which is deliberately NOT the A2A handler's:
  * - a successful settle publishes whatever the facilitator reported, including
  *   the `'0'` a pay-as-you-go plan returns — because this key also carries
