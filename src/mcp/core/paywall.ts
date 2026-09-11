@@ -38,6 +38,32 @@ import { CreditsContextProvider } from './credits-context.js'
 let authHeaderDeprecationWarned = false
 
 /**
+ * The `creditsRedeemed` value for `_meta['nevermined/credits']`, or `undefined`
+ * to OMIT the key.
+ *
+ * ⚠️ Exists so the two `_meta` builders cannot drift. They are separate code —
+ * the non-streaming tool result and `wrapAsyncIterable`'s final chunk — and a
+ * test on one proves nothing about the other, which is why each has its own
+ * regression test below this file.
+ *
+ * The rule, which is deliberately NOT the A2A handler's:
+ * - a successful settle publishes whatever the facilitator reported, including
+ *   the `'0'` a pay-as-you-go plan returns — because this key also carries
+ *   `billingModel`, so a consumer can tell that `'0'` from a credits settle that
+ *   burned nothing. A2A's `creditsCharged` omits instead, having no
+ *   discriminator beside it. See the PR discussion on #443.
+ * - a successful settle that reported no figure omits, rather than substituting
+ *   the credits the request ASKED to burn (the defect this helper replaced).
+ * - a failed settle, and a free / no-credit call, report `'0'`.
+ */
+function resolveCreditsRedeemed(
+  settlement: { success?: boolean; creditsRedeemed?: string } | undefined,
+): string | undefined {
+  if (!settlement?.success) return '0'
+  return settlement.creditsRedeemed
+}
+
+/**
  * Main class for creating paywall-protected MCP handlers
  */
 export class PaywallDecorator {
@@ -252,11 +278,10 @@ export class PaywallDecorator {
             // than inventing one. Omission is the honest answer and it is
             // distinguishable: `remainingBalance`, `orderTx` and the full spec
             // receipt under X402_PAYMENT_RESPONSE_META_KEY are all still here.
-            ...(creditsResult?.success
-              ? creditsResult.creditsRedeemed !== undefined && {
-                  creditsRedeemed: creditsResult.creditsRedeemed,
-                }
-              : { creditsRedeemed: '0' }),
+            ...(() => {
+              const r = resolveCreditsRedeemed(creditsResult)
+              return r !== undefined ? { creditsRedeemed: r } : {}
+            })(),
             remainingBalance: creditsResult?.remainingBalance,
             ...(creditsResult?.orderTx && { orderTx: creditsResult.orderTx }),
             planId: authResult.planId,
@@ -418,11 +443,10 @@ function wrapAsyncIterable<T>(
           ...(settlement?.billingModel && { billingModel: settlement.billingModel }),
           // See the non-streaming site: no `?? credits.toString()` substitution.
           // A successful settle that reported no figure omits the key.
-          ...(settlement?.success
-            ? settlement.creditsRedeemed !== undefined && {
-                creditsRedeemed: settlement.creditsRedeemed,
-              }
-            : { creditsRedeemed: '0' }),
+          ...(() => {
+            const r = resolveCreditsRedeemed(settlement)
+            return r !== undefined ? { creditsRedeemed: r } : {}
+          })(),
           remainingBalance: settlement?.remainingBalance,
           ...(settlement?.orderTx && { orderTx: settlement.orderTx }),
           planId,

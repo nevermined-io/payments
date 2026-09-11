@@ -179,7 +179,15 @@ describe('MCP Integration', () => {
       // Note the figure the settle reports (7) deliberately differs from the
       // credits the tool asks to burn (3n), so this cannot pass by reading the
       // wrong one.
-      const mockInstance = new PaymentsMock({ success: true, creditsRedeemed: '7' })
+      // Complete shape: #437 (open) types this double as SettlePermissionsResult,
+      // where `transaction` and `network` are REQUIRED — so an incomplete fixture
+      // stops compiling once its `typecheck:tests` gate lands. Inert today.
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '0xabc',
+        network: 'eip155:84532',
+        creditsRedeemed: '7',
+      })
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
       mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
@@ -720,6 +728,88 @@ describe('MCP Integration', () => {
       expect(nvm.orderTx).toBe('pi_3StreamPayg')
       expect(nvm.success).toBe(true)
       expect(nvm.creditsRedeemed).toBe('0')
+    })
+
+    /**
+     * #443 review — the streaming half of the no-substitution fix had ZERO
+     * regression coverage. Restoring `?? credits.toString()` at
+     * `wrapAsyncIterable` alone left the whole suite green (49 suites, 641
+     * tests), while the identical mutant at the non-streaming site was killed by
+     * one test. The two `_meta` builders are separate code; a test on one proves
+     * nothing about the other — which this file already says, two tests up.
+     *
+     * The settle reports NO figure and the tool asks to burn 5n, so the old
+     * fallback would have published '5' — a number the facilitator never sent.
+     */
+    test('streaming: a settle reporting no figure omits creditsRedeemed, never the requested burn', async () => {
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '0xstream',
+        network: 'eip155:84532',
+      })
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+      async function* makeIterable(chunks: string[]) {
+        for (const c of chunks) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          yield c
+        }
+      }
+      const base = async (_args: any, _extra?: any) => makeIterable(['a', 'b'])
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const iterable = await wrapped({}, {
+        requestInfo: { headers: { authorization: 'Bearer tok' } },
+      })
+      const collected: any[] = []
+      for await (const chunk of iterable) collected.push(chunk)
+
+      const nvm = collected[collected.length - 1]._meta['nevermined/credits']
+      expect(nvm).not.toHaveProperty('creditsRedeemed')
+    })
+
+    /**
+     * Positive control for the test above: without it, deleting the streaming
+     * emission entirely would satisfy "the key is absent". The figure differs
+     * from the credits asked for (5n) so it cannot pass by reading the wrong one.
+     */
+    test('streaming: a settle that DOES report a figure publishes it', async () => {
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '0xstream',
+        network: 'eip155:84532',
+        creditsRedeemed: '9',
+      })
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+      async function* makeIterable(chunks: string[]) {
+        for (const c of chunks) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          yield c
+        }
+      }
+      const base = async (_args: any, _extra?: any) => makeIterable(['a'])
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const iterable = await wrapped({}, {
+        requestInfo: { headers: { authorization: 'Bearer tok' } },
+      })
+      const collected: any[] = []
+      for await (const chunk of iterable) collected.push(chunk)
+
+      expect(collected[collected.length - 1]._meta['nevermined/credits'].creditsRedeemed).toBe('9')
     })
 
     test('should redeem when consumer stops stream early', async () => {
