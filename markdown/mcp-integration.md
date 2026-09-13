@@ -472,6 +472,23 @@ On a successful paid call, the SDK injects the settlement receipt under `_meta["
 
 Free / no-credit calls omit the `x402/payment-response` key (no settlement occurred); `nevermined/credits` is still attached with `creditsRedeemed: '0'`.
 
+> ⚠️ **`creditsRedeemed` is not always present on `nevermined/credits`.** When a
+> settle succeeds but the facilitator reports no figure, the key is **omitted**.
+> It used to be filled in with the credits the request *asked* to burn — a number
+> the settle never reported, published under the name of one it did. Nothing
+> substitutes for a missing figure now.
+>
+> | settle | `creditsRedeemed` on `nevermined/credits` |
+> | --- | --- |
+> | succeeded, figure reported | that figure |
+> | succeeded, **no figure reported** | **key absent** |
+> | pay-as-you-go (charged, no balance) | `'0'` — read `billingModel` beside it |
+> | failed, or a free / no-credit call | `'0'` |
+>
+> Read it with `in` rather than truthiness, since `'0'` is both a legitimate value
+> and truthy. The facilitator's response is always passed through verbatim under
+> `x402/payment-response`, so the raw figure is there whatever this summary does.
+
 > **On a pay-as-you-go plan, a paid call also reports `creditsRedeemed: '0'`.** Those plans hold no
 > credit balance — each call is charged directly — so both credit fields read `'0'` even though the
 > buyer *was* charged. Read `billingModel` off `_meta["x402/payment-response"]` to tell the two apart:
