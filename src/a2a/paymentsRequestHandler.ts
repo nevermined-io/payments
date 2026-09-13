@@ -41,6 +41,131 @@ import type {
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
 
 /**
+ * The credits a settle actually redeemed, for `event.metadata.creditsCharged`.
+ *
+ * Reads {@link SettlePermissionsResult.creditsRedeemed} per billing model rather
+ * than trusting it flat, because it does not mean the same thing under both:
+ *
+ * - `credits` — the plan holds a balance and `creditsRedeemed` is what came out
+ *   of it. Report it. It can legitimately differ from the credits the request
+ *   asked to burn (margin-based pricing), which is the whole reason to report
+ *   the settled figure rather than the requested one.
+ * - `pay-as-you-go` — the plan holds no credit balance at all, so
+ *   `creditsRedeemed` is the string `'0'` *even on a settle that charged the
+ *   buyer*. Returning that `0` would tell a buyer they were charged nothing for
+ *   a payment that really happened, so report nothing instead. The charge is
+ *   referenced by `orderTx` (fiat) or `transaction` (crypto); the credits the
+ *   request asked to burn remain on the event as `creditsUsed`, so nothing is
+ *   lost by omitting a figure that has no meaning on this billing model.
+ *
+ *   ⚠️ MCP does the OPPOSITE and that is deliberate — a settled decision (repo
+ *   owner, on the #443 review), not drift. `_meta['nevermined/credits']` reports
+ *   the `'0'` because it emits `billingModel` BESIDE it, so a consumer can read
+ *   it; `creditsCharged` here has no discriminator next to it, so a bare `0`
+ *   would say "you were charged nothing" about a charge that succeeded. Do not
+ *   reconcile the two.
+ * - absent — a Nevermined API older than the discriminator (`creditsRedeemed`
+ *   has been on the settle response since 2026-03-25, `billingModel` only since
+ *   2026-08-06). Apply the `credits` rule: a missing discriminator must never be
+ *   read as pay-as-you-go.
+ *
+ * Mind the type: these are **strings**. `'0'` is truthy while `Number('0') > 0`
+ * is false, so a truthiness check and a numeric one disagree on exactly the
+ * value that matters.
+ *
+ * Three ways this returns `undefined`, and they mean different things — the
+ * first is a design decision, the other two are faults, which is why only the
+ * faults warn:
+ *
+ * 1. the billing model has no credits figure to report (pay-as-you-go, or any
+ *    discriminator that is present and is not `credits`) — silent, by design;
+ * 2. `creditsRedeemed` is absent, or not a plain decimal string — warns;
+ * 3. the value is a decimal string too large for a JS number — warns.
+ *
+ * @param settlement - The settlement receipt as the facilitator returned it
+ * @returns The credits redeemed, or `undefined` per the three cases above
+ */
+/**
+ * A decimal string, and nothing else — no sign, no whitespace, no `0x`/`1e3`,
+ * no fractional part. `Number()` accepts every one of those, and worse, maps the
+ * empty-ish family (`''`, `'   '`, `null`, `[]`, `false`) to **0** rather than
+ * `NaN`, so `Number.isFinite` does not catch them. Publishing that 0 would say
+ * "you were charged nothing" on a settle we simply could not read — the same
+ * class of lie this helper exists to prevent on pay-as-you-go.
+ *
+ * Same reasoning, same shape as `DECIMAL_INTEGER_STRING` in `mpp/mpp-api.ts`.
+ */
+const DECIMAL_INTEGER_STRING = /^\d+$/
+
+function resolveCreditsCharged(settlement: SettlePermissionsResult): number | undefined {
+  // ALLOWLIST, not a denylist. `=== 'pay-as-you-go'` let every other value fall
+  // into the credits branch and publish a `0`: `null`, `''`, `'PAY-AS-YOU-GO'`,
+  // a future third billing model, a non-string. The response is an unchecked
+  // `as SettlePermissionsResult` over `response.json()`, so the union type
+  // provides no runtime guarantee and the wrong values are reachable.
+  //
+  // `undefined` still means `credits` — that is the documented ruling above and
+  // it is preserved exactly. What changes is that a discriminator which is
+  // present but not `credits` now omits rather than reporting a zero.
+  if (settlement.billingModel !== undefined && settlement.billingModel !== 'credits') {
+    return undefined
+  }
+
+  // A FAILED settle has no measured redemption to report, so it gets no figure.
+  // `settlePermissions` does not throw on one — it returns 200 with
+  // `success: false` verbatim — so without this a failure published
+  // `creditsCharged` as though it were measured: `{success: false,
+  // creditsRedeemed: '7'}` reported 7 credits charged for a settle that charged
+  // nothing. The published contract makes that a lie rather than merely noise,
+  // because `markdown/a2a-integration.md` defines `0` as "a real figure, not an
+  // absence" — a number here asserts the settle completed.
+  //
+  // ⚠️ `!== true`, not `=== false`, and the asymmetry with `billingModel` above
+  // is deliberate. An ABSENT `billingModel` is a documented legacy shape (APIs
+  // predating the field) and is read as `credits`; an absent `success` is not a
+  // legacy shape — the field has always been there and is declared
+  // non-optional — so its absence means the response is malformed, and a
+  // malformed response is exactly when not to publish a figure.
+  //
+  // Silent, like the pay-as-you-go branch: a failed settle is a legitimate
+  // outcome the caller already sees on `success`, not a reporting fault.
+  if (settlement.success !== true) {
+    return undefined
+  }
+
+  const raw = settlement.creditsRedeemed
+  if (typeof raw !== 'string' || !DECIMAL_INTEGER_STRING.test(raw)) {
+    // Silence here would be indistinguishable from the pay-as-you-go omission,
+    // which is a deliberate design decision rather than a fault. Warn, as
+    // `x402/express/middleware.ts` does on this same field.
+    console.warn(
+      raw === undefined
+        ? `[PaymentsRequestHandler] settle reported no creditsRedeemed; omitting ` +
+          `creditsCharged rather than publishing a figure`
+        : `[PaymentsRequestHandler] settle reported an unusable creditsRedeemed ` +
+          `(${JSON.stringify(raw)}); omitting creditsCharged rather than publishing a figure`,
+    )
+    return undefined
+  }
+
+  const redeemed = Number(raw)
+  if (!Number.isSafeInteger(redeemed)) {
+    // The wire carries this as a string precisely because it can exceed what a
+    // JS number represents. Above 2^53 the conversion is silently wrong
+    // (`'9007199254740993'` becomes 9007199254740992), and a wrong number is
+    // worse than no number: the exact value is still on the task, verbatim, in
+    // the `x402.payment.receipts` entry that `recordPaymentSuccess` writes.
+    console.warn(
+      `[PaymentsRequestHandler] creditsRedeemed ${raw} exceeds Number.MAX_SAFE_INTEGER; ` +
+        `omitting creditsCharged rather than publishing a rounded figure`,
+    )
+    return undefined
+  }
+
+  return redeemed
+}
+
+/**
  * Options for configuring the PaymentsRequestHandler
  */
 export interface PaymentsRequestHandlerOptions {
@@ -245,13 +370,17 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
    * @param bearerToken - The bearer token for authentication
    * @param creditsUsed - The number of credits to burn
    * @param httpContext - Optional HTTP context with endpoint and method information
-   * @returns Promise resolving to the redemption result
+   * @returns The settlement receipt, verbatim as the facilitator returned it. A
+   *   settle the backend accepted but could not complete comes back as
+   *   `success: false` with an `errorReason` rather than throwing — see
+   *   {@link SettlePermissionsResult} for which fields evidence a charge under
+   *   which billing model.
    */
   private async executeRedemption(
     bearerToken: string,
     creditsUsed: bigint | number,
     httpContext?: HttpRequestContext,
-  ): Promise<any> {
+  ): Promise<SettlePermissionsResult> {
     const decodedAccessToken = decodeAccessToken(bearerToken)
     if (!decodedAccessToken) {
       throw PaymentsError.unauthorized('Invalid access token.')
@@ -551,12 +680,18 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
                 httpContext,
               )
 
-              // Update event metadata with response data
+              // `txHash` is the A2A metadata key a buyer is shown for payment
+              // support; the settle response reports that id as `transaction`.
+              // There is no `txHash` on the wire — see handleTaskFinalization.
               if (response && event.metadata) {
-                event.metadata.txHash = response.txHash ?? response.transaction
-                event.metadata.creditsCharged = response.amountOfCredits
-                  ? Number(response.amountOfCredits)
-                  : event.metadata.creditsUsed
+                event.metadata.txHash = response.transaction
+                // Left unset when the billing model has no credits to report —
+                // see resolveCreditsCharged. `creditsUsed` still carries what
+                // the request asked to burn.
+                const creditsCharged = resolveCreditsCharged(response)
+                if (creditsCharged !== undefined) {
+                  event.metadata.creditsCharged = creditsCharged
+                }
               }
 
               // x402 v2 A2A transport: stamp the settlement receipt onto the
@@ -567,11 +702,7 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
               if (httpContext?.inBand) {
                 const task = resultManager.getCurrentTask()
                 if (task) {
-                  this.recordInBandSettlement(
-                    task,
-                    httpContext,
-                    response as SettlePermissionsResult,
-                  )
+                  this.recordInBandSettlement(task, httpContext, response)
                   await resultManager.processEvent(task)
                 }
               }
@@ -862,16 +993,19 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
             BigInt(creditsToBurn),
             httpContext,
           )
-          settlement = response as SettlePermissionsResult
+          settlement = response
 
-          // Update event metadata with redemption results
+          // Update event metadata with redemption results. `txHash` is the A2A
+          // metadata key, not a wire field: the settle response reports the
+          // transaction id as `transaction`.
+          const creditsCharged = resolveCreditsCharged(response)
           event.metadata = {
             ...event.metadata,
-            txHash: response.txHash ?? response.transaction,
-            // Store the actual credits charged (especially important for margin-based)
-            creditsCharged: response.amountOfCredits
-              ? Number(response.amountOfCredits)
-              : creditsToBurn,
+            txHash: response.transaction,
+            // The credits actually redeemed, omitted entirely when the billing
+            // model has none to report — see resolveCreditsCharged. The credits
+            // this request asked to burn stay available as `creditsUsed`.
+            ...(creditsCharged !== undefined && { creditsCharged }),
           }
         }
       } catch (err) {
