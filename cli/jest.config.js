@@ -5,9 +5,14 @@ export default {
   testMatch: ['**/*.test.ts'],
   testPathIgnorePatterns: [
     '/node_modules/',
+    // plans.test.ts and agents.test.ts were un-ignored in #446 — both only
+    // needed their imports repointed at the renamed generated commands.
+    //
+    // config.test.ts stays ignored: it fails with a Jest TRANSFORM error via
+    // src/commands/config/init.ts, not a stale assertion — an ESM dependency
+    // the transform does not handle. That is a jest-config problem of its own
+    // and is tracked on #446; do not un-ignore it without fixing the transform.
     '/test/unit/config.test.ts',
-    '/test/unit/plans.test.ts',
-    '/test/unit/agents.test.ts',
   ],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
