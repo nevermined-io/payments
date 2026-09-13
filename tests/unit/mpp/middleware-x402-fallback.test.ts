@@ -9,6 +9,11 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware, X402_HEADERS } from '../../../src/x402/express/index.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
+import type { MppSettleResult } from '../../../src/mpp/mpp-api.js'
 import { mppCredentialFixture } from './credential-fixture.js'
 
 const X402_TOKEN = 'mock-x402-token'
@@ -17,18 +22,23 @@ function buildMockPayments(overrides: Record<string, unknown> = {}) {
   return {
     mpp: {
       issueChallenge: jest.fn().mockResolvedValue({ challenge: 'Payment id="c1"', id: 'c1' }),
-      verifyCredential: jest.fn().mockResolvedValue({ isValid: true }),
+      verifyCredential: jest.fn().mockResolvedValue({ isValid: true } satisfies VerifyPermissionsResult),
       settleCredential: jest.fn().mockResolvedValue({
         success: true,
         transaction: '0x',
         network: 'eip155:84532',
         paymentReceipt: 'receipt-b64',
-      }),
+      } satisfies MppSettleResult),
       ...(overrides.mpp as object),
     },
     facilitator: {
-      verifyPermissions: jest.fn().mockResolvedValue({ isValid: true, agentRequestId: 'req-1' }),
-      settlePermissions: jest.fn().mockResolvedValue({ success: true, creditsRedeemed: '2' }),
+      verifyPermissions: jest.fn().mockResolvedValue({ isValid: true, agentRequestId: 'req-1' } satisfies VerifyPermissionsResult),
+      settlePermissions: jest.fn().mockResolvedValue({
+        success: true,
+        transaction: '0x',
+        network: 'eip155:84532',
+        creditsRedeemed: '2',
+      } satisfies SettlePermissionsResult),
       ...(overrides.facilitator as object),
     },
     getEnvironmentName: () => 'sandbox',

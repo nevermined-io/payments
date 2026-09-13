@@ -22,6 +22,10 @@ import * as utils from '../../../src/utils.js'
 import { encodeAccessToken } from '../../../src/utils.js'
 import type { AgentCard, ExecutionEventBus, PaymentsAgentExecutor } from '../../../src/a2a/types.js'
 import type { Payments } from '../../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
 
 /**
  * A spec-shaped x402 PaymentPayload object (the decoded form of an access
@@ -55,7 +59,7 @@ class MockFacilitatorAPI {
   shouldFailVerify = false
   shouldFailSettle = false
 
-  async verifyPermissions(params: any): Promise<{ isValid: boolean; invalidReason?: string }> {
+  async verifyPermissions(params: any): Promise<VerifyPermissionsResult> {
     this.verifyCallCount++
     this.lastVerifyToken = params.x402AccessToken
     if (this.shouldFailVerify) {
@@ -64,12 +68,7 @@ class MockFacilitatorAPI {
     return { isValid: true }
   }
 
-  async settlePermissions(params: any): Promise<{
-    success: boolean
-    transaction: string
-    network: string
-    creditsRedeemed: string
-  }> {
+  async settlePermissions(params: any): Promise<SettlePermissionsResult> {
     this.settleCallCount++
     this.lastSettleToken = params.x402AccessToken
     if (this.shouldFailSettle) {

@@ -9,7 +9,7 @@ development workflow (build, lint, tests, releases) and
 
 ```bash
 pnpm install
-pnpm build && pnpm lint && pnpm test:unit   # the pre-PR check
+pnpm build && pnpm lint && pnpm typecheck:tests && pnpm test:unit   # the pre-PR check
 ```
 
 ## Documentation

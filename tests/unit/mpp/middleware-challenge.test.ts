@@ -5,23 +5,34 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
+import type { MppSettleResult } from '../../../src/mpp/mpp-api.js'
 
 function buildMockPayments(overrides: Record<string, unknown> = {}) {
   return {
     mpp: {
       issueChallenge: jest.fn().mockResolvedValue({ challenge: 'Payment id="c1"', id: 'c1' }),
-      verifyCredential: jest.fn().mockResolvedValue({ isValid: true }),
+      verifyCredential: jest.fn().mockResolvedValue({ isValid: true } satisfies VerifyPermissionsResult),
       settleCredential: jest.fn().mockResolvedValue({
         success: true,
         transaction: '0x',
         network: 'eip155:84532',
         paymentReceipt: 'receipt-b64',
-      }),
+      } satisfies MppSettleResult),
       ...(overrides.mpp as object),
     },
     facilitator: {
-      verifyPermissions: jest.fn().mockResolvedValue({ isValid: true }),
-      settlePermissions: jest.fn().mockResolvedValue({ success: true }),
+      verifyPermissions: jest
+        .fn()
+        .mockResolvedValue({ isValid: true } satisfies VerifyPermissionsResult),
+      settlePermissions: jest.fn().mockResolvedValue({
+        success: true,
+        transaction: '0x',
+        network: 'eip155:84532',
+      } satisfies SettlePermissionsResult),
     },
     getEnvironmentName: () => 'sandbox',
     plans: { getPlan: jest.fn().mockResolvedValue({ registry: { price: { isCrypto: true } } }) },

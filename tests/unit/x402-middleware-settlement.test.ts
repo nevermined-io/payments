@@ -14,6 +14,10 @@ import type { Request, Response } from 'express'
 import http from 'http'
 import net from 'net'
 import { paymentMiddleware, X402_HEADERS } from '../../src/x402/express/index.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 
 // Use the same mock token shape the rest of the test suite uses so the
 // middleware's verify call gets past the shape checks.
@@ -23,7 +27,11 @@ const MOCK_TOKEN = 'mock-x402-token'
 function buildMockPayments(opts: { settleSpy: jest.Mock; verifySpy?: jest.Mock }) {
   const verify =
     opts.verifySpy ??
-    jest.fn().mockResolvedValue({ isValid: true, agentRequest: undefined, agentRequestId: 'req-1' })
+    jest.fn().mockResolvedValue({
+      isValid: true,
+      agentRequest: undefined,
+      agentRequestId: 'req-1',
+    } satisfies VerifyPermissionsResult)
   return {
     facilitator: {
       verifyPermissions: verify,
@@ -94,11 +102,18 @@ async function postWithToken(port: number): Promise<{
 }
 
 describe('paymentMiddleware settlement coverage (#1728)', () => {
+  // `transaction` and `network` are required on the model and were missing here;
+  // these tests read neither, so the values only have to be coherent. They match
+  // the pre-existing hex `orderTx`, i.e. a crypto rail whose settle had to order
+  // credits first — deliberately NOT a PSP name, which would pin a fiat rail
+  // inside a test that is about response methods, not rails.
   const baseSettlement = {
     success: true,
+    transaction: '0xsettletx',
+    network: 'eip155:84532',
     creditsRedeemed: '1',
     orderTx: '0xabc',
-  }
+  } satisfies SettlePermissionsResult
 
   test('settles when handler uses res.json', async () => {
     const settleSpy = jest.fn().mockResolvedValue(baseSettlement)

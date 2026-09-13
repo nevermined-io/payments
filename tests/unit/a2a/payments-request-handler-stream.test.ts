@@ -6,13 +6,38 @@ import { PaymentsRequestHandler } from '../../../src/a2a/paymentsRequestHandler.
 import type { Payments } from '../../../src/payments.js'
 import type { HttpRequestContext } from '../../../src/a2a/types.js'
 import type { AgentCard, Task } from '@a2a-js/sdk'
+import type { AgentExecutor } from '@a2a-js/sdk/server'
+import type { StartAgentRequest } from '../../../src/common/types.js'
 
 jest.mock('@a2a-js/sdk/server')
 
-class DummyExecutor {
+class DummyExecutor implements AgentExecutor {
   async execute(...args: any[]): Promise<any> {
     // Dummy implementation
   }
+
+  async cancelTask(...args: any[]): Promise<any> {
+    // Dummy implementation — never exercised, but part of the interface.
+  }
+}
+
+const VALIDATION: StartAgentRequest = {
+  agentRequestId: 'agentReq',
+  agentName: 'test-agent',
+  agentId: 'test-agent',
+  balance: {
+    planId: 'plan-1',
+    planName: 'Test Plan',
+    planType: 'credits',
+    holderAddress: '0x1111111111111111111111111111111111111111',
+    balance: '100',
+    creditsContract: '0x2222222222222222222222222222222222222222',
+    isSubscriber: true,
+    pricePerCredit: 1,
+  },
+  urlMatching: 'https://x',
+  verbMatching: 'POST',
+  batch: false,
 }
 
 describe('PaymentsRequestHandler streaming', () => {
@@ -34,7 +59,21 @@ describe('PaymentsRequestHandler streaming', () => {
       get: jest.fn().mockResolvedValue(undefined),
     }
 
+    // Complete rather than `as unknown as AgentCard`: that double assertion is
+    // the one escape the typecheck gate cannot see through, so a card that
+    // drifted from the SDK's would stay invisible — in the PR whose point is
+    // making such drift visible. Only `capabilities` carries anything this spec
+    // reads; the other eight are AgentCard's required fields, present so the
+    // compiler can still check the shape.
     mockAgentCard = {
+      protocolVersion: '0.3.0',
+      name: 'test-agent',
+      description: 'Streaming credit-burn fixture',
+      url: 'https://example.test/a2a',
+      version: '1.0.0',
+      defaultInputModes: ['text/plain'],
+      defaultOutputModes: ['text/plain'],
+      skills: [],
       capabilities: {
         extensions: [
           {
@@ -45,7 +84,7 @@ describe('PaymentsRequestHandler streaming', () => {
           },
         ],
       },
-    } as AgentCard
+    }
   })
 
   test('should burn credits when streaming final event with creditsUsed', async () => {
@@ -102,7 +141,7 @@ describe('PaymentsRequestHandler streaming', () => {
       bearerToken: 'TOK',
       urlRequested: 'https://x',
       httpMethodRequested: 'POST',
-      validation: { agentRequestId: 'agentReq' },
+      validation: VALIDATION,
     }
 
     handler.setHttpRequestContextForTask('tid', ctx)
