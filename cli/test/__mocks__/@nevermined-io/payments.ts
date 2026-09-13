@@ -14,7 +14,8 @@ export interface MockPlanBalance {
   planName: string
   planType: string
   holderAddress: string
-  balance: bigint
+  /** Decimal string — the wire shape. See SDK PlanBalance.balance (#440/#441). */
+  balance: string
   creditsContract: string
   isSubscriber: boolean
   pricePerCredit: number
@@ -79,7 +80,15 @@ const mockPaymentMethods = [
 export const Payments = {
   getInstance: jest.fn(() => ({
     plans: {
-      getPlans: jest.fn(async () => ({ data: mockPlans })),
+      // Mirrors PlansAPI.getPlans, which returns { total, page, offset, plans }
+      // — NOT { data }. The old shape was drift nothing could catch, because
+      // the only test reading it is in jest's testPathIgnorePatterns.
+      getPlans: jest.fn(async () => ({
+        total: mockPlans.length,
+        page: 1,
+        offset: 100,
+        plans: mockPlans,
+      })),
       getPlan: jest.fn(async (planId: string) => {
         const plan = mockPlans.find((p) => p.did === planId)
         if (!plan) throw new Error(`Plan ${planId} not found`)
@@ -94,7 +103,7 @@ export const Payments = {
           planName: plan.name,
           planType: plan.planType,
           holderAddress: '0x1234567890123456789012345678901234567890',
-          balance: BigInt(1000),
+          balance: '1000',
           creditsContract: '0x0987654321098765432109876543210987654321',
           isSubscriber: true,
           pricePerCredit: 0.01,

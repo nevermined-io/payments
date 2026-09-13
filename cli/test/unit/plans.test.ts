@@ -3,9 +3,9 @@
  */
 
 import { expect, test, describe, beforeEach, afterEach, jest } from '@jest/globals'
-import PlansList from '../../src/commands/plans/list.js'
-import PlansGet from '../../src/commands/plans/get.js'
-import PlansBalance from '../../src/commands/plans/balance.js'
+import PlansList from '../../src/commands/plans/get-plans.js'
+import PlansGet from '../../src/commands/plans/get-plan.js'
+import PlansBalance from '../../src/commands/plans/get-plan-balance.js'
 import { createTestConfig, cleanupTestConfig, OutputCapture } from '../helpers/test-utils.js'
 
 // Use manual mock for Payments SDK
@@ -49,10 +49,13 @@ describe('plans commands', () => {
       const logs = output.getOutput()
       const parsed = JSON.parse(logs)
 
-      expect(Array.isArray(parsed)).toBe(true)
-      expect(parsed.length).toBe(2)
-      expect(parsed[0].name).toBe('Test Plan 1')
-      expect(parsed[1].name).toBe('Test Plan 2')
+      // `getPlans` returns the paginated envelope, not a bare array — the
+      // command outputs the SDK result verbatim.
+      expect(Array.isArray(parsed.plans)).toBe(true)
+      expect(parsed.plans.length).toBe(2)
+      expect(parsed.plans[0].name).toBe('Test Plan 1')
+      expect(parsed.plans[1].name).toBe('Test Plan 2')
+      expect(parsed.total).toBe(2)
     })
 
     test('should work with quiet format', async () => {
@@ -95,7 +98,10 @@ describe('plans commands', () => {
       const logs = output.getOutput()
       expect(logs).toContain('Test Plan 1')
       expect(logs).toContain('1000')
-      expect(logs).toContain('Yes') // Is Subscriber
+      // The table formatter renders values with String(), so a boolean is
+      // 'true' — it has no Yes/No mapping and never has. The old expectation
+      // could only ever have passed against a formatter that no longer exists.
+      expect(logs).toContain('true') // isSubscriber
     })
 
     test('should get balance in JSON format', async () => {
