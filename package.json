@@ -44,6 +44,7 @@
   "scripts": {
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build": "tsc",
+    "typecheck:tests": "tsc --noEmit -p tests/tsconfig.json",
     "build:all": "pnpm build && pnpm cli:build",
     "lint": "eslint ./src",
     "test": "jest --verbose --config ./tests/jest.config.json",

@@ -4,6 +4,10 @@
 
 import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 import * as utils from '../../src/utils.js'
 
 // Mock decodeAccessToken to provide x402-compliant token structure
@@ -42,14 +46,14 @@ class PaymentsMinimal {
         this.subscriber = subscriber
       }
 
-      async verifyPermissions(params: any) {
+      async verifyPermissions(params: any): Promise<VerifyPermissionsResult> {
         if (!this.subscriber) {
           throw new Error('Subscriber not found')
         }
         return { isValid: true }
       }
 
-      async settlePermissions(params: any) {
+      async settlePermissions(params: any): Promise<SettlePermissionsResult> {
         return {
           success: true,
           transaction: '0x1234567890abcdef',
@@ -78,7 +82,7 @@ describe('MCP Integration', () => {
   test('should validate and burn credits with minimal mocks', async () => {
     const payments = new PaymentsMinimal() as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp-int' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent', serverName: 'mcp-int' })
 
     const handler = async (_args: any) => {
       return { content: [{ type: 'text', text: 'hello' }] }
@@ -99,7 +103,7 @@ describe('MCP Integration', () => {
   test('should trigger payment required when not subscriber', async () => {
     const payments = new PaymentsMinimal(false) as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp-int' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent', serverName: 'mcp-int' })
 
     const handler = async (_args: any) => {
       return { content: [{ type: 'text', text: 'hello' }] }
@@ -136,14 +140,14 @@ describe('MCP Integration', () => {
             this.outer = outer
             this.subscriber = subscriber
           }
-          async verifyPermissions(params: any) {
+          async verifyPermissions(params: any): Promise<VerifyPermissionsResult> {
             if (!this.subscriber) {
               throw new Error('Subscriber not found')
             }
             return { isValid: true }
           }
 
-          async settlePermissions(params: any) {
+          async settlePermissions(params: any): Promise<SettlePermissionsResult> {
             const planId = params.paymentRequired?.accepts?.[0]?.planId || 'plan-123'
             const maxAmount = params.maxAmount || 0n
             const hash = `${planId}-${maxAmount}`
@@ -180,7 +184,7 @@ describe('MCP Integration', () => {
 
     const payments = new PaymentsWithX402(true) as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent:abc123', serverName: 'weather-service' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent:abc123', serverName: 'weather-service' })
 
     const capturedContexts: any[] = []
 

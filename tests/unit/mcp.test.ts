@@ -4,6 +4,10 @@
 
 import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 import * as utils from '../../src/utils.js'
 
 // Mock decodeAccessToken to provide x402-compliant token structure
@@ -33,19 +37,30 @@ class PaymentsMock {
   public agents: any
   public facilitator: any
 
-  constructor(settleResult?: any) {
-    const settle_result = settleResult || { success: true }
+  constructor(settleResult?: SettlePermissionsResult) {
+    // An ordinary successful crypto settle. `transaction` and `network` are
+    // required on the model, so the previous `{ success: true }` was a response
+    // the facilitator cannot produce — but an EMPTY `transaction` would not do
+    // either: the model documents it as the failure marker, so pairing it with
+    // `success: true` would teach every future fixture a contradiction.
+    // `creditsRedeemed` is deliberately absent, so tests inheriting this default
+    // still exercise the paywall's fallback to the requested credit amount.
+    const settle_result: SettlePermissionsResult = settleResult || {
+      success: true,
+      transaction: '0xdefaultsettletx',
+      network: 'eip155:84532',
+    }
 
     class Facilitator {
       private parent: PaymentsMock
-      private settle_result: any
+      private settle_result: SettlePermissionsResult
 
-      constructor(parent: PaymentsMock, settle_result: any) {
+      constructor(parent: PaymentsMock, settle_result: SettlePermissionsResult) {
         this.parent = parent
         this.settle_result = settle_result
       }
 
-      async verifyPermissions(input: any) {
+      async verifyPermissions(input: any): Promise<VerifyPermissionsResult> {
         const planId =
           typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
@@ -61,7 +76,7 @@ class PaymentsMock {
         return { isValid: true }
       }
 
-      async settlePermissions(input: any) {
+      async settlePermissions(input: any): Promise<SettlePermissionsResult> {
         const planId =
           typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
@@ -99,7 +114,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -128,10 +143,20 @@ describe('MCP Integration', () => {
     })
 
     test('should add metadata to result after successful redemption', async () => {
-      const mockInstance = new PaymentsMock()
+      // Explicit rather than the constructor default, because this test turns on
+      // what `transaction` holds: the paywall gates `txHash` on it being truthy,
+      // so an empty one — what the backend sends when the settle had no on-chain
+      // transaction, as the "transaction is empty" test below also models — must
+      // produce no `txHash` key at all. Inheriting a default would let a change
+      // to that default silently change which invariant this proves.
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '',
+        network: 'eip155:84532',
+      })
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -217,11 +242,11 @@ describe('MCP Integration', () => {
         transaction: '0x1234567890abcdef',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -260,11 +285,11 @@ describe('MCP Integration', () => {
         creditsRedeemed: '0',
         remainingBalance: '0',
         orderTx: 'pi_3U6tgrBYvSRKcV421ehH4bnX',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => ({
         content: [{ type: 'text', text: 'ok' }],
@@ -299,7 +324,7 @@ describe('MCP Integration', () => {
       })
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => ({
         content: [{ type: 'text', text: 'ok' }],
@@ -329,11 +354,11 @@ describe('MCP Integration', () => {
         transaction: '',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -364,11 +389,11 @@ describe('MCP Integration', () => {
         network: 'eip155:84532',
         creditsRedeemed: '10', // Backend may return different value than requested
         remainingBalance: '90',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -391,11 +416,16 @@ describe('MCP Integration', () => {
       // Post-execution settlement failure: under the x402 v2 MCP transport the
       // tool content is suppressed and an in-band payment error is returned
       // (default onRedeemError "ignore" no longer delivers paid content).
-      const redeemResult = { success: false, errorReason: 'Insufficient credits' }
+      const redeemResult = {
+        success: false,
+        errorReason: 'Insufficient credits',
+        transaction: '',
+        network: 'eip155:84532',
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(redeemResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -442,7 +472,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -466,7 +496,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:x', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:x', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { res: true }
@@ -485,7 +515,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:x', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:x', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { res: true }
@@ -507,7 +537,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'srv' })
 
       const captured: any = {}
 
@@ -566,7 +596,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { ok: true }
@@ -595,7 +625,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -643,11 +673,11 @@ describe('MCP Integration', () => {
         transaction: '0xstream123',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -696,11 +726,11 @@ describe('MCP Integration', () => {
         creditsRedeemed: '0',
         remainingBalance: '0',
         orderTx: 'pi_3StreamPayg',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -816,7 +846,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -873,7 +903,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const oldHandler = async (args: any, extra?: any) => {
         return {
@@ -907,7 +937,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       let capturedContext: any = null
 
@@ -936,7 +966,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       let capturedContext: any = null
 
@@ -979,7 +1009,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const businessLogicHandler = async (args: any, extra?: any, context?: any) => {
         if (!context) {

@@ -5,6 +5,10 @@
 import express from 'express'
 import http from 'http'
 import { paymentMiddleware } from '../../../src/x402/express/index.js'
+import type {
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
+import type { MppSettleResult } from '../../../src/mpp/mpp-api.js'
 import { mppCredentialFixture } from './credential-fixture.js'
 import {
   MppChallengeExpiredError,
@@ -34,14 +38,14 @@ function buildMockPayments(mpp: Record<string, unknown> = {}) {
         .fn()
         .mockResolvedValueOnce({ challenge: 'Payment id="c1"', id: 'c1' })
         .mockResolvedValue({ challenge: 'Payment id="c2"', id: 'c2' }),
-      verifyCredential: jest.fn().mockResolvedValue({ isValid: true }),
+      verifyCredential: jest.fn().mockResolvedValue({ isValid: true } satisfies VerifyPermissionsResult),
       settleCredential: jest.fn().mockResolvedValue({
         success: true,
         transaction: '0x',
         network: 'eip155:84532',
         creditsRedeemed: '2',
         paymentReceipt: 'receipt-b64',
-      }),
+      } satisfies MppSettleResult),
       ...mpp,
     },
     facilitator: {
@@ -360,7 +364,7 @@ describe('MPP redemption', () => {
           network: 'eip155:84532',
           creditsRedeemed: '2', // sealed into the challenge, not routeCredits below
           paymentReceipt: 'receipt-b64',
-        }),
+        } satisfies MppSettleResult),
       })
       const onAfterSettle = jest.fn()
       const { port, close } = await startServer(
@@ -394,7 +398,7 @@ describe('MPP redemption', () => {
           transaction: '0x',
           network: 'eip155:84532',
           paymentReceipt: 'receipt-b64',
-        }),
+        } satisfies MppSettleResult),
       })
       const onAfterSettle = jest.fn()
       const { port, close } = await startServer(payments, undefined, { onAfterSettle })
@@ -456,7 +460,7 @@ describe('MPP redemption', () => {
           errorReason: 'insufficient balance at settle time',
           transaction: '',
           network: 'eip155:84532',
-        }),
+        } satisfies MppSettleResult),
       })
       const onAfterSettle = jest.fn()
       const { port, close } = await startServer(payments, undefined, { onAfterSettle })
@@ -496,7 +500,7 @@ describe('MPP redemption', () => {
           network: 'eip155:84532',
           creditsRedeemed: 'not-a-number',
           paymentReceipt: 'receipt-b64',
-        }),
+        } satisfies MppSettleResult),
       })
       const onAfterSettle = jest.fn()
       const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)

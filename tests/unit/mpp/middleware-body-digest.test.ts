@@ -14,6 +14,10 @@ import express from 'express'
 import http from 'http'
 import { createHash } from 'crypto'
 import { paymentMiddleware, captureRawBody } from '../../../src/x402/express/index.js'
+import type {
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
+import type { MppSettleResult } from '../../../src/mpp/mpp-api.js'
 import { mppCredentialFixture } from './credential-fixture.js'
 
 // A credential is single-use: the middleware refuses one that has already
@@ -35,13 +39,13 @@ function buildMockPayments(overrides: Record<string, unknown> = {}) {
   return {
     mpp: {
       issueChallenge: jest.fn().mockResolvedValue({ challenge: 'Payment id="c1"', id: 'c1' }),
-      verifyCredential: jest.fn().mockResolvedValue({ isValid: true }),
+      verifyCredential: jest.fn().mockResolvedValue({ isValid: true } satisfies VerifyPermissionsResult),
       settleCredential: jest.fn().mockResolvedValue({
         success: true,
         transaction: '0x',
         network: 'eip155:84532',
         paymentReceipt: 'receipt-b64',
-      }),
+      } satisfies MppSettleResult),
       ...(overrides.mpp as object),
     },
     facilitator: { verifyPermissions: jest.fn(), settlePermissions: jest.fn() },

@@ -16,6 +16,10 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import http from 'http'
 import { paymentMiddleware, X402_HEADERS } from '../../src/x402/express/index.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 
 /**
  * A real v3 envelope, base64 of compact JSON — long, padded, and containing
@@ -159,7 +163,11 @@ describe('paymentMiddleware — a replayed single-use token is not served', () =
   test('the body is withheld and the reused token is refused on the next request', async () => {
     const verifySpy = jest
       .fn()
-      .mockResolvedValue({ isValid: true, agentRequestId: 'req-1', agentRequest: undefined })
+      .mockResolvedValue({
+        isValid: true,
+        agentRequestId: 'req-1',
+        agentRequest: undefined,
+      } satisfies VerifyPermissionsResult)
     const settleSpy = jest.fn().mockRejectedValue(spentTokenError())
     const { port, close } = await startServer(verifySpy, settleSpy)
 
@@ -187,13 +195,17 @@ describe('paymentMiddleware — v3 token relay', () => {
   test('the token reaches verify and settle byte-for-byte', async () => {
     const verifySpy = jest
       .fn()
-      .mockResolvedValue({ isValid: true, agentRequestId: 'req-1', agentRequest: undefined })
+      .mockResolvedValue({
+        isValid: true,
+        agentRequestId: 'req-1',
+        agentRequest: undefined,
+      } satisfies VerifyPermissionsResult)
     const settleSpy = jest.fn().mockResolvedValue({
       success: true,
       transaction: '0xtx',
       network: 'eip155:84532',
       creditsRedeemed: '1',
-    })
+    } satisfies SettlePermissionsResult)
     const { port, close } = await startServer(verifySpy, settleSpy)
 
     try {
