@@ -21,7 +21,7 @@ The Payments Library provides:
 
 Before installing the Nevermined Payments Library, ensure you have:
 
-- **Node.js**: Version 18.x or higher
+- **Node.js**: Version 20.19 or higher (jose 6, a runtime dependency, dropped Node 18)
 - **TypeScript**: Version 5.x or higher (recommended)
 - **Nevermined API Key**: Get your free API key from [nevermined.app](https://nevermined.app)
 - **Package Manager**: npm (included with Node.js) or pnpm
