@@ -8,7 +8,7 @@ export default class GetDynamicCreditsConfig extends BaseCommand {
   static override description = "Builds a DYNAMIC credits configuration (range-limited per request)."
 
   static override examples = [
-    '$ nvm plans get-dynamic-credits-config'
+    '$ nevermined plans get-dynamic-credits-config'
   ]
 
   static override flags = {

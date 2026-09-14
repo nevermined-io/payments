@@ -1,5 +1,13 @@
 export interface EnvironmentInfo {
   frontend: string
+  /**
+   * Base URL of the standalone, Privy-free embed app (the `embed.<tier>`
+   * origin that serves the chromeless `/cards/*` and `/checkout/*` pages).
+   * Formed by prepending `embed.` to the webapp host. The CLI redirect-mode
+   * card flows open `${embed}/cards/setup` here — the old webapp
+   * `/embed/cards/*` routes were removed in the #1787 cutover.
+   */
+  embed: string
   backend: string
   proxy: string
   heliconeUrl: string
@@ -10,34 +18,53 @@ export const ZeroAddress = '0x0000000000000000000000000000000000000000'
 export type EnvironmentName = 'staging_sandbox' | 'staging_live' | 'sandbox' | 'live' | 'custom'
 
 /**
- * Represents the different environments and their corresponding URLs.
+ * Maps the prefix of an NVM API key (`<prefix>:<jwt>`) to the environment the
+ * key targets. This is the inverse of the backend's `addPrefixToToken`: a key
+ * minted for `staging_sandbox` carries the prefix `sandbox-staging`, i.e.
+ * `{env}-{deployment}` on the wire maps to `{deployment}_{env}` here.
+ *
+ * @param nvmApiKey - The full NVM API key (`<prefix>:<jwt>`), or a bare JWT.
+ * @returns The mapped {@link EnvironmentName}, or `undefined` when the key has
+ *   no prefix or the prefix is not recognized (caller falls back to the
+ *   deprecated `environment` option, else `custom`).
  */
-/**
- * Visa backend URLs mapped by environment name.
- * When scheme is 'visa', the facilitator and token APIs use these URLs
- * for verify, settle, and access-token operations while the main NVM
- * backend (from Environments) is still used for plans, agents, etc.
- */
-export const VisaBackendUrls: Record<EnvironmentName, string> = {
-  staging_sandbox: process.env.VISA_STAGING_SANDBOX_URL || 'https://visa.nevermined.dev/api/',
-  staging_live: process.env.VISA_STAGING_LIVE_URL || 'https://visa.nevermined.dev/api/',
-  sandbox: process.env.VISA_SANDBOX_URL || 'https://visa.nevermined.dev/api/',
-  live: process.env.VISA_LIVE_URL || 'https://visa.nevermined.dev/api/',
-  custom: process.env.VISA_BACKEND_URL || 'http://localhost:3000/api/',
+export const getEnvironmentFromApiKey = (nvmApiKey: string): EnvironmentName | undefined => {
+  if (!nvmApiKey || !nvmApiKey.includes(':')) return undefined
+  // Backend-minted prefixes are always lowercase; lowercasing keeps this in
+  // exact parity with the payments-py sibling and tolerates a non-canonical
+  // uppercase prefix.
+  const prefix = nvmApiKey.slice(0, nvmApiKey.indexOf(':')).toLowerCase()
+  switch (prefix) {
+    case 'sandbox-staging':
+      return 'staging_sandbox'
+    case 'live-staging':
+      return 'staging_live'
+    case 'sandbox':
+      return 'sandbox'
+    case 'live':
+      return 'live'
+    default:
+      return undefined
+  }
 }
 
+/**
+ * Represents the different environments and their corresponding URLs.
+ */
 export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
   /**
    * The staging environment URLs.
    */
   staging_sandbox: {
     frontend: 'https://nevermined.dev',
+    embed: 'https://embed.nevermined.dev',
     backend: 'https://api.sandbox.nevermined.dev/',
     proxy: 'https://proxy.sandbox.nevermined.dev',
     heliconeUrl: 'https://helicone.nevermined.dev',
   },
   staging_live: {
     frontend: 'https://nevermined.dev',
+    embed: 'https://embed.nevermined.dev',
     backend: 'https://api.live.nevermined.dev/',
     proxy: 'https://proxy.live.nevermined.dev',
     heliconeUrl: 'https://helicone.nevermined.dev',
@@ -47,6 +74,7 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
    */
   sandbox: {
     frontend: 'https://nevermined.app',
+    embed: 'https://embed.nevermined.app',
     backend: 'https://api.sandbox.nevermined.app/',
     proxy: 'https://proxy.sandbox.nevermined.app',
     heliconeUrl: 'https://helicone.nevermined.dev',
@@ -56,6 +84,7 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
    */
   live: {
     frontend: 'https://nevermined.app',
+    embed: 'https://embed.nevermined.app',
     backend: 'https://api.live.nevermined.app/',
     proxy: 'https://proxy.live.nevermined.app',
     heliconeUrl: 'https://helicone.nevermined.dev',
@@ -65,6 +94,12 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
    */
   custom: {
     frontend: process.env.NVM_FRONTEND_URL || 'http://localhost:4200',
+    // No fallback to NVM_FRONTEND_URL: the webapp host no longer serves
+    // the card pages post-#1787 cutover, so silently reusing it would
+    // reintroduce a dead-route footgun. The embed app runs on its own
+    // port (4250, matching nvm-monorepo#1824); set NVM_EMBED_URL to
+    // override.
+    embed: process.env.NVM_EMBED_URL || 'http://localhost:4250',
     backend: process.env.NVM_BACKEND_URL || 'http://localhost:3001',
     proxy: process.env.NVM_PROXY_URL || 'https://localhost:443',
     heliconeUrl: process.env.HELICONE_URL || 'http://localhost:8585',

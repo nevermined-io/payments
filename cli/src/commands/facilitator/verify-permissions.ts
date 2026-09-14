@@ -8,7 +8,7 @@ export default class VerifyPermissions extends BaseCommand {
   static override description = "Verify if a subscriber has permission to use credits from a payment plan. This method simulates the credit usage without actually burning credits, checking if the subscriber has sufficient balance and permissions. The planId and subscriberAddress are extracted from the x402AccessToken."
 
   static override examples = [
-    '$ nvm facilitator verify-permissions'
+    '$ nevermined facilitator verify-permissions'
   ]
 
   static override flags = {

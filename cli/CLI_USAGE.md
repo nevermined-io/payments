@@ -15,7 +15,7 @@ yarn build
 
 ```bash
 npm install -g @nevermined-io/cli
-nvm --help
+nevermined --help
 ```
 
 ### Option 3: Via npx (No Installation)

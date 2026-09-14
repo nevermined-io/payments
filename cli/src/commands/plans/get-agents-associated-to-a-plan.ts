@@ -8,7 +8,7 @@ export default class GetAgentsAssociatedToAPlan extends BaseCommand {
   static override description = "Gets the list of Agents that have associated a specific Payment Plan. All the agents returned can be accessed by the users that are subscribed to the Payment Plan."
 
   static override examples = [
-    '$ nvm plans get-agents-associated-to-a-plan <planId>'
+    '$ nevermined plans get-agents-associated-to-a-plan <planId>'
   ]
 
   static override flags = {

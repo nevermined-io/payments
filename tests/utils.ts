@@ -1,8 +1,6 @@
 /**
  * Shared test utilities for polling async conditions (e.g., waiting for RPC sync).
  */
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck - rootDir restriction doesn't apply to test utilities importing from src
 import { ZeroAddress } from '../src/environments.js'
 
 /**

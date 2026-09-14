@@ -41,8 +41,8 @@ export type OAuthScope = (typeof DEFAULT_OAUTH_SCOPES)[number]
 export interface OAuthConfig {
   /** Base URL of the MCP server (e.g., http://localhost:5001) */
   baseUrl: string
-  /** Agent ID (client_id) for OAuth flows */
-  agentId: string
+  /** Agent ID (client_id) for OAuth flows — optional, informational only */
+  agentId?: string
   /** Nevermined environment to derive OAuth URLs */
   environment: EnvironmentName
   /** Custom OAuth URLs (overrides environment defaults) */
