@@ -11,7 +11,7 @@ The Nevermined OpenClaw plugin exposes AI agent payment operations as gateway to
 ## Prerequisites
 
 - An [OpenClaw](https://openclaw.ai) gateway instance
-- Node.js >= 18.0.0
+- Node.js >= 20.0.0
 - A [Nevermined account](https://nevermined.app) (free to create)
 
 ## Installation
