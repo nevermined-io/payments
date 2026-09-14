@@ -1,6 +1,6 @@
 {
   "name": "@nevermined-io/payments",
-  "version": "1.4.0",
+  "version": "1.13.0",
   "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -35,11 +35,16 @@
     "./langchain": {
       "types": "./dist/x402/langchain/index.d.ts",
       "import": "./dist/x402/langchain/index.js"
+    },
+    "./langsmith": {
+      "types": "./dist/x402/langsmith/index.d.ts",
+      "import": "./dist/x402/langsmith/index.js"
     }
   },
   "scripts": {
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build": "tsc",
+    "typecheck:tests": "tsc --noEmit -p tests/tsconfig.json",
     "build:all": "pnpm build && pnpm cli:build",
     "lint": "eslint ./src",
     "test": "jest --verbose --config ./tests/jest.config.json",
@@ -49,6 +54,8 @@
     "format": "prettier --check ./src",
     "prepublishOnly": "pnpm build",
     "doc": "typedoc --out docs ./src",
+    "docs:lint-links": "python3 ./scripts/lint_doc_links.py",
+    "docs:check-links": "./scripts/check_synced_doc_links.sh",
     "cli:build": "cd cli && pnpm build",
     "cli:dev": "cd cli && pnpm dev",
     "cli:test": "cd cli && pnpm test",
@@ -60,6 +67,7 @@
     "@babel/core": "^7.27.4",
     "@babel/preset-env": "^7.27.2",
     "@google-cloud/aiplatform": "^6.1.0",
+    "@langchain/langgraph": "1.2.0",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "@types/express": "4.17.23",
     "@types/jest": "^29.5.13",
@@ -79,6 +87,7 @@
     "eslint-plugin-tsdoc": "^0.5.2",
     "jest": "^29.7.0",
     "langchain": "^0.3.37",
+    "langsmith": "^0.7.4",
     "openai": "^6.2.0",
     "prettier": "^3.2.5",
     "source-map-support": "^0.5.21",
@@ -92,9 +101,11 @@
     "typescript": "^5.3.3"
   },
   "peerDependencies": {
+    "@langchain/core": ">=0.3.0",
+    "@langchain/langgraph": ">=1.0.0 <2",
     "@modelcontextprotocol/sdk": ">=1.25.0",
     "express": ">=4.0.0",
-    "@langchain/core": ">=0.3.0"
+    "langsmith": ">=0.7.0"
   },
   "peerDependenciesMeta": {
     "@modelcontextprotocol/sdk": {
@@ -105,10 +116,16 @@
     },
     "@langchain/core": {
       "optional": true
+    },
+    "@langchain/langgraph": {
+      "optional": true
+    },
+    "langsmith": {
+      "optional": true
     }
   },
   "dependencies": {
-    "@a2a-js/sdk": "^0.3.4",
+    "@a2a-js/sdk": "^0.3.13",
     "@helicone/helpers": "^1.6.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.215.0",

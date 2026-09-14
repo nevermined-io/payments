@@ -8,7 +8,7 @@ export default class GetPlanBalance extends BaseCommand {
   static override description = "Gets the balance of an account for a Payment Plan."
 
   static override examples = [
-    '$ nvm plans get-plan-balance <planId>'
+    '$ nevermined plans get-plan-balance <planId>'
   ]
 
   static override flags = {

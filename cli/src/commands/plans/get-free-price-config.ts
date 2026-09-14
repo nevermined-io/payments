@@ -8,7 +8,7 @@ export default class GetFreePriceConfig extends BaseCommand {
   static override description = "Builds a FREE price configuration (no payment required)."
 
   static override examples = [
-    '$ nvm plans get-free-price-config'
+    '$ nevermined plans get-free-price-config'
   ]
 
   static override flags = {

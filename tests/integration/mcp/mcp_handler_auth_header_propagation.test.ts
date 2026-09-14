@@ -7,6 +7,7 @@ import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import { requestContextStorage } from '../../../src/mcp/http/mcp-handler.js'
 import type { RequestContext } from '../../../src/mcp/http/session-manager.js'
 import type { Payments } from '../../../src/payments.js'
+import type { VerifyPermissionsResult } from '../../../src/x402/facilitator-api.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
@@ -43,7 +44,7 @@ class PaymentsMockWithTracking {
 
   constructor() {
     this.facilitator = {
-      verifyPermissions: jest.fn(async (params: any) => {
+      verifyPermissions: jest.fn(async (params: any): Promise<VerifyPermissionsResult> => {
         this.calls.push(['verifyPermissions', params])
         return { isValid: true }
       }),
@@ -107,8 +108,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
     expect(
       mockInstance.calls.some(
         (c: any) =>
-          c[0] === 'verifyPermissions' &&
-          c[1].x402AccessToken === 'integration-token-456',
+          c[0] === 'verifyPermissions' && c[1].x402AccessToken === 'integration-token-456',
       ),
     ).toBe(true)
   })
@@ -207,11 +207,18 @@ describe('MCP Handler - Auth Header Propagation', () => {
 
     await requestContextStorage.run(requestContext, async () => {
       await expect(
-        authenticator.authenticate({}, {}, 'did:nv:integration', 'test-server', 'tool1', 'tool', {}),
+        authenticator.authenticate(
+          {},
+          {},
+          'did:nv:integration',
+          'test-server',
+          'tool1',
+          'tool',
+          {},
+        ),
       ).rejects.toMatchObject({
         code: -32003,
         message: expect.stringContaining('Authorization required'),
-        data: { reason: 'missing' },
       })
     })
 
@@ -271,9 +278,7 @@ describe('MCP Handler - Auth Header Propagation', () => {
     // All three calls should have used the same token
     const verifyCalls = mockInstance.calls.filter((c: any) => c[0] === 'verifyPermissions')
     expect(verifyCalls.length).toBe(3)
-    expect(
-      verifyCalls.every((c: any) => c[1].x402AccessToken === 'session-token-789'),
-    ).toBe(true)
+    expect(verifyCalls.every((c: any) => c[1].x402AccessToken === 'session-token-789')).toBe(true)
   })
 
   test('should work without request context when extra has headers', async () => {

@@ -29,7 +29,14 @@ describe('OAuth Metadata Builders', () => {
 
       expect(metadata).toBeDefined()
       expect(metadata.resource).toBe('http://localhost:3000')
-      expect(metadata.authorization_servers).toEqual(['http://localhost:3000'])
+      // The AS is the BACKEND API origin (it serves the RFC 8414 AS metadata),
+      // NOT this MCP server (baseUrl) and NOT the frontend SPA (getOAuthUrls().issuer,
+      // which 200s HTML on every path). Hardcoded so it can't drift silently.
+      expect(metadata.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
+      expect(metadata.authorization_servers).not.toContain(baseConfig.baseUrl)
+      expect(metadata.authorization_servers).not.toContain(
+        getOAuthUrls(baseConfig.environment).issuer,
+      )
       expect(metadata.bearer_methods_supported).toEqual(['header'])
       expect(metadata.resource_documentation).toBe('http://localhost:3000/')
     })
@@ -63,7 +70,12 @@ describe('OAuth Metadata Builders', () => {
 
       expect(metadata).toBeDefined()
       expect(metadata.resource).toBe('http://localhost:3000/mcp')
-      expect(metadata.authorization_servers).toEqual(['http://localhost:3000'])
+      // Same as the base builder: the AS is the backend API origin.
+      expect(metadata.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
+      expect(metadata.authorization_servers).not.toContain(baseConfig.baseUrl)
+      expect(metadata.authorization_servers).not.toContain(
+        getOAuthUrls(baseConfig.environment).issuer,
+      )
       expect(metadata.bearer_methods_supported).toEqual(['header'])
     })
 
@@ -92,6 +104,43 @@ describe('OAuth Metadata Builders', () => {
 
       expect(metadata.mcp_capabilities?.protocol_version).toBe('2024-12-01')
     })
+  })
+
+  // Non-tautological: hardcoded backend origins per environment. Catches the
+  // frontend-vs-backend regression (issuer=frontend serves no AS metadata) across
+  // every environment, not just the one baseConfig happens to use.
+  describe('authorization_servers is the backend AS for every environment', () => {
+    test.each([
+      ['staging_sandbox', 'https://api.sandbox.nevermined.dev', 'https://nevermined.dev'],
+      ['staging_live', 'https://api.live.nevermined.dev', 'https://nevermined.dev'],
+      ['sandbox', 'https://api.sandbox.nevermined.app', 'https://nevermined.app'],
+      ['live', 'https://api.live.nevermined.app', 'https://nevermined.app'],
+    ] as const)('%s → [%s], never the frontend', (environment, backend, frontend) => {
+      const cfg = { baseUrl: 'http://localhost:3000', environment } as OAuthConfig
+      for (const md of [
+        buildProtectedResourceMetadata(cfg),
+        buildMcpProtectedResourceMetadata(cfg),
+      ]) {
+        expect(md.authorization_servers).toEqual([backend])
+        expect(md.authorization_servers).not.toContain(frontend)
+        expect(md.authorization_servers).not.toContain('http://localhost:3000')
+      }
+    })
+
+    test.each([
+      ['undefined', undefined],
+      ['a malformed string', 'not a url'],
+    ])(
+      'a %s tokenUri override falls back to the env default (no crash, no [null])',
+      (_label, tokenUri) => {
+        const cfg = {
+          ...baseConfig,
+          oauthUrls: { tokenUri },
+        } as unknown as OAuthConfig
+        const md = buildProtectedResourceMetadata(cfg)
+        expect(md.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
+      },
+    )
   })
 
   describe('buildAuthorizationServerMetadata', () => {

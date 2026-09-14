@@ -211,6 +211,9 @@ const neverminedPlugin = {
           for (const plan of plans) {
             try {
               // Build token options: fiat plans use nvm:card-delegation scheme
+              // No resource binding: this flow does not request token v3, and a
+              // `resource.url` on a v2 token is compared against the seller's
+              // paymentRequired — a needless way to break a working verify.
               let tokenOptions: X402TokenOptions | undefined
               if (plan.paymentType === 'fiat') {
                 if (!cachedPaymentMethods) {

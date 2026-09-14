@@ -101,7 +101,7 @@ const testnetEurcConfig = payments.plans.getEURCPriceConfig(
 ```typescript
 // Fiat pricing in USD (default)
 const priceConfig = payments.plans.getFiatPriceConfig(
-  1000n,          // Amount in cents ($10.00)
+  10_000_000n,    // Amount in 6-decimal units ($10.00) — NOT cents
   builderAddress
 )
 
@@ -109,11 +109,13 @@ const priceConfig = payments.plans.getFiatPriceConfig(
 import { Currency } from '@nevermined-io/payments'
 
 const eurPriceConfig = payments.plans.getFiatPriceConfig(
-  2900n,          // Amount in euro cents (€29.00)
+  29_000_000n,    // Amount in 6-decimal units (€29.00) — NOT cents
   builderAddress,
   Currency.EUR
 )
 ```
+
+> Fiat amounts are in **6-decimal units** (the USDC convention used across the Nevermined protocol), **not** cents — `10_000_000n` = $10.00. The server-side minimum is **$1.00** (`1_000_000n`); smaller amounts are rejected with `BCK.PROTOCOL.0047`.
 
 ### Free Plans
 
@@ -295,15 +297,22 @@ console.log(`Price: ${plan.price}`)
 console.log(`Credits: ${plan.credits}`)
 ```
 
-### Get All Published Plans
+### List Your Plans
+
+List the plans **you** published — the authenticated caller's own plans. This is
+account management, not a marketplace search: it never returns other users'
+plans. Pass an `orgId` to list every plan in an organization you belong to.
 
 ```typescript
-// Get all plans published by your account
-const plans = await payments.plans.getPlans()
+// Your own plans (paginated: { total, page, offset, plans })
+const { plans } = await payments.plans.getPlans()
 
-plans.forEach(plan => {
+plans.forEach((plan) => {
   console.log(`${plan.name}: ${plan.planId}`)
 })
+
+// Every plan in an organization you belong to
+const { plans: orgPlans } = await payments.plans.getPlans(1, 100, 'created', 'desc', 'org-acme')
 ```
 
 ### Get Plans for an Agent
