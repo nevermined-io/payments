@@ -107,15 +107,28 @@ export class SessionManager {
 
   /**
    * Get or create a transport for a session.
+   *
+   * Always builds a FRESH transport, even when a transport is already cached for
+   * this session id. The transports are created in stateless mode
+   * (`sessionIdGenerator: undefined`), and the SDK's stateless transport is
+   * single-request by design — reusing a cached one yields an empty-body HTTP 500
+   * on the second request. Spec-compliant clients (Claude, Cursor, the official
+   * SDK) echo the `Mcp-Session-Id` we return on `initialize` back on every
+   * subsequent request, which used to route them straight into that broken reuse
+   * path. Rebuilding per request keeps the echoed-id path working exactly like the
+   * no-header path.
+   *
+   * The session map still records the latest transport per id so DELETE can
+   * terminate it and requests for an unknown id can be rejected. This managed
+   * server runs in stateless JSON-response mode (`enableJsonResponse: true`) and
+   * does NOT support standalone GET/SSE streams — the stateless transport rejects
+   * them — so there is no long-lived stream for a later POST to disrupt.
+   *
+   * ponytail: one shared McpServer that every request `close()`s and reconnects —
+   * two in-flight requests still race (tracked in #424). Per-session server+transport
+   * pairs are the upgrade if concurrency ever matters.
    */
   async getOrCreateSession(sessionId: string): Promise<any> {
-    if (this.sessions.has(sessionId)) {
-      const existingSession = this.sessions.get(sessionId)
-      if (existingSession) {
-        return existingSession
-      }
-    }
-
     if (!this.mcpServer) {
       throw new Error('MCP server not set. Call setMcpServer() first.')
     }

@@ -8,7 +8,7 @@ export default class GetERC20PriceConfig extends BaseCommand {
   static override description = "Builds an ERC20 price configuration for a plan."
 
   static override examples = [
-    '$ nvm plans get-erc20-price-config'
+    '$ nevermined plans get-erc20-price-config'
   ]
 
   static override flags = {

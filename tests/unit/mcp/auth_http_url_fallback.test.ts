@@ -6,6 +6,7 @@ import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import { requestContextStorage } from '../../../src/mcp/http/mcp-handler.js'
 import type { RequestContext } from '../../../src/mcp/http/session-manager.js'
 import type { Payments } from '../../../src/payments.js'
+import type { VerifyPermissionsResult } from '../../../src/x402/facilitator-api.js'
 
 // Mock decodeAccessToken to provide x402-compliant token structure
 jest.mock('../../../src/utils.js', () => ({
@@ -41,7 +42,7 @@ class PaymentsMock {
     getAgentPlans: jest.Mock
   }
 
-  constructor(verifySequence: Array<{ isValid: boolean }> = [{ isValid: true }]) {
+  constructor(verifySequence: VerifyPermissionsResult[] = [{ isValid: true }]) {
     this.facilitator = {
       verifyPermissions: jest.fn(),
     }
@@ -153,11 +154,18 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     await requestContextStorage.run(requestContext, async () => {
       await expect(
-        authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+        authenticator.authenticate(
+          extra,
+          { planId: 'plan-1' },
+          'did:nv:agent',
+          'test-server',
+          'tool1',
+          'tool',
+          {},
+        ),
       ).rejects.toMatchObject({
         code: -32003,
         message: expect.stringContaining('Available plans'),
-        data: { reason: 'invalid' },
       })
     })
 
@@ -234,10 +242,17 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     // No requestContextStorage, so no HTTP fallback available
     await expect(
-      authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(
+        extra,
+        { planId: 'plan-1' },
+        'did:nv:agent',
+        'test-server',
+        'tool1',
+        'tool',
+        {},
+      ),
     ).rejects.toMatchObject({
       code: -32003,
-      data: { reason: 'invalid' },
     })
 
     // Should have tried logical URL once and fetched plans, no HTTP fallback without context

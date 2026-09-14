@@ -11,10 +11,15 @@ export type PaymentScheme = 'nvm'
 export interface PaymentOptions {
   /**
    * The Nevermined environment to connect to.
-   * If you are developing an agent it's recommended to use the "sandbox" environment.
-   * When deploying to live use the "live" environment.
+   *
+   * @deprecated The environment is now derived from the NVM API key prefix
+   * (`<prefix>:<jwt>`), so this option is no longer required. It is still
+   * accepted for backward compatibility and as a fallback when the key prefix
+   * is unrecognized (e.g. local/custom development), but when the prefix maps
+   * to a known environment the key wins and this option is ignored (a one-time
+   * deprecation warning is emitted). It will be removed in a future release.
    */
-  environment: EnvironmentName
+  environment?: EnvironmentName
 
   /**
    * The Nevermined API Key. This key identify your user and is required to interact with the Nevermined API.
@@ -39,7 +44,13 @@ export interface PaymentOptions {
   appId?: string
 
   /**
-   * The version of the API to use.
+   * Pins the Nevermined backend API version (MAJOR.MINOR) sent with every
+   * request via the `Nevermined-Version` header. Defaults to
+   * {@link LOCKED_API_VERSION} — the backend contract this SDK release is
+   * built and tested against. Override only to deliberately target a
+   * different backend contract.
+   *
+   * @see https://nevermined.ai/docs/development-guide/api-versioning
    */
   version?: string
 
@@ -221,7 +232,30 @@ export interface PlanBalance {
   planName: string
   planType: string
   holderAddress: Address
-  balance: bigint
+  /**
+   * Credit balance as a DECIMAL STRING, e.g. `'950'` — not a `bigint`.
+   *
+   * ⚠️ It is a string because that is what the deserializer produces, not as a
+   * preference. `PlanBalance` is constructed nowhere in `src/`: it only ever
+   * arrives from `getPlanBalance`, which ends in a bare `return response.json()`,
+   * and JSON has no bigint. It had been declared `bigint` since 2025-05-26 while the API sent a
+   * quoted string, so `balance > 100n` threw `Cannot mix BigInt and other types`
+   * in code that typechecked clean, and `typeof balance === 'bigint'` silently
+   * took the wrong branch. This reaches sellers as public API — `PlanBalance` is
+   * on `req.paymentContext.agentRequest.balance`.
+   *
+   * The value can exceed `Number.MAX_SAFE_INTEGER`, so do NOT route it through
+   * `Number`. For arithmetic, convert explicitly:
+   *
+   * ```ts
+   * BigInt(ctx.agentRequest.balance.balance) > 100n
+   * ```
+   *
+   * The outbound direction already has its counterpart: `jsonReplacer`
+   * (`common/helper.ts`) narrows bigints to strings on request bodies. This is
+   * the inbound side of the same boundary.
+   */
+  balance: string
   creditsContract: Address
   isSubscriber: boolean
   pricePerCredit: number
@@ -537,31 +571,77 @@ export function isValidScheme(s: unknown): s is X402SchemeType {
 }
 
 /**
+ * Currency codes accepted for a delegation. Lowercase, mirroring the
+ * backend's `@IsIn(['usd','eur','usdc','eurc'])` constraint on
+ * `POST /api/v1/delegation/create` and the Python SDK's `DelegationCurrency`.
+ * Card providers use `'usd'`/`'eur'`; erc4337 uses `'usdc'`/`'eurc'`.
+ */
+export type DelegationCurrency = 'usd' | 'eur' | 'usdc' | 'eurc'
+
+/**
  * Configuration for delegation-based payments (both crypto and card schemes).
  *
- * To reuse an existing delegation supply `delegationId`.
- * To reuse an existing card (PaymentMethod entity) supply `cardId`.
- * When creating a brand-new delegation provide `providerPaymentMethodId`,
- * `spendingLimitCents`, and `durationSecs`.
+ * The supported flow is **create-first**: create a delegation with
+ * {@link DelegationAPI.createDelegation}, then request the access token with
+ * `delegationConfig: { delegationId }`.
+ *
+ * @remarks
+ * The inline create-on-the-fly fields (`providerPaymentMethodId`,
+ * `spendingLimitCents`, `durationSecs`, `currency`, `merchantAccountId`,
+ * `maxTransactions`, `cardId`) are individually deprecated. Calling
+ * {@link X402TokenAPI.getX402AccessToken} with a `delegationConfig` that lacks
+ * `delegationId` but carries one of those fields emits a runtime deprecation
+ * warning; create the delegation first and pass only `delegationId` (optionally
+ * `apiKeyId`) here. The interface itself is NOT deprecated — the
+ * `{ delegationId }` reuse path is the supported way to configure a token request.
  */
 export interface DelegationConfig {
-  /** PaymentMethod entity UUID — preferred way to reference an enrolled card */
+  /**
+   * PaymentMethod entity UUID — references an enrolled card.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   cardId?: string
-  /** Existing delegation UUID to reuse instead of creating a new one */
+  /** Existing delegation UUID to reuse instead of creating a new one. The supported (non-deprecated) path. */
   delegationId?: string
-  /** Stripe payment method ID (e.g., 'pm_...'). Required only for new delegations. */
+  /**
+   * Stripe payment method ID (e.g., 'pm_...'). Required only for new delegations.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   providerPaymentMethodId?: string
-  /** Maximum spending limit in cents. Required only for new delegations. */
+  /**
+   * Maximum spending limit in cents. Required only for new delegations.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   spendingLimitCents?: number
-  /** Duration of the delegation in seconds. Required only for new delegations. */
+  /**
+   * Duration of the delegation in seconds. Required only for new delegations.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   durationSecs?: number
-  /** Currency code (default: 'usd') */
-  currency?: string
-  /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
+  /**
+   * Currency code (e.g., 'usd' for card providers, 'usdc' for erc4337).
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
+  currency?: DelegationCurrency
+  /**
+   * Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId).
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   merchantAccountId?: string
-  /** Maximum number of transactions allowed */
+  /**
+   * Maximum number of transactions allowed.
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
   maxTransactions?: number
-  /** NVM API Key ID to scope the delegation to */
+  /**
+   * Plan ID to scope a newly-created delegation to. Optional and additive:
+   * delegations are plan-agnostic by default; supplying `planId` opts into a
+   * plan-bound delegation. (Visa delegations are always plan-specific and
+   * require it server-side.)
+   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   */
+  planId?: string
+  /** NVM API Key ID to scope the delegation to. Active (non-deprecated). */
   apiKeyId?: string
 }
 
@@ -577,9 +657,13 @@ export interface CreateDelegationPayload {
   spendingLimitCents: number
   /** Duration of the delegation in seconds */
   durationSecs: number
-  /** Currency code (default: 'usd') */
-  currency?: string
-  /** Plan ID to scope the delegation to */
+  /** Currency code (e.g., 'usd' for card providers, 'usdc' for erc4337). Required by the backend — no silent default. */
+  currency: DelegationCurrency
+  /**
+   * Plan ID to scope the delegation to. Optional and additive: delegations are
+   * plan-agnostic by default; supplying `planId` opts into a plan-bound
+   * delegation. (Visa delegations are always plan-specific and require it.)
+   */
   planId?: string
   /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
   merchantAccountId?: string
@@ -600,6 +684,68 @@ export interface CreateDelegationResponse {
 }
 
 /**
+ * The protected resource a token is minted for.
+ *
+ * Load-bearing from token v3 on: `url` is inside the EIP-712 signature, so a
+ * v3 token only settles against the seller endpoint it names.
+ *
+ * Outside the v1/v2 signature, which covers `from` / `sessionKeysProvider` /
+ * `sessionKeys` / `planId` only — but **not** inert there: the backend compares
+ * this URL against the one the seller advertises in its `paymentRequired`
+ * (origin + path; an exact string comparison when either side is not a
+ * parseable URL) for **any** token that carries a resource. Binding a token to
+ * a URL the seller does not advertise verbatim therefore fails verification
+ * with `BCK.X402.0013`. Sellers built on this SDK's `paymentMiddleware`
+ * advertise `req.originalUrl` — a **relative** path — so for such a seller bind
+ * to that string, not to the absolute URL you fetch. See {@link
+ * X402TokenResource.url} for a seller that advertises the absolute form, which
+ * this SDK's own A2A server does.
+ */
+export interface X402TokenResource {
+  /**
+   * The protected resource URL, **as the seller advertises it** — e.g.
+   * `/api/v1/tasks` from a `paymentMiddleware` seller, or the absolute
+   * `https://seller.example/api/v1/tasks` from one that advertises it that way
+   * (this SDK's A2A server does).
+   */
+  url: string
+  /** Human-readable description. */
+  description?: string
+  /** Expected response MIME type (e.g. `application/json`). */
+  mimeType?: string
+}
+
+/**
+ * EIP-712 struct version the backend signs the access token under.
+ *
+ * - `2` — today's default: reusable bearer token, signature covers
+ *   `[from, sessionKeysProvider, sessionKeys, planId]`.
+ * - `3` — appends `agentId`, `resourceUrl`, `httpVerb` and a one-time `nonce`
+ *   to the signed struct, making the token seller/resource-bound and
+ *   **single-use**: it is consumed on the first `POST /x402/settle`.
+ *
+ * Opt-in. Never assume the token you got back is the version you asked for —
+ * a backend that predates the v3 struct silently drops the field (its
+ * `ValidationPipe` whitelists without `forbidNonWhitelisted`) and mints v2.
+ * Read the version off the token with {@link detectAccessTokenVersion}.
+ */
+export type X402TokenVersion = 2 | 3
+
+/**
+ * Options accepted by the MPP token mint: everything {@link X402TokenOptions}
+ * takes except `tokenVersion`.
+ *
+ * MPP and x402 stopped sharing a token version ladder (nvm-monorepo#3266). MPP
+ * signs one struct and names no version for it, because its single-use unit is
+ * the **challenge**, not the token — one MPP access token is presented across
+ * many challenges by design, so an x402 v3 per-token nonce would reject every
+ * buyer's second challenge. The backend refuses ANY `tokenVersion` on an MPP
+ * mint with `BCK.MPP.0007`, `2` included, so the field is omitted from the type
+ * rather than accepted and ignored.
+ */
+export type MppTokenOptions = Omit<X402TokenOptions, 'tokenVersion'>
+
+/**
  * Options for x402 token generation that control scheme and delegation behavior.
  */
 export interface X402TokenOptions {
@@ -609,4 +755,32 @@ export interface X402TokenOptions {
   network?: string
   /** Delegation configuration for both erc4337 and card-delegation schemes */
   delegationConfig?: DelegationConfig
+  /**
+   * The protected resource the token is minted for. Signed into a v3 token,
+   * which then only settles against this URL. Without it the backend has
+   * nothing to bind to and skips endpoint validation, so `tokenVersion: 3`
+   * alone yields a single-use token bound to nothing — a supported mode, but
+   * not the seller binding.
+   *
+   * Must be the **exact string the seller advertises**; see
+   * {@link X402TokenResource}. Supplying it without `tokenVersion: 3` is
+   * **refused**: only a v3 signature covers the binding, while the resource
+   * still arms the backend's endpoint allowlist and is compared against what
+   * the seller advertises — so it can only cost you a `BCK.PROTOCOL.0031` or a
+   * `BCK.X402.0013`.
+   */
+  resource?: X402TokenResource
+  /**
+   * HTTP verb of the protected resource (e.g. `POST`). Signed into a v3 token
+   * alongside {@link X402TokenOptions.resource}, and compared against the verb
+   * the seller advertises. Upper-cased by the SDK before it is sent, so
+   * `'post'` and `'POST'` are equivalent.
+   */
+  httpVerb?: string
+  /**
+   * Request a specific EIP-712 token version. Omitted means the backend
+   * default (currently `2`). Requesting `3` is a request, not a guarantee —
+   * always read the version back off the minted token.
+   */
+  tokenVersion?: X402TokenVersion
 }

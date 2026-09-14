@@ -26,6 +26,16 @@ export abstract class BaseCommand extends Command {
   protected configManager!: ConfigManager
   protected formatter!: OutputFormatter
   protected payments?: Payments
+  /**
+   * Environment + API key resolved by `initPayments()`. Stored here so
+   * subclasses that need to talk to the backend directly (e.g. commands
+   * that POST to endpoints the SDK does not yet wrap) don't have to
+   * re-implement the env-var-first → config-file fallback and
+   * accidentally diverge from the precedence the Payments instance was
+   * actually constructed with.
+   */
+  protected resolvedEnvironment?: EnvironmentName
+  protected resolvedNvmApiKey?: string
 
   async init(): Promise<void> {
     await super.init()
@@ -61,7 +71,7 @@ export abstract class BaseCommand extends Command {
 
     if (!nvmApiKey) {
       this.error(
-        'NVM API Key not found. Set NVM_API_KEY environment variable, run: nvm login, or run: nvm config init',
+        'NVM API Key not found. Set NVM_API_KEY environment variable, run: nevermined login, or run: nevermined config init',
         { exit: 1 }
       )
     }
@@ -75,6 +85,10 @@ export abstract class BaseCommand extends Command {
       nvmApiKey,
       environment: environment as EnvironmentName,
     })
+    // Expose for subclasses that need to talk to backend endpoints the
+    // SDK does not yet wrap — see `nevermined cards setup/enroll/delegate`.
+    this.resolvedEnvironment = environment as EnvironmentName
+    this.resolvedNvmApiKey = nvmApiKey
 
     return this.payments
   }
@@ -96,7 +110,7 @@ export abstract class BaseCommand extends Command {
     if (errorMessage.includes('API Key') || errorMessage.includes('apiKey')) {
       this.formatter.error('API Key Error: ' + errorMessage)
       this.formatter.info('\n💡 Helpful tip:')
-      this.formatter.info('   Run: nvm login (or nvm config init)')
+      this.formatter.info('   Run: nevermined login (or nevermined config init)')
       this.formatter.info('   Or set: export NVM_API_KEY=your-key-here')
     } else if (errorMessage.includes('network') || errorMessage.includes('ECONNREFUSED')) {
       this.formatter.error('Network Error: ' + errorMessage)
@@ -112,7 +126,7 @@ export abstract class BaseCommand extends Command {
       this.formatter.error('Authentication Error: ' + errorMessage)
       this.formatter.info('\n💡 Helpful tip:')
       this.formatter.info('   Your API key may be invalid or expired')
-      this.formatter.info('   Run: nvm login (or nvm config init)')
+      this.formatter.info('   Run: nevermined login (or nevermined config init)')
     } else if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
       this.formatter.error('Invalid JSON: ' + errorMessage)
       this.formatter.info('\n💡 Helpful tip:')

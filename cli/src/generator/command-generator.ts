@@ -292,7 +292,7 @@ ${runMethod}
       const idParam = method.parameters.find(p => p.name.toLowerCase().includes('id'))
       const idExample = idParam ? `<${idParam.name}>` : ''
 
-      examples.push(`$ nvm ${topic} ${commandName} ${idExample}`.trim())
+      examples.push(`$ nevermined ${topic} ${commandName} ${idExample}`.trim())
     }
 
     return examples.map(ex => `    '${ex.replace(/'/g, "\\'")}'`).join(',\n')
@@ -362,7 +362,20 @@ ${runMethod}
    */
   private isComplexType(type: string): boolean {
     // Strip '| undefined' suffix from optional types before checking
-    const baseType = type.replace(/\s*\|\s*undefined$/, '').trim()
+    let baseType = type.replace(/\s*\|\s*undefined$/, '').trim()
+
+    // Unwrap a generic wrapper (e.g. `Partial<PaginationOptions>`,
+    // `Readonly<FooConfig>`) so the wrapped type is what the checks below see —
+    // otherwise the trailing `>` defeats the suffix match and an optional
+    // options object leaks out as a raw string flag that's silently ignored.
+    const wrapped = baseType.match(/^\w+<(.+)>$/)
+    if (wrapped) {
+      const inner = wrapped[1].trim()
+      // Multi-argument generics (`Record<K,V>`, `Pick<T,K>`, `Map<K,V>`, …)
+      // always denote an object type — complex, no further unwrapping needed.
+      if (inner.includes(',')) return true
+      baseType = inner
+    }
 
     // Complex objects have literal braces or are explicitly 'object'
     // Exclude template literal types like `0x${string}` which are just strings

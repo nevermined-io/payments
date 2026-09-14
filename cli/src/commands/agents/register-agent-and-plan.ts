@@ -8,7 +8,7 @@ export default class RegisterAgentAndPlan extends BaseCommand {
   static override description = "It registers a new AI Agent and a Payment Plan associated to this new agent. Depending on the Payment Plan and the configuration of the agent, the usage of the agent/service will consume credits. When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue using the agent."
 
   static override examples = [
-    '$ nvm agents register-agent-and-plan'
+    '$ nevermined agents register-agent-and-plan'
   ]
 
   static override flags = {
