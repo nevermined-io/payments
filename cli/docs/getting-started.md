@@ -12,7 +12,7 @@ Complete guide to installing and configuring the Nevermined CLI.
 
 Before installing the CLI, ensure you have:
 
-- **Node.js** >= 18.0.0
+- **Node.js** >= 20.0.0
 - **npm** or **pnpm** package manager
 - A Nevermined account with API key
 
