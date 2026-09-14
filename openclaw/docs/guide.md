@@ -40,7 +40,7 @@ The plugin adds 9 payment tools and 2 slash commands to your OpenClaw gateway:
 ## Prerequisites
 
 - An [OpenClaw](https://openclaw.ai) gateway instance (v2026.2+)
-- Node.js >= 18
+- Node.js >= 20
 - A [Nevermined account](https://nevermined.app) with an API key
 
 > 🔐 **Security expectations.** This plugin issues `payment-signature` bearer tokens that authorise spending against your plan. In production:
