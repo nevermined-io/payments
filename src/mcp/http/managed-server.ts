@@ -76,7 +76,6 @@ export async function startManagedServer(config: ManagedServerConfig): Promise<H
     protocolVersion,
     enableOAuthDiscovery = true,
     enableClientRegistration = true,
-    enableHealthCheck = true,
     enableServerInfo = true,
     corsOrigins = '*',
     version = '1.0.0',
@@ -106,7 +105,6 @@ export async function startManagedServer(config: ManagedServerConfig): Promise<H
     protocolVersion,
     enableOAuthDiscovery,
     enableClientRegistration,
-    enableHealthCheck,
     enableServerInfo,
     version,
     description,
@@ -152,10 +150,6 @@ export async function startManagedServer(config: ManagedServerConfig): Promise<H
     const server: Server = app.listen(port, host, () => {
       onLog?.(`MCP server started on ${host}:${port}`)
       onLog?.(`Base URL: ${baseUrl}`)
-
-      if (enableHealthCheck) {
-        onLog?.(`Health check: ${baseUrl}/health`)
-      }
 
       if (enableOAuthDiscovery) {
         onLog?.(`OAuth discovery: ${baseUrl}/.well-known/oauth-authorization-server`)
@@ -241,7 +235,6 @@ export function createMcpApp(
     protocolVersion,
     enableOAuthDiscovery = true,
     enableClientRegistration = true,
-    enableHealthCheck = true,
     enableServerInfo = true,
     corsOrigins = '*',
     version = '1.0.0',
@@ -265,7 +258,6 @@ export function createMcpApp(
     protocolVersion,
     enableOAuthDiscovery,
     enableClientRegistration,
-    enableHealthCheck,
     enableServerInfo,
     version,
     description,

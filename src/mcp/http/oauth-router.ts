@@ -78,7 +78,6 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
     protocolVersion,
     enableOAuthDiscovery = true,
     enableClientRegistration = true,
-    enableHealthCheck = true,
     enableServerInfo = true,
     version = '1.0.0',
     description,
@@ -198,23 +197,6 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
           error_description: error?.message || 'Internal server error during client registration',
         })
       }
-    })
-  }
-
-  // --- Health Check ---
-
-  if (enableHealthCheck) {
-    /**
-     * Health check endpoint
-     * GET /health
-     */
-    router.get('/health', (req: Request, res: Response) => {
-      log(`GET /health`)
-      res.json({
-        status: 'ok',
-        service: serverName,
-        timestamp: new Date().toISOString(),
-      })
     })
   }
 
