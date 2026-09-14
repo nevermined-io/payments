@@ -96,9 +96,25 @@ export interface PaywallContext {
  * MCP integration configuration
  */
 export interface McpConfig {
-  /** Plan ID the server charges against (required). The facilitator is
-   * plan-centric: verify/settle resolve everything from the plan + token. */
-  planId: string
+  /**
+   * Plan ID the server charges against. The facilitator is plan-centric:
+   * verify/settle resolve everything from the plan + token.
+   *
+   * Optional because a planId only has to be **resolvable by the time a handler
+   * runs**, and a per-tool `options.planId` satisfies that on its own:
+   * `PaywallDecorator` resolves `options?.planId ?? this.config.planId` and
+   * refuses only when both are absent (`Server misconfiguration: missing
+   * planId`). `withPaywall`'s own docblock has always documented that form.
+   *
+   * It was declared required anyway, which made `configure({ agentId })` a
+   * compile error for a server that sets its plan per tool — a configuration
+   * the runtime supports and the docs describe. The type was the only one of the
+   * three that forbade it.
+   *
+   * Set it here when one plan covers the whole server; omit it when every
+   * paywalled handler passes its own.
+   */
+  planId?: string
   /** Agent ID — optional, informational/observability only. */
   agentId?: string
   serverName?: string

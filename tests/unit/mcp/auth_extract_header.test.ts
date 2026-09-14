@@ -4,6 +4,7 @@
 
 import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import type { Payments } from '../../../src/payments.js'
+import type { VerifyPermissionsResult } from '../../../src/x402/facilitator-api.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
@@ -42,7 +43,7 @@ class PaymentsMock {
     const shouldReject = options?.shouldReject ?? false
 
     this.facilitator = {
-      verifyPermissions: jest.fn(async (params: any) => {
+      verifyPermissions: jest.fn(async (params: any): Promise<VerifyPermissionsResult> => {
         this.calls.push(['verifyPermissions', params])
         if (shouldReject) {
           return { isValid: false, invalidReason: 'Access denied' }

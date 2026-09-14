@@ -12,7 +12,12 @@
 import express from 'express'
 import type { Request, Response } from 'express'
 import http from 'http'
+import net from 'net'
 import { paymentMiddleware, X402_HEADERS } from '../../src/x402/express/index.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 
 // Use the same mock token shape the rest of the test suite uses so the
 // middleware's verify call gets past the shape checks.
@@ -22,7 +27,11 @@ const MOCK_TOKEN = 'mock-x402-token'
 function buildMockPayments(opts: { settleSpy: jest.Mock; verifySpy?: jest.Mock }) {
   const verify =
     opts.verifySpy ??
-    jest.fn().mockResolvedValue({ isValid: true, agentRequest: undefined, agentRequestId: 'req-1' })
+    jest.fn().mockResolvedValue({
+      isValid: true,
+      agentRequest: undefined,
+      agentRequestId: 'req-1',
+    } satisfies VerifyPermissionsResult)
   return {
     facilitator: {
       verifyPermissions: verify,
@@ -93,11 +102,18 @@ async function postWithToken(port: number): Promise<{
 }
 
 describe('paymentMiddleware settlement coverage (#1728)', () => {
+  // `transaction` and `network` are required on the model and were missing here;
+  // these tests read neither, so the values only have to be coherent. They match
+  // the pre-existing hex `orderTx`, i.e. a crypto rail whose settle had to order
+  // credits first — deliberately NOT a PSP name, which would pin a fiat rail
+  // inside a test that is about response methods, not rails.
   const baseSettlement = {
     success: true,
+    transaction: '0xsettletx',
+    network: 'eip155:84532',
     creditsRedeemed: '1',
     orderTx: '0xabc',
-  }
+  } satisfies SettlePermissionsResult
 
   test('settles when handler uses res.json', async () => {
     const settleSpy = jest.fn().mockResolvedValue(baseSettlement)
@@ -180,6 +196,55 @@ describe('paymentMiddleware settlement coverage (#1728)', () => {
       expect(result.status).toBe(422)
       expect(settleSpy).not.toHaveBeenCalled()
     } finally {
+      await close()
+    }
+  })
+
+  test('does NOT settle when the buyer disconnects before any of the response is delivered', async () => {
+    // A route declared with `mpp: true` advertises BOTH protocols on the same
+    // 402, so the two branches of this middleware have to answer the same
+    // disconnect the same way. The MPP branch gained a delivery gate; without
+    // the same gate here an x402 buyer who hangs up is still charged, because
+    // an aborted request keeps `res.statusCode === 200` all the way through
+    // the `res.end` wrapper.
+    const settleSpy = jest.fn().mockResolvedValue(baseSettlement)
+    let releaseHandler: () => void = () => undefined
+    const handlerGate = new Promise<void>((resolve) => {
+      releaseHandler = resolve
+    })
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { port, close } = await startServer(async (_req, res) => {
+      await handlerGate
+      res.json({ answer: 'ok' })
+    }, settleSpy)
+
+    try {
+      // A raw socket, not fetch + AbortController: undici does not reliably
+      // tear down the server-side connection, so `res.destroyed` can still be
+      // false in the handler and the disconnect never reaches the code.
+      const body = JSON.stringify({ ask: 'hello' })
+      const socket = net.connect(port, '127.0.0.1')
+      socket.on('error', () => undefined)
+      await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
+      socket.write(
+        `POST /protected HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\ncontent-type: application/json\r\n` +
+          `${X402_HEADERS.PAYMENT_SIGNATURE}: ${MOCK_TOKEN}\r\n` +
+          `Content-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
+      )
+      await new Promise((r) => setTimeout(r, 60))
+      socket.destroy()
+      // Let the server's event loop observe the close before the handler
+      // writes — `res.destroyed` flips when Node processes it, not when the
+      // peer hangs up.
+      await new Promise((r) => setTimeout(r, 60))
+
+      releaseHandler()
+      await new Promise((r) => setTimeout(r, 80))
+
+      expect(settleSpy).not.toHaveBeenCalled()
+    } finally {
+      releaseHandler()
+      warn.mockRestore()
       await close()
     }
   })

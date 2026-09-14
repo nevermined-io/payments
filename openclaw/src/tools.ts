@@ -73,6 +73,9 @@ export function createTools(
           paymentMethodId: { type: 'string', description: 'Stripe payment method ID (pm_...). Required for fiat; auto-selects first enrolled card if omitted.' },
           spendingLimitCents: { type: 'number', description: 'Max spend in cents for fiat (default: 1000 = $10)' },
           delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
+          resourceUrl: { type: 'string', description: 'The protected resource URL the token is for. Only used with tokenVersion 3, which binds the token to this URL; ignored otherwise. Must match exactly what the seller advertises.' },
+          httpVerb: { type: 'string', description: 'HTTP verb of that resource (e.g. POST). Only used with tokenVersion 3; must match what the seller advertises.' },
+          tokenVersion: { type: 'number', enum: [2, 3], description: 'Request token version 3 (single-use, bound to resourceUrl/httpVerb). Defaults to the backend default (2, reusable).' },
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {
@@ -80,10 +83,20 @@ export function createTools(
         const planId = str(params, 'planId') ?? resolveDefaultPlanId(config, paymentType)
         if (!planId) throw new Error('planId is required — provide it as a parameter or in the plugin config')
         const agentId = str(params, 'agentId') ?? config.agentId
+        const resourceUrl = str(params, 'resourceUrl')
+        const httpVerb = str(params, 'httpVerb')
 
-        const tokenOptions = await buildTokenOptions(getPayments, params, config)
+        const tokenOptions = await buildTokenOptions(getPayments, params, config, {
+          explicit: {
+            ...(resourceUrl && { resource: { url: resourceUrl } }),
+            ...(httpVerb && { httpVerb: httpVerb.toUpperCase() }),
+          },
+        })
         const token = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
-        return result({ accessToken: token.accessToken })
+        // tokenVersion is read off the minted token, not echoed from the request:
+        // a backend without v3 support drops `tokenVersion: 3` silently. A `3`
+        // here means the token is single-use — spend it on one request only.
+        return result({ accessToken: token.accessToken, tokenVersion: token.tokenVersion })
       },
     },
 
@@ -153,7 +166,7 @@ export function createTools(
       name: 'nevermined_queryAgent',
       label: 'Nevermined Query Agent',
       description:
-        'Query a Nevermined AI agent end-to-end: acquires an x402 access token, sends the prompt to the agent, and returns the response. Supports crypto (default) and fiat (credit card) payment types.',
+        "Query a Nevermined AI agent end-to-end: acquires an x402 access token, sends the prompt to the agent, and returns { response, tokenVersion } — the agent's body untouched under `response`, and the version of the token actually minted. Supports crypto (default) and fiat (credit card) payment types.",
       parameters: {
         type: 'object' as const,
         properties: {
@@ -166,6 +179,7 @@ export function createTools(
           paymentMethodId: { type: 'string', description: 'Stripe payment method ID (pm_...). Required for fiat; auto-selects first enrolled card if omitted.' },
           spendingLimitCents: { type: 'number', description: 'Max spend in cents for fiat (default: 1000 = $10)' },
           delegationDurationSecs: { type: 'number', description: 'Delegation duration in seconds for fiat (default: 3600 = 1 hour)' },
+          tokenVersion: { type: 'number', enum: [2, 3], description: "Request token version 3: a single-use token bound to this agent's path, as the seller advertises it. Defaults to the backend default (2, reusable)." },
         },
         required: ['agentUrl', 'prompt'],
       },
@@ -180,8 +194,43 @@ export function createTools(
 
         warnIfInsecureUrl(agentUrl)
 
-        const tokenOptions = await buildTokenOptions(getPayments, params, config)
-        const { accessToken } = await getPayments().x402.getX402AccessToken(planId, agentId, tokenOptions)
+        // On a v3 request the token is bound to the call this tool is about to
+        // make. On v2 nothing is bound — see TokenBinding.
+        //
+        // Bound to the PATH, not to `agentUrl`. The assumption is stated rather
+        // than derived: this tool targets a plain HTTP agent protected by the
+        // Express `paymentMiddleware`, which advertises `req.originalUrl` — a
+        // relative path with its query string — so the absolute form would mint
+        // a token that fails the seller's own verify with BCK.X402.0013. (The
+        // `payment-signature` header proves nothing about which seller is on
+        // the other end: this SDK's A2A server accepts the same header and
+        // advertises an ABSOLUTE URL.)
+        //
+        // A seller that advertises something else has no v3 path through this
+        // tool — `nevermined_getAccessToken` takes an explicit `resourceUrl`
+        // but only mints, it does not call the agent. Use it and make the HTTP
+        // call yourself.
+        const tokenOptions = await buildTokenOptions(getPayments, params, config, {
+          derived: {
+            resource: { url: sellerResourcePath(agentUrl) },
+            httpVerb: method.toUpperCase(),
+          },
+        })
+        const { accessToken, tokenVersion } = await getPayments().x402.getX402AccessToken(
+          planId,
+          agentId,
+          tokenOptions,
+        )
+        // Asking for v3 and getting v2 means the token is reusable and bound to
+        // nothing. Nothing else on this path would say so: the ignored-binding
+        // warning covers explicit params only, and this tool passes derived
+        // ones.
+        if (num(params, 'tokenVersion') === 3 && tokenVersion !== 3) {
+          console.warn(
+            `[nevermined] tokenVersion 3 was requested but the backend minted v${tokenVersion}. ` +
+              'The token is reusable and not bound to this endpoint.',
+          )
+        }
 
         const response = await fetch(agentUrl, {
           method,
@@ -199,6 +248,7 @@ export function createTools(
           return result({
             error: `Payment required — insufficient credits. ${guidance}`,
             status: 402,
+            tokenVersion,
           })
         }
 
@@ -206,11 +256,20 @@ export function createTools(
           return result({
             error: `Agent returned HTTP ${response.status}: ${response.statusText}`,
             status: response.status,
+            tokenVersion,
           })
         }
 
         const body = await response.json()
-        return result(body)
+        // The agent's body is returned WHOLE, under its own key. Spreading it
+        // would reshape anything that is not a plain object — a top-level JSON
+        // array becomes index-keyed, a string char-keyed, a number vanishes —
+        // and would clobber an agent's own `tokenVersion` field with ours.
+        //
+        // `tokenVersion` reports what was actually minted, never what was asked
+        // for — the same contract as `nevermined_getAccessToken`. A `3` means
+        // the token was single-use and bound to this endpoint's path.
+        return result({ response: body, tokenVersion })
       },
     },
 
@@ -399,13 +458,49 @@ export function createTools(
 
 // --- Helpers ---
 
+/**
+ * Resource/verb binding for a minted token.
+ *
+ * Signed into a v3 token, so it must name the exact endpoint the token will be
+ * settled against — the seller's verify/settle passes the same pair, and a
+ * mismatch is rejected.
+ *
+ * NOT inert on a v2 token: the backend compares a token's `resource.url`
+ * against the seller's `paymentRequired.resource.url`, so binding a v2 token to
+ * a URL the seller does not advertise verbatim turns a working verify into
+ * `BCK.X402.0013`. Both `derived` and `explicit` bindings are therefore applied
+ * ONLY when v3 is requested: "the caller meant it" does not hold here, since
+ * the caller is a model filling in a tool schema, and a `resourceUrl` supplied
+ * without `tokenVersion: 3` would break the payment it was meant to authorize.
+ */
+interface TokenBinding {
+  resource?: { url: string }
+  httpVerb?: string
+}
+
 async function buildTokenOptions(
   getPayments: () => Payments,
   params: Record<string, unknown>,
   config: NeverminedPluginConfig,
+  binding: { explicit?: TokenBinding; derived?: TokenBinding } = {},
 ): Promise<X402TokenOptions | undefined> {
+  const tokenVersion = num(params, 'tokenVersion')
+  const wantsV3 = tokenVersion === 3
+  const versionOption = wantsV3 ? ({ tokenVersion: 3 } as const) : {}
+  const extras = wantsV3
+    ? { ...binding.derived, ...binding.explicit, ...versionOption }
+    : {}
+  if (!wantsV3 && (binding.explicit?.resource || binding.explicit?.httpVerb)) {
+    console.warn(
+      '[nevermined] resourceUrl/httpVerb were ignored because tokenVersion 3 was not requested. ' +
+        'They only bind a token on v3; on a v2 token they can only fail verification ' +
+        '(BCK.X402.0013). Pass tokenVersion: 3 to bind the token.',
+    )
+  }
   const paymentType = str(params, 'paymentType') ?? config.paymentType ?? 'crypto'
-  if (paymentType !== 'fiat') return undefined
+  if (paymentType !== 'fiat') {
+    return Object.keys(extras).length > 0 ? extras : undefined
+  }
 
   let paymentMethodId = str(params, 'paymentMethodId')
   const methods = await getPayments().delegation.listPaymentMethods()
@@ -425,6 +520,7 @@ async function buildTokenOptions(
       spendingLimitCents: Number(str(params, 'spendingLimitCents') ?? config.defaultSpendingLimitCents ?? 1000),
       durationSecs: Number(str(params, 'delegationDurationSecs') ?? config.defaultDelegationDurationSecs ?? 3600),
     },
+    ...extras,
   }
 }
 
@@ -450,6 +546,31 @@ function str(params: Record<string, unknown>, key: string): string | undefined {
   const v = params[key]
   if (v === undefined || v === null || v === '') return undefined
   return String(v)
+}
+
+/**
+ * The resource string an Express `paymentMiddleware` seller advertises for this
+ * URL: `req.originalUrl`, i.e. path + query, never the origin.
+ *
+ * Falls back to the input when it is not a parseable URL — the backend then
+ * compares it literally, which is the best that can be done with a string this
+ * tool cannot interpret.
+ */
+function sellerResourcePath(agentUrl: string): string {
+  try {
+    const parsed = new URL(agentUrl)
+    return `${parsed.pathname}${parsed.search}`
+  } catch {
+    return agentUrl
+  }
+}
+
+/** Reads a numeric parameter, tolerating the string form an LLM often emits. */
+function num(params: Record<string, unknown>, key: string): number | undefined {
+  const v = str(params, key)
+  if (v === undefined) return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
 }
 
 function requireStr(params: Record<string, unknown>, key: string): string {

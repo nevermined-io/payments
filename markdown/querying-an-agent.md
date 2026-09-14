@@ -47,13 +47,17 @@ The `getX402AccessToken` method takes the plan id plus two optional arguments:
 const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
   planId,
   agentId,       // Optional: restrict the token to a specific agent
-  tokenOptions,  // Optional: X402TokenOptions (scheme, network, delegationConfig)
+  tokenOptions,  // Optional: X402TokenOptions (scheme, network, delegationConfig,
+                 //           resource, httpVerb, tokenVersion)
 )
 ```
 
 Both schemes require `tokenOptions.delegationConfig` — pass
 `{ delegationId }` for a delegation created via
 [`createDelegation`](#card-delegation-tokens-fiat).
+
+`resource`, `httpVerb` and `tokenVersion` opt into a **single-use,
+seller-bound** token — see [Token Reuse](#token-reuse) below.
 
 ### Card-Delegation Tokens (Fiat)
 
@@ -353,7 +357,19 @@ console.log(result.result)
 
 ## Token Reuse
 
-X402 access tokens can be reused for multiple requests until they expire or credits are exhausted:
+Whether a token can be reused depends on the version it was minted under:
+
+| Token version | Reuse | Bound to |
+|---------------|-------|----------|
+| **v2** (default) | Reusable until it expires or credits run out | plan only |
+| **v3** (opt-in)  | **Single-use** — consumed by its first settlement | plan + agent + resource URL + HTTP verb |
+
+A v3 token replayed on a second paid request settles against a spent nonce and
+fails with `BCK.X402.0059`. Mint one token per paid request instead.
+
+### Reusing a v2 token
+
+X402 v2 access tokens can be reused for multiple requests until they expire or credits are exhausted:
 
 ```typescript
 // Generate token once
@@ -377,6 +393,62 @@ for (const city of ['San Francisco', 'New York', 'London']) {
   console.log(`${city}:`, result)
 }
 ```
+
+### Minting a v3 token per request
+
+The `resource.url` must be the **exact string the seller advertises** in its
+`paymentRequired`, not the URL you fetch. Read it off the 402 the seller
+returned — that is the only source that cannot drift:
+
+```typescript
+import { detectAccessTokenVersion } from '@nevermined-io/payments'
+
+// From the seller's 402: `payment-required` header, base64 of the
+// X402PaymentRequired document. Sellers built on this SDK's paymentMiddleware
+// advertise `req.originalUrl` here, i.e. a RELATIVE path such as `/ask`.
+const paymentRequired = JSON.parse(
+  Buffer.from(challengeResponse.headers.get('payment-required')!, 'base64').toString('utf-8'),
+)
+const sellerResourceUrl = paymentRequired.resource.url // e.g. '/ask'
+const sellerHttpVerb = paymentRequired.accepts[0].extra?.httpVerb ?? 'POST'
+
+for (const city of ['San Francisco', 'New York', 'London']) {
+  // One token per paid request: a v3 token is spent by the first settlement.
+  const { accessToken, tokenVersion } = await subscriberPayments.x402.getX402AccessToken(
+    planId,
+    agentId,
+    {
+      delegationConfig: { delegationId },
+      resource: { url: sellerResourceUrl },
+      httpVerb: sellerHttpVerb,
+      tokenVersion: 3,
+    },
+  )
+
+  const response = await fetch(agentUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'payment-signature': accessToken,
+    },
+    body: JSON.stringify({ prompt: `Weather in ${city}` }),
+  })
+
+  console.log(`${city}:`, await response.json(), `(token v${tokenVersion})`)
+}
+```
+
+The comparison is origin + path, with the query string ignored; anything the
+backend cannot parse as a URL is compared literally, which is why a relative
+path must match character for character. A mismatch is rejected with
+`BCK.X402.0013` — and note this applies to **any** token carrying a resource,
+not only v3, so do not attach one to a v2 mint "just in case": the SDK warns if
+you do.
+
+`tokenVersion` is detected from the token that came back, never echoed from the
+request: a backend that does not support v3 yet drops `tokenVersion: 3` silently
+and mints a reusable v2 token. Use `detectAccessTokenVersion(accessToken)` to
+make the same check on a token obtained elsewhere.
 
 ## Check Balance Before Querying
 

@@ -274,9 +274,11 @@ describe('Express Payment Middleware E2E', () => {
       Buffer.from(paymentResponseHeader!, 'base64').toString('utf-8'),
     )
     expect(settlement).toBeDefined()
+    // Logged BEFORE the assertion: a failed settlement carries its reason in the
+    // receipt, and asserting first threw that reason away on every CI failure.
+    console.log('Settlement receipt:', JSON.stringify(settlement, null, 2))
     expect(settlement.success).toBe(true)
     expect(settlement.creditsRedeemed).toBeDefined()
-    console.log('Settlement receipt:', JSON.stringify(settlement, null, 2))
   })
 
   test('should settle dynamic credits based on res.locals, not plan max', async () => {
@@ -304,13 +306,13 @@ describe('Express Payment Middleware E2E', () => {
     const settlement = JSON.parse(
       Buffer.from(paymentResponseHeader!, 'base64').toString('utf-8'),
     )
+    console.log(`Dynamic credits settlement: ${JSON.stringify(settlement, null, 2)}`)
     expect(settlement.success).toBe(true)
 
     // The handler sets res.locals.creditsToCharge = 1, so settlement should
     // burn exactly 1 credit. Before the fix, the credits function runs before
     // the handler → returns 0 → backend falls back to maxCreditsPerRequest (2).
     expect(settlement.creditsRedeemed).toBe('1')
-    console.log(`Dynamic credits settlement: ${JSON.stringify(settlement, null, 2)}`)
   })
 
   test('should reject request with invalid token', async () => {

@@ -15,6 +15,7 @@
 import { Payments } from '../../src/payments.js'
 import { PaymentsError } from '../../src/common/payments.error.js'
 import type { PaymentMethodSummary } from '../../src/x402/delegation-api.js'
+import type { CreateDelegationPayload } from '../../src/common/types.js'
 
 const TEST_API_KEY =
   process.env.TEST_PROXY_BEARER_TOKEN ||
@@ -92,7 +93,7 @@ describe('Visa provider surface', () => {
       durationSecs: 3_600,
       currency: 'usd',
       maxTransactions: 5,
-    }
+    } satisfies CreateDelegationPayload
     const response = await payments.delegation.createDelegation(payload)
 
     expect(calls).toHaveLength(1)

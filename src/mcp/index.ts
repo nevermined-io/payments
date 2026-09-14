@@ -17,7 +17,7 @@
  *
  * // Configure MCP integration
  * payments.mcp.configure({
- *   planId: process.env.NVM_PLAN_ID!, // required
+ *   planId: process.env.NVM_PLAN_ID!, // optional — omit it if every tool sets its own
  *   agentId: process.env.NVM_AGENT_ID, // optional
  *   serverName: 'my-mcp-server'
  * })
@@ -34,7 +34,7 @@
  * // Start a managed server with all OAuth endpoints
  * const { baseUrl, stop } = await payments.mcp.startServer({
  *   port: 5001,
- *   planId: process.env.NVM_PLAN_ID!, // required
+ *   planId: process.env.NVM_PLAN_ID!, // optional — falls back to configure()
  *   agentId: process.env.NVM_AGENT_ID, // optional
  *   serverName: 'my-mcp-server',
  *   tools: ['hello_world']
@@ -50,7 +50,7 @@
  * // Create OAuth router
  * const router = payments.mcp.createRouter({
  *   baseUrl: 'http://localhost:5001',
- *   planId: 'plan_123', // required
+ *   planId: 'plan_123', // optional — falls back to configure()
  *   agentId: 'agent_123', // optional
  *   serverName: 'my-mcp-server'
  * })
@@ -258,7 +258,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * @example
    * ```typescript
    * payments.mcp.configure({
-   *   planId: 'plan_123', // required
+   *   planId: 'plan_123', // optional — omit it if every tool sets its own
    *   serverName: 'my-mcp-server',
    *   agentId: 'agent_123', // optional
    *   baseUrl: 'http://localhost:5001',
@@ -430,7 +430,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```typescript
    * const router = payments.mcp.createRouter({
    *   baseUrl: 'http://localhost:5001',
-   *   planId: 'plan_123', // required
+   *   planId: 'plan_123', // optional — falls back to configure()
    *   serverName: 'my-mcp-server',
    *   tools: ['hello_world']
    * })
@@ -472,7 +472,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```typescript
    * const app = payments.mcp.createApp({
    *   baseUrl: 'http://localhost:5001',
-   *   planId: 'plan_123', // required
+   *   planId: 'plan_123', // optional — falls back to configure()
    *   serverName: 'my-mcp-server'
    * })
    *
@@ -513,7 +513,7 @@ export function buildMcpIntegration(paymentsService: Payments) {
    * ```typescript
    * const { baseUrl, stop } = await payments.mcp.startServer({
    *   port: 5001,
-   *   planId: process.env.NVM_PLAN_ID!, // required
+   *   planId: process.env.NVM_PLAN_ID!, // optional — falls back to configure()
    *   serverName: 'my-mcp-server',
    *   tools: ['hello_world', 'weather']
    * })

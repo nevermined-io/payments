@@ -149,6 +149,11 @@ export interface ClientRegistryOptions {
   planId: string
   agentCardPath?: string
   delegationConfig?: import('../common/types.js').DelegationConfig
+  /**
+   * EIP-712 token version to request. `3` mints a single-use token bound to the
+   * agent's service endpoint, minted per paid call instead of cached.
+   */
+  tokenVersion?: import('../common/types.js').X402TokenVersion
 }
 
 /**

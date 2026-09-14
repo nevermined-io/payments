@@ -12,7 +12,7 @@
  * Callers can override the pin per `Payments` instance via
  * `options.version`.
  *
- * @see https://docs.nevermined.app/api-reference/versioning
+ * @see https://nevermined.ai/docs/development-guide/api-versioning
  */
 export const LOCKED_API_VERSION = '1.1'
 

@@ -51,11 +51,14 @@ payments.mcp.configure({
 })
 ```
 
-> **`planId` is required; `agentId` is optional.** The x402 facilitator is
+> **`planId` and `agentId` are both optional.** The x402 facilitator is
 > plan-centric — verify/settle resolve everything from the plan and the
 > subscriber's token. `agentId` is informational only (it also populates the
 > OAuth `client_id` when present). A per-tool `planId` option overrides the
-> server-level plan.
+> server-level plan — and stands in for it entirely, so a server whose every
+> handler sets its own plan needs no `planId` here at all. What is required is
+> that a plan be resolvable by the time a handler is registered: with neither,
+> registration throws `Server misconfiguration: missing planId`.
 
 ## Register Tools with Credits
 
@@ -401,7 +404,7 @@ async function fetchAlerts() {
 | Option          | Type                   | Description                                                                                                                                                                                                                             |
 | --------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `credits`       | `bigint` or `function` | Credits to consume per call                                                                                                                                                                                                             |
-| `planId`        | `string`               | Per-handler plan ID override. A server-level `planId` (set via `configure`/`start`) is required; set this only to charge a different plan for this handler.                                                                               |
+| `planId`        | `string`               | Per-handler plan ID override. Optional when a server-level `planId` is set via `configure`/`start`; required per handler when there is none. With neither, registration throws `Server misconfiguration: missing planId`.                                                                               |
 | `maxAmount`     | `bigint`               | Max credits to verify during authentication (default: `1n`)                                                                                                                                                                             |
 | `onRedeemError` | `string`               | On post-execution settlement failure: `'ignore'` (default) returns the in-band payment error; `'propagate'` throws a JSON-RPC error. Tool content is always suppressed either way (paid content is never delivered without settlement). |
 
@@ -450,6 +453,7 @@ On a successful paid call, the SDK injects the settlement receipt under `_meta["
       transaction: '0xabc...',
       network: 'eip155:84532',
       payer: '0x123...',
+      billingModel: 'credits',
       creditsRedeemed: '5',
       remainingBalance: '95',
     },
@@ -457,6 +461,7 @@ On a successful paid call, the SDK injects the settlement receipt under `_meta["
     'nevermined/credits': {
       success: true,
       txHash: '0xabc...',
+      billingModel: 'credits',
       creditsRedeemed: '5',
       planId: 'plan-123',
       subscriberAddress: '0x123...',
@@ -466,6 +471,32 @@ On a successful paid call, the SDK injects the settlement receipt under `_meta["
 ```
 
 Free / no-credit calls omit the `x402/payment-response` key (no settlement occurred); `nevermined/credits` is still attached with `creditsRedeemed: '0'`.
+
+> ⚠️ **`creditsRedeemed` is not always present on `nevermined/credits`.** When a
+> settle succeeds but the facilitator reports no figure, the key is **omitted**.
+> It used to be filled in with the credits the request *asked* to burn — a number
+> the settle never reported, published under the name of one it did. Nothing
+> substitutes for a missing figure now.
+>
+> | settle | `creditsRedeemed` on `nevermined/credits` |
+> | --- | --- |
+> | succeeded, figure reported | that figure |
+> | succeeded, **no figure reported** | **key absent** |
+> | pay-as-you-go (charged, no balance) | `'0'` — read `billingModel` beside it |
+> | failed, or a free / no-credit call | `'0'` |
+>
+> Read it with `in` rather than truthiness, since `'0'` is both a legitimate value
+> and truthy. The facilitator's response is always passed through verbatim under
+> `x402/payment-response`, so the raw figure is there whatever this summary does.
+
+> **On a pay-as-you-go plan, a paid call also reports `creditsRedeemed: '0'`.** Those plans hold no
+> credit balance — each call is charged directly — so both credit fields read `'0'` even though the
+> buyer *was* charged. Read `billingModel` off `_meta["x402/payment-response"]` to tell the two apart:
+> `'pay-as-you-go'` means the charge is referenced by `orderTx` (fiat rails) or `transaction` (crypto
+> rails), and `creditsRedeemed` carries no information. Both keys carry the discriminator: the whole
+> settle receipt is passed through under `x402/payment-response`, and `nevermined/credits` carries
+> `billingModel` and `orderTx` alongside its condensed fields. See
+> [Was the buyer charged?](./validation-of-requests#was-the-buyer-charged).
 
 ### Payment required
 

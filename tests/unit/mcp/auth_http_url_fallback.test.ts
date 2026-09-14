@@ -6,6 +6,7 @@ import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import { requestContextStorage } from '../../../src/mcp/http/mcp-handler.js'
 import type { RequestContext } from '../../../src/mcp/http/session-manager.js'
 import type { Payments } from '../../../src/payments.js'
+import type { VerifyPermissionsResult } from '../../../src/x402/facilitator-api.js'
 
 // Mock decodeAccessToken to provide x402-compliant token structure
 jest.mock('../../../src/utils.js', () => ({
@@ -41,7 +42,7 @@ class PaymentsMock {
     getAgentPlans: jest.Mock
   }
 
-  constructor(verifySequence: Array<{ isValid: boolean }> = [{ isValid: true }]) {
+  constructor(verifySequence: VerifyPermissionsResult[] = [{ isValid: true }]) {
     this.facilitator = {
       verifyPermissions: jest.fn(),
     }
