@@ -5,6 +5,10 @@
 
 import { buildMcpIntegration } from '../../../src/mcp/index.js'
 import type { Payments } from '../../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
@@ -46,14 +50,14 @@ class PaymentsMockWithFailures {
   ) {
     this.failureMode = failureMode
     this.facilitator = {
-      verifyPermissions: jest.fn(async (params: any) => {
+      verifyPermissions: jest.fn(async (params: any): Promise<VerifyPermissionsResult> => {
         this.calls.push(['verifyPermissions', params])
         if (this.failureMode === 'invalid-token' || this.failureMode === 'not-subscriber') {
           return { isValid: false, invalidReason: 'Payment required' }
         }
         return { isValid: true }
       }),
-      settlePermissions: jest.fn(async (params: any) => {
+      settlePermissions: jest.fn(async (params: any): Promise<SettlePermissionsResult> => {
         this.calls.push(['settle', params])
         if (this.failureMode === 'insufficient-balance') {
           throw new Error('Insufficient balance for redemption')
@@ -91,24 +95,27 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('invalid-token')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: `Weather in ${args.city}` }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'weather', credits: 5n, planId: 'plan-basic' })
-
-    // Attempt to call with invalid token
-    await expect(
-      wrapped(
-        { city: 'Madrid' },
-        { requestInfo: { headers: { authorization: 'Bearer invalid-token-xyz' } } },
-      ),
-    ).rejects.toMatchObject({
-      code: -32003,
-      message: expect.stringContaining('Payment'),
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'weather',
+      credits: 5n,
+      planId: 'plan-basic',
     })
+
+    // For tools, payment-required is returned in band as an error tool result.
+    const out = await wrapped(
+      { city: 'Madrid' },
+      { requestInfo: { headers: { authorization: 'Bearer invalid-token-xyz' } } },
+    )
+    expect(out.isError).toBe(true)
+    expect(out.structuredContent.x402Version).toBe(2)
+    expect(out.structuredContent.accepts.length).toBeGreaterThan(0)
 
     // Should have attempted to verify permissions
     expect(mockInstance.calls.some((c: any) => c[0] === 'verifyPermissions')).toBe(true)
@@ -124,49 +131,53 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('invalid-token')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: 'result' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'test',
+      credits: 1n,
+      planId: 'plan-basic',
+    })
 
-    try {
-      await wrapped(
-        { input: 'test' },
-        { requestInfo: { headers: { authorization: 'Bearer bad-token' } } },
-      )
-      fail('Should have thrown')
-    } catch (error: any) {
-      // Error message should include available plans
-      expect(error.message).toContain('Available plans')
-      expect(error.message).toMatch(/plan-basic|plan-pro|plan-enterprise/)
-    }
+    const out = await wrapped(
+      { input: 'test' },
+      { requestInfo: { headers: { authorization: 'Bearer bad-token' } } },
+    )
+    // Plan information is carried in the in-band PaymentRequired `accepts` array.
+    expect(out.isError).toBe(true)
+    const planIds: string[] = out.structuredContent.accepts.map((a: any) => a.planId)
+    expect(planIds).toEqual(expect.arrayContaining(['plan-basic']))
+    expect(planIds.some((p) => /plan-basic|plan-pro|plan-enterprise/.test(p))).toBe(true)
   })
 
   test('should reject when user is not a subscriber', async () => {
     const mockInstance = new PaymentsMockWithFailures('not-subscriber')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: 'result' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
-
-    await expect(
-      wrapped(
-        { input: 'test' },
-        { requestInfo: { headers: { authorization: 'Bearer valid-token' } } },
-      ),
-    ).rejects.toMatchObject({
-      code: -32003,
-      message: expect.stringContaining('Payment'),
-      data: { reason: 'invalid' },
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'test',
+      credits: 1n,
+      planId: 'plan-basic',
     })
+
+    const out = await wrapped(
+      { input: 'test' },
+      { requestInfo: { headers: { authorization: 'Bearer valid-token' } } },
+    )
+    expect(out.isError).toBe(true)
+    expect(out.structuredContent.x402Version).toBe(2)
 
     // Should have called verifyPermissions (which returned success: false)
     expect(mockInstance.calls.some((c: any) => c[0] === 'verifyPermissions')).toBe(true)
@@ -179,7 +190,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('none')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return {
@@ -187,7 +198,12 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'process', credits: 10n, planId: 'plan-basic' })
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'process',
+      credits: 10n,
+      planId: 'plan-basic',
+    })
 
     const result = await wrapped(
       { action: 'analyze' },
@@ -209,7 +225,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('none')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'multi-tool-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'multi-tool-server' })
 
     const simpleHandler = async () => ({ content: [{ type: 'text', text: 'simple' }] })
     const complexHandler = async () => ({ content: [{ type: 'text', text: 'complex' }] })
@@ -253,7 +269,7 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     const mockInstance = new PaymentsMockWithFailures('insufficient-balance')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: 'result' }] }
@@ -276,17 +292,17 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     })
   })
 
-  test('should ignore redemption errors by default', async () => {
+  test('should suppress content and return payment error on settlement failure (default ignore)', async () => {
     const mockInstance = new PaymentsMockWithFailures('insufficient-balance')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async (args: any) => {
       return { content: [{ type: 'text', text: 'result' }] }
     }
 
-    // Default behavior: ignore redemption errors
+    // Default behavior: onRedeemError 'ignore'
     const wrapped = mcp.withPaywall(handler, {
       kind: 'tool',
       name: 'test',
@@ -295,39 +311,43 @@ describe('MCP Paywall - Invalid Token Flow', () => {
       // onRedeemError defaults to 'ignore'
     })
 
-    // Should not throw, even though redemption fails
+    // Under the in-band transport, "ignore" no longer delivers paid content on a
+    // post-execution settlement failure — content is suppressed and an in-band
+    // payment error is returned instead.
     const result = await wrapped(
       { input: 'test' },
       { requestInfo: { headers: { authorization: 'Bearer token' } } },
     )
 
-    expect(result).toBeDefined()
-    expect(result.content[0].text).toBe('result')
-
-    // When redemption fails silently, _meta reports the failure
-    expect(result._meta).toBeDefined()
-    expect(result._meta.success).toBe(false)
-    expect(result._meta.txHash).toBeUndefined()
-    expect(result._meta.creditsRedeemed).toBe('0')
+    expect(result.isError).toBe(true)
+    expect(result.structuredContent.error).toBe('settlement failed')
+    // The executed tool's content must NOT be delivered.
+    expect(JSON.stringify(result)).not.toContain('"result"')
   })
 
   test('should handle multiple authentication failures in sequence', async () => {
     const mockInstance = new PaymentsMockWithFailures('invalid-token')
     const pm = mockInstance as any as Payments
     const mcp = buildMcpIntegration(pm)
-    mcp.configure({ agentId: 'did:nv:test', serverName: 'test-server' })
+    mcp.configure({ planId: 'plan-basic', agentId: 'did:nv:test', serverName: 'test-server' })
 
     const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-basic' })
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'test',
+      credits: 1n,
+      planId: 'plan-basic',
+    })
 
-    // Multiple failed attempts
+    // Multiple failed attempts — each returns an in-band payment error result.
     const attempts = 5
     for (let i = 0; i < attempts; i++) {
-      await expect(
-        wrapped({}, { requestInfo: { headers: { authorization: `Bearer bad-token-${i}` } } }),
-      ).rejects.toMatchObject({
-        code: -32003,
-      })
+      const out = await wrapped(
+        {},
+        { requestInfo: { headers: { authorization: `Bearer bad-token-${i}` } } },
+      )
+      expect(out.isError).toBe(true)
+      expect(out.structuredContent.x402Version).toBe(2)
     }
 
     // Should have attempted to verify permissions for each attempt
@@ -337,5 +357,31 @@ describe('MCP Paywall - Invalid Token Flow', () => {
     // Should have fetched plans for each failure
     const planCalls = mockInstance.calls.filter((c: any) => c[0] === 'getAgentPlans')
     expect(planCalls.length).toBe(attempts)
+  })
+})
+
+describe('MCP planId settable on server entry-point options', () => {
+  test('createRouter({ planId }) configures the paywall plan with no prior configure()', () => {
+    const pm = new PaymentsMockWithFailures('none') as any as Payments
+    const mcp = buildMcpIntegration(pm)
+    // planId comes solely from the createRouter option (no configure() call).
+    mcp.createRouter({ baseUrl: 'http://localhost:5001', planId: 'plan-x' })
+    expect(mcp.getConfig().planId).toBe('plan-x')
+  })
+
+  test('per-call planId option overrides a prior configure()', () => {
+    const pm = new PaymentsMockWithFailures('none') as any as Payments
+    const mcp = buildMcpIntegration(pm)
+    mcp.configure({ planId: 'plan-from-configure', serverName: 'srv' })
+    mcp.createRouter({ baseUrl: 'http://localhost:5001', planId: 'plan-override' })
+    expect(mcp.getConfig().planId).toBe('plan-override')
+  })
+
+  test('createRouter without planId falls back to the configured planId', () => {
+    const pm = new PaymentsMockWithFailures('none') as any as Payments
+    const mcp = buildMcpIntegration(pm)
+    mcp.configure({ planId: 'plan-configured', serverName: 'srv' })
+    mcp.createRouter({ baseUrl: 'http://localhost:5001' })
+    expect(mcp.getConfig().planId).toBe('plan-configured')
   })
 })

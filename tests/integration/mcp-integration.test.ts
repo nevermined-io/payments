@@ -4,6 +4,10 @@
 
 import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 import * as utils from '../../src/utils.js'
 
 // Mock decodeAccessToken to provide x402-compliant token structure
@@ -28,7 +32,6 @@ const mockDecodeToken = (_token: string) => ({
 
 jest.spyOn(utils, 'decodeAccessToken').mockImplementation(mockDecodeToken as any)
 
-
 class PaymentsMinimal {
   public facilitator: any
   public agents: any
@@ -43,15 +46,20 @@ class PaymentsMinimal {
         this.subscriber = subscriber
       }
 
-      async verifyPermissions(params: any) {
+      async verifyPermissions(params: any): Promise<VerifyPermissionsResult> {
         if (!this.subscriber) {
           throw new Error('Subscriber not found')
         }
         return { isValid: true }
       }
 
-      async settlePermissions(params: any) {
-        return { success: true, transaction: '0x1234567890abcdef', network: 'eip155:84532', creditsRedeemed: String(params.maxAmount) }
+      async settlePermissions(params: any): Promise<SettlePermissionsResult> {
+        return {
+          success: true,
+          transaction: '0x1234567890abcdef',
+          network: 'eip155:84532',
+          creditsRedeemed: String(params.maxAmount),
+        }
       }
     }
 
@@ -74,13 +82,18 @@ describe('MCP Integration', () => {
   test('should validate and burn credits with minimal mocks', async () => {
     const payments = new PaymentsMinimal() as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp-int' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent', serverName: 'mcp-int' })
 
     const handler = async (_args: any) => {
       return { content: [{ type: 'text', text: 'hello' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-123' })
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'test',
+      credits: 1n,
+      planId: 'plan-123',
+    })
     const extra = { requestInfo: { headers: { Authorization: 'Bearer abc' } } }
     const out = await wrapped({ city: 'Madrid' }, extra)
 
@@ -90,19 +103,27 @@ describe('MCP Integration', () => {
   test('should trigger payment required when not subscriber', async () => {
     const payments = new PaymentsMinimal(false) as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp-int' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent', serverName: 'mcp-int' })
 
     const handler = async (_args: any) => {
       return { content: [{ type: 'text', text: 'hello' }] }
     }
 
-    const wrapped = mcp.withPaywall(handler, { kind: 'tool', name: 'test', credits: 1n, planId: 'plan-123' })
-
-    await expect(
-      wrapped({ city: 'Madrid' }, { requestInfo: { headers: { Authorization: 'Bearer tok' } } }),
-    ).rejects.toMatchObject({
-      code: -32003,
+    const wrapped = mcp.withPaywall(handler, {
+      kind: 'tool',
+      name: 'test',
+      credits: 1n,
+      planId: 'plan-123',
     })
+
+    // For tools, payment-required is surfaced in band as an error tool result
+    // (isError) rather than a thrown JSON-RPC error.
+    const out = await wrapped(
+      { city: 'Madrid' },
+      { requestInfo: { headers: { Authorization: 'Bearer tok' } } },
+    )
+    expect(out.isError).toBe(true)
+    expect(out.structuredContent.x402Version).toBe(2)
   })
 
   test('should provide PaywallContext with realistic agent request data', async () => {
@@ -119,20 +140,25 @@ describe('MCP Integration', () => {
             this.outer = outer
             this.subscriber = subscriber
           }
-          async verifyPermissions(params: any) {
+          async verifyPermissions(params: any): Promise<VerifyPermissionsResult> {
             if (!this.subscriber) {
               throw new Error('Subscriber not found')
             }
             return { isValid: true }
           }
 
-          async settlePermissions(params: any) {
+          async settlePermissions(params: any): Promise<SettlePermissionsResult> {
             const planId = params.paymentRequired?.accepts?.[0]?.planId || 'plan-123'
             const maxAmount = params.maxAmount || 0n
             const hash = `${planId}-${maxAmount}`
               .split('')
               .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-            return { success: true, transaction: `0x${(hash % 1000000000).toString(16)}`, network: 'eip155:84532', creditsRedeemed: String(maxAmount) }
+            return {
+              success: true,
+              transaction: `0x${(hash % 1000000000).toString(16)}`,
+              network: 'eip155:84532',
+              creditsRedeemed: String(maxAmount),
+            }
           }
         }
 
@@ -158,7 +184,7 @@ describe('MCP Integration', () => {
 
     const payments = new PaymentsWithX402(true) as any as Payments
     const mcp = buildMcpIntegration(payments)
-    mcp.configure({ agentId: 'did:nv:agent:abc123', serverName: 'weather-service' })
+    mcp.configure({ planId: 'plan-123', agentId: 'did:nv:agent:abc123', serverName: 'weather-service' })
 
     const capturedContexts: any[] = []
 
@@ -175,7 +201,6 @@ describe('MCP Integration', () => {
 
       // Simulate business logic using context data
       const city = args.city || 'Unknown'
-
 
       // Generate weather response with metadata
       const weatherData = {
@@ -226,7 +251,6 @@ describe('MCP Integration', () => {
     expect(context.authResult.planId).toBe('plan-123')
     expect(context.authResult.subscriberAddress).toBe('0xSubscriber123')
     expect(context.authResult.logicalUrl).toContain('mcp://weather-service/tools/get-weather')
-
 
     // Verify credits
     expect(context.credits).toBe(5n)

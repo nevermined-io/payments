@@ -191,9 +191,10 @@ export class McpServerManager {
     this.log = config.onLog
 
     try {
-      // Validate configuration
-      if (!config.agentId) {
-        throw new Error('agentId is required')
+      // Validate configuration. planId is required (plan-centric); agentId is
+      // optional and informational only.
+      if (!config.planId) {
+        throw new Error('planId is required')
       }
       if (!config.port) {
         throw new Error('port is required')
@@ -258,6 +259,9 @@ export class McpServerManager {
         mountMcpHandlers(this.expressApp as any, {
           sessionManager: this.sessionManager,
           requireAuth: true,
+          // Pin the challenge's resource_metadata origin to the operator's known
+          // baseUrl (never client Host/X-Forwarded-* headers) — see #410 review.
+          baseUrl,
           log: this.log,
         })
 
@@ -351,6 +355,7 @@ export class McpServerManager {
       throw new Error('Server config not set')
     }
     this.paywallDecorator.configure({
+      planId: this.config.planId,
       agentId: this.config.agentId,
       serverName: this.config.serverName,
     })
@@ -528,7 +533,7 @@ export class McpServerManager {
   Tools: ${toolsList}
   Resources: ${resourcesList}
   Prompts: ${promptsList}
-  Agent ID: ${config.agentId}`)
+  Plan ID: ${config.planId}${config.agentId ? `\n  Agent ID: ${config.agentId}` : ''}`)
   }
 }
 

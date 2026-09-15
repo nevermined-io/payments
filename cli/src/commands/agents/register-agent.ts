@@ -8,7 +8,7 @@ export default class RegisterAgent extends BaseCommand {
   static override description = "It registers a new AI Agent on Nevermined. The agent must be associated to one or multiple Payment Plans. Users that are subscribers of a payment plan can query the agent. Depending on the Payment Plan and the configuration of the agent, the usage of the agent/service will consume credits. When the plan expires (because the time is over or the credits are consumed), the user needs to renew the plan to continue using the agent."
 
   static override examples = [
-    '$ nvm agents register-agent'
+    '$ nevermined agents register-agent'
   ]
 
   static override flags = {
@@ -17,7 +17,10 @@ export default class RegisterAgent extends BaseCommand {
       description: "agentMetadata as JSON string",
       required: true
     }),
-    'agent-api': Flags.string({ required: true }),
+    'agent-api': Flags.string({
+      description: "agentApi as JSON string",
+      required: true
+    }),
     'payment-plans': Flags.string({ required: true }),
   }
 
@@ -29,7 +32,7 @@ export default class RegisterAgent extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.agents.registerAgent(await this.parseJsonInput(flags['agent-metadata']), flags['agent-api'], flags['payment-plans'])
+      const result = await payments.agents.registerAgent(await this.parseJsonInput(flags['agent-metadata']), await this.parseJsonInput(flags['agent-api']), flags['payment-plans'])
 
       this.formatter.output(result)
     } catch (error) {

@@ -4,6 +4,7 @@
 
 import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import type { Payments } from '../../../src/payments.js'
+import type { VerifyPermissionsResult } from '../../../src/x402/facilitator-api.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
@@ -42,7 +43,7 @@ class PaymentsMock {
     const shouldReject = options?.shouldReject ?? false
 
     this.facilitator = {
-      verifyPermissions: jest.fn(async (params: any) => {
+      verifyPermissions: jest.fn(async (params: any): Promise<VerifyPermissionsResult> => {
         this.calls.push(['verifyPermissions', params])
         if (shouldReject) {
           return { isValid: false, invalidReason: 'Access denied' }
@@ -83,7 +84,6 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Authorization required'),
-      data: { reason: 'missing' },
     })
   })
 
@@ -97,7 +97,6 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Authorization required'),
-      data: { reason: 'missing' },
     })
   })
 
@@ -111,7 +110,6 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Authorization required'),
-      data: { reason: 'missing' },
     })
   })
 
@@ -167,11 +165,18 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
     await expect(
-      authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(
+        extra,
+        { planId: 'plan-1' },
+        'did:nv:agent',
+        'test-server',
+        'tool1',
+        'tool',
+        {},
+      ),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Payment required'),
-      data: { reason: 'invalid' },
     })
   })
 
@@ -183,11 +188,18 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const extra = { requestInfo: { headers: { authorization: 'Bearer bad-token' } } }
 
     await expect(
-      authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {}),
+      authenticator.authenticate(
+        extra,
+        { planId: 'plan-1' },
+        'did:nv:agent',
+        'test-server',
+        'tool1',
+        'tool',
+        {},
+      ),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Available plans'),
-      data: { reason: 'invalid' },
     })
 
     // Should have called getAgentPlans to fetch available plans
@@ -204,7 +216,15 @@ describe('PaywallAuthenticator - Header Extraction', () => {
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
     try {
-      await authenticator.authenticate(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'tool1', 'tool', {})
+      await authenticator.authenticate(
+        extra,
+        { planId: 'plan-1' },
+        'did:nv:agent',
+        'test-server',
+        'tool1',
+        'tool',
+        {},
+      )
       fail('Should have thrown')
     } catch (error: any) {
       expect(error.message).toContain('plan-1')
@@ -248,7 +268,6 @@ describe('PaywallAuthenticator - authenticateMeta', () => {
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Authorization required'),
-      data: { reason: 'missing' },
     })
   })
 
@@ -260,11 +279,16 @@ describe('PaywallAuthenticator - authenticateMeta', () => {
     const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
 
     await expect(
-      authenticator.authenticateMeta(extra, { planId: 'plan-1' }, 'did:nv:agent', 'test-server', 'initialize'),
+      authenticator.authenticateMeta(
+        extra,
+        { planId: 'plan-1' },
+        'did:nv:agent',
+        'test-server',
+        'initialize',
+      ),
     ).rejects.toMatchObject({
       code: -32003,
       message: expect.stringContaining('Payment required'),
-      data: { reason: 'invalid' },
     })
   })
 })

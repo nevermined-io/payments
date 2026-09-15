@@ -8,6 +8,8 @@ icon: "shield-check"
 
 This guide explains how AI agents validate incoming requests and settle payments using the Nevermined Facilitator. Agent builders use these methods to verify subscriber access and burn credits.
 
+> 🔐 **Never log incoming tokens.** When you extract the `payment-signature` header, treat it as a bearer secret: do not echo it in error messages, debug output, or telemetry. Configure your log/trace exporters to redact `payment-signature`, `authorization`, and `cookie` headers by default.
+
 ## Overview
 
 The validation flow consists of:
@@ -146,12 +148,15 @@ app.post('/api/v1/tasks', async (req, res) => {
       maxAmount: 1n,  // Credits to burn
     })
 
-    // Return success with payment metadata
+    // Return success with payment metadata. Pass `billingModel` through — it is
+    // what tells the caller how to read the credit fields (see below).
     return res.json({
       result,
       transaction: settlement.transaction,
+      billingModel: settlement.billingModel,
       creditsUsed: settlement.creditsRedeemed,
       remainingBalance: settlement.remainingBalance,
+      orderTx: settlement.orderTx,
     })
 
   } catch (error) {
@@ -159,6 +164,33 @@ app.post('/api/v1/tasks', async (req, res) => {
   }
 })
 ```
+
+### Was the buyer charged?
+
+`settlement.success` tells you the settle worked. What to check **in addition** depends
+on `settlement.billingModel`:
+
+| `billingModel` | Success criterion | Credit fields |
+| -------------- | ----------------- | ------------- |
+| `credits` | `success === true && Number(creditsRedeemed) > 0` | `creditsRedeemed` is the amount burned, `remainingBalance` what is left |
+| `pay-as-you-go` | `success === true` **and** a non-empty `orderTx` (fiat rails) / `transaction` (crypto rails) | always the string `'0'` — no balance exists on this plan shape |
+
+**No `billingModel` in the response?** You are talking to a Nevermined API that predates the
+discriminator. Apply the **credits** rule — never read a missing discriminator as pay-as-you-go.
+
+```typescript
+const settled =
+  settlement.success &&
+  (settlement.billingModel === 'pay-as-you-go'
+    ? Boolean(settlement.orderTx || settlement.transaction)
+    : Number(settlement.creditsRedeemed ?? '0') > 0)
+```
+
+Do not gate on `creditsRedeemed` without reading `billingModel` first: a pay-as-you-go plan
+holds no credit balance, so `creditsRedeemed > 0` can never hold there and a real charge
+reads as a decline. On a card rail that invites a retry of a payment that already succeeded,
+and repeated attempts feed issuer fraud scoring. Note also that these fields are **strings** —
+`'0'` is truthy while `Number('0') > 0` is false.
 
 ## Return 402 Payment Required
 
@@ -268,7 +300,9 @@ app.post('/api/v1/tasks', async (req, res) => {
       success: settlement.success,
       network: settlement.network,
       transaction: settlement.transaction,
+      billingModel: settlement.billingModel,
       creditsRedeemed: settlement.creditsRedeemed,
+      orderTx: settlement.orderTx,
     }
 
     res.writeHead(200, {
@@ -383,6 +417,41 @@ const settlement = await agentPayments.facilitator.settlePermissions({
 })
 ```
 
+## Single-Use (v3) Tokens on the Seller Side
+
+Buyers may present a **v3** access token: bound to one resource URL and HTTP
+verb, and **consumed by its first settlement**. The seller side needs no
+protocol change — relay the `payment-signature` value to verify and settle
+**byte-for-byte**, exactly as with a v2 token. Two consequences to be aware of:
+
+- **`paymentRequired` must match what the token was minted for.** The backend
+  compares the token's `resource.url` with yours (origin + path, query ignored;
+  an unparseable string is compared literally) and rejects a mismatch with
+  `BCK.X402.0013`. Whatever you pass as `endpoint` is what buyers must mint
+  against — `paymentMiddleware` advertises `req.originalUrl`, i.e. a relative
+  path. Keep it stable, and document it for your buyers.
+- **`verifyPermissions` never consumes the token**, so verify-then-settle is
+  unchanged and verification stays repeatable. Only `settlePermissions` spends it.
+
+A second settlement of the same token fails with **`BCK.X402.0059`** — which is
+neither a decline nor a forgery (`BCK.X402.0005`): the token was valid and has
+already been spent. Never retry it; the buyer must mint a new one.
+
+```typescript
+import { isAccessTokenAlreadyUsed } from '@nevermined-io/payments'
+
+try {
+  await agentPayments.facilitator.settlePermissions({ paymentRequired, x402AccessToken: accessToken })
+} catch (error) {
+  if (isAccessTokenAlreadyUsed(error)) {
+    return res.status(402).json({
+      error: 'This access token was already used. Please mint a new one.',
+    })
+  }
+  throw error
+}
+```
+
 ## Best Practices
 
 1. **Always Verify First**: Call `verifyPermissions` before executing tasks
@@ -392,6 +461,10 @@ const settlement = await agentPayments.facilitator.settlePermissions({
 5. **Log Transactions**: Record transaction hashes for audit trails
 6. **Dynamic Pricing**: Calculate credits based on actual resource usage
 7. **Token Validation**: Never skip verification even if token looks valid
+8. **Branch on `billingModel`**: Never decide "was the buyer charged?" from
+   `creditsRedeemed` alone — see [Was the buyer charged?](#was-the-buyer-charged) above
+9. **Never Retry a Spent Token**: Treat `BCK.X402.0059` as "mint a new token", not as a transient settlement failure
+10. **Relay Tokens Verbatim**: Do not re-encode, trim or normalise `payment-signature` — a v3 envelope that disagrees with its signature is rejected as forgery
 
 ## Related Documentation
 

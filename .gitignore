@@ -142,3 +142,7 @@ node_modules/.pnpm
 
 # mocks
 __mocks__
+
+# python (scripts/*.py)
+__pycache__/
+*.pyc

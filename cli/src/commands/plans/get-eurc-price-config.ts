@@ -8,7 +8,7 @@ export default class GetEURCPriceConfig extends BaseCommand {
   static override description = "Builds an EURC (Euro stablecoin) price configuration for a plan."
 
   static override examples = [
-    '$ nvm plans get-eurc-price-config'
+    '$ nevermined plans get-eurc-price-config'
   ]
 
   static override flags = {
