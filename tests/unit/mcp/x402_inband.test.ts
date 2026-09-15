@@ -16,6 +16,7 @@
 import { PaywallDecorator } from '../../../src/mcp/core/paywall.js'
 import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import { buildPaymentRequiredForPlans } from '../../../src/x402/facilitator-api.js'
+import type { SettlePermissionsResult } from '../../../src/x402/facilitator-api.js'
 import { PaymentRequiredError, SettlementFailedError } from '../../../src/mcp/utils/errors.js'
 import {
   NEVERMINED_CREDITS_META_KEY,
@@ -50,7 +51,7 @@ const SAMPLE_PR = {
 
 /** Build a PaywallDecorator wired with mocks for a single call. */
 function makeDecorator(opts: {
-  settle?: any
+  settle?: SettlePermissionsResult
   authenticate?: jest.Mock
   credits?: bigint
   agentId?: string
@@ -59,7 +60,8 @@ function makeDecorator(opts: {
     getEnvironmentName: () => 'staging_sandbox',
     facilitator: {
       settlePermissions: jest.fn(
-        async () => opts.settle ?? { success: true, transaction: '', network: '' },
+        async (): Promise<SettlePermissionsResult> =>
+          opts.settle ?? { success: true, transaction: '', network: '' },
       ),
     },
     agents: { getAgentPlans: jest.fn(async () => ({ plans: [] })) },
@@ -182,7 +184,7 @@ describe('x402 in-band: paywall wrapper', () => {
       network: 'eip155:84532',
       payer: '0x123',
       creditsRedeemed: '5',
-    }
+    } satisfies SettlePermissionsResult
     const { decorator } = makeDecorator({ settle })
     const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
     const wrapped = decorator.protect(handler, { kind: 'tool', name: 'premium' })
@@ -204,7 +206,7 @@ describe('x402 in-band: paywall wrapper', () => {
       network: 'eip155:84532',
       payer: '0x123',
       creditsRedeemed: '5',
-    }
+    } satisfies SettlePermissionsResult
     // Configure with a planId but NO agentId — must not throw the
     // "missing agentId" misconfiguration; the plan-centric path settles fine.
     const { decorator } = makeDecorator({ settle, agentId: undefined })
@@ -348,7 +350,12 @@ describe('x402 in-band: paywall wrapper', () => {
     payments.facilitator.settlePermissions = jest.fn(async () => {
       calls += 1
       if (calls === 1) throw new Error('primary settle failed')
-      return { success: true, transaction: '0xok', network: 'eip155:84532', creditsRedeemed: '5' }
+      return {
+        success: true,
+        transaction: '0xok',
+        network: 'eip155:84532',
+        creditsRedeemed: '5',
+      } satisfies SettlePermissionsResult
     })
     const handler = async () => ({ content: [{ type: 'text', text: 'ok' }] })
     const wrapped = decorator.protect(handler, { kind: 'tool', name: 'premium' })
@@ -465,12 +472,14 @@ describe('x402 in-band: real MCP-SDK dispatch', () => {
     const payments: any = {
       getEnvironmentName: () => 'staging_sandbox',
       facilitator: {
-        settlePermissions: jest.fn(async () => ({
-          success: true,
-          transaction: '0xok',
-          network: 'eip155:84532',
-          creditsRedeemed: '5',
-        })),
+        settlePermissions: jest.fn(
+          async (): Promise<SettlePermissionsResult> => ({
+            success: true,
+            transaction: '0xok',
+            network: 'eip155:84532',
+            creditsRedeemed: '5',
+          }),
+        ),
       },
       agents: { getAgentPlans: jest.fn(async () => ({ plans: [] })) },
     }

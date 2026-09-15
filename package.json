@@ -1,10 +1,13 @@
 {
   "name": "@nevermined-io/payments",
-  "version": "1.10.0",
+  "version": "1.13.0",
   "description": "Typescript SDK to interact with the Nevermined Payments Protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nevermined-io/payments"
@@ -44,6 +47,7 @@
   "scripts": {
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build": "tsc",
+    "typecheck:tests": "tsc --noEmit -p tests/tsconfig.json",
     "build:all": "pnpm build && pnpm cli:build",
     "lint": "eslint ./src",
     "test": "jest --verbose --config ./tests/jest.config.json",
@@ -131,7 +135,7 @@
     "@traceloop/node-server-sdk": "^0.26.0",
     "axios": "^1.13.1",
     "express": "4.21.2",
-    "jose": "^5.2.4",
+    "jose": "^6.2.12",
     "js-file-download": "^0.4.12",
     "uuid": "^10.0.0",
     "zod": "^4.0.17",

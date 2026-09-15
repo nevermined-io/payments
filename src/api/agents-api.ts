@@ -242,13 +242,14 @@ export class AgentsAPI extends BasePaymentsAPI {
    * Gets the list of plans that can be ordered to get access to an agent.
    *
    * @param agentId - The unique identifier of the agent.
-   * @param pagination - Optional pagination options to control the number of results returned.p
+   * @param pagination - Optional pagination options. Accepts a plain object
+   * (`{ page, offset, sortBy, sortOrder }`) or a `PaginationOptions` instance.
    * @returns A promise that resolves to the list of all different plans giving access to the agent.
    * @throws PaymentsError if the agent is not found.
    *
    * @example
    * ```
-   *  const result = payments.agents.getAgentPlans(planId)
+   *  const result = payments.agents.getAgentPlans(agentId, { page: 1, offset: 10 })
    *  // {
    *  //  total: 10,
    *  //  page: 1,
@@ -257,9 +258,11 @@ export class AgentsAPI extends BasePaymentsAPI {
    *  // }
    * ```
    */
-  public async getAgentPlans(agentId: string, pagination = new PaginationOptions()) {
+  public async getAgentPlans(agentId: string, pagination: Partial<PaginationOptions> = {}) {
     const query =
-      API_URL_GET_AGENT_PLANS.replace(':agentId', agentId) + '?' + pagination.asQueryParams()
+      API_URL_GET_AGENT_PLANS.replace(':agentId', agentId) +
+      '?' +
+      new PaginationOptions(pagination).asQueryParams()
     const url = new URL(query, this.environment.backend)
     const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {

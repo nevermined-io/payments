@@ -91,21 +91,25 @@ export class OrganizationsAPI extends BasePaymentsAPI {
     if (response.status === 202 || wallet.consentRequired) {
       return { consentRequired: true }
     }
-    // New account or the org's returning customer: a usable key MUST be present.
-    // A 2xx without one means a partial/unexpected payload — fail loudly rather
-    // than hand back a "success" carrying undefined credentials.
-    if (!wallet.nvmApiKey) {
+    // New account or the org's returning customer: the Bearer MUST be present.
+    // The backend returns the usable credential as `walletResult.hash`
+    // (`<env>:<JWT>`) — the sibling `nvmApiKey` is the encrypted server-side
+    // blob and is NOT a valid Bearer. Surface `hash` as `nvmApiKey`, exactly as
+    // createMember does. A 2xx without a hash means a partial/unexpected payload
+    // — fail loudly rather than hand back a "success" carrying no credential.
+    if (!wallet.hash) {
       throw PaymentsError.internal(
         'Customer onboarding did not return an API key (unexpected backend response)',
       )
     }
     return {
       consentRequired: false,
-      nvmApiKey: wallet.nvmApiKey,
+      nvmApiKey: wallet.hash,
       userId: wallet.userId,
       userWallet: wallet.userWallet,
       isCustomer: wallet.isCustomer,
       customerRecorded: wallet.customerRecorded,
+      expiresAt: wallet.expiresAt,
     }
   }
 

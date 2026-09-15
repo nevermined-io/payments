@@ -7,6 +7,7 @@ import { PaywallAuthenticator } from '../../../src/mcp/core/auth.js'
 import { requestContextStorage } from '../../../src/mcp/http/mcp-handler.js'
 import type { RequestContext } from '../../../src/mcp/http/session-manager.js'
 import type { Payments } from '../../../src/payments.js'
+import type { VerifyPermissionsResult } from '../../../src/x402/facilitator-api.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
@@ -43,7 +44,7 @@ class PaymentsMockWithTracking {
 
   constructor() {
     this.facilitator = {
-      verifyPermissions: jest.fn(async (params: any) => {
+      verifyPermissions: jest.fn(async (params: any): Promise<VerifyPermissionsResult> => {
         this.calls.push(['verifyPermissions', params])
         return { isValid: true }
       }),

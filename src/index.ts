@@ -12,6 +12,8 @@ export { ContractsAPI } from './api/contracts-api.js'
 export { CURRENT_ORG_ID_HEADER } from './api/base-payments.js'
 export type { PublicationOptions } from './api/base-payments.js'
 export { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
+export { OrdersAPI } from './api/orders-api.js'
+export type { CreateOrderOptions, CreateOrderResult, Order, OrderStatus } from './api/orders-api.js'
 export {
   OrganizationMemberRole,
   OrganizationType,
@@ -26,6 +28,12 @@ export type {
 
 // x402 utilities and types
 export { buildPaymentRequired, resolveNetwork, resolveScheme } from './x402/facilitator-api.js'
+export {
+  detectAccessTokenVersion,
+  isSingleUseAccessToken,
+  isAccessTokenAlreadyUsed,
+  X402_TOKEN_ALREADY_USED_CODE,
+} from './x402/token-version.js'
 export { DelegationAPI } from './x402/delegation-api.js'
 export type {
   PaymentMethodSummary,
@@ -45,7 +53,12 @@ export type {
   VerifyPermissionsResult,
   SettlePermissionsParams,
   SettlePermissionsResult,
+  X402BillingModel,
 } from './x402/facilitator-api.js'
+
+// MPP (Machine Payments Protocol) public surface
+export * from './mpp/index.js'
+
 // MCP public types
 export type {
   CreditsContext,

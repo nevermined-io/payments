@@ -1,9 +1,18 @@
 {
   "preset": "ts-jest",
   "testEnvironment": "node",
-  "roots": ["<rootDir>"],
-  "testMatch": ["**/unit/**/*.test.ts", "**/integration/**/*.test.ts", "**/e2e/**/*.test.ts"],
-  "collectCoverageFrom": ["src/**/*.ts", "!src/**/*.d.ts"],
+  "roots": [
+    "<rootDir>"
+  ],
+  "testMatch": [
+    "**/unit/**/*.test.ts",
+    "**/integration/**/*.test.ts",
+    "**/e2e/**/*.test.ts"
+  ],
+  "collectCoverageFrom": [
+    "src/**/*.ts",
+    "!src/**/*.d.ts"
+  ],
   "coverageDirectory": "coverage",
   "detectOpenHandles": true,
   "forceExit": false,
@@ -12,8 +21,12 @@
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
-  "transformIgnorePatterns": ["node_modules/(?!(@a2a-js/sdk)/)"],
-  "extensionsToTreatAsEsm": [".ts"],
+  "transformIgnorePatterns": [
+    "node_modules/(?!(\\.pnpm/)?(@a2a-js[+/]sdk|jose)[@/])"
+  ],
+  "extensionsToTreatAsEsm": [
+    ".ts"
+  ],
   "transform": {
     "^.+\\.tsx?$": [
       "ts-jest",
@@ -22,6 +35,17 @@
         "tsconfig": {
           "module": "ESNext",
           "target": "ES2020"
+        }
+      }
+    ],
+    "^.+\\.m?js$": [
+      "ts-jest",
+      {
+        "useESM": true,
+        "tsconfig": {
+          "module": "ESNext",
+          "target": "ES2020",
+          "allowJs": true
         }
       }
     ]

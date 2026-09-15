@@ -27,12 +27,23 @@ export const API_URL_VALIDATE_AGENT_ACCESS_TOKEN = '/api/v1/protocol/token/valid
 export const API_URL_CREATE_PERMISSION = '/api/v1/x402/permissions'
 export const API_URL_VERIFY_PERMISSIONS = '/api/v1/x402/verify'
 export const API_URL_SETTLE_PERMISSIONS = '/api/v1/x402/settle'
+// MPP seller/buyer surface. Sibling routes of /api/v1/x402, never children:
+// an MPP access token is byte-identical to an x402 one on the wire, so the
+// route is what fixes the protocol. See nvm-monorepo#2641.
+export const API_URL_MPP_CREATE_PERMISSION = '/api/v1/mpp/permissions'
+export const API_URL_MPP_CHALLENGE = '/api/v1/mpp/challenge'
+export const API_URL_MPP_VERIFY = '/api/v1/mpp/verify'
+export const API_URL_MPP_SETTLE = '/api/v1/mpp/settle'
 export const API_URL_STRIPE_CHECKOUT = '/api/v1/fiat/stripe/payment'
 export const API_URL_CREATE_USER = '/api/v1/organizations/account'
 export const API_URL_GET_MEMBERS = '/api/v1/organizations/members'
 export const API_URL_MY_MEMBERSHIPS = '/api/v1/organizations/my-memberships'
 export const API_URL_ORG_ACTIVITY = '/api/v1/organizations/:orgId/activity'
 export const API_URL_CONNECT_STRIPE_ACCOUNT = '/api/v1/fiat/stripe/account'
+// Browser-fiat Orders (nvm-monorepo epic #3238). POST is merchant-authenticated
+// (org-scoped NVM API key); GET is anonymous — the unguessable id is the access control.
+export const API_URL_CREATE_ORDER = '/api/v1/orders'
+export const API_URL_GET_ORDER = '/api/v1/orders/:orderId'
 
 export interface BackendApiOptions {
   /**

@@ -34,6 +34,16 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # `pnpm build` compiles src only — tsconfig.json excludes `tests`, and
+      # ts-jest transpiles without checking (the root `isolatedModules: true`),
+      # so nothing else in CI ever typechecks a test file.
+      #
+      # Last in the job on purpose: it is the newest and noisiest gate, and
+      # running it ahead of Lint would fail-fast past lint errors that used to
+      # surface in the same run.
+      - name: Typecheck tests
+        run: pnpm typecheck:tests
+
   cli_sync_check:
     name: CLI Sync Check
     runs-on: ubuntu-latest
