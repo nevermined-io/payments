@@ -52,19 +52,96 @@ jobs:
       # already did — and `required_approving_review_count` stays 1, so this
       # step's approval is what satisfies it. If bumps ever stall at
       # REVIEW_REQUIRED again, read that setting first.
+      # The policy is read from the BASE branch, never from the PR's own head:
+      # a Dependabot branch is untrusted content, and reading a manifest it
+      # carries to decide whether to approve it would let the PR answer its own
+      # question. `base.sha` pins this to what is already on main, and no
+      # credentials are persisted since nothing here pushes.
+      - name: Checkout the base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Patch and minor are approved as before. Majors are approved only when
+      # every package they bump is a devDependency in every manifest that
+      # declares it — the SDK's published surface cannot change, and the full
+      # CI (build, lint, typecheck:tests, unit, integration, E2E, plus the CLI
+      # and OpenClaw suites) is the gate.
+      #
+      # This reads the manifests rather than `dependency-type`, because
+      # fetch-metadata does not document what that output reports when a PR
+      # bumps several packages at once — and grouped PRs are exactly the case
+      # where a production dependency could ride along with dev ones. Reading
+      # each name off the base manifests is deterministic whatever the action
+      # decides to report.
+      - name: Decide whether this PR may be approved
+        id: policy
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          NAMES: ${{ steps.metadata.outputs.dependency-names }}
+        run: |
+          set -euo pipefail
+
+          case "$UPDATE_TYPE" in
+            version-update:semver-patch|version-update:semver-minor)
+              echo "reason=patch or minor" >> "$GITHUB_OUTPUT"
+              echo "approve=true" >> "$GITHUB_OUTPUT"
+              exit 0;;
+          esac
+
+          if [ -z "$NAMES" ]; then
+            echo "reason=major, and fetch-metadata named no dependency" >> "$GITHUB_OUTPUT"
+            echo "approve=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A name counts as runtime if ANY manifest lists it under
+          # `dependencies`. Absent everywhere counts as runtime too: it means
+          # the package is not declared where this workflow can see it, and the
+          # safe reading of "unknown" is "not dev".
+          runtime=""
+          IFS=','
+          for name in $NAMES; do
+            name="${name#"${name%%[![:space:]]*}"}"
+            [ -z "$name" ] && continue
+            seen=0
+            for manifest in package.json cli/package.json openclaw/package.json; do
+              [ -f "$manifest" ] || continue
+              if jq -e --arg n "$name" '.dependencies // {} | has($n)' "$manifest" >/dev/null; then
+                runtime="$runtime $name($manifest)"
+                seen=1
+                break
+              fi
+              if jq -e --arg n "$name" '.devDependencies // {} | has($n)' "$manifest" >/dev/null; then
+                seen=1
+              fi
+            done
+            [ "$seen" = "0" ] && runtime="$runtime $name(undeclared)"
+          done
+          unset IFS
+
+          if [ -n "$runtime" ]; then
+            echo "reason=major touching runtime or undeclared packages:$runtime" >> "$GITHUB_OUTPUT"
+            echo "approve=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "reason=major, every package is a devDependency" >> "$GITHUB_OUTPUT"
+            echo "approve=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report the decision
+        run: echo "approve=${{ steps.policy.outputs.approve }} (${{ steps.policy.outputs.reason }})"
+
       - name: Approve PR
-        if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: steps.policy.outputs.approve == 'true'
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
 
       - name: Enable auto-merge
-        if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: steps.policy.outputs.approve == 'true'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

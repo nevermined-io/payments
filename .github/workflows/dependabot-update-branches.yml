@@ -6,6 +6,16 @@ on:
   push:
     branches:
       - main
+  # A push is the normal trigger, and it chains: each merge is itself a push,
+  # so one wave feeds the next. That chain only holds while the PRs being served
+  # actually merge — a wave spent entirely on majors awaiting human review ends
+  # it, and nothing wakes the job again until someone lands something.
+  #
+  # Monday 07:00 UTC is the fallback for exactly that: an hour after Dependabot's
+  # own weekly run (Monday 08:00 Europe/Madrid, see dependabot.yml), so the sweep
+  # sees whatever it opened that morning.
+  schedule:
+    - cron: '0 7 * * 1'
   # The push trigger only fires post-merge, so a change to this workflow cannot
   # be exercised before it lands. Dispatch it by hand to read a real run.
   workflow_dispatch:
@@ -89,13 +99,18 @@ jobs:
           #   204 No Content — same call repeated, branch already current
           #   409 Merge conflict — #39, which is DIRTY
           echo "Looking for open Dependabot PRs..."
+          # Approved first, least-recently-updated within each half. A slot spent
+          # on a PR nobody has approved buys nothing: it cannot merge, so it
+          # cannot produce the push that starts the next wave. Serving the
+          # approved ones first means every wave that has one ends in a merge.
           prs=$(gh pr list \
             --repo "$REPO" \
             --state open \
             --search "author:app/dependabot sort:updated-asc" \
             --limit 100 \
-            --json number,headRefName \
-            --jq '.[] | "\(.number) \(.headRefName)"')
+            --json number,headRefName,reviewDecision \
+            --jq '[.[] | select(.reviewDecision == "APPROVED")] + [.[] | select(.reviewDecision != "APPROVED")]
+                  | .[] | "\(.number) \(.headRefName)"')
 
           if [ -z "$prs" ]; then
             echo "No open Dependabot PRs found."
