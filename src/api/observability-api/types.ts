@@ -1,12 +1,37 @@
 import type OpenAI from 'openai'
 import type Together from 'together-ai'
-import type * as ChainsModule from 'langchain/chains'
-import type * as AgentsModule from 'langchain/agents'
-import type * as ToolsModule from 'langchain/tools'
 import type * as anthropic from '@anthropic-ai/sdk'
 import type * as cohere from 'cohere-ai'
 import type * as bedrock from '@aws-sdk/client-bedrock-runtime'
 import type * as google_aiplatform from '@google-cloud/aiplatform'
+
+/**
+ * A LangChain entry-point module handed over by the caller.
+ *
+ * On the resolved `@traceloop/node-server-sdk` (0.26.0) nothing reads a member
+ * of it. `observability-api.ts` forwards the bag to
+ * `traceloop.initialize({ instrumentModules })` behind an `as any`, and there
+ * the field is declared `langchain?: boolean` and never consulted —
+ * `instrumentModules?.langchain` appears nowhere in its `dist/` — because
+ * LangChain is instrumented unconditionally by hooking
+ * `@langchain/core/callbacks/manager`.
+ *
+ * That was not always so. traceloop 0.14 declared five module fields
+ * (`chainsModule`, `agentsModule`, `toolsModule`, `runnablesModule`,
+ * `vectorStoreModule`) and passed them to `manuallyInstrument`; #158 took three
+ * of them, and they went inert with the 0.26 bump in #312. They stay for source
+ * compatibility with callers written against that contract.
+ *
+ * Typing the three as `typeof import('langchain/chains')` and friends therefore
+ * bought no checking, and cost twice. It pinned this SDK's build to one
+ * LangChain layout — v1 moved the legacy chains and agents entry points out, so
+ * those subpaths stopped resolving and a dev-only bump failed with TS2307
+ * (#317) — and, because declaration emit keeps those imports in the published
+ * `types.d.ts` while `langchain` is neither a dependency nor a peer, it broke
+ * the typecheck of any consumer building with `skipLibCheck: false` unless they
+ * happened to have a 0.3-layout `langchain` installed.
+ */
+export type LangChainModule = Record<string, unknown>
 
 export type AsyncLoggerProviders = {
   openAI?: typeof OpenAI
@@ -15,10 +40,14 @@ export type AsyncLoggerProviders = {
   bedrock?: typeof bedrock
   google_aiplatform?: typeof google_aiplatform
   together?: typeof Together
+  /**
+   * Inert on the resolved traceloop (0.26.0), which instruments LangChain
+   * unconditionally and ignores these modules. See {@link LangChainModule}.
+   */
   langchain?: {
-    chainsModule?: typeof ChainsModule
-    agentsModule?: typeof AgentsModule
-    toolsModule?: typeof ToolsModule
+    chainsModule?: LangChainModule
+    agentsModule?: LangChainModule
+    toolsModule?: LangChainModule
   }
 }
 
