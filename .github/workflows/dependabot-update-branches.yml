@@ -11,11 +11,14 @@ on:
   # actually merge — a wave spent entirely on majors awaiting human review ends
   # it, and nothing wakes the job again until someone lands something.
   #
-  # Monday 07:00 UTC is the fallback for exactly that: an hour after Dependabot's
-  # own weekly run (Monday 08:00 Europe/Madrid, see dependabot.yml), so the sweep
-  # sees whatever it opened that morning.
+  # Monday 09:00 UTC is the fallback for exactly that. Cron has no timezone, so
+  # it has to clear Dependabot's own weekly run (Monday 08:00 Europe/Madrid, see
+  # dependabot.yml) in both halves of the year: that is 06:00 UTC under CEST and
+  # 07:00 UTC under CET, so an hour's margin in summer is none at all in winter.
+  # 09:00 UTC leaves two hours in summer and one in winter, either side of the
+  # switch, and Dependabot's own run is best-effort rather than punctual anyway.
   schedule:
-    - cron: '0 7 * * 1'
+    - cron: '0 9 * * 1'
   # The push trigger only fires post-merge, so a change to this workflow cannot
   # be exercised before it lands. Dispatch it by hand to read a real run.
   workflow_dispatch:
