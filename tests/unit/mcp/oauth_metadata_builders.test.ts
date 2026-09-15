@@ -13,6 +13,7 @@ import {
   OAUTH_TIER_PARAM,
 } from '../../../src/mcp/http/oauth-metadata.js'
 import type { OAuthConfig } from '../../../src/mcp/types/http.types.js'
+import type { EnvironmentName } from '../../../src/environments.js'
 
 describe('OAuth Metadata Builders', () => {
   const baseConfig: OAuthConfig = {
@@ -420,18 +421,80 @@ describe('OAuth Metadata Builders', () => {
       expect(resolveOAuthTier('staging_live', 'ignored')).toBe('live')
       expect(resolveOAuthTier('custom', 'https://api.sandbox.nevermined.app/')).toBe('sandbox')
       expect(resolveOAuthTier('custom', 'https://api.live.nevermined.dev')).toBe('live')
+      // Every host shape the API actually serves: branded per-org subdomains and the Commerce MCP.
+      expect(resolveOAuthTier('custom', 'https://acme.api.sandbox.nevermined.app')).toBe('sandbox')
+      expect(resolveOAuthTier('custom', 'https://mcp.api.live.nevermined.dev')).toBe('live')
+      // WHATWG hostname lowercases and strips port/credentials.
+      expect(resolveOAuthTier('custom', 'https://API.Sandbox.nevermined.app:8443/x')).toBe('sandbox')
+      // Anchored on the `api.<tier>` label pair — a bare `sandbox` label elsewhere is NOT a tier.
+      expect(resolveOAuthTier('custom', 'https://sandbox.nevermined.app')).toBeUndefined()
+      expect(resolveOAuthTier('custom', 'https://api.nevermined.app/sandbox')).toBeUndefined()
       // Unclassifiable: a local stack, or a malformed URL — no guessed tier.
       expect(resolveOAuthTier('custom', 'http://localhost:3001')).toBeUndefined()
       expect(resolveOAuthTier('custom', 'not a url')).toBeUndefined()
     })
 
-    test('custom against a local backend advertises the bare URL (no guessed tier)', () => {
-      // `Environments.custom` reads NVM_BACKEND_URL at module load; the default is localhost.
-      const urls = getOAuthUrls('custom')
-      if (!process.env.NVM_BACKEND_URL) {
-        expect(urls.authorizationUri).toBe('http://localhost:4200/oauth/authorize')
+    test('custom: the tier follows the backend the document PUBLISHES — an overridden tokenUri', () => {
+      // `custom` + `oauthUrls.tokenUri` pointing at a real tier used to publish a sandbox
+      // token_endpoint next to a BARE authorize URL — the #447 bug, silently (review finding).
+      const sandbox = getOAuthUrls('custom', {
+        tokenUri: 'https://api.sandbox.nevermined.app/oauth/token',
+      })
+      expect(new URL(sandbox.authorizationUri).searchParams.get('network')).toBe('sandbox')
+      const live = getOAuthUrls('custom', { tokenUri: 'https://api.live.nevermined.app/oauth/token' })
+      expect(new URL(live.authorizationUri).searchParams.get('network')).toBe('live')
+      // A local backend override keeps the bare URL — no guessed tier.
+      const local = getOAuthUrls('custom', { tokenUri: 'http://localhost:3001/oauth/token' })
+      expect(local.authorizationUri).not.toContain('network=')
+      // The three documents agree.
+      const config: OAuthConfig = {
+        ...baseConfig,
+        environment: 'custom',
+        oauthUrls: { tokenUri: 'https://api.sandbox.nevermined.app/oauth/token' },
       }
-      expect(urls.authorizationUri).toContain('/oauth/authorize')
+      expect(buildAuthorizationServerMetadata(config).authorization_endpoint).toBe(
+        sandbox.authorizationUri,
+      )
+      expect(buildOidcConfiguration(config).authorization_endpoint).toBe(sandbox.authorizationUri)
+    })
+
+    test('an unknown environment name falls back to sandbox URLs — now including the tier', () => {
+      // Pre-existing fallback (a JS caller / cast); the document is now internally consistent:
+      // a sandbox token_endpoint AND a sandbox-tagged authorize, instead of a bare one.
+      const urls = getOAuthUrls('bogus' as EnvironmentName)
+      expect(urls.tokenUri).toBe('https://api.sandbox.nevermined.app/oauth/token')
+      expect(urls.authorizationUri).toBe('https://nevermined.app/oauth/authorize?network=sandbox')
+    })
+  })
+
+  describe('custom via NVM_BACKEND_URL (module reload, #447)', () => {
+    // `Environments.custom` reads the env at module load, so the public `getOAuthUrls('custom')`
+    // path is exercised by reloading the module under each value — the repo's pattern
+    // (tests/unit/environment-from-key-prefix.test.ts). This is what kills a mutant that derives the
+    // tier from the wrong field of `Environments.custom`.
+    const saved = { backend: process.env.NVM_BACKEND_URL, frontend: process.env.NVM_FRONTEND_URL }
+    afterEach(() => {
+      if (saved.backend === undefined) delete process.env.NVM_BACKEND_URL
+      else process.env.NVM_BACKEND_URL = saved.backend
+      if (saved.frontend === undefined) delete process.env.NVM_FRONTEND_URL
+      else process.env.NVM_FRONTEND_URL = saved.frontend
+      jest.resetModules()
+    })
+
+    const load = async (backend: string, frontend = 'https://nevermined.app') => {
+      jest.resetModules()
+      process.env.NVM_BACKEND_URL = backend
+      process.env.NVM_FRONTEND_URL = frontend
+      const mod = await import('../../../src/mcp/http/oauth-metadata.js')
+      return mod.getOAuthUrls('custom')
+    }
+
+    test.each([
+      ['https://api.sandbox.nevermined.app', 'https://nevermined.app/oauth/authorize?network=sandbox'],
+      ['https://api.live.nevermined.app/', 'https://nevermined.app/oauth/authorize?network=live'],
+      ['http://localhost:3001', 'https://nevermined.app/oauth/authorize'],
+    ])('NVM_BACKEND_URL=%s → %s', async (backend, expected) => {
+      expect((await load(backend)).authorizationUri).toBe(expected)
     })
   })
 })

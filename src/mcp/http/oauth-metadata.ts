@@ -24,13 +24,18 @@ import type {
  * own RFC 8414 document and the embed widget (nvm-monorepo#3430 / #1787).
  */
 export const OAUTH_TIER_PARAM = 'network'
-export type OAuthTier = 'sandbox' | 'live'
+export const OAUTH_TIERS = ['sandbox', 'live'] as const
+export type OAuthTier = (typeof OAUTH_TIERS)[number]
 
 /**
- * The API tier an environment belongs to. The four named environments map directly; `custom` is
- * derived from its backend host (`api.sandbox.` / `api.live.`), and when that cannot be classified
- * the tier is omitted — a local stack behind `localhost` gets the pre-#3430 bare URL rather than a
- * guessed tier that would send the human to the wrong backend.
+ * The API tier an environment belongs to. The four named environments map directly. `custom` is
+ * derived from the host of the backend it will publish as `token_endpoint`: a Nevermined API host has
+ * an `api` label immediately followed by the tier label — `api.sandbox.nevermined.app`,
+ * `<slug>.api.live.nevermined.app` (branded per-org subdomains), `mcp.api.sandbox.nevermined.dev` —
+ * so that label pair is what is matched, never a bare `sandbox` anywhere in the host. When the host
+ * cannot be classified (a `localhost` stack, a proxy/CNAME in front of the API) the tier is
+ * **omitted**, not guessed: the URL stays the pre-#3430 bare one, and the operator sets
+ * `oauthUrls.authorizationUri` (with `?network=` on it) to say which tier that deployment is.
  */
 export function resolveOAuthTier(
   environment: EnvironmentName,
@@ -44,24 +49,27 @@ export function resolveOAuthTier(
     case 'staging_live':
       return 'live'
     default: {
-      let host: string
+      let labels: string[]
       try {
-        host = new URL(backendUrl).hostname
+        // WHATWG `hostname` is lowercased and carries no port/credentials/path.
+        labels = new URL(backendUrl).hostname.split('.')
       } catch {
         return undefined
       }
-      if (host.startsWith('api.sandbox.')) return 'sandbox'
-      if (host.startsWith('api.live.')) return 'live'
+      const tierAfterApi = labels[labels.indexOf('api') + 1]
+      if (labels.includes('api') && (OAUTH_TIERS as readonly string[]).includes(tierAfterApi)) {
+        return tierAfterApi as OAuthTier
+      }
       return undefined
     }
   }
 }
 
 /**
- * Append `?network=<tier>` to the authorize URL through the URL API, so anything a client later
- * appends goes onto an existing query string with `&` rather than a second `?`. A frontend that is
- * not an absolute URL (a hand-set `NVM_FRONTEND_URL`) falls back to plain concatenation, which is
- * what the tier-less URL always was.
+ * Append `?network=<tier>` to the authorize URL. Goes through the URL API so the result is a
+ * canonical absolute URL with one query string; a frontend that is not an absolute URL (a relative
+ * `NVM_FRONTEND_URL` such as `/webapp`) cannot be parsed, and falls back to plain concatenation —
+ * the same shape the tier-less URL always had for that misconfiguration.
  */
 function withTierParam(authorizeUrl: string, tier: OAuthTier | undefined): string {
   if (!tier) return authorizeUrl
@@ -104,19 +112,29 @@ function buildOAuthUrls(
 
 /**
  * Get OAuth URLs for an environment.
- * Uses frontend and backend URLs from Environments configuration.
+ * Uses frontend and backend URLs from Environments configuration. An unknown environment name (a
+ * JS caller / cast — `EnvironmentName` is closed) falls back to `sandbox`, as it always did; the
+ * fallback is now internally consistent (a sandbox `token_endpoint` AND a sandbox-tagged authorize).
  *
  * @param environment - The Nevermined environment name
+ * @param backendForTier - The backend the document will actually publish as `token_endpoint` —
+ *   the environment's, or an `oauthUrls.tokenUri` override. The tier follows THAT under `custom`,
+ *   exactly as `resolveAuthorizationServer` derives the AS origin from it: a `custom` server whose
+ *   `tokenUri` is overridden to `api.sandbox.…` must not publish a sandbox token endpoint next to a
+ *   tier-blind authorize URL (payments#455 review).
  * @returns OAuth URLs configuration
  */
-function getOAuthUrlsForEnvironment(environment: EnvironmentName): OAuthUrls {
+function getOAuthUrlsForEnvironment(
+  environment: EnvironmentName,
+  backendForTier?: string,
+): OAuthUrls {
   const known = environment in Environments
   const effective: EnvironmentName = known ? environment : 'sandbox'
   const envConfig = Environments[effective]
   return buildOAuthUrls(
     envConfig.frontend,
     envConfig.backend,
-    resolveOAuthTier(effective, envConfig.backend),
+    resolveOAuthTier(effective, backendForTier || envConfig.backend),
   )
 }
 
@@ -143,7 +161,10 @@ export function getOAuthUrls(
   environment: EnvironmentName,
   overrides?: Partial<OAuthUrls>,
 ): OAuthUrls {
-  const baseUrls = getOAuthUrlsForEnvironment(environment)
+  // An overridden `authorizationUri` is passed through verbatim — the SDK cannot know whether it is
+  // the Nevermined webapp or a foreign AS, so an operator who points it at the webapp includes
+  // `?network=` themselves (documented on `OAuthUrls.authorizationUri`).
+  const baseUrls = getOAuthUrlsForEnvironment(environment, overrides?.tokenUri)
   return { ...baseUrls, ...overrides }
 }
 
