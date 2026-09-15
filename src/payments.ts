@@ -13,9 +13,11 @@ import { PaymentsA2AServer } from './a2a/server.js'
 import { buildPaymentAgentCard } from './a2a/agent-card.js'
 import * as mcpModule from './mcp/index.js'
 import { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
+import { OrdersAPI } from './api/orders-api.js'
 import { FacilitatorAPI } from './x402/facilitator-api.js'
 import { X402TokenAPI } from './x402/token.js'
 import { DelegationAPI } from './x402/delegation-api.js'
+import { MppAPI } from './mpp/mpp-api.js'
 
 /**
  * Main class that interacts with the Nevermined payments API.
@@ -26,6 +28,7 @@ import { DelegationAPI } from './x402/delegation-api.js'
  *
  * Each of these functionalities is encapsulated in its own API class:
  * - `plans`: Manages AI Plans, including registration and ordering and retrieving plan details.
+ * - `orders`: Browser-fiat Orders — merchant-initiated, off-plan charges for an arbitrary amount.
  * - `agents`: Handles AI Agents, including registration of AI Agents and access token generation.
  * - `requests`: Manages requests received by AI Agents, including validation and tracking.
  * - `observability`: Provides observability and logging utilities for AI Agents with Helicone integration
@@ -37,9 +40,22 @@ export class Payments extends BasePaymentsAPI {
   public requests!: AgentRequestsAPI
   public observability!: ObservabilityAPI
   public organizations!: OrganizationsAPI
+  public orders!: OrdersAPI
   public contracts!: ContractsAPI
   public facilitator!: FacilitatorAPI
   public x402!: X402TokenAPI
+  /**
+   * MPP (Machine Payments Protocol) surface — challenge/credential framing over
+   * the same plans, delegations and credit burn as x402.
+   *
+   * @experimental Shipped ahead of its epic's declared MVP scope, so that the
+   * Express middleware's own dependency on it is reachable rather than hidden
+   * behind an internal handle. The NAME is settled — `payments.mpp` beside
+   * `payments.x402` is what a seller will guess, and renaming it after a tag
+   * costs a major. The SHAPE is not: this surface may change in a minor
+   * release until the epic adopts it.
+   */
+  public mpp!: MppAPI
   private _a2aRegistry?: ClientRegistry
   private _delegation?: DelegationAPI
 
@@ -91,13 +107,19 @@ export class Payments extends BasePaymentsAPI {
 
   /**
    * Returns the Delegation API for listing enrolled payment methods.
-   * The instance is lazily initialized on first access.
+   * The instance is lazily initialized on first access — the current
+   * organization pin (set via `setOrganizationId` or the constructor
+   * option) and the backend API version pin (`options.version`) are
+   * forwarded so the first call carries the right `X-Current-Org-Id`
+   * and `Nevermined-Version` headers.
    */
   public get delegation(): DelegationAPI {
     if (!this._delegation) {
       this._delegation = DelegationAPI.getInstance({
         nvmApiKey: this.nvmApiKey,
         environment: this.environmentName,
+        organizationId: this.currentOrganizationId ?? undefined,
+        version: this.version,
       })
     }
     return this._delegation
@@ -143,7 +165,7 @@ export class Payments extends BasePaymentsAPI {
    *   returnUrl: 'https://mysite.example',
    *   environment: 'sandbox',
    *   appId: 'my-app-id',
-   *   version: '1.0.0'
+   *   version: '1.1'
    * })
    * ```
    * @returns An instance of {@link Payments}
@@ -191,10 +213,12 @@ export class Payments extends BasePaymentsAPI {
     this.requests = AgentRequestsAPI.getInstance(options)
     this.observability = ObservabilityAPI.getInstance(options)
     this.organizations = OrganizationsAPI.getInstance(options)
+    this.orders = OrdersAPI.getInstance(options)
     this.query = AIQueryApi.getInstance()
     this.contracts = new ContractsAPI(options)
     this.facilitator = FacilitatorAPI.getInstance(options)
     this.x402 = X402TokenAPI.getInstance(options)
+    this.mpp = MppAPI.getInstance(options)
   }
 
   /**
@@ -226,6 +250,45 @@ export class Payments extends BasePaymentsAPI {
    */
   public logout() {
     this.nvmApiKey = ''
+  }
+
+  /**
+   * Pins (or clears) the active organization workspace used by every
+   * subsequent authenticated request. The SDK forwards the choice as the
+   * `X-Current-Org-Id` header so the backend scopes publications and
+   * other org-aware queries to the requested organization.
+   *
+   * Pass `null` to clear the pin and let the backend fall back to the
+   * API key's org tag or the caller's most-recent active membership.
+   *
+   * For one-off targeting (e.g. publish a single agent into Org B without
+   * leaving Org B as the active workspace) prefer the per-call
+   * `{ organizationId }` option on `agents.registerAgent` /
+   * `plans.registerPlan` / similar.
+   *
+   * @param organizationId - Org ID to pin (e.g. `org-…`) or `null` to clear.
+   * @example
+   * ```ts
+   * payments.setOrganizationId('org-abc123')
+   * await payments.agents.registerAgent(metadata, api, [planId]) // lands in org-abc123
+   * ```
+   */
+  public override setOrganizationId(organizationId: string | null): void {
+    super.setOrganizationId(organizationId)
+    this.plans?.setOrganizationId(organizationId)
+    this.agents?.setOrganizationId(organizationId)
+    this.requests?.setOrganizationId(organizationId)
+    this.observability?.setOrganizationId(organizationId)
+    this.organizations?.setOrganizationId(organizationId)
+    this.orders?.setOrganizationId(organizationId)
+    this.contracts?.setOrganizationId(organizationId)
+    this.facilitator?.setOrganizationId(organizationId)
+    this.x402?.setOrganizationId(organizationId)
+    this.mpp?.setOrganizationId(organizationId)
+    // `_delegation` is lazy — the getter forwards `currentOrganizationId`
+    // on first access, so only propagate to an already-built instance.
+    // (Eagerly constructing it here would change the lazy contract.)
+    this._delegation?.setOrganizationId(organizationId)
   }
 
   /**

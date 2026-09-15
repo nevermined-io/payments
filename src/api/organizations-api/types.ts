@@ -4,11 +4,191 @@ export enum OrganizationMemberRole {
   Client = 'Client',
 }
 
+/**
+ * Tier of an organization. Mirrors the backend `OrganizationType` enum at
+ * `libs/commons/src/lib/types/types.ts` in nvm-monorepo.
+ *
+ * - `Premium` / `Enterprise` — the paid tiers from Epic #1339.
+ * - `Lapsed` — an org whose paid subscription has expired; replaces the
+ *   retired `Free` bucket (the backend never emits `Free` for new rows).
+ * - `Other` — legacy pre-tiered-pricing bucket still returned for orgs that
+ *   pre-date the tier system; inherits Premium-equivalent caps and features
+ *   server-side.
+ */
+export enum OrganizationType {
+  Premium = 'Premium',
+  Enterprise = 'Enterprise',
+  Lapsed = 'Lapsed',
+  Other = 'Other',
+}
+
 export type CreateUserResponse = {
   nvmApiKey: string
   userId: string
   userWallet: string
   alreadyMember: boolean
+}
+
+/**
+ * Result of onboarding a white-label customer via
+ * `POST /organizations/account` with `as: 'customer'` (nvm-monorepo #2418).
+ *
+ * A discriminated union on `consentRequired` — narrow on it to get the right
+ * shape with no impossible states:
+ * - `{ consentRequired: true }` — the email belongs to an account the org does
+ *   NOT own. NO key is issued (HTTP 202); an email challenge was sent to the
+ *   owner and the account's identity is deliberately withheld. Retry once they
+ *   consent.
+ * - `{ consentRequired: false, nvmApiKey, ... }` — a new account or the org's
+ *   returning customer. A usable, scoped `nvmApiKey` is always present and the
+ *   customer is recorded in the org's Customers list.
+ */
+export type CustomerOnboardingResponse =
+  | { consentRequired: true }
+  | {
+      consentRequired: false
+      /** The usable NVM API key (Bearer credential). Always present in this branch. */
+      nvmApiKey: string
+      userId: string
+      userWallet: string
+      /** True when a key was issued for a customer (new account or renewal). */
+      isCustomer: boolean
+      /** Whether the customer was written to the org's Customers list (best-effort). */
+      customerRecorded: boolean
+      /**
+       * ISO-8601 expiry of the credential (#2924). Track it and re-onboard to
+       * refresh before it lapses. Optional: returned for the credential outcome,
+       * but an older backend may omit it.
+       */
+      expiresAt?: string
+    }
+
+/**
+ * A single organization the authenticated user is an active member of.
+ * Returned by `OrganizationsAPI.getMyMemberships()` and used by clients to
+ * power workspace pickers and "where will this publish?" UX.
+ *
+ * Shape mirrors `MyMembershipDto` in the Nevermined backend
+ * (`apps/api/src/organizations/dto/my-membership.dto.ts`).
+ */
+export type MyMembership = {
+  /** Stable organization id (e.g. `org-…`). */
+  orgId: string
+  /** Display name of the organization. */
+  orgName: string
+  /** Caller's role inside this organization. */
+  role: OrganizationMemberRole
+  /** Tier of the organization — see {@link OrganizationType}. */
+  orgType: OrganizationType
+  /** Whether the caller is an Admin of this organization. */
+  isAdmin: boolean
+  /**
+   * `true` when the org has at least one `organizationSubscription` row —
+   * the org has previously been associated with a paid tier (active,
+   * past_due, trialing, lapsed, or canceled). Combined with
+   * `orgType === Lapsed` it distinguishes "subscription expired" from
+   * "free org that never subscribed".
+   */
+  hasSubscriptionHistory: boolean
+}
+
+/**
+ * Event types emitted into the organization activity feed. Values mirror
+ * the backend enum in `@nevermined-io/commons`. Stored on the wire as
+ * dot-namespaced lowercase strings — the SDK accepts any string for
+ * forward-compatibility when new event types are introduced server-side.
+ */
+export enum OrganizationActivityEventType {
+  // Membership lifecycle
+  MemberInvited = 'member.invited',
+  MemberJoined = 'member.joined',
+  MemberRoleChanged = 'member.role_changed',
+  MemberDeactivated = 'member.deactivated',
+  MemberReactivated = 'member.reactivated',
+  MemberRemoved = 'member.removed',
+  InvitationRevoked = 'invitation.revoked',
+  InvitationExpired = 'invitation.expired',
+  // Resource lifecycle
+  AgentCreated = 'agent.created',
+  PlanCreated = 'plan.created',
+  PlanPurchased = 'plan.purchased',
+  // Customer lifecycle
+  CustomerAdded = 'customer.added',
+  CustomerBlocked = 'customer.blocked',
+  CustomerUnblocked = 'customer.unblocked',
+  // Subscription lifecycle
+  SubscriptionUpgraded = 'subscription.upgraded',
+  SubscriptionDowngraded = 'subscription.downgraded',
+  SubscriptionCanceled = 'subscription.canceled',
+  SubscriptionLapsed = 'subscription.lapsed',
+  // Webhook delivery
+  WebhookDelivered = 'webhook.delivered',
+  WebhookFailed = 'webhook.failed',
+}
+
+/**
+ * The resource an activity event is about. `kind` describes the resource
+ * type (`plan`, `agent`, `member`, `subscription`, `invitation`, `customer`,
+ * `webhook`) and `id` is the resource's identifier. Extras vary by kind —
+ * e.g. invitations include `role` + `email`, members include `role` +
+ * `userId`, subscriptions include `tier`.
+ */
+export type OrganizationActivityEventSubject = {
+  kind: string
+  id: string
+  [key: string]: unknown
+}
+
+/**
+ * A single event emitted into the organization activity feed. Shape mirrors
+ * `OrganizationActivityEventResponseDto` in the Nevermined backend.
+ */
+export type OrganizationActivityEvent = {
+  /** Activity event ID (e.g. `ae-{uuid}`). */
+  id: string
+  /**
+   * Backend-emitted event type. Use {@link OrganizationActivityEventType}
+   * for known values; the field stays a plain string so a new server-side
+   * event type doesn't break consumers.
+   */
+  eventType: OrganizationActivityEventType | string
+  /** User who triggered the event, or `null` for system-emitted events. */
+  actorUserId: string | null
+  /** Resource the event is about — see {@link OrganizationActivityEventSubject}. */
+  subject: OrganizationActivityEventSubject
+  /** Optional payload (e.g. previous/current values on role/status changes). */
+  metadata: Record<string, unknown> | null
+  /** ISO-8601 timestamp of when the event occurred. */
+  occurredAt: string
+}
+
+/**
+ * Paginated page of activity events. The backend only echoes `items` and
+ * `total`; `page` / `limit` are not in the response — they're the values
+ * the caller asked for in {@link OrganizationActivityFilters}.
+ */
+export type OrganizationActivityPage = {
+  items: OrganizationActivityEvent[]
+  total: number
+}
+
+/** Filters accepted by `OrganizationsAPI.getOrganizationActivity`. */
+export type OrganizationActivityFilters = {
+  /**
+   * Restrict to one or more event types. Accepts a single string, an enum
+   * value, or an array (sent to the backend as a comma-separated list).
+   */
+  eventType?: OrganizationActivityEventType | string | Array<OrganizationActivityEventType | string>
+  /** Restrict to events triggered by a specific user. */
+  actorUserId?: string
+  /** ISO-8601 lower bound (inclusive) on `occurredAt`. */
+  from?: string
+  /** ISO-8601 upper bound (exclusive) on `occurredAt`. */
+  to?: string
+  /** Page number — 1-based. */
+  page?: number
+  /** Page size — backend cap is 200. */
+  limit?: number
 }
 
 export type OrganizationMember = {

@@ -19,13 +19,13 @@ After purchasing a payment plan, you can query AI agents using X402 access token
 Get an access token for a purchased plan:
 
 ```bash
-nvm x402token get-x402-access-token <plan-id>
+nevermined x402token get-x402-access-token <plan-id>
 ```
 
 Example:
 
 ```bash
-nvm x402token get-x402-access-token "did:nvm:abc123"
+nevermined x402token get-x402-access-token "did:nvm:abc123"
 ```
 
 Optional flags:
@@ -37,7 +37,7 @@ Optional flags:
 Example with options:
 
 ```bash
-nvm x402token get-x402-access-token "did:nvm:abc123" \
+nevermined x402token get-x402-access-token "did:nvm:abc123" \
   --agent-id "did:nvm:agent456" \
   --redemption-limit 100 \
   --expiration 3600
@@ -68,7 +68,7 @@ Store the token for multiple requests:
 
 ```bash
 # Get token and save to file
-TOKEN=$(nvm x402token get-x402-access-token "did:nvm:abc123" --format json | jq -r '.token')
+TOKEN=$(nevermined x402token get-x402-access-token "did:nvm:abc123" --format json | jq -r '.token')
 echo $TOKEN > ~/.nvm-token
 
 # Use token from file
@@ -83,7 +83,7 @@ Query an agent using curl:
 
 ```bash
 # Get access token
-TOKEN=$(nvm x402token get-x402-access-token "did:nvm:abc123" --format json | jq -r '.token')
+TOKEN=$(nevermined x402token get-x402-access-token "did:nvm:abc123" --format json | jq -r '.token')
 
 # Make request with payment-signature header
 curl -X POST https://agent-api.example.com/v1/chat \
@@ -102,7 +102,7 @@ curl -X POST https://agent-api.example.com/v1/chat \
 const { execSync } = require('child_process')
 
 const planId = 'did:nvm:abc123'
-const tokenCmd = `nvm x402token get-x402-access-token ${planId} --format json`
+const tokenCmd = `nevermined x402token get-x402-access-token ${planId} --format json`
 const result = JSON.parse(execSync(tokenCmd).toString())
 const token = result.token
 
@@ -132,7 +132,7 @@ import requests
 
 # Get token from CLI
 plan_id = 'did:nvm:abc123'
-cmd = f'nvm x402token get-x402-access-token {plan_id} --format json'
+cmd = f'nevermined x402token get-x402-access-token {plan_id} --format json'
 result = subprocess.run(cmd.split(), capture_output=True, text=True)
 token_data = json.loads(result.stdout)
 token = token_data['token']
@@ -160,7 +160,7 @@ print(response.json())
 Verify that a request is valid before processing (for agent owners):
 
 ```bash
-nvm facilitator verify-permissions \
+nevermined facilitator verify-permissions \
   --params verify.json
 ```
 
@@ -213,7 +213,7 @@ if (!verification.isValid) {
 After processing a request, burn the credits (agent owners):
 
 ```bash
-nvm facilitator settle-permissions \
+nevermined facilitator settle-permissions \
   --params settle.json
 ```
 
@@ -255,16 +255,16 @@ AGENT_API="https://agent-api.example.com/v1/chat"
 
 # 1. Purchase plan if needed
 echo "Checking balance..."
-BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+BALANCE=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 
 if [ "$BALANCE" -lt "10" ]; then
   echo "Low balance, purchasing plan..."
-  nvm plans order-plan $PLAN_ID
+  nevermined plans order-plan $PLAN_ID
 fi
 
 # 2. Get X402 access token
 echo "Getting access token..."
-TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
+TOKEN=$(nevermined x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
 
 # 3. Query the agent
 echo "Querying agent..."
@@ -281,7 +281,7 @@ echo $RESPONSE | jq '.'
 
 # 4. Check updated balance
 echo "Updated balance:"
-nvm plans get-plan-balance $PLAN_ID
+nevermined plans get-plan-balance $PLAN_ID
 ```
 
 ## Advanced Usage
@@ -298,7 +298,7 @@ PLAN_ID="did:nvm:abc123"
 AGENT_API="https://agent-api.example.com/v1/chat"
 
 # Get token once
-TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
+TOKEN=$(nevermined x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
 
 # Array of questions
 QUESTIONS=(
@@ -322,7 +322,7 @@ for QUESTION in "${QUESTIONS[@]}"; do
 done
 
 # Check final balance
-nvm plans get-plan-balance $PLAN_ID
+nevermined plans get-plan-balance $PLAN_ID
 ```
 
 ### Rate-Limited Queries
@@ -338,7 +338,7 @@ AGENT_API="https://agent-api.example.com/v1/chat"
 RATE_LIMIT=10  # requests per minute
 DELAY=$(echo "60 / $RATE_LIMIT" | bc -l)
 
-TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
+TOKEN=$(nevermined x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
 
 for i in {1..50}; do
   echo "Request $i..."
@@ -369,7 +369,7 @@ query_agent() {
 
   while [ $retry_count -lt $max_retries ]; do
     # Get fresh token
-    TOKEN=$(nvm x402token get-x402-access-token $plan_id --format json 2>&1)
+    TOKEN=$(nevermined x402token get-x402-access-token $plan_id --format json 2>&1)
 
     if [ $? -ne 0 ]; then
       echo "Error getting token: $TOKEN"
@@ -395,7 +395,7 @@ query_agent() {
         ;;
       402)
         echo "Insufficient credits. Purchasing more..."
-        nvm plans order-plan $plan_id
+        nevermined plans order-plan $plan_id
         ;;
       429)
         echo "Rate limit exceeded. Waiting..."
@@ -432,16 +432,16 @@ PLAN_ID="did:nvm:abc123"
 LOG_FILE="credit-usage.log"
 
 # Get initial balance
-INITIAL=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+INITIAL=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 
 # Make query
-TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
+TOKEN=$(nevermined x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
 RESPONSE=$(curl -s -X POST https://agent-api.example.com/v1/chat \
   -H "payment-signature: $TOKEN" \
   -d '{"message": "test query"}')
 
 # Get new balance
-FINAL=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+FINAL=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 
 # Calculate usage
 USED=$((INITIAL - FINAL))
@@ -486,7 +486,7 @@ Tokens may expire, always get fresh tokens for new sessions:
 
 ```bash
 # Don't reuse old tokens
-TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
+TOKEN=$(nevermined x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
 ```
 
 ### 2. Credit Management
@@ -494,10 +494,10 @@ TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.tok
 Monitor balance before queries:
 
 ```bash
-BALANCE=$(nvm plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
+BALANCE=$(nevermined plans get-plan-balance $PLAN_ID --format json | jq -r '.balance')
 if [ "$BALANCE" -lt "10" ]; then
   echo "Low credits, refilling..."
-  nvm plans order-plan $PLAN_ID
+  nevermined plans order-plan $PLAN_ID
 fi
 ```
 
@@ -532,7 +532,7 @@ Never commit tokens to version control:
 
 ```bash
 # Use environment variables
-export X402_TOKEN=$(nvm x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
+export X402_TOKEN=$(nevermined x402token get-x402-access-token $PLAN_ID --format json | jq -r '.token')
 
 # Or secure file storage
 chmod 600 ~/.nvm-token
@@ -555,7 +555,7 @@ Token may be expired or malformed:
 
 ```bash
 # Get a fresh token
-nvm x402token get-x402-access-token $PLAN_ID
+nevermined x402token get-x402-access-token $PLAN_ID
 ```
 
 ### "Insufficient credits"
@@ -564,10 +564,10 @@ Your balance is too low:
 
 ```bash
 # Check balance
-nvm plans get-plan-balance $PLAN_ID
+nevermined plans get-plan-balance $PLAN_ID
 
 # Purchase more
-nvm plans order-plan $PLAN_ID
+nevermined plans order-plan $PLAN_ID
 ```
 
 ### "402 Payment Required"

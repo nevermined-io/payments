@@ -121,8 +121,10 @@ export interface PromptContext {
 export interface McpServerConfig {
   /** Port to listen on */
   port: number
-  /** Agent ID (DID) for Nevermined */
-  agentId: string
+  /** Plan ID the server charges against (required) */
+  planId: string
+  /** Agent ID (DID) for Nevermined — optional, informational only */
+  agentId?: string
   /** Human-readable server name */
   serverName: string
   /** Base URL of the server (default: http://localhost:\{port\}) */
