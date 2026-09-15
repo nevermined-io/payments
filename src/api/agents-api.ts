@@ -1,3 +1,4 @@
+import { safeParseJson } from '../common/helper.js'
 import { PaymentsError } from '../common/payments.error.js'
 import {
   AgentAPIAttributes,
@@ -13,6 +14,7 @@ import { BasePaymentsAPI, PublicationOptions, resolvePublicationHeaders } from '
 import {
   API_URL_ADD_PLAN_AGENT,
   API_URL_GET_AGENT,
+  API_URL_GET_AGENTS,
   API_URL_GET_AGENT_PLANS,
   API_URL_REGISTER_AGENT,
   API_URL_REGISTER_AGENTS_AND_PLAN,
@@ -84,7 +86,7 @@ export class AgentsAPI extends BasePaymentsAPI {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to register agent', await response.json())
+      throw PaymentsError.fromBackend('Unable to register agent', await safeParseJson(response))
     }
     const agentData = await response.json()
     return { agentId: agentData.data.agentId }
@@ -167,7 +169,10 @@ export class AgentsAPI extends BasePaymentsAPI {
 
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to register agent & plan', await response.json())
+      throw PaymentsError.fromBackend(
+        'Unable to register agent & plan',
+        await safeParseJson(response),
+      )
     }
     const result = await response.json()
     return {
@@ -191,9 +196,9 @@ export class AgentsAPI extends BasePaymentsAPI {
    */
   public async getAgent(agentId: string) {
     const url = new URL(API_URL_GET_AGENT.replace(':agentId', agentId), this.environment.backend)
-    const response = await fetch(url)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Agent not found', await response.json())
+      throw PaymentsError.fromBackend('Agent not found', await safeParseJson(response))
     }
     return response.json()
   }
@@ -228,7 +233,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const options = this.getBackendHTTPOptions('PUT', body)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Error updating agent', await response.json())
+      throw PaymentsError.fromBackend('Error updating agent', await safeParseJson(response))
     }
     return response.json()
   }
@@ -237,13 +242,14 @@ export class AgentsAPI extends BasePaymentsAPI {
    * Gets the list of plans that can be ordered to get access to an agent.
    *
    * @param agentId - The unique identifier of the agent.
-   * @param pagination - Optional pagination options to control the number of results returned.p
+   * @param pagination - Optional pagination options. Accepts a plain object
+   * (`{ page, offset, sortBy, sortOrder }`) or a `PaginationOptions` instance.
    * @returns A promise that resolves to the list of all different plans giving access to the agent.
    * @throws PaymentsError if the agent is not found.
    *
    * @example
    * ```
-   *  const result = payments.agents.getAgentPlans(planId)
+   *  const result = payments.agents.getAgentPlans(agentId, { page: 1, offset: 10 })
    *  // {
    *  //  total: 10,
    *  //  page: 1,
@@ -252,13 +258,48 @@ export class AgentsAPI extends BasePaymentsAPI {
    *  // }
    * ```
    */
-  public async getAgentPlans(agentId: string, pagination = new PaginationOptions()) {
+  public async getAgentPlans(agentId: string, pagination: Partial<PaginationOptions> = {}) {
     const query =
-      API_URL_GET_AGENT_PLANS.replace(':agentId', agentId) + '?' + pagination.asQueryParams()
+      API_URL_GET_AGENT_PLANS.replace(':agentId', agentId) +
+      '?' +
+      new PaginationOptions(pagination).asQueryParams()
     const url = new URL(query, this.environment.backend)
-    const response = await fetch(url)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Agent not found', await response.json())
+      throw PaymentsError.fromBackend('Agent not found', await safeParseJson(response))
+    }
+    return response.json()
+  }
+
+  /**
+   * Lists the AI agents **you** published (the authenticated caller's own
+   * agents). This is account management, not a marketplace search — it never
+   * returns other users' agents.
+   *
+   * @param page - The page number to retrieve.
+   * @param offset - The number of items per page.
+   * @param sortBy - The field to sort the results by.
+   * @param sortOrder - The order in which to sort the results.
+   * @param orgId - Optional organization id. When set, returns every agent in
+   *   that organization (requires active membership) instead of the caller's.
+   * @returns A promise that resolves to the paginated list of your agents.
+   */
+  public async getAgents(
+    page = 1,
+    offset = 100,
+    sortBy = 'created',
+    sortOrder: 'asc' | 'desc' = 'desc',
+    orgId?: string,
+  ): Promise<{ total: number; page: number; offset: number; agents: any[] }> {
+    const url = new URL(API_URL_GET_AGENTS, this.environment.backend)
+    url.searchParams.set('page', page.toString())
+    url.searchParams.set('offset', offset.toString())
+    url.searchParams.set('sortBy', sortBy)
+    url.searchParams.set('sortOrder', sortOrder)
+    if (orgId) url.searchParams.set('orgId', orgId)
+    const response = await fetch(url, this.getBackendHTTPOptions('GET'))
+    if (!response.ok) {
+      throw PaymentsError.fromBackend('Unable to get agents', await safeParseJson(response))
     }
     return response.json()
   }
@@ -290,7 +331,7 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to add plan to agent', await response.json())
+      throw PaymentsError.fromBackend('Unable to add plan to agent', await safeParseJson(response))
     }
 
     return response.json()
@@ -326,7 +367,10 @@ export class AgentsAPI extends BasePaymentsAPI {
     const url = new URL(endpoint, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to remove plan from agent', await response.json())
+      throw PaymentsError.fromBackend(
+        'Unable to remove plan from agent',
+        await safeParseJson(response),
+      )
     }
 
     return response.json()

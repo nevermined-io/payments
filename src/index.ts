@@ -1,6 +1,7 @@
 export * from './environments.js'
 export * from './payments.js'
 export * from './utils.js'
+export * from './common/api-version.js'
 export * from './common/types.js'
 export * from './common/payments.error.js'
 export * from './common/helper.js'
@@ -11,6 +12,8 @@ export { ContractsAPI } from './api/contracts-api.js'
 export { CURRENT_ORG_ID_HEADER } from './api/base-payments.js'
 export type { PublicationOptions } from './api/base-payments.js'
 export { OrganizationsAPI } from './api/organizations-api/organizations-api.js'
+export { OrdersAPI } from './api/orders-api.js'
+export type { CreateOrderOptions, CreateOrderResult, Order, OrderStatus } from './api/orders-api.js'
 export {
   OrganizationMemberRole,
   OrganizationType,
@@ -25,6 +28,12 @@ export type {
 
 // x402 utilities and types
 export { buildPaymentRequired, resolveNetwork, resolveScheme } from './x402/facilitator-api.js'
+export {
+  detectAccessTokenVersion,
+  isSingleUseAccessToken,
+  isAccessTokenAlreadyUsed,
+  X402_TOKEN_ALREADY_USED_CODE,
+} from './x402/token-version.js'
 export { DelegationAPI } from './x402/delegation-api.js'
 export type {
   PaymentMethodSummary,
@@ -44,7 +53,12 @@ export type {
   VerifyPermissionsResult,
   SettlePermissionsParams,
   SettlePermissionsResult,
+  X402BillingModel,
 } from './x402/facilitator-api.js'
+
+// MPP (Machine Payments Protocol) public surface
+export * from './mpp/index.js'
+
 // MCP public types
 export type {
   CreditsContext,
@@ -88,3 +102,18 @@ export type {
   TaskIdParams,
   GetTaskPushNotificationConfigResponse,
 } from './a2a/types.js'
+
+// x402 v2 A2A in-band transport utilities (mirrors the Python X402A2AUtils)
+export {
+  X402A2AUtils,
+  x402A2AUtils,
+  X402A2AMetadata,
+  X402_SETTLEMENT_DEFERRED_KEY,
+  PaymentStatus as A2APaymentStatus,
+} from './a2a/x402-a2a.js'
+export {
+  A2A_X402_EXTENSION_URI,
+  NVM_PAYMENT_EXTENSION_URI,
+  AGENT_CARD_WELL_KNOWN_PATH,
+  LEGACY_AGENT_CARD_WELL_KNOWN_PATH,
+} from './a2a/agent-card.js'

@@ -8,7 +8,7 @@ export default class GetAgent extends BaseCommand {
   static override description = "Gets the metadata for a given Agent identifier."
 
   static override examples = [
-    '$ nvm agents get-agent <agentId>'
+    '$ nevermined agents get-agent <agentId>'
   ]
 
   static override flags = {

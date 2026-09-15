@@ -1,13 +1,55 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, timingSafeEqual } from 'crypto'
+import type { EnvironmentName } from '@nevermined-io/payments'
 
 import { openBrowser } from './browser.js'
+
+/**
+ * The network the embed app resolves its active backend from. The embed
+ * app reads `?network=` on mount and defaults to `sandbox` when absent
+ * (it never decodes the session token to infer it), so a CLI flow that
+ * omits this lands a live-minted session on the sandbox backend and
+ * fails. We always forward it explicitly. See issue #362.
+ */
+export type EmbedNetwork = 'sandbox' | 'live'
+
+/**
+ * Map a CLI environment name to the embed app's `network` value. The
+ * `embed` origin is shared across the sandbox/live pair within a tier
+ * (`embed.nevermined.app` for both `sandbox` and `live`), differentiated
+ * only by the backend the session is validated against — so the embed
+ * app cannot infer the network from the origin and we must pass it.
+ *
+ * `custom` has no fixed tier, so we sniff `NVM_BACKEND_URL`: a backend
+ * host containing `live` selects `live`, otherwise we fall back to
+ * `sandbox` (matching the embed app's own default).
+ *
+ * NOTE: `live` is only matched as a dot/slash-bounded segment (the
+ * `api.live.<host>` convention), so a hyphenated host like
+ * `https://api-live.example.com` would fall through to `sandbox`. That's
+ * intentional given the naming convention; a `custom` deployment that
+ * doesn't follow it should set `NVM_BACKEND_URL` to a conforming host.
+ */
+export function resolveEmbedNetwork(environment: EnvironmentName): EmbedNetwork {
+  switch (environment) {
+    case 'live':
+    case 'staging_live':
+      return 'live'
+    case 'sandbox':
+    case 'staging_sandbox':
+      return 'sandbox'
+    case 'custom':
+      return /(^|[.\/])live([.\/]|$)/.test((process.env.NVM_BACKEND_URL || '').toLowerCase())
+        ? 'live'
+        : 'sandbox'
+  }
+}
 
 const SELF_MINT_FETCH_TIMEOUT_MS = 15_000
 
 /**
  * Default timeout for a redirect-mode CLI flow. Mirrors the existing
- * `nvm login` callback timeout — 5 minutes is enough for the user to
+ * `nevermined login` callback timeout — 5 minutes is enough for the user to
  * tab into the browser, complete a card enrolment + delegation, and
  * land back at the CLI.
  */
@@ -31,13 +73,20 @@ function safeEqualHexState(received: string, expected: string): boolean {
 }
 
 export interface WidgetRedirectFlowOptions {
-  /** Frontend base URL — e.g. `Environments[env].frontend`. */
-  frontendUrl: string
+  /** Embed app base URL — e.g. `Environments[env].embed` (`embed.<tier>`). */
+  embedUrl: string
   /**
-   * Relative embed path the CLI wants to open, e.g.
-   * `/embed/cards/setup` or `/embed/cards/enroll`.
+   * Relative path on the embed app the CLI wants to open, e.g.
+   * `/cards/setup` or `/cards/enroll`.
    */
   embedPath: string
+  /**
+   * Embed-app network (`sandbox` / `live`). Forwarded as `?network=` so
+   * the embed app validates the session against the matching backend —
+   * derive it from the active environment via `resolveEmbedNetwork`.
+   * Required: omitting it lets live flows silently hit sandbox (#362).
+   */
+  network: EmbedNetwork
   /**
    * Called once the local callback server is listening, with the bound
    * `returnUrl`. The caller mints a widget session against that URL and
@@ -68,7 +117,8 @@ export interface WidgetRedirectFlowResult {
 
 /**
  * Shared redirect-mode handshake for any CLI command that hands the user
- * off to an `/embed/*` page and waits for a localhost callback.
+ * off to a `/cards/*` page on the standalone embed app (`embed.<tier>`)
+ * and waits for a localhost callback.
  *
  * Flow:
  *   1. Bind a one-shot HTTP server on `127.0.0.1:0` (the OS picks a free port).
@@ -80,7 +130,7 @@ export interface WidgetRedirectFlowResult {
  *      `127.0.0.1` and Node 17+ resolves `localhost` to `::1` first on
  *      modern hosts — the browser would stall on the IPv6 attempt before
  *      falling back to IPv4.
- *   3. Open the browser at `{frontend}/embed/<path>?sessionToken=…&returnUrl=…&state=<rand>`.
+ *   3. Open the browser at `{embed}/<path>?sessionToken=…&returnUrl=…&state=<rand>`.
  *   4. Resolve when the embed page redirects to `/callback?…&state=<echo>`.
  *      `state` is compared in constant time.
  *
@@ -181,11 +231,12 @@ export async function runWidgetRedirectFlow(
         }
 
         const browserUrl = buildEmbedUrl({
-          frontendUrl: opts.frontendUrl,
+          embedUrl: opts.embedUrl,
           embedPath: opts.embedPath,
           sessionToken,
           returnUrl,
           state,
+          network: opts.network,
           extra: opts.extraSearchParams,
         })
 
@@ -210,16 +261,17 @@ export async function runWidgetRedirectFlow(
 }
 
 interface BuildEmbedUrlOptions {
-  frontendUrl: string
+  embedUrl: string
   embedPath: string
   sessionToken: string
   returnUrl: string
   state: string
+  network: EmbedNetwork
   extra?: Record<string, string>
 }
 
 function buildEmbedUrl(opts: BuildEmbedUrlOptions): string {
-  const url = new URL(opts.embedPath, opts.frontendUrl)
+  const url = new URL(opts.embedPath, opts.embedUrl)
   url.searchParams.set('sessionToken', opts.sessionToken)
   url.searchParams.set('returnUrl', opts.returnUrl)
   url.searchParams.set('state', opts.state)
@@ -228,6 +280,10 @@ function buildEmbedUrl(opts: BuildEmbedUrlOptions): string {
       url.searchParams.set(k, v)
     }
   }
+  // Set AFTER `extra` so a caller can never accidentally clobber the
+  // network the embed app keys its backend selection off of —
+  // `URLSearchParams.set` overwrites, so writing it last makes it win.
+  url.searchParams.set('network', opts.network)
   return url.toString()
 }
 

@@ -4,17 +4,19 @@ import { BaseCommand } from '../../base-command.js'
 import { resolveOrgIdInteractive } from '../../utils/orgs.js'
 import {
   mintSelfWidgetSession,
+  resolveEmbedNetwork,
   runWidgetRedirectFlow,
 } from '../../utils/widget-redirect-flow.js'
 
 /**
  * Single-purpose card enrolment. Opens the chromeless
- * `/embed/cards/enroll` page in the browser, completes the
+ * `/cards/enroll` page of the standalone embed app (`embed.<tier>`)
+ * in the browser, completes the
  * tokenization step against the chosen provider, and redirects the
  * resulting `paymentMethodId` back to a localhost callback.
  *
  * For the common case of "add a card AND a delegation in one flow",
- * use `nvm cards setup` instead — the combined command emits both IDs
+ * use `nevermined cards setup` instead — the combined command emits both IDs
  * in a single callback.
  */
 export default class CardsEnroll extends BaseCommand {
@@ -65,8 +67,9 @@ export default class CardsEnroll extends BaseCommand {
       }
 
       const result = await runWidgetRedirectFlow({
-        frontendUrl: env.frontend,
-        embedPath: '/embed/cards/enroll',
+        embedUrl: env.embed,
+        embedPath: '/cards/enroll',
+        network: resolveEmbedNetwork(environment),
         mintSession: async ({ returnUrl }) => {
           const session = await mintSelfWidgetSession({
             backendUrl: env.backend,

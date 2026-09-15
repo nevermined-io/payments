@@ -189,6 +189,24 @@ console.log(`Plan ID: ${planId}`)
 
 ## Retrieve Agents
 
+### List Your Agents
+
+List the agents **you** published — the authenticated caller's own agents. This
+is account management, not a marketplace search: it never returns other users'
+agents. Pass an `orgId` to list every agent in an organization you belong to.
+
+```typescript
+// Your own agents (paginated: { total, page, offset, agents })
+const { agents } = await payments.agents.getAgents()
+
+agents.forEach((agent) => {
+  console.log(`${agent.name}: ${agent.agentId}`)
+})
+
+// Every agent in an organization you belong to
+const { agents: orgAgents } = await payments.agents.getAgents(1, 100, 'created', 'desc', 'org-acme')
+```
+
 ### Get a Specific Agent
 
 ```typescript

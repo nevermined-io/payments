@@ -1,7 +1,7 @@
 import { Payments } from '../index.js'
 import { PaymentsError } from '../common/payments.error.js'
 import { resolveScheme } from '../x402/facilitator-api.js'
-import type { X402TokenOptions, DelegationConfig } from '../common/types.js'
+import type { X402TokenOptions, DelegationConfig, X402TokenVersion } from '../common/types.js'
 import {
   MessageSendParams,
   SendMessageResponse,
@@ -17,6 +17,9 @@ import {
 import { A2AClient } from '@a2a-js/sdk/client'
 import { v4 as uuidv4 } from 'uuid'
 import type { AgentCard } from './types.js'
+import { AGENT_CARD_WELL_KNOWN_PATH, LEGACY_AGENT_CARD_WELL_KNOWN_PATH } from './agent-card.js'
+import { decodeAccessToken } from '../utils.js'
+import { PaymentStatus, x402A2AUtils, X402A2AMetadata } from './x402-a2a.js'
 
 /**
  * PaymentsClient is a high-level client for A2A agents with payments integration.
@@ -27,7 +30,10 @@ export class PaymentsClient extends A2AClient {
   private readonly agentId: string
   private readonly planId: string
   private readonly delegationConfig?: DelegationConfig
+  private readonly tokenVersion?: X402TokenVersion
   private accessToken: string | null
+  private lastMintedTokenVersion: X402TokenVersion | null = null
+  private downgradeWarned = false
 
   /**
    * Creates a new PaymentsClient instance.
@@ -35,7 +41,8 @@ export class PaymentsClient extends A2AClient {
    * @param payments - The Payments object.
    * @param agentId - The ID of the agent.
    * @param planId - The ID of the plan.
-   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent.json').
+   * @param agentCardPath - Optional path to the agent card relative to base URL (defaults to '.well-known/agent-card.json').
+   * @param tokenVersion - Optional EIP-712 token version to request (`3` = single-use, bound to this agent's endpoint).
    */
   private constructor(
     agentCard: AgentCard,
@@ -43,12 +50,14 @@ export class PaymentsClient extends A2AClient {
     agentId: string,
     planId: string,
     delegationConfig?: DelegationConfig,
+    tokenVersion?: X402TokenVersion,
   ) {
     super(agentCard)
     this.payments = payments
     this.agentId = agentId
     this.planId = planId
     this.delegationConfig = delegationConfig
+    this.tokenVersion = tokenVersion
     this.accessToken = null
   }
 
@@ -61,17 +70,108 @@ export class PaymentsClient extends A2AClient {
     payments: Payments,
     agentId: string,
     planId: string,
-    agentCardPath = '.well-known/agent.json',
+    agentCardPath = AGENT_CARD_WELL_KNOWN_PATH,
     delegationConfig?: DelegationConfig,
+    tokenVersion?: X402TokenVersion,
   ): Promise<PaymentsClient> {
-    const agentCardUrl = new URL(agentCardPath, agentBaseUrl).toString()
-    const a2a = await A2AClient.fromCardUrl(agentCardUrl)
-    const agentCard = await (a2a as any).getAgentCard()
-    return new PaymentsClient(agentCard as AgentCard, payments, agentId, planId, delegationConfig)
+    const agentCard = await PaymentsClient._fetchAgentCard(agentBaseUrl, agentCardPath)
+    return new PaymentsClient(agentCard, payments, agentId, planId, delegationConfig, tokenVersion)
   }
 
   /**
-   * Gets and caches the access token for this client instance.
+   * Fetches a remote agent card, trying the requested (canonical) path first and
+   * falling back to the legacy '.well-known/agent.json' so updated clients keep
+   * working against agents that have not adopted the canonical path yet.
+   * TODO(a2a): drop the fallback one release after agents are updated.
+   */
+  private static async _fetchAgentCard(
+    agentBaseUrl: string,
+    agentCardPath: string,
+  ): Promise<AgentCard> {
+    const load = async (path: string): Promise<AgentCard> => {
+      const a2a = await A2AClient.fromCardUrl(new URL(path, agentBaseUrl).toString())
+      return (await (a2a as any).getAgentCard()) as AgentCard
+    }
+    try {
+      return await load(agentCardPath)
+    } catch (err) {
+      if (agentCardPath === LEGACY_AGENT_CARD_WELL_KNOWN_PATH) {
+        throw err
+      }
+      // Canonical path failed — fall back to the legacy path. Warn, because a
+      // silent fallback to a typosquattable legacy path is a discovery risk.
+      console.warn(
+        `[PaymentsA2A] agent card not found at '${agentCardPath}', falling back to '${LEGACY_AGENT_CARD_WELL_KNOWN_PATH}':`,
+        err instanceof Error ? err.message : String(err),
+      )
+      try {
+        return await load(LEGACY_AGENT_CARD_WELL_KNOWN_PATH)
+      } catch (legacyErr) {
+        // Both failed. Surface the legacy error but preserve the canonical-path
+        // root cause (a TLS/DNS/5xx there is otherwise masked by a clean 404).
+        const message = legacyErr instanceof Error ? legacyErr.message : String(legacyErr)
+        // `new Error(msg, { cause })` would be idiomatic but the ES2020 lib target
+        // types Error with 0-1 args, so attach `cause` via Object.assign instead.
+        throw Object.assign(
+          new Error(
+            `Failed to fetch agent card from '${agentCardPath}' or legacy '${LEGACY_AGENT_CARD_WELL_KNOWN_PATH}': ${message}`,
+          ),
+          { cause: err },
+        )
+      }
+    }
+  }
+
+  /**
+   * The A2A service endpoint this client talks to — the `resource.url` a v3
+   * token is bound to.
+   *
+   * Resolution failures are RAISED, not swallowed. This runs only on the v3
+   * path, where the caller explicitly asked for a seller-bound token: minting
+   * without the resource would hand them a single-use token bound to nothing,
+   * reporting `tokenVersion: 3`, with no signal that half the guarantee was
+   * dropped. Failing here loses a call; failing quietly loses the control.
+   *
+   * The lookup reaches into `_getServiceEndpoint`, which `@a2a-js/sdk` declares
+   * `private` and whose own source says it "can be made synchronous or
+   * deleted" — so a dependency bump can break it. That is exactly why this must
+   * be loud: the alternative is every v3 token silently becoming unbound.
+   */
+  private async _resolveResourceUrl(): Promise<string> {
+    let endpoint: unknown
+    try {
+      endpoint = await (this as any)._getServiceEndpoint()
+    } catch (error) {
+      throw PaymentsError.internal(
+        'Could not resolve the A2A service endpoint to bind a tokenVersion 3 access token to: ' +
+          `${error instanceof Error ? error.message : String(error)}. A v3 token is bound to one ` +
+          'resource URL, so it cannot be minted without it. Use tokenVersion 2, or fix the agent ' +
+          'card / service endpoint.',
+      )
+    }
+    if (typeof endpoint !== 'string' || endpoint.length === 0) {
+      throw PaymentsError.internal(
+        'The A2A service endpoint resolved to an empty value, so a tokenVersion 3 access token ' +
+          'cannot be bound to it. Use tokenVersion 2, or fix the agent card / service endpoint.',
+      )
+    }
+    return endpoint
+  }
+
+  /**
+   * Gets the access token for this client instance, caching it only when the
+   * token is reusable.
+   *
+   * A v2 token is a reusable bearer credential, so it is cached for the client's
+   * lifetime exactly as before. A **v3 token is consumed by its first
+   * settlement**, so caching one would make every paid call after the first
+   * settle against a spent nonce (`BCK.X402.0059`) — a v3 token is therefore
+   * minted per request and never stored.
+   *
+   * The version is read off the minted token, never inferred from what was
+   * requested: a backend that predates the v3 struct silently mints v2, and a
+   * backend whose default has flipped to v3 mints v3 without being asked.
+   *
    * @returns The access token string.
    */
   private async _getX402AccessToken(): Promise<string> {
@@ -84,26 +184,169 @@ export class PaymentsClient extends A2AClient {
         `${scheme} scheme requires delegationConfig. Pass it to PaymentsClient.create().`,
       )
     }
+    // The resource binding is attached ONLY when v3 was explicitly requested.
+    // It is not inert on a v2 token: the backend compares the token's
+    // `resource.url` against the seller's `paymentRequired.resource.url`
+    // (origin + path, falling back to an exact string compare for anything it
+    // cannot parse as a URL), so a resource that does not match what the seller
+    // advertises fails verification with `BCK.X402.0013` — a binding nobody
+    // asked for can only cost the caller a failed verify.
+    //
+    // The ABSOLUTE service endpoint is the right string for this client's
+    // counterparty specifically: an A2A seller built on this SDK advertises
+    // `new URL(req.originalUrl, protocol + host)` (`src/a2a/server.ts`), not
+    // the relative `req.originalUrl` that the Express `paymentMiddleware`
+    // advertises for plain HTTP agents. Every A2A call is a POST to the one
+    // JSON-RPC service endpoint, so a single binding covers all of them.
+    let binding: Pick<X402TokenOptions, 'resource' | 'httpVerb' | 'tokenVersion'> = {}
+    if (this.tokenVersion === 3) {
+      binding = {
+        resource: { url: await this._resolveResourceUrl() },
+        httpVerb: 'POST',
+        tokenVersion: 3,
+      }
+    }
     let tokenOptions: X402TokenOptions | undefined
     if (scheme !== 'nvm:erc4337') {
-      tokenOptions = { scheme, delegationConfig: this.delegationConfig }
+      tokenOptions = { scheme, delegationConfig: this.delegationConfig, ...binding }
     } else {
-      tokenOptions = { delegationConfig: this.delegationConfig }
+      tokenOptions = { delegationConfig: this.delegationConfig, ...binding }
     }
     const accessParams = await this.payments.x402.getX402AccessToken(
       this.planId,
       this.agentId,
       tokenOptions,
     )
-    this.accessToken = accessParams.accessToken
-    return this.accessToken
+    this.lastMintedTokenVersion = accessParams.tokenVersion ?? null
+    // A caller who asked for v3 and got v2 asked for single-use + seller
+    // binding and received neither. Caching it is still the correct handling of
+    // a genuinely reusable token, but it must not be the only trace: say so
+    // once, and expose the minted version so callers can branch the way
+    // getX402AccessToken's own return value lets them.
+    if (accessParams.tokenVersion === 3) {
+      // The current downgrade episode is over: a later one is new information
+      // and gets its own warning, rather than being swallowed by a flag set
+      // once for the lifetime of the client.
+      this.downgradeWarned = false
+    } else if (this.tokenVersion === 3 && !this.downgradeWarned) {
+      this.downgradeWarned = true
+      console.warn(
+        `[x402] tokenVersion 3 was requested but the backend minted v${accessParams.tokenVersion}. ` +
+          'This token is reusable and bound to nothing, and it is cached for the lifetime of this ' +
+          'client. Read PaymentsClient.getLastMintedTokenVersion() to branch on it.',
+      )
+    }
+    // Cache unless the token is single-use. Phrased as "not v3" rather than
+    // "is v2" so an unrecognised or missing version keeps today's caching
+    // behaviour instead of silently turning every call into a fresh mint.
+    if (accessParams.tokenVersion !== 3) {
+      this.accessToken = accessParams.accessToken
+    }
+    return accessParams.accessToken
+  }
+
+  /**
+   * The EIP-712 version of the token this client minted most recently, or
+   * `null` before the first paid call.
+   *
+   * The version a client was constructed with is a *request*; this is what the
+   * backend actually minted. They differ whenever a deployment predates the v3
+   * struct (it drops the field and mints v2) or once its default flips the
+   * other way — so a caller that needs single-use semantics to hold should
+   * check this rather than assume its own argument was honoured.
+   *
+   * Per-client state answering a per-call question: there is no mint lock, so
+   * two concurrent paid calls on a fresh client both mint and the last writer
+   * wins. Today they agree — the backend does not change its answer mid-flight
+   * — but read this before or after a call, not racing one.
+   */
+  public getLastMintedTokenVersion(): X402TokenVersion | null {
+    return this.lastMintedTokenVersion
   }
 
   /**
    * Clears the cached access token for this client instance.
+   *
+   * A no-op for the token itself when the last one was single-use (v3): those
+   * are never cached. `getLastMintedTokenVersion()` resets to `null` either
+   * way — after a clear there is no token in use, and reporting the version of
+   * one that has been discarded is worse than reporting nothing.
+   *
+   * The downgrade flag is deliberately NOT reset here: it tracks the current
+   * downgrade episode, which a clear does not end. It is cleared when a v3
+   * token is actually minted.
    */
   public clearToken() {
     this.accessToken = null
+    this.lastMintedTokenVersion = null
+  }
+
+  /**
+   * Build the in-band x402 message metadata (x402 v2 A2A transport).
+   *
+   * The server consumes the same base64 access token whether it arrives in the
+   * deprecated `payment-signature` header or in band, so the in-band
+   * `x402.payment.payload` is just the decoded PaymentPayload object. Falls back
+   * to wrapping the raw token if it is not decodable (never expected for real
+   * Nevermined tokens, which are base64 JSON).
+   *
+   * @param accessToken - The x402 access token string
+   * @returns The message-metadata fragment carrying status + payload
+   */
+  private _buildInBandPaymentMetadata(accessToken: string): Record<string, unknown> {
+    const payload = decodeAccessToken(accessToken) ?? { token: accessToken }
+    return {
+      [X402A2AMetadata.STATUS_KEY]: PaymentStatus.PAYMENT_SUBMITTED,
+      [X402A2AMetadata.PAYLOAD_KEY]: payload,
+    }
+  }
+
+  /**
+   * Return a copy of the message params with the in-band x402 payment metadata
+   * merged into `message.metadata`, optionally correlating to a taskId returned
+   * by a prior `input-required` (payment-required) response. Immutable: the
+   * caller's params object is never mutated.
+   *
+   * @param params - The original message send params
+   * @param accessToken - The x402 access token to embed in band
+   * @param taskId - Optional taskId to correlate a payment-required follow-up
+   */
+  private _withInBandPayment(
+    params: MessageSendParams,
+    accessToken: string,
+    taskId?: string,
+  ): MessageSendParams {
+    return {
+      ...params,
+      message: {
+        ...params.message,
+        ...(taskId ? { taskId } : {}),
+        metadata: {
+          ...(params.message.metadata || {}),
+          ...this._buildInBandPaymentMetadata(accessToken),
+        },
+      },
+    }
+  }
+
+  /**
+   * Detect a payment-required response (x402 v2 A2A transport): an
+   * `input-required` task whose status message carries
+   * `x402.payment.status: payment-required`. Returns the task id to correlate a
+   * follow-up payment, or `undefined` when the response is not payment-required.
+   *
+   * @param response - The JSON-RPC send-message response
+   */
+  private _paymentRequiredTaskId(response: SendMessageResponse): string | undefined {
+    if (this.isErrorResponse(response as JSONRPCResponse)) {
+      return undefined
+    }
+    const result = (response as { result?: any }).result
+    if (!result || result.kind !== 'task' || result.status?.state !== 'input-required') {
+      return undefined
+    }
+    const status = x402A2AUtils.getPaymentStatus(result)
+    return status === PaymentStatus.PAYMENT_REQUIRED ? (result.id as string) : undefined
   }
 
   /**
@@ -122,12 +365,30 @@ export class PaymentsClient extends A2AClient {
    */
   public async sendA2AMessage(params: MessageSendParams): Promise<SendMessageResponse> {
     const accessToken = await this._getX402AccessToken()
+    // Primary path (x402 v2 A2A transport): carry the payment in band. Keep the
+    // deprecated `payment-signature` header for one release so servers that have
+    // not adopted the in-band transport still authorize the request.
     const headers = { 'payment-signature': accessToken }
-    return this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
+    const inBandParams = this._withInBandPayment(params, accessToken)
+    const response = await this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
       'message/send',
-      params,
+      inBandParams,
       headers,
     )
+
+    // Reactive flow: if the server replied with an `input-required`
+    // payment-required task (it did not accept the in-band payload, e.g. it sent
+    // requirements first), resubmit the payment correlated to that task id.
+    const taskId = this._paymentRequiredTaskId(response)
+    if (taskId) {
+      const followUp = this._withInBandPayment(params, accessToken, taskId)
+      return this._postRpcRequestWithHeaders<MessageSendParams, SendMessageResponse>(
+        'message/send',
+        followUp,
+        headers,
+      )
+    }
+    return response
   }
 
   /**
@@ -150,13 +411,16 @@ export class PaymentsClient extends A2AClient {
     }
     const endpoint = await (this as any)._getServiceEndpoint()
     const clientRequestId = uuidv4()
+    const accessToken = await this._getX402AccessToken()
+    // Carry the payment in band (x402 v2 A2A transport); keep the deprecated
+    // header for one release as a fallback.
+    const inBandParams = this._withInBandPayment(params, accessToken)
     const rpcRequest = {
       jsonrpc: '2.0',
       method: 'message/stream',
-      params: params as { [key: string]: any },
+      params: inBandParams as { [key: string]: any },
       id: clientRequestId,
     }
-    const accessToken = await this._getX402AccessToken()
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {

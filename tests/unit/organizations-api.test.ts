@@ -313,4 +313,107 @@ describe('OrganizationsAPI — workspace surface', () => {
       expect(calls[0].init.headers[CURRENT_ORG_ID_HEADER]).toBe('org-d')
     })
   })
+
+  describe('onboardCustomer (#2418)', () => {
+    test('new/returning customer: sends as=customer and returns hash as the Bearer', async () => {
+      const payments = makePayments()
+      const calls = installFetchStub(() => ({
+        ok: true,
+        status: 201,
+        body: {
+          success: true,
+          message: 'Customer onboarded',
+          walletResult: {
+            // `hash` is the Bearer credential (`<env>:<JWT>`) — the backend
+            // documents this as the value to send as `Authorization: Bearer …`.
+            hash: 'sandbox:jwt-bearer-token',
+            userId: 'us-123',
+            userWallet: '0xabc',
+            // `nvmApiKey` is the encrypted server-side blob — explicitly NOT a
+            // Bearer; sending it as a header does not authenticate.
+            nvmApiKey: 'encrypted-blob-not-a-bearer',
+            isCustomer: true,
+            customerRecorded: true,
+            expiresAt: '2026-09-27T12:00:00.000Z',
+            alreadyMember: false,
+          },
+        },
+      }))
+
+      const result = await payments.organizations.onboardCustomer('customer@example.com')
+
+      // The request opts into the customer outcome.
+      expect(calls[0].url.pathname).toBe('/api/v1/organizations/account')
+      expect(calls[0].init.method).toBe('POST')
+      expect(JSON.parse(calls[0].init.body)).toEqual({
+        email: 'customer@example.com',
+        as: 'customer',
+      })
+      // The USABLE Bearer is surfaced as `nvmApiKey` (mirroring createMember) —
+      // the raw `nvmApiKey` blob must never leak through as a credential.
+      expect(result).toEqual({
+        consentRequired: false,
+        nvmApiKey: 'sandbox:jwt-bearer-token',
+        userId: 'us-123',
+        userWallet: '0xabc',
+        isCustomer: true,
+        customerRecorded: true,
+        // The credential expiry the paired docs tell integrators to track.
+        expiresAt: '2026-09-27T12:00:00.000Z',
+      })
+    })
+
+    test('existing non-owned account: returns consentRequired with no key or identity', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 202,
+        body: {
+          success: true,
+          message: 'Account already exists — a consent email was sent',
+          walletResult: { alreadyMember: false, consentRequired: true },
+        },
+      }))
+
+      const result = await payments.organizations.onboardCustomer('stranger@example.com')
+
+      expect(result).toEqual({ consentRequired: true })
+    })
+
+    test('202 status drives the consent outcome even without the body flag', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 202,
+        body: { success: true, walletResult: { alreadyMember: false } },
+      }))
+
+      const result = await payments.organizations.onboardCustomer('stranger@example.com')
+
+      expect(result).toEqual({ consentRequired: true })
+    })
+
+    test('throws when a 2xx completes onboarding but returns no usable key', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 201,
+        // Partial/regressed payload: not consent-pending, yet no `hash` (the Bearer).
+        body: { success: true, walletResult: { userId: 'us-1', isCustomer: true } },
+      }))
+
+      await expect(payments.organizations.onboardCustomer('customer@example.com')).rejects.toThrow(
+        /did not return an API key/,
+      )
+    })
+
+    test('throws PaymentsError on 5xx', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({ ok: false, status: 500, body: { message: 'boom' } }))
+
+      await expect(payments.organizations.onboardCustomer('customer@example.com')).rejects.toThrow(
+        /Unable to onboard customer/,
+      )
+    })
+  })
 })

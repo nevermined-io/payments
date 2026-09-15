@@ -4,20 +4,22 @@ import { BaseCommand } from '../../base-command.js'
 import { resolveOrgIdInteractive } from '../../utils/orgs.js'
 import {
   mintSelfWidgetSession,
+  resolveEmbedNetwork,
   runWidgetRedirectFlow,
 } from '../../utils/widget-redirect-flow.js'
 
 /**
  * Combined "set up a card for agent spend" flow. Opens the user's
- * browser at the chromeless `/embed/cards/setup` page, where they
+ * browser at the chromeless `/cards/setup` page of the standalone embed
+ * app (`embed.<tier>`), where they
  * enrol a card and create a spending delegation in one session, and
  * receives `paymentMethodId` + `delegationId` back at a localhost
  * callback the CLI starts for the duration of the flow.
  *
- * Mirrors the `nvm login` UX: ephemeral HTTP server on a random port,
+ * Mirrors the `nevermined login` UX: ephemeral HTTP server on a random port,
  * URL printed (or browser opened), 5-minute timeout, single-use
  * `state` echo for CSRF binding. The user must already be authenticated
- * (`nvm login`) and must be a member of at least one organisation —
+ * (`nevermined login`) and must be a member of at least one organisation —
  * the widgets feature is organisation-scoped (see issue #1671).
  */
 export default class CardsSetup extends BaseCommand {
@@ -80,8 +82,9 @@ export default class CardsSetup extends BaseCommand {
       }
 
       const result = await runWidgetRedirectFlow({
-        frontendUrl: env.frontend,
-        embedPath: '/embed/cards/setup',
+        embedUrl: env.embed,
+        embedPath: '/cards/setup',
+        network: resolveEmbedNetwork(environment),
         // Mint AFTER the local server binds — `runWidgetRedirectFlow`
         // gives us the actual returnUrl so the backend can validate it
         // at session-creation time (per the documented `isReturnUrlAllowed`
