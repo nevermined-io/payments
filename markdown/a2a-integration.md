@@ -247,7 +247,7 @@ keys to the same `metadata` object:
 
 | key | meaning |
 | --- | --- |
-| `txHash` | The settlement transaction. A chain tx hash on the crypto rails; on fiat it is the **PSP transaction id** (a Stripe PaymentIntent, `pi_...`), so do not assume it is a hash. |
+| `txHash` | The settlement transaction. A chain tx hash on the crypto rails; on fiat it is the **PSP transaction id** (a Stripe PaymentIntent, `pi_...`), so do not assume it is a hash. **Absent when the settle did not succeed** — the key is omitted rather than published blank, so its presence means a settlement really happened. |
 | `creditsCharged` | The credits the settle **actually redeemed**. |
 
 ⚠️ **Where they land depends on the transport, so do not assume `task.metadata`.**
@@ -273,7 +273,13 @@ than report a figure that would be false:
 | credits plan | the credits redeemed |
 | credits plan, nothing redeemed | `0` — a real figure, not an absence |
 | **pay-as-you-go** | **key absent** |
+| the settle failed, or reported no `success` | **key absent** (silent) |
 | the backend reported no usable figure | **key absent** (and the SDK warns) |
+
+The two silent rows are deliberately different from the warning one. A failed
+settle is a legitimate outcome the caller already sees on `success`, not a
+reporting fault, so it is not warned about — do not read the absence of a
+warning as "this case cannot happen".
 
 Pay-as-you-go is the case to understand. Such a plan holds no credit balance, so
 `creditsRedeemed` is the string `'0'` **even on a settle that charged the buyer**.

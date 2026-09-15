@@ -41,6 +41,18 @@ import type {
 const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejected']
 
 /**
+ * A decimal string, and nothing else — no sign, no whitespace, no `0x`/`1e3`,
+ * no fractional part. `Number()` accepts every one of those, and worse, maps the
+ * empty-ish family (`''`, `'   '`, `null`, `[]`, `false`) to **0** rather than
+ * `NaN`, so `Number.isFinite` does not catch them. Publishing that 0 would say
+ * "you were charged nothing" on a settle we simply could not read — the same
+ * class of lie this helper exists to prevent on pay-as-you-go.
+ *
+ * Same reasoning, same shape as `DECIMAL_INTEGER_STRING` in `mpp/mpp-api.ts`.
+ */
+const DECIMAL_INTEGER_STRING = /^\d+$/
+
+/**
  * The credits a settle actually redeemed, for `event.metadata.creditsCharged`.
  *
  * Reads {@link SettlePermissionsResult.creditsRedeemed} per billing model rather
@@ -85,18 +97,6 @@ const terminalStates: TaskState[] = ['completed', 'failed', 'canceled', 'rejecte
  * @param settlement - The settlement receipt as the facilitator returned it
  * @returns The credits redeemed, or `undefined` per the three cases above
  */
-/**
- * A decimal string, and nothing else — no sign, no whitespace, no `0x`/`1e3`,
- * no fractional part. `Number()` accepts every one of those, and worse, maps the
- * empty-ish family (`''`, `'   '`, `null`, `[]`, `false`) to **0** rather than
- * `NaN`, so `Number.isFinite` does not catch them. Publishing that 0 would say
- * "you were charged nothing" on a settle we simply could not read — the same
- * class of lie this helper exists to prevent on pay-as-you-go.
- *
- * Same reasoning, same shape as `DECIMAL_INTEGER_STRING` in `mpp/mpp-api.ts`.
- */
-const DECIMAL_INTEGER_STRING = /^\d+$/
-
 function resolveCreditsCharged(settlement: SettlePermissionsResult): number | undefined {
   // ALLOWLIST, not a denylist. `=== 'pay-as-you-go'` let every other value fall
   // into the credits branch and publish a `0`: `null`, `''`, `'PAY-AS-YOU-GO'`,
@@ -610,7 +610,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
     if (!task || !httpContext?.inBand) {
       return
     }
-    if (settlement && settlement.success === false) {
+    // `!== true`, not `=== false` — the same rule as `resolveCreditsCharged` above,
+    // for the same reason. `success` is declared non-optional, so its absence means
+    // a malformed response rather than a legacy shape, and stamping one of those
+    // `payment-completed` publishes the settle's figures under a success banner on
+    // the surface a buyer is told to read for the authoritative receipt.
+    // `settlePermissions` already reasons this way (`src/x402/facilitator-api.ts`).
+    if (settlement && settlement.success !== true) {
       x402A2AUtils.recordPaymentFailure(
         task,
         settlement.errorReason || 'SETTLEMENT_FAILED',
@@ -684,7 +690,13 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
               // support; the settle response reports that id as `transaction`.
               // There is no `txHash` on the wire — see handleTaskFinalization.
               if (response && event.metadata) {
-                event.metadata.txHash = response.transaction
+                // Only on a settle that SUCCEEDED. `transaction` is documented as
+                // an empty string when settlement failed, and a blank id beside a
+                // completed task is the same defect as publishing `creditsCharged`
+                // for a settle that charged nothing — see resolveCreditsCharged.
+                if (response.success === true && response.transaction) {
+                  event.metadata.txHash = response.transaction
+                }
                 // Left unset when the billing model has no credits to report —
                 // see resolveCreditsCharged. `creditsUsed` still carries what
                 // the request asked to burn.
@@ -999,9 +1011,12 @@ export class PaymentsRequestHandler extends DefaultRequestHandler {
           // metadata key, not a wire field: the settle response reports the
           // transaction id as `transaction`.
           const creditsCharged = resolveCreditsCharged(response)
+          const settled = response.success === true
           event.metadata = {
             ...event.metadata,
-            txHash: response.transaction,
+            // Same rule as `creditsCharged` below: a failed settle has no
+            // transaction to name, and `transaction` is an empty string there.
+            ...(settled && response.transaction ? { txHash: response.transaction } : {}),
             // The credits actually redeemed, omitted entirely when the billing
             // model has none to report — see resolveCreditsCharged. The credits
             // this request asked to burn stay available as `creditsUsed`.

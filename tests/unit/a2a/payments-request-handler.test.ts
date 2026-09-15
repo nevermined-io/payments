@@ -665,5 +665,88 @@ describe('PaymentsRequestHandler', () => {
       expect(event.metadata).not.toHaveProperty('creditsCharged')
       expect(event.metadata?.creditsUsed).toBe(5)
     })
+
+    /**
+     * Round-3 review: the two ADJACENT surfaces that the rule above makes
+     * visible. Neither was a regression in this PR — both predate the branch —
+     * but leaving them is leaving two guards that disagree three lines apart.
+     */
+    describe('the sibling surfaces obey the same rule', () => {
+      /**
+       * `transaction` is documented as an empty string when settlement failed,
+       * so publishing it unconditionally put `txHash: ''` on a COMPLETED task.
+       * On the legacy (non-in-band) path that is the buyer's entire record of
+       * the settle — there are no x402 receipts to fall back on — so a blank id
+       * reads as "settled, reference unavailable" rather than "did not settle".
+       */
+      test.each([
+        ['a failed settle', { success: false, errorReason: 'INSUFFICIENT', transaction: '' }],
+        ['a settle with no success field', { transaction: '0xdead' } as any],
+      ])('%s publishes no txHash', async (_label, settle) => {
+        const { event, taskRef } = await finalize({
+          network: 'eip155:84532',
+          billingModel: 'credits',
+          creditsRedeemed: '7',
+          ...settle,
+        } as any)
+        expect(event.metadata).not.toHaveProperty('txHash')
+        expect(taskRef.metadata).not.toHaveProperty('txHash')
+        // The sibling key stays absent too — same response, same rule.
+        expect(event.metadata).not.toHaveProperty('creditsCharged')
+      })
+
+      test('a failed settle publishes no txHash on the streaming path either', async () => {
+        const { event } = await finalizeStreaming({
+          success: false,
+          errorReason: 'INSUFFICIENT',
+          transaction: '',
+          network: 'eip155:84532',
+        } as any)
+        expect(event.metadata).not.toHaveProperty('txHash')
+      })
+
+      /**
+       * The positive control. Without it a `txHash` that was never published at
+       * all would satisfy every assertion above.
+       */
+      test('a SUCCESSFUL settle still publishes txHash on both paths', async () => {
+        const { event, taskRef } = await finalize(settleResponse({}))
+        expect(event.metadata?.txHash).toBe('0xabc')
+        expect(taskRef.metadata?.txHash).toBe('0xabc')
+        const streamed = await finalizeStreaming(settleResponse({}))
+        expect(streamed.event.metadata?.txHash).toBe('0xabc')
+      })
+
+      /**
+       * `recordInBandSettlement` routed on `=== false`, so a malformed settle
+       * — the exact response `resolveCreditsCharged` refuses to read — was
+       * stamped `payment-completed`, publishing its figures under a success
+       * banner on the surface a buyer reads for the authoritative receipt.
+       */
+      test.each([
+        ['a failed settle', { success: false, errorReason: 'INSUFFICIENT' }],
+        ['a settle with no success field', {}],
+      ])('%s is recorded in band as payment-failed, not completed', (_label, settle) => {
+        const { handler } = buildHandler({})
+        const task = { id: 'tid', status: { state: 'completed' }, metadata: {} } as any
+        ;(handler as any).recordInBandSettlement(task, { inBand: true }, {
+          transaction: '0xdead',
+          network: 'n',
+          billingModel: 'credits',
+          creditsRedeemed: '7',
+          ...settle,
+        } as any)
+        const meta = task.status.message.metadata
+        expect(meta['x402.payment.status']).toBe('payment-failed')
+        expect(meta['x402.payment.status']).not.toBe('payment-completed')
+      })
+
+      test('a SUCCESSFUL settle is still recorded in band as payment-completed', () => {
+        const { handler } = buildHandler({})
+        const task = { id: 'tid', status: { state: 'completed' }, metadata: {} } as any
+        ;(handler as any).recordInBandSettlement(task, { inBand: true }, settleResponse({}) as any)
+        expect(task.status.message.metadata['x402.payment.status']).toBe('payment-completed')
+      })
+    })
   })
 })
