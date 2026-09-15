@@ -1,7 +1,7 @@
 {
   "name": "@nevermined-io/openclaw-plugin",
   "version": "1.1.1",
-  "description": "OpenClaw plugin for Nevermined — exposes subscriber and builder tools as gateway methods",
+  "description": "OpenClaw plugin for Nevermined \u2014 exposes subscriber and builder tools as gateway methods",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -75,5 +75,16 @@
     "ai-agents",
     "payments",
     "plugin"
-  ]
+  ],
+  "pnpm": {
+    "overrides": {
+      "@babel/core": ">=7.29.6 <8",
+      "baseline-browser-mapping": ">=2.11.0 <3",
+      "brace-expansion": ">=2.1.2 <3",
+      "browserslist": ">=4.28.7 <5",
+      "js-yaml": ">=4.3.2 <5",
+      "langsmith": ">=0.6.0 <1",
+      "uuid": ">=11.1.1 <12"
+    }
+  }
 }
