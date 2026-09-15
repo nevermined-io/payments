@@ -42,10 +42,11 @@ jobs:
       # `* @nevermined-io/nevermined-admin @nevermined-io/nevermined-doers`, and
       # a GitHub App can never be a code owner — CODEOWNERS entries are users,
       # teams or emails — so this approval counted for nothing and every bump
-      # sat at `reviewDecision: REVIEW_REQUIRED`. #409 was the proof: five
-      # required checks green and two APPROVED reviews from the release bot,
-      # BLOCKED from 2026-07-20 until the setting changed, at which point the
-      # same PR read APPROVED with nothing about it touched.
+      # sat at `reviewDecision: REVIEW_REQUIRED`. #409 was the proof: its three
+      # required contexts (`E2E`, `Lint & Build`, `Unit & Integration`) green
+      # and two APPROVED reviews from the release bot, BLOCKED from 2026-07-20
+      # until the setting changed, at which point the same PR read APPROVED with
+      # nothing about it touched.
       #
       # `require_code_owner_reviews` is now false — what nvm-monorepo's ruleset
       # already did — and `required_approving_review_count` stays 1, so this

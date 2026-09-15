@@ -64,14 +64,27 @@ jobs:
           # "Dependabot will stop rebasing a pull request once extra commits have
           # been pushed to it", unless the message carries `[dependabot skip]`
           # (or `[skip dependabot]`, `[dependabot-skip]`, `[skip-dependabot]`).
-          # So the marker keeps Dependabot's own rebase — the thing that
-          # regenerates a conflicted lockfile — alive on branches this job has
-          # touched. Whether Dependabot honours it on an App-authored commit is
-          # documented nowhere; the first dispatch run after this merges is what
-          # settles that.
+          # So the marker is meant to keep Dependabot's own rebase — the thing
+          # that regenerates a conflicted lockfile — alive on branches this job
+          # has touched. Two limits on that claim:
           #
-          # Measured against the real API on 2026-09-14 with a user token (the
-          # App identity is first exercised by that dispatch run):
+          # - It does not lift the other cutoff in the same docs section: "If a
+          #   pull request has not been merged for 30 days, Dependabot will stop
+          #   rebasing the pull request." Every PR in the backlog this job was
+          #   written for was opened on or before 2026-07-20, so for all of them
+          #   the marker changes nothing; it is the bumps opened from here on
+          #   that it protects.
+          # - Whether Dependabot honours it on an App-authored commit is
+          #   documented nowhere, and no run of this job can tell you: a run only
+          #   shows the commit landing with the marker in its message. It is
+          #   observable only when Dependabot next tries to rebase such a branch,
+          #   which nothing here watches. If it turns out to be ignored, the loss
+          #   is silent — touched PRs strand at their first conflict and the
+          #   warning below becomes the steady state rather than the exception.
+          #
+          # Measured against the real API on 2026-09-14 with a user token; the
+          # App identity is first exercised by the workflow_dispatch run after
+          # this merges, which is what shows the call itself works as the bot:
           #   201 Created  — #356, commit 8dbd041 carrying the marker verbatim
           #   204 No Content — same call repeated, branch already current
           #   409 Merge conflict — #39, which is DIRTY
