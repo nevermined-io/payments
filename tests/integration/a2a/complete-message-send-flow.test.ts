@@ -7,6 +7,10 @@ import request from 'supertest'
 import { PaymentsA2AServer } from '../../../src/a2a/server.js'
 import type { AgentCard, ExecutionEventBus, PaymentsAgentExecutor } from '../../../src/a2a/types.js'
 import type { Payments } from '../../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
 
 jest.mock('../../../src/utils.js', () => ({
   decodeAccessToken: jest.fn(() => ({
@@ -36,7 +40,7 @@ class MockFacilitatorAPI {
   shouldFailValidation = false
   shouldFailSettle = false
 
-  async verifyPermissions(_: any): Promise<{ isValid: boolean; invalidReason?: string }> {
+  async verifyPermissions(_: any): Promise<VerifyPermissionsResult> {
     this.validationCallCount++
     if (this.shouldFailValidation) {
       return { isValid: false, invalidReason: 'Insufficient credits' }
@@ -44,7 +48,7 @@ class MockFacilitatorAPI {
     return { isValid: true }
   }
 
-  async settlePermissions(_: any): Promise<{ success: boolean; transaction: string; network: string; creditsRedeemed: string }> {
+  async settlePermissions(_: any): Promise<SettlePermissionsResult> {
     this.settleCallCount++
     this.lastSettleAmount = _.maxAmount
     if (this.shouldFailSettle) {

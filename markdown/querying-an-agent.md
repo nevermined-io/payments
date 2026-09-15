@@ -41,21 +41,30 @@ console.log('Access token generated')
 
 ### Token Parameters
 
-The `getX402AccessToken` method accepts several optional parameters:
+The `getX402AccessToken` method takes the plan id plus two optional arguments:
 
 ```typescript
 const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
   planId,
-  agentId,              // Optional: Restrict to specific agent
-  redemptionLimit,      // Optional: Max credits this token can burn (BigInt)
-  orderLimit,           // Optional: Order limit (string)
-  expiration            // Optional: Token expiration date (ISO string)
+  agentId,       // Optional: restrict the token to a specific agent
+  tokenOptions,  // Optional: X402TokenOptions (scheme, network, delegationConfig,
+                 //           resource, httpVerb, tokenVersion)
 )
 ```
 
+Both schemes require `tokenOptions.delegationConfig` — pass
+`{ delegationId }` for a delegation created via
+[`createDelegation`](#card-delegation-tokens-fiat).
+
+`resource`, `httpVerb` and `tokenVersion` opt into a **single-use,
+seller-bound** token — see [Token Reuse](#token-reuse) below.
+
 ### Card-Delegation Tokens (Fiat)
 
-For plans that accept fiat payments, generate tokens using the `nvm:card-delegation` scheme. Pass `X402TokenOptions` with a `CardDelegationConfig` to specify the payment method and spending limits:
+For plans that accept fiat payments, use the `nvm:card-delegation` scheme.
+Create the delegation once with `createDelegation` (passing the enrolled card's
+`providerPaymentMethodId` and the required `currency`), then request tokens by
+its `delegationId`:
 
 ```typescript
 import { Payments, EnvironmentName, X402TokenOptions } from '@nevermined-io/payments'
@@ -65,27 +74,27 @@ const subscriberPayments = Payments.getInstance({
   environment: 'sandbox' as EnvironmentName,
 })
 
-// List enrolled payment methods
+// 1. List enrolled payment methods and create a delegation once.
 const methods = await subscriberPayments.delegation.listPaymentMethods()
 console.log(`Found ${methods.length} enrolled card(s)`)
 
-// Build token options for card-delegation
+const { delegationId } = await subscriberPayments.delegation.createDelegation({
+  provider: methods[0].provider ?? 'stripe',
+  providerPaymentMethodId: methods[0].id, // or a specific 'pm_...' ID
+  spendingLimitCents: 1000, // max $10.00
+  durationSecs: 3600, // 1 hour delegation
+  currency: 'usd',
+})
+
+// 2. Request a token by delegationId (reuse it for subsequent requests).
 const tokenOptions: X402TokenOptions = {
   scheme: 'nvm:card-delegation',
-  delegationConfig: {
-    providerPaymentMethodId: methods[0].id,  // or a specific 'pm_...' ID
-    spendingLimitCents: 1000,                // max $10.00
-    durationSecs: 3600,                      // 1 hour delegation
-  },
+  delegationConfig: { delegationId },
 }
 
-// Generate fiat access token
 const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
   planId,
   agentId,
-  undefined,  // redemptionLimit
-  undefined,  // orderLimit
-  undefined,  // expiration
   tokenOptions,
 )
 ```
@@ -102,41 +111,46 @@ const scheme = await resolveScheme(subscriberPayments, planId)
 let tokenOptions: X402TokenOptions | undefined
 if (scheme === 'nvm:card-delegation') {
   const methods = await subscriberPayments.delegation.listPaymentMethods()
+  const { delegationId } = await subscriberPayments.delegation.createDelegation({
+    provider: methods[0].provider ?? 'stripe',
+    providerPaymentMethodId: methods[0].id,
+    spendingLimitCents: 1000,
+    durationSecs: 3600,
+    currency: 'usd',
+  })
   tokenOptions = {
     scheme: 'nvm:card-delegation',
-    delegationConfig: {
-      providerPaymentMethodId: methods[0].id,
-      spendingLimitCents: 1000,
-      durationSecs: 3600,
-    },
+    delegationConfig: { delegationId },
   }
 }
 
 const { accessToken } = await subscriberPayments.x402.getX402AccessToken(
-  planId, agentId, undefined, undefined, undefined, tokenOptions,
+  planId, agentId, tokenOptions,
 )
 ```
 
 #### CLI
 
+> ⚠️ Inline create-on-the-fly is deprecated (nevermined-io/nvm-monorepo#1674) — the `--payment-type fiat` / `--payment-method-id` / `--spending-limit-cents` / `--delegation-duration-secs` flags create a delegation on the fly. Prefer creating a delegation first, then requesting the token by its `delegationId`.
+
 ```bash
 # Crypto (default)
-nvm x402token get-x402-access-token <planId>
+nevermined x402token get-x402-access-token <planId>
 
 # Fiat with auto-selected card
-nvm x402token get-x402-access-token <planId> --payment-type fiat
+nevermined x402token get-x402-access-token <planId> --payment-type fiat
 
 # Fiat with specific card and limits
-nvm x402token get-x402-access-token <planId> --payment-type fiat \
+nevermined x402token get-x402-access-token <planId> --payment-type fiat \
     --payment-method-id pm_1AbCdEfGhIjKlM \
     --spending-limit-cents 5000 \
     --delegation-duration-secs 7200
 
 # Auto-detect scheme from plan metadata
-nvm x402token get-x402-access-token <planId> --auto-resolve-scheme
+nevermined x402token get-x402-access-token <planId> --auto-resolve-scheme
 
 # List enrolled payment methods
-nvm delegation list-payment-methods
+nevermined delegation list-payment-methods
 ```
 
 ### Basic Example
@@ -343,7 +357,19 @@ console.log(result.result)
 
 ## Token Reuse
 
-X402 access tokens can be reused for multiple requests until they expire or credits are exhausted:
+Whether a token can be reused depends on the version it was minted under:
+
+| Token version | Reuse | Bound to |
+|---------------|-------|----------|
+| **v2** (default) | Reusable until it expires or credits run out | plan only |
+| **v3** (opt-in)  | **Single-use** — consumed by its first settlement | plan + agent + resource URL + HTTP verb |
+
+A v3 token replayed on a second paid request settles against a spent nonce and
+fails with `BCK.X402.0059`. Mint one token per paid request instead.
+
+### Reusing a v2 token
+
+X402 v2 access tokens can be reused for multiple requests until they expire or credits are exhausted:
 
 ```typescript
 // Generate token once
@@ -367,6 +393,62 @@ for (const city of ['San Francisco', 'New York', 'London']) {
   console.log(`${city}:`, result)
 }
 ```
+
+### Minting a v3 token per request
+
+The `resource.url` must be the **exact string the seller advertises** in its
+`paymentRequired`, not the URL you fetch. Read it off the 402 the seller
+returned — that is the only source that cannot drift:
+
+```typescript
+import { detectAccessTokenVersion } from '@nevermined-io/payments'
+
+// From the seller's 402: `payment-required` header, base64 of the
+// X402PaymentRequired document. Sellers built on this SDK's paymentMiddleware
+// advertise `req.originalUrl` here, i.e. a RELATIVE path such as `/ask`.
+const paymentRequired = JSON.parse(
+  Buffer.from(challengeResponse.headers.get('payment-required')!, 'base64').toString('utf-8'),
+)
+const sellerResourceUrl = paymentRequired.resource.url // e.g. '/ask'
+const sellerHttpVerb = paymentRequired.accepts[0].extra?.httpVerb ?? 'POST'
+
+for (const city of ['San Francisco', 'New York', 'London']) {
+  // One token per paid request: a v3 token is spent by the first settlement.
+  const { accessToken, tokenVersion } = await subscriberPayments.x402.getX402AccessToken(
+    planId,
+    agentId,
+    {
+      delegationConfig: { delegationId },
+      resource: { url: sellerResourceUrl },
+      httpVerb: sellerHttpVerb,
+      tokenVersion: 3,
+    },
+  )
+
+  const response = await fetch(agentUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'payment-signature': accessToken,
+    },
+    body: JSON.stringify({ prompt: `Weather in ${city}` }),
+  })
+
+  console.log(`${city}:`, await response.json(), `(token v${tokenVersion})`)
+}
+```
+
+The comparison is origin + path, with the query string ignored; anything the
+backend cannot parse as a URL is compared literally, which is why a relative
+path must match character for character. A mismatch is rejected with
+`BCK.X402.0013` — and note this applies to **any** token carrying a resource,
+not only v3, so do not attach one to a v2 mint "just in case": the SDK warns if
+you do.
+
+`tokenVersion` is detected from the token that came back, never echoed from the
+request: a backend that does not support v3 yet drops `tokenVersion: 3` silently
+and mints a reusable v2 token. Use `detectAccessTokenVersion(accessToken)` to
+make the same check on a token obtained elsewhere.
 
 ## Check Balance Before Querying
 

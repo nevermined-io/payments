@@ -30,13 +30,22 @@
  * })
  *
  * if (verification.isValid) {
- *   // Settle (burn) the credits
  *   const settlement = await payments.facilitator.settlePermissions({
  *     paymentRequired,
  *     x402AccessToken: x402Token,
  *     maxAmount: 2n
  *   })
- *   console.log(`Credits redeemed: ${settlement.creditsRedeemed}`)
+ *
+ *   // Read `billingModel` before reading the credit fields: on a pay-as-you-go
+ *   // plan there is no balance, so `creditsRedeemed` is always the string "0"
+ *   // even on a charge that succeeded. See `SettlePermissionsResult`.
+ *   if (settlement.success) {
+ *     if (settlement.billingModel === 'pay-as-you-go') {
+ *       console.log(`Charged, reference: ${settlement.orderTx || settlement.transaction}`)
+ *     } else {
+ *       console.log(`Credits redeemed: ${settlement.creditsRedeemed}`)
+ *     }
+ *   }
  * }
  * ```
  */
@@ -44,10 +53,15 @@
 import { BasePaymentsAPI } from '../api/base-payments.js'
 import { API_URL_SETTLE_PERMISSIONS, API_URL_VERIFY_PERMISSIONS } from '../api/nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
-import { PaymentOptions, StartAgentRequest, X402SchemeType, getDefaultNetwork } from '../common/types.js'
+import {
+  PaymentOptions,
+  StartAgentRequest,
+  X402SchemeType,
+  getDefaultNetwork,
+} from '../common/types.js'
 import type { EnvironmentName } from '../environments.js'
 import type { Payments } from '../payments.js'
-import type { VisaPaymentRequired } from './visa-facilitator-api.js'
+import { X402_TOKEN_ALREADY_USED_CODE } from './token-version.js'
 
 /**
  * x402 Resource information
@@ -127,8 +141,8 @@ export interface X402PaymentAccepted {
  * Parameters for verifying permissions
  */
 export interface VerifyPermissionsParams {
-  /** The server's 402 PaymentRequired response (NVM or Visa flavored) */
-  paymentRequired: X402PaymentRequired | VisaPaymentRequired
+  /** The server's 402 PaymentRequired response */
+  paymentRequired: X402PaymentRequired
   /** The X402 access token (base64-encoded) */
   x402AccessToken: string
   /** Maximum credits to verify (optional) */
@@ -146,7 +160,7 @@ export interface VerifyPermissionsResult {
   invalidReason?: string
   /** Address of the payer's wallet */
   payer?: string
-  /** Network identifier (e.g., 'stripe', 'braintree', 'eip155:84532') */
+  /** Network identifier (e.g., 'stripe', 'braintree', 'visa', 'eip155:84532') */
   network?: string
   /** Agent request ID for observability tracking (Nevermined extension) */
   agentRequestId?: string
@@ -160,8 +174,8 @@ export interface VerifyPermissionsResult {
  * Parameters for settling permissions
  */
 export interface SettlePermissionsParams {
-  /** The server's 402 PaymentRequired response (NVM or Visa flavored) */
-  paymentRequired: X402PaymentRequired | VisaPaymentRequired
+  /** The server's 402 PaymentRequired response */
+  paymentRequired: X402PaymentRequired
   /** The X402 access token (base64-encoded) */
   x402AccessToken: string
   /** Number of credits to burn (optional) */
@@ -175,8 +189,49 @@ export interface SettlePermissionsParams {
 }
 
 /**
+ * How the settled request was priced (Nevermined extension).
+ *
+ * - `credits` — the plan holds a credit balance and this settle redeemed from it.
+ * - `pay-as-you-go` — the plan holds no balance; the request is priced individually
+ *   and charged directly (a card PSP on fiat rails, an on-chain order on crypto
+ *   rails).
+ */
+export type X402BillingModel = 'credits' | 'pay-as-you-go'
+
+/**
  * x402 Settle Response - per x402 facilitator spec
  * @see https://github.com/coinbase/x402/blob/main/specs/x402-specification-v2.md
+ *
+ * ### Deciding whether the buyer was charged
+ *
+ * `success` alone tells you the settle worked. What to check *in addition*
+ * depends on {@link SettlePermissionsResult.billingModel}:
+ *
+ * - `credits` — `success === true && Number(creditsRedeemed) > 0`.
+ * - `pay-as-you-go` — `success === true` plus a non-empty `orderTx` (fiat rails)
+ *   or `transaction` (crypto rails). `creditsRedeemed` and `remainingBalance` are
+ *   always the string `'0'` on this billing model and carry no information.
+ *
+ * Do not gate on `creditsRedeemed` without reading `billingModel` first: on a
+ * pay-as-you-go plan `creditsRedeemed > 0` can never hold, so a real charge reads
+ * as a decline — and retrying a card charge that already succeeded is the one
+ * thing to avoid, because repeated attempts feed issuer fraud scoring.
+ *
+ * Mind the type as well: these fields are **strings**. `'0'` is truthy while
+ * `Number('0') > 0` is false, so two plausible-looking checks disagree.
+ *
+ * If `billingModel` is **absent**, you are talking to a Nevermined API that
+ * predates the discriminator: apply the `credits` rule, and never read a missing
+ * discriminator as pay-as-you-go.
+ *
+ * @example
+ * ```typescript
+ * const settled =
+ *   settlement.success &&
+ *   (settlement.billingModel === 'pay-as-you-go'
+ *     ? Boolean(settlement.orderTx || settlement.transaction)
+ *     : Number(settlement.creditsRedeemed ?? '0') > 0)
+ * ```
  */
 export interface SettlePermissionsResult {
   /** Whether settlement was successful */
@@ -185,15 +240,49 @@ export interface SettlePermissionsResult {
   errorReason?: string
   /** Address of the payer's wallet */
   payer?: string
-  /** Blockchain transaction hash (empty string if settlement failed) */
+  /**
+   * Blockchain transaction hash (empty string if settlement failed). On crypto
+   * `pay-as-you-go` plans this is also the reference for the per-request charge.
+   */
   transaction: string
-  /** Blockchain network identifier in CAIP-2 format */
+  /**
+   * Network identifier. The discriminator is the rail, not the billing model: for
+   * crypto rails (`nvm:erc4337`) it is the CAIP-2 chain id (`eip155:84532`) under
+   * both billing models; for fiat card-delegation rails it is the settling payment
+   * provider (`stripe`, `braintree`, `visa`), not a CAIP-2 value.
+   */
   network: string
-  /** Number of credits redeemed (Nevermined extension) */
+  /**
+   * Which billing model this settle was priced under (Nevermined extension).
+   *
+   * Reported whether or not the settle succeeded — so check `success` before
+   * treating it as evidence of a charge. It is absent entirely against a
+   * Nevermined API that predates the discriminator, which is why it is optional;
+   * treat that case as `credits`. Read it before `creditsRedeemed` /
+   * `remainingBalance`: see the interface docs above for the per-model criterion.
+   */
+  billingModel?: X402BillingModel
+  /**
+   * Number of credits redeemed (Nevermined extension). Always the string `'0'` for
+   * `billingModel: 'pay-as-you-go'` plans, which hold no credit balance — including
+   * on a settle that charged the buyer successfully.
+   */
   creditsRedeemed?: string
-  /** Subscriber's remaining balance (Nevermined extension) */
+  /**
+   * Subscriber's remaining credit balance (Nevermined extension). Always the string
+   * `'0'` for `billingModel: 'pay-as-you-go'` plans — the per-request charge is
+   * referenced by `orderTx` (fiat) or `transaction` (crypto), not here.
+   */
   remainingBalance?: string
-  /** Transaction hash of the order operation if auto top-up occurred (Nevermined extension) */
+  /**
+   * Reference for the order or per-request charge, if one occurred (Nevermined
+   * extension). On fiat `pay-as-you-go` this is the per-request charge — the PSP
+   * transaction id (a Stripe PaymentIntent `pi_…`, a Braintree transaction id);
+   * crypto `pay-as-you-go` reports its on-chain order in `transaction` instead. On
+   * `credits` plans it is set only when the settle had to order credits first
+   * (auto top-up). Treat it as an opaque string and disambiguate by prefix if you
+   * need to.
+   */
   orderTx?: string
 }
 
@@ -275,6 +364,70 @@ export function buildPaymentRequired(
   }
 }
 
+/**
+ * Build an X402PaymentRequired object advertising one or more plans.
+ *
+ * Like {@link buildPaymentRequired} but produces one `accepts[]` entry per plan
+ * id, so a payment-required response can advertise every plan that unlocks the
+ * resource. For a single plan this is equivalent to {@link buildPaymentRequired}.
+ *
+ * @param planIds - The Nevermined plan identifiers (falls back to `['']` if empty)
+ * @param options - Same options as {@link buildPaymentRequired}
+ * @returns X402PaymentRequired object with one accepts entry per plan
+ */
+export function buildPaymentRequiredForPlans(
+  planIds: string[],
+  options?: {
+    endpoint?: string
+    agentId?: string
+    httpVerb?: string
+    network?: string
+    description?: string
+    mimeType?: string
+    scheme?: X402SchemeType
+    environment?: EnvironmentName
+  },
+): X402PaymentRequired {
+  const ids = planIds.length > 0 ? planIds : ['']
+  if (ids.length === 1) {
+    return buildPaymentRequired(ids[0], options)
+  }
+
+  const {
+    endpoint,
+    agentId,
+    httpVerb,
+    scheme = 'nvm:erc4337',
+    network,
+    description,
+    mimeType,
+    environment,
+  } = options || {}
+  const resolvedNetwork = network ?? getDefaultNetwork(scheme, environment)
+
+  const extra: X402SchemeExtra = {
+    version: '1',
+    ...(agentId && { agentId }),
+    ...(httpVerb && { httpVerb }),
+  }
+
+  return {
+    x402Version: 2,
+    resource: {
+      url: endpoint || '',
+      ...(description && { description }),
+      ...(mimeType && { mimeType }),
+    },
+    accepts: ids.map((planId) => ({
+      scheme,
+      network: resolvedNetwork,
+      planId,
+      extra,
+    })),
+    extensions: {},
+  }
+}
+
 interface CachedPlanMetadata {
   scheme: X402SchemeType
   fiatProvider?: string
@@ -297,8 +450,7 @@ async function fetchPlanMetadata(
     const isCrypto = plan.registry?.price?.isCrypto
     // fiatPaymentProvider is in plan.metadata.plan, not in registry.price
     const fiatProvider = (plan as any).metadata?.plan?.fiatPaymentProvider
-    const scheme: X402SchemeType =
-      isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
+    const scheme: X402SchemeType = isCrypto === false ? 'nvm:card-delegation' : 'nvm:erc4337'
     planMetadataCache.set(planId, { scheme, fiatProvider, cachedAt: Date.now() })
     return { scheme }
   } catch {
@@ -387,21 +539,28 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       body.maxAmount = maxAmount.toString()
     }
 
-    const options = this.getPublicHTTPOptions('POST', body)
+    // Send the NVM API-key auth header (Authorization: Bearer <nvmApiKey>).
+    // The backend /verify endpoint runs an OPTIONAL guard that tolerates the
+    // header's absence today, so this is non-breaking; it pre-positions for
+    // the later strict-guard flip. See nevermined-io/nvm-monorepo#1570.
+    const options = this.getBackendHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
       if (!response.ok) {
         let errorMessage = 'Permission verification failed'
+        let errorCode = `http_${response.status}`
         try {
           const errorData = await response.json()
-          errorMessage = errorData.message || errorMessage
+          if (errorData.message) errorMessage = errorData.message
+          if (errorData.code) errorCode = errorData.code
+          if (errorData.hint) errorMessage = `${errorMessage} — ${errorData.hint}`
         } catch {
           // Use default error message
         }
         throw PaymentsError.fromBackend(errorMessage, {
           message: errorMessage,
-          code: `HTTP ${response.status}`,
+          code: errorCode,
         })
       }
       return await response.json()
@@ -459,24 +618,85 @@ export class FacilitatorAPI extends BasePaymentsAPI {
       body.marginPercent = marginPercent
     }
 
-    const options = this.getPublicHTTPOptions('POST', body)
+    // Send the NVM API-key auth header (Authorization: Bearer <nvmApiKey>).
+    // The backend /settle endpoint runs an OPTIONAL guard that tolerates the
+    // header's absence today, so this is non-breaking; it pre-positions for
+    // the later strict-guard flip. See nevermined-io/nvm-monorepo#1570.
+    const options = this.getBackendHTTPOptions('POST', body)
 
     try {
       const response = await fetch(url, options)
       if (!response.ok) {
         let errorMessage = 'Permission settlement failed'
+        let errorCode = `http_${response.status}`
         try {
           const errorData = await response.json()
-          errorMessage = errorData.message || errorMessage
+          if (errorData.message) errorMessage = errorData.message
+          if (errorData.code) errorCode = errorData.code
+          if (errorData.hint) errorMessage = `${errorMessage} — ${errorData.hint}`
         } catch {
           // Use default error message
         }
+        // A spent single-use (v3) token is not a decline and not a forgery: the
+        // token was valid and has already been settled once. Say what to do
+        // about it, because the wrong reaction — retrying with the same token —
+        // is the one a generic settlement failure invites.
+        //
+        // This branch covers the THROWN shape, which is the one the backend
+        // uses here: `BCK.X402.0059` is catalogued as `httpStatus: 402`, so it
+        // arrives as a non-2xx and `isAccessTokenAlreadyUsed` fires on the
+        // PaymentsError. Verified end-to-end against staging: a second settle
+        // of the same v3 token rejects with that code. Settle can also report
+        // failure as 200 + `success: false` (e.g. `errorReason: "Cannot order
+        // plan"`), but a spent token is not one of those cases — read
+        // `success`/`errorReason` on the returned result for those.
+        if (errorCode === X402_TOKEN_ALREADY_USED_CODE) {
+          throw PaymentsError.fromBackend(errorMessage, {
+            message:
+              'this x402 access token was already used. Single-use (v3) tokens are consumed by ' +
+              'their first settlement — mint a new token for this request instead of retrying ' +
+              'with the same one.',
+            code: errorCode,
+          })
+        }
         throw PaymentsError.fromBackend(errorMessage, {
           message: errorMessage,
-          code: `HTTP ${response.status}`,
+          code: errorCode,
         })
       }
-      return await response.json()
+      const result = (await response.json()) as SettlePermissionsResult
+      // Settlement failure has two shapes. A refused settle (a spent v3 token,
+      // a forged one) arrives as a non-2xx and throws above. A settle the
+      // backend accepted but could not complete — no credits available and the
+      // auto-order reverting, say — arrives as 200 with `success: false` and an
+      // `errorReason`, and is returned verbatim because the reason, the billing
+      // model and the credit fields are what the caller needs to react.
+      //
+      // Returned, but not unremarked. The settlement object does reach callers
+      // (the Express middleware base64s it into `payment-response` and hands it
+      // to `onAfterSettle`; the LangChain decorator stores it as
+      // `lastSettlement()`), but of the in-tree consumers only the MCP paywall
+      // actually branches on `success` — so a caller that forgets to check it
+      // serves a request it was never paid for with nothing in the log.
+      //
+      // `!== true` rather than `=== false`: a 200 whose body has no `success`
+      // at all is not a settlement either, and reading an absent field as a
+      // success is the failure this warning exists to prevent.
+      if (result?.success !== true) {
+        // Deliberately claims nothing about what was charged. This layer reads
+        // `success` and nothing else — it never inspects `creditsRedeemed` or
+        // `orderTx` — and on a card rail an auto-order can have charged the
+        // buyer before the burn failed. Saying "no credits were burned" here
+        // would invite exactly the retry the SettlePermissionsResult docblock
+        // warns against.
+        console.warn(
+          `[x402] settlePermissions did not settle (${result?.errorReason ?? 'no reason given'}). ` +
+            'Do not treat the request as paid. ' +
+            `creditsRedeemed=${result?.creditsRedeemed ?? 'unset'}, orderTx=${result?.orderTx ?? 'none'}, ` +
+            `billingModel=${result?.billingModel ?? 'unset'} — read those before assuming nothing was charged.`,
+        )
+      }
+      return result
     } catch (error) {
       if (error instanceof PaymentsError) {
         throw error

@@ -6,6 +6,10 @@ import request from 'supertest'
 import { PaymentsA2AServer } from '../../../src/a2a/server.js'
 import type { AgentCard } from '../../../src/a2a/types.js'
 import type { Payments } from '../../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../../src/x402/facilitator-api.js'
 import type { AgentExecutor } from '../../../src/a2a/types.js'
 
 function createNoopExecutor(): AgentExecutor {
@@ -63,13 +67,13 @@ describe('PaymentsA2AServer Middleware', () => {
             isValid: true,
             agentRequestId: 'REQ',
             payer: '0x1234567890abcdef',
-          }),
+          } satisfies VerifyPermissionsResult),
         settlePermissions: jest.fn().mockResolvedValue({
           success: true,
           transaction: '0xabcdef1234567890',
           network: 'eip155:84532',
           creditsRedeemed: '1',
-        }),
+        } satisfies SettlePermissionsResult),
       },
     }
 

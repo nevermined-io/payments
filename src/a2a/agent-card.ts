@@ -13,6 +13,37 @@
 import type { AgentCard } from './types.js'
 
 /**
+ * Canonical A2A agent-card discovery path (A2A 0.3+ and `@a2a-js/sdk`'s own
+ * default, per RFC 8615). Served by Nevermined A2A agents and used as the
+ * default when fetching a remote agent's card.
+ */
+export const AGENT_CARD_WELL_KNOWN_PATH = '.well-known/agent-card.json'
+
+/**
+ * Legacy pre-0.3 discovery path. Still served as a backward-compat alias and
+ * tried as a fetch fallback, so newly-updated clients keep working against
+ * Nevermined agents that have not adopted the canonical path yet.
+ * TODO(a2a): drop the alias + fallback one release after agents are updated.
+ */
+export const LEGACY_AGENT_CARD_WELL_KNOWN_PATH = '.well-known/agent.json'
+
+/**
+ * Nevermined's own payment extension URI. Carries the agent/plan params the
+ * Nevermined paywall reads (agentId, planId, redemptionConfig, …). Kept for one
+ * release alongside the official a2a-x402 extension below for backward compat.
+ */
+export const NVM_PAYMENT_EXTENSION_URI = 'urn:nevermined:payment'
+
+/**
+ * Official a2a-x402 extension URI (x402 v2 A2A transport). Declaring it tells
+ * generic A2A clients this agent speaks the standards-compliant in-band x402
+ * flow (payment signalled through Task / Message `x402.payment.*` metadata).
+ * @see https://github.com/google-agentic-commerce/a2a-x402
+ */
+export const A2A_X402_EXTENSION_URI =
+  'https://github.com/google-agentic-commerce/a2a-x402/blob/main/spec/v0.2'
+
+/**
  * Payment/pricing information to be included in the AgentCard extensions.
  *
  * This interface defines the structure for payment metadata that will be
@@ -121,11 +152,21 @@ export function buildPaymentAgentCard(
       extensions: [
         ...(baseCard.capabilities?.extensions || []),
         {
-          uri: 'urn:nevermined:payment',
+          uri: NVM_PAYMENT_EXTENSION_URI,
           description: paymentMetadata.costDescription,
           required: false,
           // explicit type assertion to satisfy {[key: string]: unknown}
           params: paymentMetadata as { [key: string]: unknown },
+        },
+        // Official a2a-x402 extension: signals to generic A2A clients that this
+        // agent supports the standards-compliant in-band x402 v2 payment flow.
+        // Kept additive alongside the Nevermined extension for one release.
+        {
+          uri: A2A_X402_EXTENSION_URI,
+          description:
+            paymentMetadata.costDescription ||
+            'Supports payments using the x402 protocol for on-chain settlement.',
+          required: false,
         },
       ],
     },

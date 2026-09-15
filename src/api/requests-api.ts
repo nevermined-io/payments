@@ -12,6 +12,7 @@ import {
   API_URL_SIMULATE_REDEEM_AGENT_REQUEST,
 } from './nvm-api.js'
 import { PaymentsError } from '../common/payments.error.js'
+import { safeParseJson } from '../common/helper.js'
 
 /**
  * The AgentRequestsAPI class provides methods to manage the requests received by AI Agents integrated with Nevermined.
@@ -27,7 +28,6 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
   static getInstance(options: PaymentOptions): AgentRequestsAPI {
     return new AgentRequestsAPI(options)
   }
-
 
   /**
    * This method simulates an agent request.
@@ -57,7 +57,10 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const options = this.getBackendHTTPOptions('POST', opts)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to start simulation request', await response.json())
+      throw PaymentsError.fromBackend(
+        'Unable to start simulation request',
+        await safeParseJson(response),
+      )
     }
     return response.json()
   }
@@ -107,7 +110,7 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
         if (!response.ok) {
           lastError = PaymentsError.fromBackend(
             'Unable to finish simulation request',
-            await response.json(),
+            await safeParseJson(response),
           )
           if (attempt < maxRetries - 1) {
             await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -135,7 +138,6 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     // This should never be reached, but TypeScript requires it
     throw lastError || new PaymentsError('Unable to finish simulation request')
   }
-
 
   /**
    * Tracks an agent sub task.
@@ -178,7 +180,10 @@ export class AgentRequestsAPI extends BasePaymentsAPI {
     const response = await fetch(url, options)
 
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to track agent sub task', await response.json())
+      throw PaymentsError.fromBackend(
+        'Unable to track agent sub task',
+        await safeParseJson(response),
+      )
     }
 
     return response.json()
