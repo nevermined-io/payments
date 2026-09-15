@@ -67,7 +67,7 @@
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
     "@aws-sdk/client-bedrock-runtime": "^3.972.0",
-    "@babel/core": "^7.27.4",
+    "@babel/core": "^7.29.6",
     "@babel/preset-env": "^7.27.2",
     "@google-cloud/aiplatform": "^6.1.0",
     "@langchain/langgraph": "1.2.0",
@@ -76,7 +76,6 @@
     "@types/jest": "^29.5.13",
     "@types/node": "^20.11.19",
     "@types/supertest": "^6.0.3",
-    "@types/uuid": "^10.0.0",
     "@types/ws": "^8.0.3",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
@@ -137,18 +136,24 @@
     "express": "4.21.2",
     "jose": "^6.2.12",
     "js-file-download": "^0.4.12",
-    "uuid": "^10.0.0",
+    "uuid": "^11.1.1",
     "zod": "^4.0.17",
     "zod-to-json-schema": "^3.25.0"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "overrides": {
-      "qs": ">=6.14.1",
-      "jws": ">=4.0.1",
-      "js-yaml": ">=4.1.1",
-      "@langchain/core": ">=0.3.80",
-      "@smithy/config-resolver": ">=4.4.0"
+      "@opentelemetry/core@2": ">=2.8.0 <3",
+      "@opentelemetry/exporter-prometheus": ">=0.217.0 <1",
+      "@opentelemetry/propagator-jaeger": ">=2.9.0 <3",
+      "@opentelemetry/sdk-node": ">=0.217.0 <1",
+      "body-parser@1": ">=1.20.6 <2",
+      "express@4>path-to-regexp": ">=0.1.13 <0.2.0",
+      "ip-address": ">=10.3.1 <11",
+      "langsmith@<0.6.0": ">=0.6.0 <1",
+      "qs@6": ">=6.16.0 <7",
+      "uuid@10": ">=11.1.1 <12",
+      "uuid@9": ">=11.1.1 <12"
     }
   }
 }
