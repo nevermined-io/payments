@@ -13,7 +13,11 @@ overrides:
   '@opentelemetry/sdk-node': '>=0.217.0 <1'
   axios: '>=1.18.0 <2'
   baseline-browser-mapping: '>=2.11.0 <3'
-  brace-expansion: '>=5.0.9 <6'
+  brace-expansion@1: '>=1.1.16 <2'
+  brace-expansion@2: '>=2.1.4 <3'
+  brace-expansion@3: '>=5.0.7 <6'
+  brace-expansion@4: '>=5.0.9 <6'
+  brace-expansion@5: '>=5.0.9 <6'
   browserslist: '>=4.28.7 <5'
   esbuild: '>=0.28.1 <1'
   fast-xml-builder: '>=1.1.7 <2'
@@ -1902,6 +1906,9 @@ packages:
     peerDependencies:
       '@babel/core': '>=7.29.6 <8'
 
+  balanced-match@1.0.2:
+    resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
+
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
@@ -1922,6 +1929,12 @@ packages:
 
   bowser@2.14.1:
     resolution: {integrity: sha512-tzPjzCxygAKWFOJP011oxFHs57HzIhOEracIgAePE4pqB3LikALKnSzUyU4MGs9/iCEUuHlAJTjTc5M+u7YEGg==}
+
+  brace-expansion@1.1.21:
+    resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
+
+  brace-expansion@2.1.7:
+    resolution: {integrity: sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g==}
 
   brace-expansion@5.0.12:
     resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
@@ -2087,6 +2100,9 @@ packages:
   commander@5.1.0:
     resolution: {integrity: sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg==}
     engines: {node: '>= 6'}
+
+  concat-map@0.0.1:
+    resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
 
   config-chain@1.1.13:
     resolution: {integrity: sha512-qj+f8APARXHrM0hraqXYb2/bOVSV4PvJQlNZ/DVj0QrmNM2q2euizkeuVckQ57J+W0mRH6Hvi+k50M4Jul2VRQ==}
@@ -6652,6 +6668,8 @@ snapshots:
       babel-plugin-jest-hoist: 29.6.3
       babel-preset-current-node-syntax: 1.2.0(@babel/core@7.29.7)
 
+  balanced-match@1.0.2: {}
+
   balanced-match@4.0.4: {}
 
   base64-js@1.5.1: {}
@@ -6667,6 +6685,15 @@ snapshots:
       readable-stream: 3.6.2
 
   bowser@2.14.1: {}
+
+  brace-expansion@1.1.21:
+    dependencies:
+      balanced-match: 1.0.2
+      concat-map: 0.0.1
+
+  brace-expansion@2.1.7:
+    dependencies:
+      balanced-match: 1.0.2
 
   brace-expansion@5.0.12:
     dependencies:
@@ -6845,6 +6872,8 @@ snapshots:
       delayed-stream: 1.0.0
 
   commander@5.1.0: {}
+
+  concat-map@0.0.1: {}
 
   config-chain@1.1.13:
     dependencies:
@@ -8125,15 +8154,15 @@ snapshots:
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 5.0.12
+      brace-expansion: 1.1.21
 
   minimatch@5.1.9:
     dependencies:
-      brace-expansion: 5.0.12
+      brace-expansion: 2.1.7
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 5.0.12
+      brace-expansion: 2.1.7
 
   minimist@1.2.8: {}
 
