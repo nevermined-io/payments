@@ -1,5 +1,5 @@
 import { validateConfig, createPaymentsFromConfig, requireApiKey, getEffectivePlans } from './config.js'
-import { createTools } from './tools.js'
+import { createTools, redactToken } from './tools.js'
 import { startLoginFlow, looksLikeApiKey, getLoginUrl, getApiKeyUrl } from './auth.js'
 import { registerPaidEndpoint } from './paid-endpoint.js'
 import { Payments, buildPaymentRequired } from '@nevermined-io/payments'
@@ -12,6 +12,7 @@ export type { AgentHandler }
 export { validateConfig, createPaymentsFromConfig, requireApiKey }
 export { startLoginFlow, openBrowser } from './auth.js'
 export { registerPaidEndpoint, mockWeatherHandler } from './paid-endpoint.js'
+export { redactToken }
 
 /**
  * HTTP route handler signature used by OpenClaw's registerHttpRoute.
@@ -210,6 +211,9 @@ const neverminedPlugin = {
           for (const plan of plans) {
             try {
               // Build token options: fiat plans use nvm:card-delegation scheme
+              // No resource binding: this flow does not request token v3, and a
+              // `resource.url` on a v2 token is compared against the seller's
+              // paymentRequired — a needless way to break a working verify.
               let tokenOptions: X402TokenOptions | undefined
               if (plan.paymentType === 'fiat') {
                 if (!cachedPaymentMethods) {

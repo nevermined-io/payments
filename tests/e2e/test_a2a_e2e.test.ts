@@ -306,6 +306,7 @@ describe('A2A E2E Flow', () => {
         provider: 'erc4337',
         spendingLimitCents: 100000,
         durationSecs: 604800,
+        currency: 'usdc',
       })
       delegationId = delegation.delegationId
 

@@ -1,15 +1,23 @@
 name: Update Dependabot branches after merge
 
-# Whenever anything lands on main, bring all open Dependabot PR branches
-# up to date so their CI can run and auto-merge can proceed unblocked.
+# Whenever anything lands on main, merge it into the open Dependabot branches so
+# they satisfy `strict: true` on main and their CI can run again.
 on:
   push:
     branches:
       - main
+  # The push trigger only fires post-merge, so a change to this workflow cannot
+  # be exercised before it lands. Dispatch it by hand to read a real run.
+  workflow_dispatch:
+
+# One loop at a time: two overlapping runs would merge into the same branches.
+concurrency:
+  group: dependabot-update-branches
+  cancel-in-progress: false
 
 permissions:
   contents: write
-  pull-requests: write
+  pull-requests: read
 
 jobs:
   update-branches:
@@ -22,30 +30,127 @@ jobs:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
-      - name: Update outdated Dependabot PR branches
+      - name: Merge main into outdated Dependabot branches
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+          # Each merge starts a full CI run against staging. Cap the fan-out per
+          # push; the rest are picked up by the next run, and a merge is itself a
+          # push to main, so the queue drains on its own.
+          MAX_MERGES: 5
         run: |
+          # History, so the next reader does not redo it:
+          #
+          # - This shipped calling `--method POST` on /pulls/{n}/update-branch,
+          #   which is a PUT endpoint. Every call 404'd and a trailing
+          #   `|| echo "skipped"` printed that as a benign line under a green
+          #   job, so no branch was ever updated (run 34743328585, 2026-09-13:
+          #   all 21 open PRs 404; output quoted in #449).
+          # - Commenting `@dependabot rebase` would be the better mechanism —
+          #   Dependabot regenerates the pnpm-lock.yaml conflicts a merge cannot
+          #   — but it refuses commands from GitHub App identities ("Sorry, only
+          #   users with push access can use that command",
+          #   dependabot/dependabot-core#9147, open). This job runs as the
+          #   release bot, so its comment would be ignored while `gh pr comment`
+          #   still exits 0.
+          # - `PUT /pulls/{n}/update-branch` works, but answers 202: the merge is
+          #   queued, so confirming it meant polling `compare/{base}...{head}`,
+          #   and that compare races a moving `main` — a push landing inside the
+          #   window makes a branch that *was* updated read as still behind.
+          #
+          # `POST /repos/{owner}/{repo}/merges` avoids all three. It is
+          # synchronous, App-enabled, and takes `commit_message`, which matters:
+          # "Dependabot will stop rebasing a pull request once extra commits have
+          # been pushed to it", unless the message carries `[dependabot skip]`
+          # (or `[skip dependabot]`, `[dependabot-skip]`, `[skip-dependabot]`).
+          # So the marker is meant to keep Dependabot's own rebase — the thing
+          # that regenerates a conflicted lockfile — alive on branches this job
+          # has touched. Two limits on that claim:
+          #
+          # - It does not lift the other cutoff in the same docs section: "If a
+          #   pull request has not been merged for 30 days, Dependabot will stop
+          #   rebasing the pull request." Every PR in the backlog this job was
+          #   written for was opened on or before 2026-07-20, so for all of them
+          #   the marker changes nothing; it is the bumps opened from here on
+          #   that it protects.
+          # - Whether Dependabot honours it on an App-authored commit is
+          #   documented nowhere, and no run of this job can tell you: a run only
+          #   shows the commit landing with the marker in its message. It is
+          #   observable only when Dependabot next tries to rebase such a branch,
+          #   which nothing here watches. If it turns out to be ignored, the loss
+          #   is silent — touched PRs strand at their first conflict and the
+          #   warning below becomes the steady state rather than the exception.
+          #
+          # Measured against the real API on 2026-09-14 with a user token; the
+          # App identity is first exercised by the workflow_dispatch run after
+          # this merges, which is what shows the call itself works as the bot:
+          #   201 Created  — #356, commit 8dbd041 carrying the marker verbatim
+          #   204 No Content — same call repeated, branch already current
+          #   409 Merge conflict — #39, which is DIRTY
           echo "Looking for open Dependabot PRs..."
           prs=$(gh pr list \
             --repo "$REPO" \
-            --author "dependabot[bot]" \
             --state open \
-            --json number \
-            --jq '.[].number')
+            --search "author:app/dependabot sort:updated-asc" \
+            --limit 100 \
+            --json number,headRefName \
+            --jq '.[] | "\(.number) \(.headRefName)"')
 
           if [ -z "$prs" ]; then
             echo "No open Dependabot PRs found."
             exit 0
           fi
 
-          for pr in $prs; do
-            echo "Updating branch for PR #$pr..."
-            gh api \
+          # Least-recently-updated first, which is what makes the queue drain.
+          # `strict: true` puts every open PR behind again after each merge, so a
+          # fixed order — by number, by creation date — feeds run N+1 the same
+          # head of the list as run N and never reaches the tail (of the 21 PRs
+          # open on 2026-09-14, 13 would never be served). A merge bumps that
+          # PR's updatedAt and sends it to the back: round-robin.
+          merged=0
+          conflicted=0
+          while read -r pr branch; do
+            [ -z "$pr" ] && continue
+
+            if [ "$merged" -ge "$MAX_MERGES" ]; then
+              echo "Reached MAX_MERGES=$MAX_MERGES; the rest wait for the next run."
+              break
+            fi
+
+            # -i so the 204 (already current) is distinguishable from the 201.
+            if out=$(gh api -i \
               --method POST \
               -H "Accept: application/vnd.github+json" \
-              "/repos/$REPO/pulls/$pr/update-branch" \
-              && echo "PR #$pr branch updated." \
-              || echo "PR #$pr skipped (already up to date or conflict)."
-          done
+              "/repos/$REPO/merges" \
+              -f base="$branch" \
+              -f head="$BASE" \
+              -f commit_message="Merge $BASE into $branch to satisfy strict status checks [dependabot skip]" 2>&1); then
+              case "$out" in
+                *"HTTP/2.0 204"*|*"HTTP/1.1 204"*)
+                  echo "PR #$pr is already current."
+                  continue;;
+              esac
+              echo "PR #$pr updated."
+              merged=$((merged + 1))
+              continue
+            fi
+
+            case "$out" in
+              *"Merge conflict"*)
+                # A merge cannot resolve a pnpm-lock.yaml conflict. The marker on
+                # this job's earlier commits keeps Dependabot's own rebase
+                # available, but a conflict it has already given up on needs a
+                # person.
+                echo "::warning title=Dependabot PR conflicted::PR #$pr ($branch) — comment '@dependabot recreate' from a user account"
+                conflicted=$((conflicted + 1))
+                continue;;
+            esac
+
+            echo "::error title=Branch merge failed::PR #$pr ($branch): $out"
+            exit 1
+          done <<EOF
+          $prs
+          EOF
+
+          echo "Merged into $merged branch(es); $conflicted conflicted."

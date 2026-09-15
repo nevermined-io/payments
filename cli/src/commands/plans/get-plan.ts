@@ -8,7 +8,7 @@ export default class GetPlan extends BaseCommand {
   static override description = "Gets the information about a Payment Plan by its identifier."
 
   static override examples = [
-    '$ nvm plans get-plan <planId>'
+    '$ nevermined plans get-plan <planId>'
   ]
 
   static override flags = {

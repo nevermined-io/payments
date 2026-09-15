@@ -23,14 +23,14 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install SDK dependencies
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: pnpm build
 
       - name: Install CLI dependencies
         working-directory: cli
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into CLI
         run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
@@ -51,7 +51,7 @@ jobs:
 
       - name: Install OpenClaw Plugin dependencies
         working-directory: openclaw
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into OpenClaw Plugin
         run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
@@ -81,7 +81,7 @@ jobs:
           registry-url: https://registry.npmjs.org/
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: pnpm build
@@ -127,14 +127,14 @@ jobs:
           echo "Publishing version: $VERSION"
 
       - name: Install SDK dependencies
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: pnpm build
 
       - name: Install CLI dependencies
         working-directory: cli
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into CLI
         run: rm -rf cli/node_modules/@nevermined-io/payments && ln -s "$PWD" cli/node_modules/@nevermined-io/payments
@@ -207,26 +207,38 @@ jobs:
           echo "Publishing version: $VERSION"
 
       - name: Install SDK dependencies
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: pnpm build
 
       - name: Install OpenClaw Plugin dependencies
         working-directory: openclaw
-        run: pnpm install --frozen-lockfile --ignore-engines
+        run: pnpm install --frozen-lockfile
 
       - name: Link local SDK into OpenClaw Plugin
         run: rm -rf openclaw/node_modules/@nevermined-io/payments && ln -s "$PWD" openclaw/node_modules/@nevermined-io/payments
 
       - name: Update OpenClaw Plugin version
         working-directory: openclaw
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           CURRENT=$(node -p "require('./package.json').version")
-          if [ "$CURRENT" != "${{ steps.version.outputs.version }}" ]; then
-            npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          if [ "$CURRENT" != "$RELEASE_VERSION" ]; then
+            npm version "$RELEASE_VERSION" --no-git-tag-version
           fi
-          echo "OpenClaw Plugin version is ${{ steps.version.outputs.version }}"
+          # Keep openclaw.plugin.json in lockstep so the published tarball
+          # never ships package.json and openclaw.plugin.json with different
+          # version strings.
+          node -e "
+            const fs = require('node:fs');
+            const path = 'openclaw.plugin.json';
+            const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+            data.version = process.env.RELEASE_VERSION;
+            fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+          "
+          echo "OpenClaw Plugin version is $RELEASE_VERSION (package.json + openclaw.plugin.json)"
 
       - name: Build OpenClaw Plugin
         working-directory: openclaw
@@ -238,7 +250,7 @@ jobs:
 
       - name: Publish OpenClaw Plugin package
         working-directory: openclaw
-        run: npm publish --access public
+        run: npm publish --access public --provenance
 
       - name: Pack OpenClaw Plugin tarball
         working-directory: openclaw
@@ -251,12 +263,106 @@ jobs:
           path: openclaw/*.tgz
 
       - name: Commit OpenClaw Plugin version update
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add openclaw/package.json
-          git diff --cached --quiet || git commit -m "chore(openclaw): bump version to ${{ steps.version.outputs.version }}"
+          git add openclaw/package.json openclaw/openclaw.plugin.json
+          git diff --cached --quiet || git commit -m "chore(openclaw): bump version to $RELEASE_VERSION"
           git push origin HEAD:main || echo "Could not push to main (protected branch)"
+
+  publish-clawhub:
+    name: Publish OpenClaw Plugin to ClawHub
+    needs: publish-openclaw
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Download OpenClaw Plugin tarball from publish-openclaw
+        uses: actions/download-artifact@v4
+        with:
+          name: openclaw-tarball
+          path: tarball
+
+      - name: Resolve tarball path
+        id: tarball
+        # The CLI interprets bare paths as `owner/repo` GitHub references — the
+        # leading `./` is required to force "this is a local file".
+        run: |
+          FILE=$(ls tarball/*.tgz | head -n1)
+          if [ -z "$FILE" ]; then
+            echo "::error::No .tgz found in the openclaw-tarball artifact."
+            exit 1
+          fi
+          echo "path=./$FILE" >> "$GITHUB_OUTPUT"
+          echo "Tarball: ./$FILE"
+
+      - name: Install ClawHub CLI
+        # Pinned to ^0.12 — bump deliberately when ClawHub ships a major.
+        run: npm install -g clawhub@^0.12
+
+      - name: Authenticate with ClawHub
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          if [ -z "$CLAWHUB_TOKEN" ]; then
+            echo "::error::CLAWHUB_TOKEN secret is not configured. Configure it in the repo or org settings to enable ClawHub publishing."
+            exit 1
+          fi
+          clawhub login --token "$CLAWHUB_TOKEN"
+          clawhub whoami
+
+      - name: Dry-run ClawHub publish
+        # When publishing from a tarball, the CLI cannot infer git source
+        # attribution, so pass it explicitly from the GitHub Actions context.
+        env:
+          TARBALL: ${{ steps.tarball.outputs.path }}
+          SOURCE_REPO: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          clawhub package publish "$TARBALL" \
+            --family code-plugin \
+            --source-repo "$SOURCE_REPO" \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-ref "$SOURCE_REF" \
+            --source-path openclaw \
+            --dry-run --json
+
+      - name: Publish OpenClaw Plugin to ClawHub
+        # Re-runs of the same release tag should be idempotent: if the CLI fails
+        # solely because this exact version is already published, swallow it.
+        # Any other failure (auth, schema, network, validation) still fails the
+        # job loudly so we don't ship a release that quietly skipped ClawHub.
+        env:
+          TARBALL: ${{ steps.tarball.outputs.path }}
+          SOURCE_REPO: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          set +e
+          OUT=$(clawhub package publish "$TARBALL" \
+            --family code-plugin \
+            --source-repo "$SOURCE_REPO" \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-ref "$SOURCE_REF" \
+            --source-path openclaw \
+            --json 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUT"
+          if [ "$STATUS" -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$OUT" | grep -qiE "already (published|exists)|version (already|exists)|duplicate version|^http.*409|status\s*[:=]?\s*409|conflict"; then
+            echo "::notice::ClawHub already has this version — treating as idempotent success."
+            exit 0
+          fi
+          echo "::error::ClawHub publish failed for a reason other than 'already published'."
+          exit "$STATUS"
 
   github-release:
     name: Create GitHub Release
@@ -327,13 +433,13 @@ jobs:
 
           if [ "$USE_AUTO_NOTES" = "true" ]; then
             gh release create "$TAG" \
-              --title "Nevermined Payments $TAG" \
+              --title "$TAG" \
               --generate-notes \
               $PRERELEASE_FLAG \
               sdk-tarball/*.tgz cli-tarballs/*.tar.gz openclaw-tarball/*.tgz
           else
             gh release create "$TAG" \
-              --title "Nevermined Payments $TAG" \
+              --title "$TAG" \
               --notes-file /tmp/release_notes.md \
               $PRERELEASE_FLAG \
               sdk-tarball/*.tgz cli-tarballs/*.tar.gz openclaw-tarball/*.tgz
@@ -426,6 +532,20 @@ jobs:
           mkdir -p docs_mintlify/docs/api-reference/openclaw-plugin
           cp -r payments/openclaw/docs/* docs_mintlify/docs/api-reference/openclaw-plugin/ || echo "OpenClaw docs not found, skipping"
           cp payments/openclaw/README.md docs_mintlify/docs/api-reference/openclaw-plugin/index.md || echo "OpenClaw README not found"
+
+      # Release-time backstop for docs link-rot. Reuses the SAME self-contained
+      # mini-site check the PR gate runs (scripts/check_synced_doc_links.sh, built
+      # from markdown/**) — so a dead synced link fails the release here instead
+      # of leaving a stuck docs-sync PR (the failure mode that motivated #401).
+      # Checks only the synced TS pages (no coupling to unrelated pre-existing
+      # breakage elsewhere on the docs site); internal links only.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Check synced docs for broken internal links
+        run: bash payments/scripts/check_synced_doc_links.sh
 
       - name: Create documentation PR
         working-directory: docs_mintlify

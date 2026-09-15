@@ -3,30 +3,85 @@
  */
 import { Address, isValidScheme } from '../../common/types.js'
 import type { Payments } from '../../payments.js'
-import { decodeAccessToken } from '../../utils.js'
+import { decodeAccessToken, encodeAccessToken } from '../../utils.js'
 import {
   buildPaymentRequired,
+  buildPaymentRequiredForPlans,
   type SettlePermissionsResult,
   type X402PaymentRequired,
 } from '../../x402/facilitator-api.js'
 import {
+  AuthResult,
   McpConfig,
   PaywallOptions,
   PromptOptions,
   ResourceOptions,
   ToolOptions,
 } from '../types/paywall.types.js'
-import { ERROR_CODES, createRpcError } from '../utils/errors.js'
+import {
+  ERROR_CODES,
+  PaymentRequiredError,
+  SettlementFailedError,
+  createRpcError,
+} from '../utils/errors.js'
+import {
+  NEVERMINED_CREDITS_META_KEY,
+  X402_PAYMENT_RESPONSE_META_KEY,
+  paymentRequiredResult,
+  readPaymentPayload,
+} from '../utils/meta.js'
 import { PaywallAuthenticator } from './auth.js'
 import { CreditsContextProvider } from './credits-context.js'
+
+// Emit the Authorization-header deprecation notice at most once per process to
+// avoid log spam on high-traffic servers still using the legacy header path.
+let authHeaderDeprecationWarned = false
+
+/**
+ * The `creditsRedeemed` value for `_meta['nevermined/credits']`, or `undefined`
+ * to OMIT the key.
+ *
+ * ⚠️ Exists so the two `_meta` builders cannot drift. They are separate code —
+ * the non-streaming tool result and `wrapAsyncIterable`'s final chunk — and a
+ * test on one proves nothing about the other, which is why each has its own
+ * regression test below this file.
+ *
+ * ⚠️ The two protocols deliberately DIVERGE here, and it is a settled decision
+ * (repo owner, on the #443 review) rather than an oversight — do not "fix" one
+ * to match the other:
+ *
+ * | surface | pay-as-you-go | why |
+ * | --- | --- | --- |
+ * | MCP `creditsRedeemed` (here) | reports `'0'` | it is the WIRE field name, and
+ *   `billingModel` is emitted beside it, so a consumer can read the `'0'` |
+ * | A2A `creditsCharged` (#439) | OMITS | it is a DERIVED summary with no
+ *   discriminator beside it, so a bare `0` would read as "you were charged
+ *   nothing" on a charge that succeeded |
+ *
+ * The rule, which is deliberately NOT the A2A handler's:
+ * - a successful settle publishes whatever the facilitator reported, including
+ *   the `'0'` a pay-as-you-go plan returns — because this key also carries
+ *   `billingModel`, so a consumer can tell that `'0'` from a credits settle that
+ *   burned nothing. A2A's `creditsCharged` omits instead, having no
+ *   discriminator beside it. See the PR discussion on #443.
+ * - a successful settle that reported no figure omits, rather than substituting
+ *   the credits the request ASKED to burn (the defect this helper replaced).
+ * - a failed settle, and a free / no-credit call, report `'0'`.
+ */
+function resolveCreditsRedeemed(
+  settlement: { success?: boolean; creditsRedeemed?: string } | undefined,
+): string | undefined {
+  if (!settlement?.success) return '0'
+  return settlement.creditsRedeemed
+}
 
 /**
  * Main class for creating paywall-protected MCP handlers
  */
 export class PaywallDecorator {
   // Internal config ensures serverName is always a concrete string
-  private config: { agentId: string; serverName: string } = {
-    agentId: '',
+  private config: { planId: string; agentId?: string; serverName: string } = {
+    planId: '',
     serverName: 'mcp-server',
   }
 
@@ -41,7 +96,8 @@ export class PaywallDecorator {
    */
   configure(options: McpConfig): void {
     this.config = {
-      agentId: options.agentId || this.config.agentId,
+      planId: options.planId || this.config.planId,
+      agentId: options.agentId ?? this.config.agentId,
       serverName: options.serverName ?? this.config.serverName,
     }
   }
@@ -74,11 +130,14 @@ export class PaywallDecorator {
     options: PaywallOptions,
   ): (...allArgs: any[]) => Promise<any> {
     return async (...allArgs: any[]): Promise<any> => {
-      // Validate configuration
-      if (!this.config.agentId) {
+      // Validate configuration: a planId must be resolvable (per-tool option or
+      // server-level config). agentId is optional under the plan-centric model
+      // (the facilitator resolves everything from planId + token).
+      const configuredPlanId = options?.planId ?? this.config.planId
+      if (!configuredPlanId) {
         throw createRpcError(
           ERROR_CODES.Misconfiguration,
-          'Server misconfiguration: missing agentId',
+          'Server misconfiguration: missing planId',
         )
       }
 
@@ -90,96 +149,187 @@ export class PaywallDecorator {
       const extra = isResource ? allArgs[2] : allArgs[1]
       const argsOrVars = isResource ? allArgs[1] : allArgs[0]
 
-      // 1. Authenticate request
-      const authResult = await this.authenticator.authenticate(
-        extra,
-        { planId: options?.planId, maxAmount: options?.maxAmount },
-        this.config.agentId,
-        this.config.serverName,
-        name,
-        kind,
-        argsOrVars,
-      )
-
-      // 2. Pre-calculate credits if they are fixed (not a function)
-      // This allows handlers to access credits during execution
-      const creditsOption = options?.credits
-      const isFixedCredits = typeof creditsOption === 'bigint' || creditsOption === undefined
-      const preCalculatedCredits = isFixedCredits
-        ? this.creditsContext.resolve(creditsOption, argsOrVars, null, authResult)
-        : undefined
-
-      // Determine effective planId: explicit option overrides token-derived value
-      const effectivePlanId = options?.planId ?? authResult.planId
-
-      // 3. Build PaywallContext for handler (with extra wrapper for backward compatibility)
-      const paywallContext = {
-        authResult,
-        credits: preCalculatedCredits,
-        planId: authResult.planId,
-        subscriberAddress: authResult.subscriberAddress,
-        agentRequest: authResult.agentRequest,
-      }
-
-      // 4. Execute original handler with context
-      const result = await (handler as any)(...allArgs, paywallContext)
-
-      // 5. Resolve final credits to burn (may be different if credits are dynamic)
-      const credits = isFixedCredits
-        ? (preCalculatedCredits ?? 1n)
-        : this.creditsContext.resolve(creditsOption, argsOrVars, result, authResult)
-
-      // Update context with final resolved credits
-      paywallContext.credits = credits
-
-      // 6. If the result is an AsyncIterable (stream), redeem on completion
-      if (isAsyncIterable(result)) {
-        const onFinally = async () => {
-          return await this.redeemCredits(
-            effectivePlanId,
-            authResult.token,
-            authResult.subscriberAddress,
-            credits,
-            options,
-            authResult.agentId,
-            authResult.logicalUrl,
-            authResult.httpUrl,
-            'POST',
+      try {
+        // x402 v2 MCP transport: prefer the in-band payment payload from
+        // params._meta["x402/payment"]. Re-encode it into the access token
+        // string the verify/settle path expects and present it via the same
+        // extra/headers shape the auth flow reads, so the in-band payload takes
+        // precedence over the Authorization header (kept as a deprecated
+        // fallback when the in-band payload is absent). The RAW extra is still
+        // forwarded to the user handler below.
+        const paymentPayload = readPaymentPayload(extra)
+        let authExtra = extra
+        if (paymentPayload) {
+          const token = encodeAccessToken(paymentPayload)
+          // Synthesize an auth-only extra carrying the in-band token. This
+          // intentionally drops the rest of `extra` for the AUTH call only; the
+          // RAW `extra` (with `_meta`) is still forwarded to the user handler below.
+          authExtra = { requestInfo: { headers: { authorization: `Bearer ${token}` } } }
+        } else if (!authHeaderDeprecationWarned) {
+          authHeaderDeprecationWarned = true
+          console.warn(
+            '[x402] No _meta["x402/payment"] on the MCP request; falling back to the ' +
+              'Authorization header (deprecated under the x402 v2 MCP transport).',
           )
         }
-        return wrapAsyncIterable(
-          result,
-          onFinally,
+
+        // 1. Authenticate request
+        const authResult = await this.authenticator.authenticate(
+          authExtra,
+          { planId: configuredPlanId, maxAmount: options?.maxAmount },
+          this.config.agentId,
+          this.config.serverName,
+          name,
+          kind,
+          argsOrVars,
+        )
+
+        // 2. Pre-calculate credits if they are fixed (not a function)
+        // This allows handlers to access credits during execution
+        const creditsOption = options?.credits
+        const isFixedCredits = typeof creditsOption === 'bigint' || creditsOption === undefined
+        const preCalculatedCredits = isFixedCredits
+          ? this.creditsContext.resolve(creditsOption, argsOrVars, null, authResult)
+          : undefined
+
+        // Determine effective planId: explicit option overrides token-derived value
+        const effectivePlanId = options?.planId ?? authResult.planId
+
+        // 3. Build PaywallContext for handler (with extra wrapper for backward compatibility)
+        const paywallContext = {
+          authResult,
+          credits: preCalculatedCredits,
+          planId: authResult.planId,
+          subscriberAddress: authResult.subscriberAddress,
+          agentRequest: authResult.agentRequest,
+        }
+
+        // 4. Execute original handler with context
+        const result = await (handler as any)(...allArgs, paywallContext)
+
+        // 5. Resolve final credits to burn (may be different if credits are dynamic)
+        const credits = isFixedCredits
+          ? (preCalculatedCredits ?? 1n)
+          : this.creditsContext.resolve(creditsOption, argsOrVars, result, authResult)
+
+        // Update context with final resolved credits
+        paywallContext.credits = credits
+
+        // 6. If the result is an AsyncIterable (stream), redeem on completion
+        if (isAsyncIterable(result)) {
+          const onFinally = async () => {
+            return await this.redeemCredits(
+              effectivePlanId,
+              authResult.token,
+              authResult.subscriberAddress,
+              credits,
+              options,
+              authResult.agentId,
+              authResult.logicalUrl,
+              authResult.httpUrl,
+              'POST',
+            )
+          }
+          return wrapAsyncIterable(
+            result,
+            onFinally,
+            effectivePlanId,
+            authResult.subscriberAddress,
+          )
+        }
+
+        // 7. Non-streaming: redeem immediately
+        const creditsResult = await this.redeemCredits(
           effectivePlanId,
+          authResult.token,
           authResult.subscriberAddress,
           credits,
+          options,
+          authResult.agentId,
+          authResult.logicalUrl,
+          // fix: pre-existing arg order — fallbackEndpoint=httpUrl, httpVerb='POST'
+          // (matches the streaming site above)
+          authResult.httpUrl,
+          'POST',
         )
-      }
 
-      // 7. Non-streaming: redeem immediately
-      const creditsResult = await this.redeemCredits(
-        effectivePlanId,
-        authResult.token,
-        authResult.subscriberAddress,
-        credits,
-        options,
-        authResult.agentId,
-        authResult.logicalUrl,
-        'POST',
-        authResult.httpUrl,
-      )
-      result._meta = {
-        ...result._meta,
-        ...(creditsResult.transaction && { txHash: creditsResult.transaction }),
-        creditsRedeemed: creditsResult.success ? (creditsResult.creditsRedeemed ?? credits.toString()) : '0',
-        remainingBalance: creditsResult.remainingBalance,
-        planId: authResult.planId,
-        subscriberAddress: authResult.subscriberAddress,
-        success: creditsResult.success,
-        ...(creditsResult.errorReason && { errorReason: creditsResult.errorReason }),
+        // Settlement failed AFTER the tool executed: per the x402 v2 MCP
+        // transport spec, do NOT return the tool's content — surface only the
+        // payment error so a paid result is never delivered without payment
+        // landing. (onRedeemError "ignore" therefore no longer delivers paid
+        // content; "propagate" already threw a Misconfiguration in redeemCredits.)
+        if (creditsResult && !creditsResult.success) {
+          console.error(
+            `[x402] settlement failed after tool execution; suppressing tool content. reason=${creditsResult.errorReason}`,
+          )
+          throw new SettlementFailedError(this.buildPaymentRequiredFromAuth(authResult))
+        }
+
+        // creditsResult is undefined for free / no-credit calls (no settlement
+        // performed) — in that case the spec receipt is omitted. On success the
+        // full receipt goes under the spec key; Nevermined observability is kept
+        // under a namespaced key so it never collides with the spec shape.
+        result._meta = {
+          ...result._meta,
+          ...(creditsResult && { [X402_PAYMENT_RESPONSE_META_KEY]: creditsResult }),
+          [NEVERMINED_CREDITS_META_KEY]: {
+            ...(creditsResult?.transaction && { txHash: creditsResult.transaction }),
+            // `creditsRedeemed` is meaningless without this: a pay-as-you-go plan
+            // holds no balance, so it reads '0' on a settle that DID charge the
+            // buyer. Omitted (not '') when the settle carried no discriminator,
+            // so a consumer can tell "absent" from "present and empty".
+            ...(creditsResult?.billingModel && { billingModel: creditsResult.billingModel }),
+            // ⚠️ NO `?? credits.toString()` FALLBACK. That substituted the credits
+            // this request ASKED to burn and published them under the name
+            // `creditsRedeemed` — a figure the settle never reported, labelled as
+            // one it did. The A2A handler was corrected the same way in #438/#439;
+            // the two protocols must not tell a buyer different things about the
+            // same money.
+            //
+            // A successful settle that reports no figure now OMITS the key rather
+            // than inventing one. Omission is the honest answer and it is
+            // distinguishable: `remainingBalance`, `orderTx` and the full spec
+            // receipt under X402_PAYMENT_RESPONSE_META_KEY are all still here.
+            ...(() => {
+              const r = resolveCreditsRedeemed(creditsResult)
+              return r !== undefined ? { creditsRedeemed: r } : {}
+            })(),
+            remainingBalance: creditsResult?.remainingBalance,
+            ...(creditsResult?.orderTx && { orderTx: creditsResult.orderTx }),
+            planId: authResult.planId,
+            subscriberAddress: authResult.subscriberAddress,
+            success: creditsResult ? creditsResult.success : true,
+          },
+        }
+        return result
+      } catch (error) {
+        // Payment-required (pre-execution, from auth) and settlement-failure
+        // (post-execution) are surfaced in band as an error tool result for
+        // tools. Resources/prompts have no tool-result error channel, so the
+        // error propagates as a JSON-RPC error instead.
+        if (error instanceof PaymentRequiredError && kind === 'tool') {
+          return paymentRequiredResult(error.paymentRequired)
+        }
+        throw error
       }
-      return result
     }
+  }
+
+  /**
+   * Build a spec-shaped `PaymentRequired` dict for a settlement failure, from
+   * the authenticated request context. Surfaced (with tool content suppressed)
+   * when settlement fails after the tool has executed.
+   */
+  private buildPaymentRequiredFromAuth(authResult: AuthResult): Record<string, any> {
+    const planId = authResult.planId || ''
+    const paymentRequired = buildPaymentRequiredForPlans(planId ? [planId] : [''], {
+      endpoint: authResult.logicalUrl || authResult.httpUrl,
+      agentId: authResult.agentId,
+      httpVerb: 'POST',
+      environment: this.payments.getEnvironmentName(),
+    }) as X402PaymentRequired & { error?: string }
+    paymentRequired.error = 'settlement failed'
+    return paymentRequired
   }
 
   /**
@@ -195,30 +345,31 @@ export class PaywallDecorator {
     endpoint?: string,
     fallbackEndpoint?: string,
     httpVerb?: string,
-  ): Promise<SettlePermissionsResult> {
-    let ret: SettlePermissionsResult = {
-      success: true,
-      transaction: '',
-      network: '',
+  ): Promise<SettlePermissionsResult | undefined> {
+    // No settlement for free / no-credit calls — signalled to the caller as
+    // `undefined` so the spec receipt (_meta["x402/payment-response"]) is omitted.
+    if (!(credits && credits > 0n && subscriberAddress && planId)) {
+      return undefined
     }
-    const decoded = decodeAccessToken(token)
-    const scheme = isValidScheme(decoded?.accepted?.scheme) ? decoded.accepted.scheme : 'nvm:erc4337'
-    try {
-      if (credits && credits > 0n && subscriberAddress && planId) {
-        const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
-          endpoint: endpoint || '',
-          agentId,
-          httpVerb,
-          scheme,
-          environment: this.payments.getEnvironmentName(),
-        })
 
-        ret = await this.payments.facilitator.settlePermissions({
-          paymentRequired,
-          x402AccessToken: token,
-          maxAmount: credits,
-        })
-      }
+    const decoded = decodeAccessToken(token)
+    const scheme = isValidScheme(decoded?.accepted?.scheme)
+      ? decoded.accepted.scheme
+      : 'nvm:erc4337'
+    try {
+      const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
+        endpoint: endpoint || '',
+        agentId,
+        httpVerb,
+        scheme,
+        environment: this.payments.getEnvironmentName(),
+      })
+
+      return await this.payments.facilitator.settlePermissions({
+        paymentRequired,
+        x402AccessToken: token,
+        maxAmount: credits,
+      })
     } catch (primaryError) {
       // If logical URL fails and we have an HTTP URL fallback, retry with it
       let lastError: unknown = primaryError
@@ -232,26 +383,30 @@ export class PaywallDecorator {
             environment: this.payments.getEnvironmentName(),
           })
 
-          ret = await this.payments.facilitator.settlePermissions({
+          return await this.payments.facilitator.settlePermissions({
             paymentRequired,
             x402AccessToken: token,
             maxAmount: credits,
           })
-          return ret
         } catch (fallbackError) {
           // Fallback also failed, use fallback error as the reported error
           lastError = fallbackError
         }
       }
 
-      ret.success = false
-      ret.errorReason = lastError instanceof Error ? lastError.message : String(lastError)
+      const errorReason = lastError instanceof Error ? lastError.message : String(lastError)
+      console.error(`[x402] settle failed: ${errorReason}`)
       if (options.onRedeemError === 'propagate') {
-        throw createRpcError(ERROR_CODES.Misconfiguration, `Failed to redeem credits: ${ret.errorReason}`)
+        throw createRpcError(
+          ERROR_CODES.Misconfiguration,
+          `Failed to redeem credits: ${errorReason}`,
+        )
       }
-      // Default: attach error to result but don't throw
+      // Default ("ignore"): return a failed result so the caller suppresses the
+      // tool content and surfaces the in-band payment error (always-suppress
+      // under the x402 v2 MCP transport).
+      return { success: false, transaction: '', network: '', errorReason }
     }
-    return ret
   }
 }
 
@@ -270,7 +425,6 @@ function wrapAsyncIterable<T>(
   onFinally: () => Promise<any>,
   planId: string,
   subscriberAddress: Address,
-  credits: bigint,
 ) {
   async function* generator() {
     let creditsResult: any = null
@@ -282,17 +436,36 @@ function wrapAsyncIterable<T>(
       creditsResult = await onFinally()
     }
 
-    // Yield a _meta chunk at the end with the redemption result
+    // Yield a _meta chunk at the end with the redemption result.
+    // NOTE: a stream cannot retroactively suppress already-yielded chunks, so a
+    // post-execution settlement failure on a stream is only reported here in the
+    // final _meta chunk (under nevermined/credits) — it cannot withhold content
+    // the way a non-streaming tool result does. `creditsResult` is undefined for
+    // free / no-credit calls.
+    const settlement = creditsResult || undefined
     const metadataChunk = {
       _meta: {
-        // Only include txHash if it has a value
-        ...(creditsResult?.transaction && { txHash: creditsResult.transaction }),
-        creditsRedeemed: creditsResult?.success ? (creditsResult.creditsRedeemed ?? credits.toString()) : '0',
-        remainingBalance: creditsResult?.remainingBalance,
-        planId,
-        subscriberAddress,
-        success: creditsResult?.success || false,
-        ...(creditsResult?.errorReason && { errorReason: creditsResult.errorReason }),
+        // Spec receipt only on a successful settlement.
+        ...(settlement?.success && { [X402_PAYMENT_RESPONSE_META_KEY]: settlement }),
+        // Nevermined-namespaced observability (NOT part of the x402 spec).
+        [NEVERMINED_CREDITS_META_KEY]: {
+          ...(settlement?.transaction && { txHash: settlement.transaction }),
+          // See the non-streaming site: without `billingModel`, `creditsRedeemed`
+          // cannot be read — it is '0' on a pay-as-you-go settle that charged.
+          ...(settlement?.billingModel && { billingModel: settlement.billingModel }),
+          // See the non-streaming site: no `?? credits.toString()` substitution.
+          // A successful settle that reported no figure omits the key.
+          ...(() => {
+            const r = resolveCreditsRedeemed(settlement)
+            return r !== undefined ? { creditsRedeemed: r } : {}
+          })(),
+          remainingBalance: settlement?.remainingBalance,
+          ...(settlement?.orderTx && { orderTx: settlement.orderTx }),
+          planId,
+          subscriberAddress,
+          success: settlement ? settlement.success : true,
+          ...(settlement?.errorReason && { errorReason: settlement.errorReason }),
+        },
       },
     }
     yield metadataChunk as T

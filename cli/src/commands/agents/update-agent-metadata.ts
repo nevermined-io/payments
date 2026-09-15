@@ -8,7 +8,7 @@ export default class UpdateAgentMetadata extends BaseCommand {
   static override description = "Updates the metadata and API attributes of an existing AI Agent."
 
   static override examples = [
-    '$ nvm agents update-agent-metadata <agentId>'
+    '$ nevermined agents update-agent-metadata <agentId>'
   ]
 
   static override flags = {
@@ -17,7 +17,10 @@ export default class UpdateAgentMetadata extends BaseCommand {
       description: "agentMetadata as JSON string",
       required: true
     }),
-    'agent-api': Flags.string({ required: true }),
+    'agent-api': Flags.string({
+      description: "agentApi as JSON string",
+      required: true
+    }),
   }
 
   static override args = {
@@ -34,7 +37,7 @@ export default class UpdateAgentMetadata extends BaseCommand {
     const payments = await this.initPayments()
 
     try {
-      const result = await payments.agents.updateAgentMetadata(args.agent, await this.parseJsonInput(flags['agent-metadata']), flags['agent-api'])
+      const result = await payments.agents.updateAgentMetadata(args.agent, await this.parseJsonInput(flags['agent-metadata']), await this.parseJsonInput(flags['agent-api']))
 
       this.formatter.output(result)
     } catch (error) {

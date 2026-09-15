@@ -22,7 +22,10 @@ function findBraintreeMethod(methods: PaymentMethodSummary[]): PaymentMethodSumm
   return methods.find((m) => m.provider === 'braintree')
 }
 
-describe('X402 Card Delegation Flow (Braintree)', () => {
+// Requires a Braintree sandbox card enrolled on the buyer's test account.
+// Disabled until a valid Braintree test card is available (staging test
+// accounts were rotated 2026-07-24). Re-enable by restoring `describe`.
+describe.skip('X402 Card Delegation Flow (Braintree)', () => {
   let paymentsSubscriber: Payments
   let paymentsAgent: Payments
   let agentAddress: Address
@@ -79,6 +82,7 @@ describe('X402 Card Delegation Flow (Braintree)', () => {
           providerPaymentMethodId: pm!.id,
           spendingLimitCents: 10000,
           durationSecs: 604800,
+          currency: 'usd',
         }),
       { label: 'Braintree Delegation Creation', attempts: 3 },
     )
