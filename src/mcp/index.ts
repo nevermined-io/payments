@@ -139,6 +139,7 @@ export {
   getOAuthUrls,
   resolveOAuthTier,
   OAUTH_TIER_PARAM,
+  OAUTH_TIERS,
   type OAuthTier,
   buildProtectedResourceMetadata,
   buildMcpProtectedResourceMetadata,
