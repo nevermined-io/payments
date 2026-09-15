@@ -2,7 +2,9 @@
  * End-to-end coverage for the multi-org workspace surface added in PR #342.
  *
  * Runs against staging-sandbox using the `Testing Merchant` fixture identity,
- * which is an Admin of the Enterprise org `Nevermined Testing`. The tests
+ * which is an Admin of the org `Nevermined Testing`. Its tier is whatever
+ * that org is currently subscribed to — deliberately not asserted here, see
+ * the DTO-shape test below. The tests
  * verify the three building blocks the SDK now exposes:
  *
  *   1. `getMyMemberships()` returns the org the caller belongs to with the
@@ -58,7 +60,7 @@ describe('Organizations E2E — workspace surface', () => {
     }
   })
 
-  test('getMyMemberships() returns the Enterprise test org with the backend DTO shape', async () => {
+  test('getMyMemberships() returns the test org with the backend DTO shape', async () => {
     if (!inTargetOrg) return
     const memberships = await unpinned.organizations.getMyMemberships()
 
@@ -68,7 +70,14 @@ describe('Organizations E2E — workspace surface', () => {
     const m = memberships.find((x) => x.orgId === TEST_BUILDER_ORG_ID)
     expect(m).toBeDefined()
     expect(m!.orgName).toBeTruthy()
-    expect(m!.orgType).toBe(OrganizationType.Enterprise)
+    // Shape, not value: the fixture org's tier is a BILLING state that moves
+    // without any SDK change — a cancelled subscription demotes it to the
+    // `Other` (Lapsed) bucket, which turned this whole suite red on
+    // 2026-08-04 while nothing in the SDK had changed. What this test owns is
+    // that the backend returns a real `OrganizationType` on the DTO; which
+    // tier the shared staging org happens to be paying for is not the SDK's
+    // contract to assert.
+    expect(Object.values(OrganizationType)).toContain(m!.orgType)
     expect([OrganizationMemberRole.Admin, OrganizationMemberRole.Member]).toContain(m!.role)
     expect(typeof m!.isAdmin).toBe('boolean')
     expect(typeof m!.hasSubscriptionHistory).toBe('boolean')

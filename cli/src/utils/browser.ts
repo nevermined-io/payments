@@ -2,7 +2,7 @@ import { execFile } from 'child_process'
 
 /**
  * Open the user's default browser at `url`. Cross-platform wrapper used
- * by `nvm login` and `nvm cards setup/enroll/delegate`.
+ * by `nevermined login` and `nevermined cards setup/enroll/delegate`.
  *
  * On Windows we deliberately avoid `cmd /c start <url>`: cmd parses `&`
  * inside the URL as a command separator, which truncates any URL that

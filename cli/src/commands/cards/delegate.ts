@@ -4,17 +4,19 @@ import { BaseCommand } from '../../base-command.js'
 import { resolveOrgIdInteractive } from '../../utils/orgs.js'
 import {
   mintSelfWidgetSession,
+  resolveEmbedNetwork,
   runWidgetRedirectFlow,
 } from '../../utils/widget-redirect-flow.js'
 
 /**
  * Single-purpose delegation creation. Opens the chromeless
- * `/embed/cards/delegate?paymentMethodId=<id>` page where the user
+ * `/cards/delegate?paymentMethodId=<id>` page of the standalone embed
+ * app (`embed.<tier>`) where the user
  * fills in spending limit / duration / max-transactions and submits;
  * the resulting `delegationId` is redirected back to a localhost
  * callback.
  *
- * The combined `nvm cards setup` flow is preferred for first-time
+ * The combined `nevermined cards setup` flow is preferred for first-time
  * card setup; use this when the card already exists and only the
  * delegation needs to be (re-)created.
  */
@@ -64,8 +66,9 @@ export default class CardsDelegate extends BaseCommand {
       }
 
       const result = await runWidgetRedirectFlow({
-        frontendUrl: env.frontend,
-        embedPath: '/embed/cards/delegate',
+        embedUrl: env.embed,
+        embedPath: '/cards/delegate',
+        network: resolveEmbedNetwork(environment),
         mintSession: async ({ returnUrl }) => {
           const session = await mintSelfWidgetSession({
             backendUrl: env.backend,

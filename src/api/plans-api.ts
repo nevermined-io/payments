@@ -1,3 +1,4 @@
+import { safeParseJson } from '../common/helper.js'
 import { PaymentsError } from '../common/payments.error.js'
 import {
   Address,
@@ -44,7 +45,11 @@ export class PlansAPI extends BasePaymentsAPI {
   /**
    * Builds a Fiat price configuration for a plan.
    *
-   * @param amount - Amount to charge in minor units (e.g., cents) as bigint.
+   * `amount` is in **6-decimal units** (USDC convention, NOT cents). To
+   * charge $2.00, pass `2_000_000n`. Minimum is `1_000_000n` ($1.00) —
+   * lower values are rejected server-side with `BCK.PROTOCOL.0047`.
+   *
+   * @param amount - Amount to charge in 6-decimal units (e.g. `2_000_000n` for $2.00) as bigint.
    * @param receiver - Wallet address that will receive the payment.
    * @param currency - Fiat currency code (default: 'USD'). Any ISO 4217 code accepted by Stripe.
    * @returns The PlanPriceConfig representing a fiat price.
@@ -508,31 +513,43 @@ export class PlansAPI extends BasePaymentsAPI {
   public async getPlan(planId: string) {
     const query = API_URL_GET_PLAN.replace(':planId', planId)
     const url = new URL(query, this.environment.backend)
-    const response = await fetch(url)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Plan not found', await response.json())
+      throw PaymentsError.fromBackend('Plan not found', await safeParseJson(response))
     }
     return response.json()
   }
 
   /**
+   * Lists the payment plans **you** published (the authenticated caller's own
+   * plans). This is account management, not a marketplace search — it never
+   * returns other users' plans.
    *
    * @param page - The page number to retrieve.
    * @param offset - The number of items per page.
    * @param sortBy - The field to sort the results by.
    * @param sortOrder - The order in which to sort the results.
-   * @returns A promise that resolves to the list of all different plans.
+   * @param orgId - Optional organization id. When set, returns every plan in
+   *   that organization (requires active membership) instead of the caller's.
+   * @returns A promise that resolves to the paginated list of your plans.
    */
-  public async getPlans(page = 1, offset = 100, sortBy = 'created', sortOrder = 'desc') {
+  public async getPlans(
+    page = 1,
+    offset = 100,
+    sortBy = 'created',
+    sortOrder: 'asc' | 'desc' = 'desc',
+    orgId?: string,
+  ): Promise<{ total: number; page: number; offset: number; plans: any[] }> {
     const url = new URL(API_URL_GET_PLANS, this.environment.backend)
     url.searchParams.set('page', page.toString())
     url.searchParams.set('offset', offset.toString())
     url.searchParams.set('sortBy', sortBy)
     url.searchParams.set('sortOrder', sortOrder)
+    if (orgId) url.searchParams.set('orgId', orgId)
     const options = this.getBackendHTTPOptions('GET')
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to get plans', await response.json())
+      throw PaymentsError.fromBackend('Unable to get plans', await safeParseJson(response))
     }
 
     const data = await response.json()
@@ -544,13 +561,14 @@ export class PlansAPI extends BasePaymentsAPI {
    * All the agents returned can be accessed by the users that are subscribed to the Payment Plan.
    *
    * @param planId - The unique identifier of the plan.
-   * @param pagination - Optional pagination options to control the number of results returned.
+   * @param pagination - Optional pagination options. Accepts a plain object
+   * (`{ page, offset, sortBy, sortOrder }`) or a `PaginationOptions` instance.
    * @returns A promise that resolves to the list of agents associated with the plan.
    * @throws PaymentsError if the plan is not found.
    *
    * @example
    * ```
-   *  const result = payments.plans.getAgentsAssociatedToAPlan(planId)
+   *  const result = payments.plans.getAgentsAssociatedToAPlan(planId, { page: 1, offset: 10 })
    *  // {
    *  //  total: 10,
    *  //  page: 1,
@@ -559,13 +577,18 @@ export class PlansAPI extends BasePaymentsAPI {
    *  // }
    * ```
    */
-  public async getAgentsAssociatedToAPlan(planId: string, pagination = new PaginationOptions()) {
+  public async getAgentsAssociatedToAPlan(
+    planId: string,
+    pagination: Partial<PaginationOptions> = {},
+  ) {
     const query =
-      API_URL_GET_PLAN_AGENTS.replace(':planId', planId) + '?' + pagination.asQueryParams()
+      API_URL_GET_PLAN_AGENTS.replace(':planId', planId) +
+      '?' +
+      new PaginationOptions(pagination).asQueryParams()
     const url = new URL(query, this.environment.backend)
-    const response = await fetch(url)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Plan not found', await response.json())
+      throw PaymentsError.fromBackend('Plan not found', await safeParseJson(response))
     }
     return response.json()
   }
@@ -605,17 +628,10 @@ export class PlansAPI extends BasePaymentsAPI {
       holderAddress,
     )
 
-    const options = {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-    }
     const url = new URL(balanceUrl, this.environment.backend)
-    const response = await fetch(url, options)
+    const response = await fetch(url, this.getPublicHTTPOptions('GET'))
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to get balance', await response.json())
+      throw PaymentsError.fromBackend('Unable to get balance', await safeParseJson(response))
     }
 
     return response.json()
@@ -645,7 +661,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_ORDER_PLAN.replace(':planId', planId), this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to order plan', await response.json())
+      throw PaymentsError.fromBackend('Unable to order plan', await safeParseJson(response))
     }
 
     return response.json()
@@ -677,7 +693,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to order fiat plan', await response.json())
+      throw PaymentsError.fromBackend('Unable to order fiat plan', await safeParseJson(response))
     }
 
     return response.json()
@@ -714,7 +730,7 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_MINT_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to mint plan credits', await response.json())
+      throw PaymentsError.fromBackend('Unable to mint plan credits', await safeParseJson(response))
     }
 
     return response.json()
@@ -758,7 +774,10 @@ export class PlansAPI extends BasePaymentsAPI {
     const url = new URL(API_URL_MINT_EXPIRABLE_PLAN, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
-      throw PaymentsError.fromBackend('Unable to mint expirable credits', await response.json())
+      throw PaymentsError.fromBackend(
+        'Unable to mint expirable credits',
+        await safeParseJson(response),
+      )
     }
 
     return response.json()

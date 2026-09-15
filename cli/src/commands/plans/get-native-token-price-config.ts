@@ -8,7 +8,7 @@ export default class GetNativeTokenPriceConfig extends BaseCommand {
   static override description = "Builds a native token price configuration for a plan."
 
   static override examples = [
-    '$ nvm plans get-native-token-price-config'
+    '$ nevermined plans get-native-token-price-config'
   ]
 
   static override flags = {

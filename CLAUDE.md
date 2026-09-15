@@ -78,6 +78,19 @@ The CLI has BigInt-aware JSON parsing (reviver in `cli/src/base-command.ts`) and
 
 The SDK and CLI support four environment values: `sandbox`, `live`, `staging_sandbox`, and `staging_live`. The `staging_*` variants are for **internal development only** and must never appear in public-facing documentation. All docs, examples, and SKILL files must use only `sandbox` and `live`. The CLI defaults to `sandbox` when no environment is set.
 
+### API Version Pinning
+
+Every HTTP call to the Nevermined backend carries a `Nevermined-Version` header pinning the **backend API** version (nvm-monorepo MAJOR.MINOR) this SDK release is built and tested against — this is NOT the SDK package version. Both constants live in `src/common/api-version.ts`:
+
+- `LOCKED_API_VERSION` — the pinned backend contract (currently `1.1`). Resolved as `options.version ?? LOCKED_API_VERSION` in `BasePaymentsAPI.getBackendHTTPOptions()` / `getPublicHTTPOptions()`, so it applies to authenticated and public endpoints alike.
+- `API_VERSION_HEADER` — the header name (`Nevermined-Version`).
+
+**Bump procedure** (deliberate, never automatic): update `LOCKED_API_VERSION` when targeting a newer backend contract, run the e2e suite against a staging backend running that version, then cut a minor SDK release.
+
+**Override path**: per `Payments` instance via the existing `options.version` (e.g. `Payments.getInstance({ ..., version: '1.0' })`). There is intentionally **no per-request override** — `Nevermined-Version` is not in the `ALLOWED_EXTRA_HEADERS` allowlist, so `extraHeaders` cannot clobber it.
+
+See https://nevermined.ai/docs/development-guide/api-versioning and nvm-monorepo#1535/#1938.
+
 ### x402 Protocol and Documentation Standards
 
 When writing examples or documentation:
@@ -92,14 +105,42 @@ When writing examples or documentation:
 Before submitting changes, run these checks:
 
 ```bash
-pnpm build && pnpm lint && pnpm test:unit
+pnpm build && pnpm lint && pnpm typecheck:tests && pnpm test:unit
 ```
 
 For full validation including integration tests:
 
 ```bash
-pnpm build && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm test:e2e
+pnpm build && pnpm lint && pnpm typecheck:tests && pnpm test:unit && pnpm test:integration && pnpm test:e2e
 ```
+
+### `pnpm build` does NOT typecheck the tests — `pnpm typecheck:tests` does
+
+Two separate reasons, so neither existing gate catches a type error under `tests/`:
+
+- `pnpm build` is `tsc` against the root `tsconfig.json`, whose `exclude` lists `tests`.
+- **ts-jest transpiles without checking**, because the root config sets `isolatedModules: true`
+  and ts-jest honours that by using `transpileModule`. A test file asserting
+  `const x: SettlePermissionsResult = { success: 123, nope: 'drift' }` **passes**.
+
+`pnpm typecheck:tests` (`tsc --noEmit -p tests/tsconfig.json`) is the only thing that reads
+them, and it runs in CI's `lint_build` job as of #437. Run it after touching a test file —
+particularly a fixture — because neither a green build nor a green suite says anything about
+whether that fixture still matches the model.
+
+### Test doubles must be constrained to a model type imported from `src/`
+
+`PaymentsMock` used to take `settleResult?: any`, which let every settle/verify double drift
+from `SettlePermissionsResult` unnoticed (#433). Doubles now either narrow the *parameter*
+(`PaymentsMock(settleResult: SettlePermissionsResult)`) or `satisfies` the literal. Two rules:
+
+- **Constrain against the model, never a shape written next to the fixture.** A
+  `Promise<{ success: boolean; transaction: string; … }>` annotation is not a check; it is the
+  fixture repeated, and it goes stale in exactly the same way.
+- **Raw `fetch`/`Response` stubs stay untyped on purpose.** They model what a *server* sends,
+  and some specs post a deliberately malformed body — `x402-token-v3` sends one with no
+  `success` field to prove the SDK reports rather than trusts it. Constraining those to the
+  model would make such a test unwritable.
 
 ### After Modifying Source Files
 
@@ -109,7 +150,8 @@ When you modify source files, especially:
 - Authentication/authorization logic
 
 You MUST:
-1. Run `pnpm build` to verify TypeScript compilation
+1. Run `pnpm build` to verify TypeScript compilation, and `pnpm typecheck:tests` if you touched
+   anything under `tests/` — `pnpm build` cannot see those files (see above)
 2. Run `pnpm test:unit` to verify unit tests pass
 3. If modifying E2E-related code, run `pnpm test:e2e`
 4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. Validate with `./scripts/generate-docs.sh`. On merge to main, the `update-docs.yml` workflow runs `generate-docs.sh` and auto-creates a PR with any changes. On tag push, `publish-docs.yml` publishes to docs_mintlify. However, `generate-docs.sh` only validates structure — it does NOT auto-update code examples, so those must be updated manually.
@@ -161,7 +203,7 @@ CI is configured in `.github/workflows/testing.yml` and runs on every push:
 
 | Job | Description | Depends On |
 |-----|-------------|------------|
-| `lint_build` | Install, build, lint | - |
+| `lint_build` | Install, build, lint, typecheck tests | Typecheck tests runs LAST on purpose — see the comment in `testing.yml`: it is the newest and noisiest gate, and running it before Lint would fail-fast past lint errors that used to surface in the same run. Do not reorder to match a doc; fix the doc. |
 | `cli_sync_check` | Build + test CLI against local SDK | lint_build |
 | `openclaw_check` | Build + test OpenClaw against local SDK | lint_build |
 | `unit_integration` | Unit + integration tests | lint_build |
@@ -202,7 +244,7 @@ E2E tests run directly against the **staging environment**. When making changes:
 This repo contains two in-tree consumers of the SDK that import directly from `src/`:
 
 - **`openclaw/`** — OpenClaw plugin for LLM tool-use (tools, auto-pay, MCP bridge). CI: `.github/workflows/openclaw-sync-and-test.yml`
-- **`cli/`** — CLI tool (`nvm` command). CI: `.github/workflows/cli-sync-and-test.yml`
+- **`cli/`** — CLI tool (`nevermined` command). CI: `.github/workflows/cli-sync-and-test.yml`
 
 **CRITICAL:** When changing public SDK interfaces (function signatures, types, options), you MUST also update `openclaw/` and `cli/` source files, tests, and mocks. The openclaw and CLI CI workflows build and test independently — they will fail if call sites don't match the new signatures.
 

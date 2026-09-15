@@ -47,6 +47,31 @@ describe('x402 commands', () => {
       expect(parsed.accessToken).toBe('mock-token-for-did:nvm:test-plan-1')
     })
 
+    test('should refuse --resource-url without --token-version 3', async () => {
+      // The three flags are one set: a resource on a v2 token is compared
+      // against the URL the seller advertises and rejects with BCK.X402.0013,
+      // so binding without asking for v3 can only cost a failed verification.
+      await expect(
+        GetX402AccessToken.run([
+          'did:nvm:test-plan-1',
+          '--resource-url', 'https://seller.example/api/v1/tasks',
+        ]),
+      ).rejects.toThrow()
+    })
+
+    test('should mint a bound token with --resource-url + --token-version 3', async () => {
+      await GetX402AccessToken.run([
+        'did:nvm:test-plan-1',
+        '--resource-url', 'https://seller.example/api/v1/tasks',
+        '--http-verb', 'post',
+        '--token-version', '3',
+        '--format', 'json',
+      ])
+
+      const parsed = JSON.parse(output.getOutput())
+      expect(parsed.tokenVersion).toBe(3)
+    })
+
     test('should get fiat token with --payment-type fiat', async () => {
       await GetX402AccessToken.run([
         'did:nvm:test-plan-1',
@@ -56,7 +81,7 @@ describe('x402 commands', () => {
 
       // Auto-select info goes to stderr, JSON output to stdout
       const errors = output.getErrorOutput()
-      expect(errors).toContain('Auto-selected payment method')
+      expect(errors).toContain('Auto-selected card')
 
       const logs = output.getOutput()
       const parsed = JSON.parse(logs)

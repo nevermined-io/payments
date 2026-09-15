@@ -4,9 +4,14 @@
 
 export {
   requiresPayment,
+  lastSettlement,
   PaymentRequiredError,
   type RequiresPaymentOptions,
   type CreditsCallable,
   type CreditsContext,
   type PaymentContext,
 } from './decorator.js'
+export {
+  createPaidReactAgent,
+  type CreatePaidReactAgentOptions,
+} from './agent.js'

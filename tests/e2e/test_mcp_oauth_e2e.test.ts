@@ -152,6 +152,7 @@ describe('MCP OAuth E2E Tests', () => {
 
       // Configure MCP
       paymentsBuilder.mcp.configure({
+        planId: creditsPlanId!,
         agentId: mcpAgentDID!,
         serverName: 'test-mcp-server-e2e',
       })
@@ -269,6 +270,7 @@ describe('MCP OAuth E2E Tests', () => {
       // Start the server using the real API
       const { info, stop } = await paymentsBuilder.mcp.start({
         port: MCP_SERVER_PORT,
+        planId: creditsPlanId!,
         agentId: mcpAgentDID!,
         serverName: 'test-mcp-server-e2e',
         version: '0.1.0',
@@ -513,6 +515,7 @@ describe('MCP OAuth E2E Tests', () => {
         provider: 'erc4337',
         spendingLimitCents: 100000,
         durationSecs: 604800,
+        currency: 'usdc',
       })
       const accessParams = await retryWithBackoff(
         () =>

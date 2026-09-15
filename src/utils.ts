@@ -78,6 +78,40 @@ export const decodeAccessToken = (accessToken: string): Record<string, any> | nu
 }
 
 /**
+ * Encode a PaymentPayload object into an x402 access token string.
+ *
+ * Inverse of {@link decodeAccessToken}. Used by the MCP transport to turn the
+ * in-band `_meta["x402/payment"]` PaymentPayload object back into the
+ * base64url token string the facilitator's verify/settle APIs consume.
+ *
+ * The base64 envelope is transport-only: the EIP-712 signature lives inside
+ * `payload.authorization` / `payload.signature`, not over the base64 wrapper,
+ * so re-encoding a decoded (or foreign-encoded) payload is byte-safe for the
+ * facilitator — the invariant is semantic recovery, not byte-identity.
+ *
+ * Produces unpadded base64url with compact JSON (no spaces), matching the form
+ * {@link decodeAccessToken} accepts.
+ *
+ * Encodes UTF-8 bytes before base64 so it never throws on non-ASCII input — this
+ * runs on client-supplied `_meta["x402/payment"]`, and `btoa` alone throws a
+ * DOMException on code points > U+00FF. For ASCII JSON (all real x402
+ * PaymentPayloads: EIP-712 hex/decimal/signature fields) the output is
+ * byte-identical to `btoa(json)`, so the round-trip with {@link decodeAccessToken}
+ * is unchanged. `decodeAccessToken` is intentionally left as-is; a full UTF-8
+ * round-trip would additionally require decoding the bytes there.
+ *
+ * @param payload - The decoded PaymentPayload object (e.g. from `_meta["x402/payment"]`)
+ * @returns The base64url-encoded access token string (unpadded)
+ */
+export const encodeAccessToken = (payload: Record<string, any>): string => {
+  const json = JSON.stringify(payload)
+  const bytes = new TextEncoder().encode(json)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
  * It returns the list of endpoints that are used by agents/services implementing the Nevermined Query Protocol
  * @param serverHost - The host of the server where the agents/services are running
  * @returns the list of endpoints
