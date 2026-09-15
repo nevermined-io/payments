@@ -9,6 +9,8 @@ import {
   buildOidcConfiguration,
   buildServerInfoResponse,
   getOAuthUrls,
+  resolveOAuthTier,
+  OAUTH_TIER_PARAM,
 } from '../../../src/mcp/http/oauth-metadata.js'
 import type { OAuthConfig } from '../../../src/mcp/types/http.types.js'
 
@@ -367,6 +369,69 @@ describe('OAuth Metadata Builders', () => {
       const urls = getOAuthUrls('staging_sandbox', customUrls)
 
       expect(urls).toEqual(customUrls)
+    })
+  })
+
+  // nvm-monorepo#3430 / payments#447: the authorize URL this server advertises must name the API
+  // tier, because one Nevermined web app serves both tiers' consent screens and boots on Live by
+  // default — a bare URL sent a sandbox server's users to the LIVE consent screen ("Connector not
+  // authorized"). Same param name + values as the API's own RFC 8414 document (`network`, #1787).
+  describe('authorization_endpoint carries the API tier (#447)', () => {
+    test.each([
+      ['sandbox', 'https://nevermined.app/oauth/authorize?network=sandbox'],
+      ['staging_sandbox', 'https://nevermined.dev/oauth/authorize?network=sandbox'],
+      ['live', 'https://nevermined.app/oauth/authorize?network=live'],
+      ['staging_live', 'https://nevermined.dev/oauth/authorize?network=live'],
+    ] as const)('%s → %s', (environment, expected) => {
+      expect(getOAuthUrls(environment).authorizationUri).toBe(expected)
+      // Both discovery documents publish the same value.
+      const config: OAuthConfig = { ...baseConfig, environment }
+      expect(buildAuthorizationServerMetadata(config).authorization_endpoint).toBe(expected)
+      expect(buildOidcConfiguration(config).authorization_endpoint).toBe(expected)
+      expect(buildServerInfoResponse(config).oauth.authorization_endpoint).toBe(expected)
+    })
+
+    test('the param is `network` and the URL has exactly one query string', () => {
+      expect(OAUTH_TIER_PARAM).toBe('network')
+      const url = new URL(getOAuthUrls('sandbox').authorizationUri)
+      expect(url.pathname).toBe('/oauth/authorize')
+      expect([...url.searchParams.entries()]).toEqual([['network', 'sandbox']])
+      expect(getOAuthUrls('sandbox').authorizationUri.split('?')).toHaveLength(2)
+    })
+
+    test('the tier is NOT stamped on the token / jwks / userinfo URLs', () => {
+      const urls = getOAuthUrls('sandbox')
+      for (const u of [urls.tokenUri, urls.jwksUri, urls.userinfoUri, urls.issuer]) {
+        expect(u).not.toContain('network=')
+      }
+    })
+
+    test('an explicit authorizationUri override is passed through untouched', () => {
+      const urls = getOAuthUrls('sandbox', {
+        authorizationUri: 'https://custom-issuer.com/oauth/authorize',
+      })
+      expect(urls.authorizationUri).toBe('https://custom-issuer.com/oauth/authorize')
+    })
+
+    test('resolveOAuthTier: named environments map directly; custom derives from the backend host, else omits', () => {
+      expect(resolveOAuthTier('sandbox', 'ignored')).toBe('sandbox')
+      expect(resolveOAuthTier('staging_sandbox', 'ignored')).toBe('sandbox')
+      expect(resolveOAuthTier('live', 'ignored')).toBe('live')
+      expect(resolveOAuthTier('staging_live', 'ignored')).toBe('live')
+      expect(resolveOAuthTier('custom', 'https://api.sandbox.nevermined.app/')).toBe('sandbox')
+      expect(resolveOAuthTier('custom', 'https://api.live.nevermined.dev')).toBe('live')
+      // Unclassifiable: a local stack, or a malformed URL — no guessed tier.
+      expect(resolveOAuthTier('custom', 'http://localhost:3001')).toBeUndefined()
+      expect(resolveOAuthTier('custom', 'not a url')).toBeUndefined()
+    })
+
+    test('custom against a local backend advertises the bare URL (no guessed tier)', () => {
+      // `Environments.custom` reads NVM_BACKEND_URL at module load; the default is localhost.
+      const urls = getOAuthUrls('custom')
+      if (!process.env.NVM_BACKEND_URL) {
+        expect(urls.authorizationUri).toBe('http://localhost:4200/oauth/authorize')
+      }
+      expect(urls.authorizationUri).toContain('/oauth/authorize')
     })
   })
 })
