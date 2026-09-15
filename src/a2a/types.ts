@@ -138,6 +138,29 @@ export interface PaymentMetadata {
   agentId?: string
   /** Configuration for credit redemption behavior */
   redemptionConfig?: PaymentRedemptionConfig
+  /**
+   * The settle's transaction reference, written by the SDK after settlement.
+   * A chain tx hash on the crypto rails; the PSP transaction id on fiat (a
+   * Stripe PaymentIntent `pi_...`), so do not assume it is a hash.
+   *
+   * ABSENT when the settle did not succeed. The wire's `transaction` is an
+   * empty string there, and publishing that put a blank id on a completed task
+   * — so the key is omitted instead, and its PRESENCE means a settlement really
+   * happened. Same rule as `creditsCharged` below.
+   */
+  txHash?: string
+  /**
+   * Credits the settle ACTUALLY REDEEMED, written by the SDK after settlement —
+   * not the credits the request asked to burn, which stay on `creditsUsed`.
+   *
+   * ⚠️ Its ABSENCE is meaningful and is part of the contract. The key is omitted
+   * when there is no measured redemption to report: a pay-as-you-go plan (which
+   * holds no credit balance, so its `creditsRedeemed` is '0' even on a charge
+   * that succeeded), a settle that failed, or a backend that reported no usable
+   * figure. `0` means the opposite — a settle that completed and redeemed
+   * nothing. Read it with `in`, never truthiness. See `resolveCreditsCharged`.
+   */
+  creditsCharged?: number
 }
 
 /**
