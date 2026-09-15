@@ -43,6 +43,9 @@
 // OAuth metadata generators (pure functions)
 export {
   getOAuthUrls,
+  resolveOAuthTier,
+  OAUTH_TIER_PARAM,
+  type OAuthTier,
   buildProtectedResourceMetadata,
   buildMcpProtectedResourceMetadata,
   buildAuthorizationServerMetadata,

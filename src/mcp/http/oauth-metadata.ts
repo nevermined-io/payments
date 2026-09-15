@@ -14,22 +14,88 @@ import type {
 } from '../types/http.types.js'
 
 /**
+ * The query parameter that tells the Nevermined web app WHICH API tier an OAuth ceremony belongs
+ * to, and its two values. Each tier (sandbox / live) is its own authorization server, but ONE web
+ * app serves the consent screens for both and boots on whatever tier the user's browser last chose
+ * — Live by default. A bare `https://nevermined.app/oauth/authorize` therefore sends a sandbox MCP
+ * server's users to the LIVE consent screen, where the connector is not registered ("Connector not
+ * authorized"). The tier is stated on the URL instead; RFC 6749 §3.1 obliges clients to retain the
+ * query component when they add their own parameters. Same name and values as the Nevermined API's
+ * own RFC 8414 document and the embed widget (nvm-monorepo#3430 / #1787).
+ */
+export const OAUTH_TIER_PARAM = 'network'
+export type OAuthTier = 'sandbox' | 'live'
+
+/**
+ * The API tier an environment belongs to. The four named environments map directly; `custom` is
+ * derived from its backend host (`api.sandbox.` / `api.live.`), and when that cannot be classified
+ * the tier is omitted — a local stack behind `localhost` gets the pre-#3430 bare URL rather than a
+ * guessed tier that would send the human to the wrong backend.
+ */
+export function resolveOAuthTier(
+  environment: EnvironmentName,
+  backendUrl: string,
+): OAuthTier | undefined {
+  switch (environment) {
+    case 'sandbox':
+    case 'staging_sandbox':
+      return 'sandbox'
+    case 'live':
+    case 'staging_live':
+      return 'live'
+    default: {
+      let host: string
+      try {
+        host = new URL(backendUrl).hostname
+      } catch {
+        return undefined
+      }
+      if (host.startsWith('api.sandbox.')) return 'sandbox'
+      if (host.startsWith('api.live.')) return 'live'
+      return undefined
+    }
+  }
+}
+
+/**
+ * Append `?network=<tier>` to the authorize URL through the URL API, so anything a client later
+ * appends goes onto an existing query string with `&` rather than a second `?`. A frontend that is
+ * not an absolute URL (a hand-set `NVM_FRONTEND_URL`) falls back to plain concatenation, which is
+ * what the tier-less URL always was.
+ */
+function withTierParam(authorizeUrl: string, tier: OAuthTier | undefined): string {
+  if (!tier) return authorizeUrl
+  try {
+    const url = new URL(authorizeUrl)
+    url.searchParams.set(OAUTH_TIER_PARAM, tier)
+    return url.toString()
+  } catch {
+    return `${authorizeUrl}${authorizeUrl.includes('?') ? '&' : '?'}${OAUTH_TIER_PARAM}=${tier}`
+  }
+}
+
+/**
  * Build OAuth URLs from frontend and backend URLs.
- * - issuer and authorizationUri use the frontend (user-facing)
+ * - issuer and authorizationUri use the frontend (user-facing); authorizationUri carries the tier
  * - tokenUri, jwksUri, userinfoUri use the backend (API)
  *
  * @param frontendUrl - The frontend URL (e.g., https://nevermined.app)
  * @param backendUrl - The backend URL (e.g., https://api.sandbox.nevermined.app)
+ * @param tier - The API tier to stamp on the authorize URL (see {@link resolveOAuthTier})
  * @returns OAuth URLs configuration
  */
-function buildOAuthUrls(frontendUrl: string, backendUrl: string): OAuthUrls {
+function buildOAuthUrls(
+  frontendUrl: string,
+  backendUrl: string,
+  tier: OAuthTier | undefined,
+): OAuthUrls {
   // Remove trailing slashes
   const frontend = frontendUrl.replace(/\/$/, '')
   const backend = backendUrl.replace(/\/$/, '')
 
   return {
     issuer: frontend,
-    authorizationUri: `${frontend}/oauth/authorize`,
+    authorizationUri: withTierParam(`${frontend}/oauth/authorize`, tier),
     tokenUri: `${backend}/oauth/token`,
     jwksUri: `${backend}/.well-known/jwks.json`,
     userinfoUri: `${backend}/oauth/userinfo`,
@@ -44,8 +110,14 @@ function buildOAuthUrls(frontendUrl: string, backendUrl: string): OAuthUrls {
  * @returns OAuth URLs configuration
  */
 function getOAuthUrlsForEnvironment(environment: EnvironmentName): OAuthUrls {
-  const envConfig = Environments[environment] || Environments.sandbox
-  return buildOAuthUrls(envConfig.frontend, envConfig.backend)
+  const known = environment in Environments
+  const effective: EnvironmentName = known ? environment : 'sandbox'
+  const envConfig = Environments[effective]
+  return buildOAuthUrls(
+    envConfig.frontend,
+    envConfig.backend,
+    resolveOAuthTier(effective, envConfig.backend),
+  )
 }
 
 /**
