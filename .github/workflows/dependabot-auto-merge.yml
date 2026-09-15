@@ -52,19 +52,116 @@ jobs:
       # already did — and `required_approving_review_count` stays 1, so this
       # step's approval is what satisfies it. If bumps ever stall at
       # REVIEW_REQUIRED again, read that setting first.
+      # The policy is read from the BASE branch, never from the PR's own head:
+      # a Dependabot branch is untrusted content, and reading a manifest it
+      # carries to decide whether to approve it would let the PR answer its own
+      # question. `base.sha` pins this to what is already on main, and no
+      # credentials are persisted since nothing here pushes.
+      - name: Checkout the base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Patch and minor are approved as before. A major is approved only when
+      # all three of these hold:
+      #
+      # 1. It updates the ROOT manifest. Branch protection requires exactly
+      #    three contexts — `E2E`, `Lint & Build`, `Unit & Integration` — and
+      #    all three run against the root package. `CLI Sync Check` and
+      #    `OpenClaw Plugin Check` are NOT required, so a major in /cli or
+      #    /openclaw could auto-merge on root-only green, with the suites that
+      #    would actually exercise it never gating anything. Until those two are
+      #    required contexts, a major outside the root gets a human.
+      # 2. Every package it bumps is declared *only* under `devDependencies` —
+      #    `dependencies`, `peerDependencies` and `optionalDependencies` all
+      #    count as runtime, because a peer or optional major changes what a
+      #    consumer resolves just as surely as a direct one does.
+      # 3. `update-type` is explicitly `version-update:semver-major`. Anything
+      #    else — an empty string, a value this action has not shipped yet — is
+      #    not a category to approve on: unknown means a human.
+      #
+      # The names are read off the base branch's manifests rather than
+      # `dependency-type`, because fetch-metadata does not document what that
+      # output reports when a PR bumps several packages at once, and a grouped
+      # PR is exactly where a runtime package could ride along with dev ones.
+      - name: Decide whether this PR may be approved
+        id: policy
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          DIRECTORY: ${{ steps.metadata.outputs.directory }}
+        run: |
+          set -euo pipefail
+
+          hold() {
+            echo "reason=$1" >> "$GITHUB_OUTPUT"
+            echo "approve=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          case "$UPDATE_TYPE" in
+            version-update:semver-patch|version-update:semver-minor)
+              echo "reason=patch or minor" >> "$GITHUB_OUTPUT"
+              echo "approve=true" >> "$GITHUB_OUTPUT"
+              exit 0;;
+            version-update:semver-major)
+              ;;
+            *)
+              hold "update-type '${UPDATE_TYPE:-<empty>}' is not one this policy recognises";;
+          esac
+
+          case "${DIRECTORY:-/}" in
+            /|"") ;;
+            *) hold "major in ${DIRECTORY} — its suite is not a required check, so a human decides";;
+          esac
+
+          [ -z "$NAMES" ] && hold "major, and fetch-metadata named no dependency"
+
+          # Runtime means any of dependencies / peerDependencies /
+          # optionalDependencies, in any manifest. Absent everywhere counts as
+          # runtime too: not declared where this workflow can see it, and the
+          # safe reading of "unknown" is "not dev".
+          runtime=""
+          IFS=','
+          for name in $NAMES; do
+            name="${name#"${name%%[![:space:]]*}"}"
+            [ -z "$name" ] && continue
+            seen=0
+            for manifest in package.json cli/package.json openclaw/package.json; do
+              [ -f "$manifest" ] || continue
+              for block in dependencies peerDependencies optionalDependencies; do
+                if jq -e --arg n "$name" --arg b "$block" '.[$b] // {} | has($n)' "$manifest" >/dev/null; then
+                  runtime="$runtime $name($manifest:$block)"
+                  seen=1
+                fi
+              done
+              if jq -e --arg n "$name" '.devDependencies // {} | has($n)' "$manifest" >/dev/null; then
+                seen=1
+              fi
+            done
+            [ "$seen" = "0" ] && runtime="$runtime $name(undeclared)"
+          done
+          unset IFS
+
+          [ -n "$runtime" ] && hold "major touching runtime or undeclared packages:$runtime"
+
+          echo "reason=major in the root, every package dev-only" >> "$GITHUB_OUTPUT"
+          echo "approve=true" >> "$GITHUB_OUTPUT"
+
+      - name: Report the decision
+        run: echo "approve=${{ steps.policy.outputs.approve }} (${{ steps.policy.outputs.reason }})"
+
       - name: Approve PR
-        if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: steps.policy.outputs.approve == 'true'
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
 
       - name: Enable auto-merge
-        if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: steps.policy.outputs.approve == 'true'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
