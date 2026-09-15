@@ -31,6 +31,8 @@ When you start an MCP server, the library automatically exposes OAuth 2.1 discov
 
 These endpoints are generated automatically—no manual configuration required.
 
+The `authorization_endpoint` they advertise names the API tier your server runs against — `https://nevermined.app/oauth/authorize?network=sandbox` for `sandbox`, `?network=live` for `live` — because one Nevermined web app serves the consent screens for both tiers and boots on whatever tier the user's browser last chose. Clients keep that query string when they add their own parameters (RFC 6749 §3.1); if you configure a client by hand, copy the endpoint from your server's discovery document, query string included.
+
 ## Configure MCP
 
 Initialize the MCP integration with your plan details:
