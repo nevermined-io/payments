@@ -45,7 +45,7 @@ $ npm list -g @nevermined-io/cli
 
 ### 1. Version Command
 
-**Command**: `nvm --version`
+**Command**: `nevermined --version`
 
 **Output**:
 ```
@@ -59,7 +59,7 @@ $ npm list -g @nevermined-io/cli
 
 ### 2. Main Help Command
 
-**Command**: `nvm --help`
+**Command**: `nevermined --help`
 
 **Output**:
 ```
@@ -69,7 +69,7 @@ VERSION
   @nevermined-io/cli/1.0.3-rc2 linux-x64 node-v24.10.0
 
 USAGE
-  $ nvm [COMMAND]
+  $ nevermined [COMMAND]
 
 TOPICS
   agents        Manage AI agents
@@ -81,7 +81,7 @@ TOPICS
   x402token     Create a permission and get an X402 access token...
 
 COMMANDS
-  help     Display help for nvm.
+  help     Display help for nevermined.
   plugins  List installed plugins.
 ```
 
@@ -94,14 +94,14 @@ COMMANDS
 
 #### 3.1 Config Help
 
-**Command**: `nvm config --help`
+**Command**: `nevermined config --help`
 
 **Output**:
 ```
 Manage CLI configuration
 
 USAGE
-  $ nvm config COMMAND
+  $ nevermined config COMMAND
 
 COMMANDS
   config init  Initialize CLI configuration
@@ -114,7 +114,7 @@ COMMANDS
 
 #### 3.2 Config Show
 
-**Command**: `nvm config show`
+**Command**: `nevermined config show`
 
 **Output**:
 ```
@@ -139,14 +139,14 @@ COMMANDS
 
 #### 4.1 Plans Help
 
-**Command**: `nvm plans --help`
+**Command**: `nevermined plans --help`
 
 **Output**:
 ```
 Manage payment plans
 
 USAGE
-  $ nvm plans COMMAND
+  $ nevermined plans COMMAND
 
 COMMANDS
   plans get-agents-associated-to-a-plan
@@ -168,14 +168,14 @@ COMMANDS
 
 #### 4.2 Get Plan Command Help
 
-**Command**: `nvm plans get-plan --help`
+**Command**: `nevermined plans get-plan --help`
 
 **Output**:
 ```
 Gets the information about a Payment Plan by its identifier.
 
 USAGE
-  $ nvm plans get-plan PLAN [-p <value>] [-f table|json|quiet] [-v]
+  $ nevermined plans get-plan PLAN [-p <value>] [-f table|json|quiet] [-v]
 
 ARGUMENTS
   PLAN  plan identifier
@@ -190,7 +190,7 @@ DESCRIPTION
   Gets the information about a Payment Plan by its identifier.
 
 EXAMPLES
-  $ nvm plans get-plan <planId>
+  $ nevermined plans get-plan <planId>
 ```
 
 **Status**: ✅ Working correctly
@@ -198,7 +198,7 @@ EXAMPLES
 
 #### 4.3 Error Handling - Missing Arguments
 
-**Command**: `nvm plans get-plan`
+**Command**: `nevermined plans get-plan`
 
 **Output**:
 ```
@@ -207,7 +207,7 @@ EXAMPLES
  ›   See more help with --help
 
 USAGE
-  $ nvm plans get-plan PLAN [-p <value>] [-f table|json|quiet] [-v]
+  $ nevermined plans get-plan PLAN [-p <value>] [-f table|json|quiet] [-v]
 ```
 
 **Status**: ✅ Error handling working correctly
@@ -217,14 +217,14 @@ USAGE
 
 ### 5. Agents Commands
 
-**Command**: `nvm agents --help`
+**Command**: `nevermined agents --help`
 
 **Output**:
 ```
 Manage AI agents
 
 USAGE
-  $ nvm agents COMMAND
+  $ nevermined agents COMMAND
 
 COMMANDS
   agents add-plan-to-agent
@@ -256,7 +256,7 @@ COMMANDS
 
 ### 6. X402 Token Commands
 
-**Command**: `nvm x402token --help`
+**Command**: `nevermined x402token --help`
 
 **Output**:
 ```
@@ -266,7 +266,7 @@ The token contains cryptographically signed session keys that delegate specific
 permissions (order, burn) to the agent.
 
 USAGE
-  $ nvm x402token COMMAND
+  $ nevermined x402token COMMAND
 
 COMMANDS
   x402token get-x402-access-token
@@ -280,7 +280,7 @@ COMMANDS
 
 ### 7. Facilitator Commands
 
-**Command**: `nvm facilitator --help`
+**Command**: `nevermined facilitator --help`
 
 **Output**:
 ```
@@ -289,7 +289,7 @@ the actual credit consumption, burning the specified number of credits from
 the subscriber's balance...
 
 USAGE
-  $ nvm facilitator COMMAND
+  $ nevermined facilitator COMMAND
 
 COMMANDS
   facilitator settle-permissions
@@ -306,14 +306,14 @@ COMMANDS
 
 ### 8. Organizations Commands
 
-**Command**: `nvm organizations --help`
+**Command**: `nevermined organizations --help`
 
 **Output**:
 ```
 Manage organizations
 
 USAGE
-  $ nvm organizations COMMAND
+  $ nevermined organizations COMMAND
 
 COMMANDS
   organizations connect-stripe-account  Connect user with Stripe
@@ -341,7 +341,7 @@ All commands support the `--format` flag with three options:
 
 Commands support the `--profile` flag to use specific configuration profiles.
 
-**Example**: `nvm --profile production plans get-plans`
+**Example**: `nevermined --profile production plans get-plans`
 
 **Status**: ✅ Flag working correctly
 
@@ -418,11 +418,11 @@ Commands support the `--verbose` or `-v` flag for detailed output.
 
 **Fix Applied**:
 ```diff
-- nvm facilitator verify-permissions --verify-permissions-params verify.json
-+ nvm facilitator verify-permissions --params verify.json
+- nevermined facilitator verify-permissions --verify-permissions-params verify.json
++ nevermined facilitator verify-permissions --params verify.json
 
-- nvm facilitator settle-permissions --settle-permissions-params settle.json
-+ nvm facilitator settle-permissions --params settle.json
+- nevermined facilitator settle-permissions --settle-permissions-params settle.json
++ nevermined facilitator settle-permissions --params settle.json
 ```
 
 **Status**: ✅ Fixed in both documentation files

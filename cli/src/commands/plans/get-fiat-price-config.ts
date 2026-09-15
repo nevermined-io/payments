@@ -8,7 +8,7 @@ export default class GetFiatPriceConfig extends BaseCommand {
   static override description = "Price helpers"
 
   static override examples = [
-    '$ nvm plans get-fiat-price-config'
+    '$ nevermined plans get-fiat-price-config'
   ]
 
   static override flags = {

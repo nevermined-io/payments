@@ -8,7 +8,7 @@ export default class GetAgentPlans extends BaseCommand {
   static override description = "Gets the list of plans that can be ordered to get access to an agent."
 
   static override examples = [
-    '$ nvm agents get-agent-plans <agentId>'
+    '$ nevermined agents get-agent-plans <agentId>'
   ]
 
   static override flags = {

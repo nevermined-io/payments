@@ -4,6 +4,10 @@
 
 import { buildMcpIntegration } from '../../src/mcp/index.js'
 import type { Payments } from '../../src/payments.js'
+import type {
+  SettlePermissionsResult,
+  VerifyPermissionsResult,
+} from '../../src/x402/facilitator-api.js'
 import * as utils from '../../src/utils.js'
 
 // Mock decodeAccessToken to provide x402-compliant token structure
@@ -33,20 +37,32 @@ class PaymentsMock {
   public agents: any
   public facilitator: any
 
-  constructor(settleResult?: any) {
-    const settle_result = settleResult || { success: true }
+  constructor(settleResult?: SettlePermissionsResult) {
+    // An ordinary successful crypto settle. `transaction` and `network` are
+    // required on the model, so the previous `{ success: true }` was a response
+    // the facilitator cannot produce — but an EMPTY `transaction` would not do
+    // either: the model documents it as the failure marker, so pairing it with
+    // `success: true` would teach every future fixture a contradiction.
+    // `creditsRedeemed` is deliberately absent, so tests inheriting this default
+    // still exercise the paywall's fallback to the requested credit amount.
+    const settle_result: SettlePermissionsResult = settleResult || {
+      success: true,
+      transaction: '0xdefaultsettletx',
+      network: 'eip155:84532',
+    }
 
     class Facilitator {
       private parent: PaymentsMock
-      private settle_result: any
+      private settle_result: SettlePermissionsResult
 
-      constructor(parent: PaymentsMock, settle_result: any) {
+      constructor(parent: PaymentsMock, settle_result: SettlePermissionsResult) {
         this.parent = parent
         this.settle_result = settle_result
       }
 
-      async verifyPermissions(input: any) {
-        const planId = typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
+      async verifyPermissions(input: any): Promise<VerifyPermissionsResult> {
+        const planId =
+          typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
         const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
         const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
@@ -60,8 +76,9 @@ class PaymentsMock {
         return { isValid: true }
       }
 
-      async settlePermissions(input: any) {
-        const planId = typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
+      async settlePermissions(input: any): Promise<SettlePermissionsResult> {
+        const planId =
+          typeof input === 'object' ? input.paymentRequired?.accepts?.[0]?.planId : input
         const maxAmount = typeof input === 'object' ? input.maxAmount : arguments[1]
         const x402AccessToken = typeof input === 'object' ? input.x402AccessToken : arguments[2]
         const subscriberAddress = typeof input === 'object' ? input.subscriberAddress : arguments[3]
@@ -97,7 +114,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -126,10 +143,20 @@ describe('MCP Integration', () => {
     })
 
     test('should add metadata to result after successful redemption', async () => {
-      const mockInstance = new PaymentsMock()
+      // Explicit rather than the constructor default, because this test turns on
+      // what `transaction` holds: the paywall gates `txHash` on it being truthy,
+      // so an empty one — what the backend sends when the settle had no on-chain
+      // transaction, as the "transaction is empty" test below also models — must
+      // produce no `txHash` key at all. Inheriting a default would let a change
+      // to that default silently change which invariant this proves.
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '',
+        network: 'eip155:84532',
+      })
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -149,12 +176,64 @@ describe('MCP Integration', () => {
       expect(out._meta).not.toBeNull()
       expect(typeof out._meta).toBe('object')
 
-      // Verify _meta contains expected fields
-      expect(out._meta.success).toBe(true)
-      expect(out._meta.creditsRedeemed).toBe('3')
+      // Spec settlement receipt is present under the x402 key
+      expect(out._meta['x402/payment-response']).toBeDefined()
+      expect(out._meta['x402/payment-response'].success).toBe(true)
+      // Nevermined observability is namespaced
+      expect(out._meta['nevermined/credits'].success).toBe(true)
+      // This settle double reports NO `creditsRedeemed` (it is bare
+      // `{ success: true }`), and the tool asked to burn 3n. The key is
+      // therefore ABSENT.
+      //
+      // It used to assert `'3'` — which is the credits the request ASKED to
+      // burn, published under the name of the figure the settle REPORTED. The
+      // assertion was pinning the `?? credits.toString()` substitution this
+      // change removes, so it read as a safety property while asserting the
+      // defect. `toBe(undefined)` would not be enough here: the point is that
+      // the key is not emitted at all.
+      expect(out._meta['nevermined/credits']).not.toHaveProperty('creditsRedeemed')
       // txHash should be undefined since our mock doesn't return it
-      expect(out._meta.txHash).toBeUndefined()
+      expect(out._meta['nevermined/credits'].txHash).toBeUndefined()
     })
+
+    it('publishes creditsRedeemed when the settle actually reports one', async () => {
+      // The positive control for the test above. Without it, deleting the
+      // creditsRedeemed emission entirely would pass — "the key is absent" is
+      // satisfied just as well by never emitting it at all.
+      //
+      // Note the figure the settle reports (7) deliberately differs from the
+      // credits the tool asks to burn (3n), so this cannot pass by reading the
+      // wrong one.
+      // Complete shape: #437 (open) types this double as SettlePermissionsResult,
+      // where `transaction` and `network` are REQUIRED — so an incomplete fixture
+      // stops compiling once its `typecheck:tests` gate lands. Inert today.
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '0xabc',
+        network: 'eip155:84532',
+        creditsRedeemed: '7',
+      })
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+
+      const base = async (_args: any, _extra?: any) => ({
+        content: [{ type: 'text', text: 'ok' }],
+      })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 3n,
+        planId: 'plan123',
+      })
+      const out = await wrapped(
+        {},
+        { requestInfo: { headers: { authorization: 'Bearer token' } } },
+      )
+
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('7')
+    })
+
 
     test('should add metadata with x402 receipt info including txHash', async () => {
       // x402 SettlePermissionsResult with transaction hash
@@ -163,11 +242,11 @@ describe('MCP Integration', () => {
         transaction: '0x1234567890abcdef',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -182,13 +261,90 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify _meta structure
+      // Verify _meta structure (spec receipt + namespaced observability)
       expect(out._meta).toBeDefined()
-      expect(out._meta.txHash).toBe('0x1234567890abcdef')
-      expect(out._meta.creditsRedeemed).toBe('5')
-      expect(out._meta.planId).toBe('plan123')
-      expect(out._meta.subscriberAddress).toBe('0x123subscriber')
-      expect(out._meta.success).toBe(true)
+      expect(out._meta['x402/payment-response'].transaction).toBe('0x1234567890abcdef')
+      expect(out._meta['nevermined/credits'].txHash).toBe('0x1234567890abcdef')
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('5')
+      expect(out._meta['nevermined/credits'].planId).toBe('plan123')
+      expect(out._meta['nevermined/credits'].subscriberAddress).toBe('0x123subscriber')
+      expect(out._meta['nevermined/credits'].success).toBe(true)
+    })
+
+    test('surfaces billingModel + orderTx on a pay-as-you-go receipt, where creditsRedeemed is "0"', async () => {
+      // A REAL pay-as-you-go settle: the buyer was charged, but the plan holds no
+      // credit balance, so both credit fields read '0'. Without `billingModel` a
+      // consumer of this key cannot tell this from a credits settle that burned
+      // nothing, and retrying a card charge that already succeeded is exactly the
+      // thing to avoid. See nevermined-io/nvm-monorepo#2999.
+      const settleResult = {
+        success: true,
+        transaction: 'pi_3U6tgrBYvSRKcV421ehH4bnX',
+        network: 'stripe',
+        billingModel: 'pay-as-you-go',
+        creditsRedeemed: '0',
+        remainingBalance: '0',
+        orderTx: 'pi_3U6tgrBYvSRKcV421ehH4bnX',
+      } satisfies SettlePermissionsResult
+      const mockInstance = new PaymentsMock(settleResult)
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
+
+      const base = async (_args: any, _extra?: any) => ({
+        content: [{ type: 'text', text: 'ok' }],
+      })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
+      const out = await wrapped({}, extra)
+
+      const nvm = out._meta['nevermined/credits']
+      // The discriminator, and the reference that actually proves the charge.
+      expect(nvm.billingModel).toBe('pay-as-you-go')
+      expect(nvm.orderTx).toBe('pi_3U6tgrBYvSRKcV421ehH4bnX')
+      // The trap this guards: a successful charge reporting '0' credits.
+      expect(nvm.success).toBe(true)
+      expect(nvm.creditsRedeemed).toBe('0')
+      expect(nvm.remainingBalance).toBe('0')
+    })
+
+    test('omits billingModel and orderTx entirely when the settle carries neither', async () => {
+      // Omitted rather than emitted empty, so a consumer can distinguish
+      // "absent" from "present and empty".
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '0xabc',
+        network: 'eip155:84532',
+        creditsRedeemed: '5',
+      })
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
+
+      const base = async (_args: any, _extra?: any) => ({
+        content: [{ type: 'text', text: 'ok' }],
+      })
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'test',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
+      const out = await wrapped({}, extra)
+
+      const nvm = out._meta['nevermined/credits']
+      expect('billingModel' in nvm).toBe(false)
+      expect('orderTx' in nvm).toBe(false)
+      // The pre-existing keys are untouched by the addition.
+      expect(nvm.creditsRedeemed).toBe('5')
+      expect(nvm.txHash).toBe('0xabc')
+      expect(nvm.success).toBe(true)
     })
 
     test('should not include txHash when transaction is empty', async () => {
@@ -198,11 +354,11 @@ describe('MCP Integration', () => {
         transaction: '',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -219,10 +375,10 @@ describe('MCP Integration', () => {
 
       // txHash should NOT be present when transaction is empty
       expect(out._meta).toBeDefined()
-      expect(out._meta.txHash).toBeUndefined()
-      expect(out._meta.creditsRedeemed).toBe('5')
-      expect(out._meta.planId).toBe('plan123')
-      expect(out._meta.success).toBe(true)
+      expect(out._meta['nevermined/credits'].txHash).toBeUndefined()
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('5')
+      expect(out._meta['nevermined/credits'].planId).toBe('plan123')
+      expect(out._meta['nevermined/credits'].success).toBe(true)
     })
 
     test('should use creditsRedeemed from x402 settle response', async () => {
@@ -233,11 +389,11 @@ describe('MCP Integration', () => {
         network: 'eip155:84532',
         creditsRedeemed: '10', // Backend may return different value than requested
         remainingBalance: '90',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -253,15 +409,23 @@ describe('MCP Integration', () => {
       const out = await wrapped({}, extra)
 
       // Should use creditsRedeemed from response, not the requested amount
-      expect(out._meta.creditsRedeemed).toBe('10')
+      expect(out._meta['nevermined/credits'].creditsRedeemed).toBe('10')
     })
 
-    test('should add metadata with success false and errorReason when redemption fails', async () => {
-      const redeemResult = { success: false, errorReason: 'Insufficient credits' }
+    test('should suppress tool content and return payment error when settlement fails', async () => {
+      // Post-execution settlement failure: under the x402 v2 MCP transport the
+      // tool content is suppressed and an in-band payment error is returned
+      // (default onRedeemError "ignore" no longer delivers paid content).
+      const redeemResult = {
+        success: false,
+        errorReason: 'Insufficient credits',
+        transaction: '',
+        network: 'eip155:84532',
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(redeemResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -276,35 +440,39 @@ describe('MCP Integration', () => {
       const extra = { requestInfo: { headers: { authorization: 'Bearer token' } } }
       const out = await wrapped({}, extra)
 
-      // Verify _meta is present with failure info
-      expect(out._meta).toBeDefined()
-      expect(out._meta.success).toBe(false)
-      expect(out._meta.creditsRedeemed).toBe('0')
-      expect(out._meta.errorReason).toBe('Insufficient credits')
-      expect(out._meta.planId).toBe('plan123')
+      // In-band payment error, not the tool result
+      expect(out.isError).toBe(true)
+      expect(out.structuredContent.x402Version).toBe(2)
+      expect(out.structuredContent.error).toBe('settlement failed')
+      expect(out.content[0].text).toContain('x402Version')
+      // The executed tool's content must NOT be delivered
+      expect(JSON.stringify(out)).not.toContain('"ok"')
     })
 
     test('should reject when authorization header missing', async () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent' })
 
       const base = async (_args: any, _extra?: any) => {
         return {}
       }
 
       const wrapped = mcp.withPaywall(base, { kind: 'tool', name: 'test', credits: 1n })
-      await expect(wrapped({}, { requestInfo: { headers: {} } })).rejects.toMatchObject({
-        code: -32003,
-      })
+      // For tools, missing auth is surfaced in band as a payment-required tool
+      // result (isError) rather than a thrown JSON-RPC error.
+      const out = await wrapped({}, { requestInfo: { headers: {} } })
+      expect(out.isError).toBe(true)
+      expect(out.structuredContent.x402Version).toBe(2)
+      expect(out.content[0].text).toContain('x402Version')
     })
 
     test('should burn dynamic credits from function', async () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { content: [{ type: 'text', text: 'ok' }] }
@@ -328,7 +496,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:x', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:x', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { res: true }
@@ -347,7 +515,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:x', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:x', serverName: 'srv' })
 
       const base = async (_args: any, _extra?: any) => {
         return { res: true }
@@ -369,7 +537,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'srv' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'srv' })
 
       const captured: any = {}
 
@@ -428,7 +596,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       const base = async (_args: any, _extra?: any) => {
         return { ok: true }
@@ -457,7 +625,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -505,11 +673,11 @@ describe('MCP Integration', () => {
         transaction: '0xstream123',
         network: 'eip155:84532',
         creditsRedeemed: '5',
-      }
+      } satisfies SettlePermissionsResult
       const mockInstance = new PaymentsMock(settleResult)
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -539,18 +707,146 @@ describe('MCP Integration', () => {
       // Last chunk should be _meta with x402 receipt info
       const lastChunk = collected[collected.length - 1]
       expect(lastChunk._meta).toBeDefined()
-      expect(lastChunk._meta.txHash).toBe('0xstream123')
-      expect(lastChunk._meta.creditsRedeemed).toBe('5')
-      expect(lastChunk._meta.planId).toBe('plan123')
-      expect(lastChunk._meta.subscriberAddress).toBe('0x123subscriber')
-      expect(lastChunk._meta.success).toBe(true)
+      expect(lastChunk._meta['x402/payment-response'].transaction).toBe('0xstream123')
+      expect(lastChunk._meta['nevermined/credits'].txHash).toBe('0xstream123')
+      expect(lastChunk._meta['nevermined/credits'].creditsRedeemed).toBe('5')
+      expect(lastChunk._meta['nevermined/credits'].planId).toBe('plan123')
+      expect(lastChunk._meta['nevermined/credits'].subscriberAddress).toBe('0x123subscriber')
+      expect(lastChunk._meta['nevermined/credits'].success).toBe(true)
+    })
+
+    test('surfaces billingModel + orderTx on a streaming pay-as-you-go receipt', async () => {
+      // Same guard as the non-streaming site — the two _meta builders are
+      // separate code, so a test on one proves nothing about the other.
+      const settleResult = {
+        success: true,
+        transaction: 'pi_3StreamPayg',
+        network: 'stripe',
+        billingModel: 'pay-as-you-go',
+        creditsRedeemed: '0',
+        remainingBalance: '0',
+        orderTx: 'pi_3StreamPayg',
+      } satisfies SettlePermissionsResult
+      const mockInstance = new PaymentsMock(settleResult)
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
+
+      async function* makeIterable(chunks: string[]) {
+        for (const c of chunks) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          yield c
+        }
+      }
+      const base = async (_args: any, _extra?: any) => makeIterable(['chunk1', 'chunk2'])
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const extra = { requestInfo: { headers: { authorization: 'Bearer tok' } } }
+      const iterable = await wrapped({}, extra)
+
+      const collected: any[] = []
+      for await (const chunk of iterable) {
+        collected.push(chunk)
+      }
+
+      const nvm = collected[collected.length - 1]._meta['nevermined/credits']
+      expect(nvm.billingModel).toBe('pay-as-you-go')
+      expect(nvm.orderTx).toBe('pi_3StreamPayg')
+      expect(nvm.success).toBe(true)
+      expect(nvm.creditsRedeemed).toBe('0')
+    })
+
+    /**
+     * #443 review — the streaming half of the no-substitution fix had ZERO
+     * regression coverage. Restoring `?? credits.toString()` at
+     * `wrapAsyncIterable` alone left the whole suite green (49 suites, 641
+     * tests), while the identical mutant at the non-streaming site was killed by
+     * one test. The two `_meta` builders are separate code; a test on one proves
+     * nothing about the other — which this file already says, two tests up.
+     *
+     * The settle reports NO figure and the tool asks to burn 5n, so the old
+     * fallback would have published '5' — a number the facilitator never sent.
+     */
+    test('streaming: a settle reporting no figure omits creditsRedeemed, never the requested burn', async () => {
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '0xstream',
+        network: 'eip155:84532',
+      })
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+      async function* makeIterable(chunks: string[]) {
+        for (const c of chunks) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          yield c
+        }
+      }
+      const base = async (_args: any, _extra?: any) => makeIterable(['a', 'b'])
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const iterable = await wrapped({}, {
+        requestInfo: { headers: { authorization: 'Bearer tok' } },
+      })
+      const collected: any[] = []
+      for await (const chunk of iterable) collected.push(chunk)
+
+      const nvm = collected[collected.length - 1]._meta['nevermined/credits']
+      expect(nvm).not.toHaveProperty('creditsRedeemed')
+    })
+
+    /**
+     * Positive control for the test above: without it, deleting the streaming
+     * emission entirely would satisfy "the key is absent". The figure differs
+     * from the credits asked for (5n) so it cannot pass by reading the wrong one.
+     */
+    test('streaming: a settle that DOES report a figure publishes it', async () => {
+      const mockInstance = new PaymentsMock({
+        success: true,
+        transaction: '0xstream',
+        network: 'eip155:84532',
+        creditsRedeemed: '9',
+      })
+      const pm = mockInstance as any as Payments
+      const mcp = buildMcpIntegration(pm)
+      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+
+      async function* makeIterable(chunks: string[]) {
+        for (const c of chunks) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          yield c
+        }
+      }
+      const base = async (_args: any, _extra?: any) => makeIterable(['a'])
+      const wrapped = mcp.withPaywall(base, {
+        kind: 'tool',
+        name: 'stream',
+        credits: 5n,
+        planId: 'plan123',
+      })
+      const iterable = await wrapped({}, {
+        requestInfo: { headers: { authorization: 'Bearer tok' } },
+      })
+      const collected: any[] = []
+      for await (const chunk of iterable) collected.push(chunk)
+
+      expect(collected[collected.length - 1]._meta['nevermined/credits'].creditsRedeemed).toBe('9')
     })
 
     test('should redeem when consumer stops stream early', async () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'mcp' })
 
       async function* makeIterable(chunks: string[]) {
         for (const c of chunks) {
@@ -607,7 +903,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const oldHandler = async (args: any, extra?: any) => {
         return {
@@ -641,7 +937,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       let capturedContext: any = null
 
@@ -670,7 +966,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       let capturedContext: any = null
 
@@ -713,7 +1009,7 @@ describe('MCP Integration', () => {
       const mockInstance = new PaymentsMock()
       const pm = mockInstance as any as Payments
       const mcp = buildMcpIntegration(pm)
-      mcp.configure({ agentId: 'did:nv:agent', serverName: 'test-mcp' })
+      mcp.configure({ planId: 'plan123', agentId: 'did:nv:agent', serverName: 'test-mcp' })
 
       const businessLogicHandler = async (args: any, extra?: any, context?: any) => {
         if (!context) {

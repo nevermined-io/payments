@@ -50,7 +50,7 @@ metadata:
 
 This plugin provides gateway tools for interacting with Nevermined AI agent payments. Supports both crypto (on-chain) and fiat (credit card) payment flows.
 
-> **Official source.** This skill is published from [`nevermined-io/payments`](https://github.com/nevermined-io/payments) (subdirectory `openclaw/`) by Nevermined AG, mirrored to ClawHub at [`clawhub.ai/nevermined/nevermined-payments`](https://clawhub.ai/nevermined/nevermined-payments) under the `@nevermined` org publisher. The npm package is [`@nevermined-io/openclaw-plugin`](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin) (Apache-2.0).
+> **Official source.** This skill is published from [`nevermined-io/payments`](https://github.com/nevermined-io/payments) (subdirectory `openclaw/`) by Nevermined AG, mirrored to ClawHub at [`clawhub.ai/nevermined-io/nevermined`](https://clawhub.ai/nevermined-io/nevermined) under the `nevermined-io` org publisher. The npm package is [`@nevermined-io/openclaw-plugin`](https://www.npmjs.com/package/@nevermined-io/openclaw-plugin) (Apache-2.0).
 >
 > **Never log payment tokens.** x402 access tokens (the `payment-signature` header) are bearer credentials. Redact them in any debug or telemetry output.
 
@@ -62,6 +62,12 @@ Authenticate with Nevermined via browser login. Opens a browser window to obtain
 
 ### `/nvm_logout`
 Log out from Nevermined and remove the stored API key.
+
+## API versioning
+
+Every Nevermined-backend call this plugin makes goes through the `@nevermined-io/payments` SDK, which **pins the backend API version** (the platform `MAJOR.MINOR`) via the `Nevermined-Version` header automatically — so OpenClaw-orchestrated agents keep getting a stable wire shape across platform releases without any per-call work. The pinned version is the one the bundled SDK release was built and tested against; it moves only when the plugin upgrades its SDK dependency.
+
+If an agent makes a **direct** REST call to the Nevermined API (outside these tools), send `Nevermined-Version: <MAJOR.MINOR>`, default it to the `current` from `GET /api/v1/meta/versions`, and never silently change a key's stored pin. See <https://nevermined.ai/docs/development-guide/api-versioning>.
 
 ## Subscriber Tools
 

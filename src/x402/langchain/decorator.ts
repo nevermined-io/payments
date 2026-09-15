@@ -14,7 +14,7 @@
  *
  * The `credits` option accepts two forms:
  *   - **Static number**: `credits: 1` — always charges 1 credit
- *   - **Function**: `credits: (ctx) => Math.max(1, ctx.result.length / 100)` — dynamic
+ *   - **Function**: `credits: (ctx) => Math.max(1, Math.floor(ctx.result.length / 100))` — dynamic
  *
  * When `credits` is a function, it receives `{ args, result }` after tool execution.
  *
@@ -48,7 +48,18 @@ import {
   buildPaymentRequired,
   type X402PaymentRequired,
   type VerifyPermissionsResult,
+  type SettlePermissionsResult,
 } from '../facilitator-api.js'
+import {
+  abbreviateToken,
+  activeRunTree,
+  addMetadata,
+  buildSettleMetadata,
+  buildVerifyMetadata,
+  redactMetadataKeys,
+  settlementSpan,
+  verifySpan,
+} from '../langsmith/spans.js'
 
 /**
  * Context passed to a dynamic credits function after tool execution.
@@ -74,7 +85,18 @@ export interface RequiresPaymentOptions {
   payments: Payments
   /** Single plan ID to accept */
   planId: string
-  /** Number of credits to charge, or a function for dynamic pricing (default: 1) */
+  /**
+   * Number of credits to charge, or a function for dynamic pricing (default: 1).
+   *
+   * This value is sent as `maxAmount` to the facilitator. The amount actually
+   * redeemed depends on the plan's server-side credit configuration:
+   *
+   * - **Fixed plans** (`plan.credits.minAmount === plan.credits.maxAmount`)
+   *   always burn `plan.credits.maxAmount` — this value is then effectively a
+   *   no-op (see nevermined-io/nvm-monorepo#1568).
+   * - **Range plans** clamp this value into
+   *   `[plan.credits.minAmount, plan.credits.maxAmount]`.
+   */
   credits?: number | CreditsCallable
   /** Optional agent identifier */
   agentId?: string
@@ -103,7 +125,17 @@ export class PaymentRequiredError extends Error {
  * Payment context stored in `config.configurable.payment_context` after verification.
  */
 export interface PaymentContext {
-  /** The x402 access token */
+  /**
+   * Abbreviated, non-functional reference to the x402 access token — the SAME
+   * redacted form surfaced as `nvm.payment_token` (`<first 16>…<last 4>`, or a
+   * `…(short)` marker for a too-short token). The **full token is deliberately
+   * not persisted here**: this object is written into
+   * `config.configurable.payment_context`, and tracing frameworks (e.g.
+   * LangChain) can capture `config.configurable` into span metadata, so storing
+   * the raw credential would let it ride into any traced run opened during or
+   * after the tool body. Settlement uses the token read from
+   * `config.configurable.payment_token`, never this field.
+   */
   token: string
   /** The payment required object */
   paymentRequired: X402PaymentRequired
@@ -115,6 +147,40 @@ export interface PaymentContext {
   agentRequestId?: string
   /** Agent request context for observability */
   agentRequest?: unknown
+}
+
+// Module-level holder for the most recent settlement receipt. LangGraph copies
+// `RunnableConfig.configurable` per node, so the in-place write to
+// `config.configurable.payment_settlement` is not visible to the buyer's outer
+// scope. A module-level slot is the simplest reliable signal. It is
+// intentionally single-tenant — if the same process runs multiple concurrent
+// settlements, the last writer wins. This race is not limited to multi-tenant
+// servers: a single `createPaidReactAgent` run can also hit it, because a ReAct
+// agent may execute several paid tools in parallel within one LLM turn via
+// `ToolNode`, and this single slot only retains the last writer. For
+// multi-tenant or parallel-tool use cases, surface the receipt via a callback
+// or via observability (see Sprint 1 of the LangChain epic).
+let lastSettlementReceipt: SettlePermissionsResult | undefined
+
+/**
+ * Return the most recent settlement receipt produced by {@link requiresPayment}.
+ *
+ * Use this after invoking a LangChain/LangGraph runnable whose tool is wrapped
+ * with {@link requiresPayment} to recover the settlement receipt
+ * (`creditsRedeemed`, `remainingBalance`, `transaction`, `network`, `payer`)
+ * without threading it back through the runnable config (which LangGraph copies
+ * per node, so the in-place write is invisible to the outer scope).
+ *
+ * Returns `undefined` if no settlement has happened yet in this process, or if
+ * the most recent invocation raised before reaching the settle phase.
+ *
+ * @remarks
+ * This accessor reads from a module-level slot. In multi-tenant processes (e.g.
+ * a server handling concurrent settlements), the value reflects whichever
+ * invocation settled most recently — there is no per-call isolation.
+ */
+export function lastSettlement(): SettlePermissionsResult | undefined {
+  return lastSettlementReceipt
 }
 
 /**
@@ -141,8 +207,18 @@ function storeInConfigurable(config: unknown, key: string, value: unknown): void
 
   const configurable = (config as Record<string, unknown>).configurable
   if (configurable == null || typeof configurable !== 'object') return
-
   ;(configurable as Record<string, unknown>)[key] = value
+}
+
+/**
+ * Remove a key from config.configurable if present (no-op otherwise).
+ */
+function removeFromConfigurable(config: unknown, key: string): void {
+  if (config == null || typeof config !== 'object') return
+
+  const configurable = (config as Record<string, unknown>).configurable
+  if (configurable == null || typeof configurable !== 'object') return
+  delete (configurable as Record<string, unknown>)[key]
 }
 
 /**
@@ -193,21 +269,91 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
   const { payments, planId, credits = 1, agentId, network } = options
 
   return async (args: TArgs, config?: unknown): Promise<TResult> => {
+    // Reset the module-level slot at the START of every invocation, before
+    // verify. Any failure that does not reach the settle-success write (a
+    // verify failure / PaymentRequiredError, or a swallowed settle failure)
+    // then leaves lastSettlement() returning `undefined` rather than a stale
+    // receipt from a previous invocation — matching the JSDoc contract on
+    // lastSettlement().
+    lastSettlementReceipt = undefined
+
     // Build payment required object
     const paymentRequired = buildPaymentRequired(planId, {
       endpoint: fn.name || 'tool',
       agentId,
       network,
     })
+    // The scheme/network the verify span advertises come from the resolved
+    // X402 scheme so the span metadata matches what the buyer paid against.
+    const accepted = paymentRequired.accepts[0]
+    const planIds = paymentRequired.accepts
+      .map((a) => a.planId)
+      .filter((p): p is string => Boolean(p))
+    const resolvedScheme = accepted?.scheme
+    const resolvedNetwork = network ?? accepted?.network
+
+    // LangChain auto-captures every key in config.configurable into the parent
+    // tool span's metadata, and child spans inherit it at construction time.
+    // Strip the full x402 access token from the parent BEFORE opening the verify
+    // span so neither the parent nor the child carries the raw credential — only
+    // the abbreviated nvm.payment_token remains for correlation.
+    const parentRunTree = await activeRunTree()
+    redactMetadataKeys(parentRunTree, 'payment_token')
+
+    const verifyStarted = Date.now()
+    // Open the verify span BEFORE the token-presence check so failed probes
+    // (no payment_token in config) still produce a clearly-named span with the
+    // static nvm.* attrs attached to both the span and the parent tool span.
+    const vspan = await verifySpan({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+    })
+    // Pre-verify metadata is best-effort and static-only.
+    const preVerifyMd = buildVerifyMetadata({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+    })
+    vspan.addMetadata(preVerifyMd)
+    addMetadata(parentRunTree, preVerifyMd)
 
     // Extract token from config.configurable.payment_token
     const token = extractPaymentToken(config)
     if (!token) {
+      await vspan.end(new Error('missing payment_token in config.configurable'))
       throw new PaymentRequiredError(
-        "Payment required: missing payment_token in config.configurable",
+        'Payment required: missing payment_token in config.configurable',
         paymentRequired,
       )
     }
+
+    // Drop the raw token from configurable now that we hold it in `token`.
+    // LangChain's `ensureConfig` re-promotes every configurable scalar into a
+    // runnable's `metadata` on EACH invocation, so any traced runnable the tool
+    // body spawns (an LLM call, a sub-chain) sharing this config would otherwise
+    // re-leak the full credential into its own span metadata — and a child run
+    // opened *during* `fn()` would capture it before the settle-side
+    // `redactMetadataKeys` below could run. Removing the key here is the
+    // proactive complement to that reactive redaction. This MUST run after
+    // extraction (deleting earlier would make `extractPaymentToken` return null)
+    // and before `fn()` — guaranteed, since `fn()` is called further down.
+    // Settlement uses the local `token`, never configurable, so removal is
+    // non-functional. On the `tool()`/LangGraph path LangChain hands the wrapper
+    // a per-invocation config copy, so this does not mutate a config the caller
+    // reuses across sibling tools.
+    removeFromConfigurable(config, 'payment_token')
+
+    // Abbreviate/redact the token ONCE here (mirrors Python's
+    // attach_metadata_safely pre-abbreviation) and pass the result into the
+    // metadata builders. abbreviateToken is idempotent, so the builders leave
+    // it unchanged — this means the short-token warning fires at most once per
+    // call (not once per verify AND once per settle), and the raw token never
+    // reaches the builders' frame locals (defense against exception enrichers
+    // that capture locals).
+    const abbreviatedToken = abbreviateToken(token)
 
     // Resolve pre-execution credits (static only; callable deferred to post-execution)
     const creditsToVerify = typeof credits === 'number' ? credits : 1
@@ -221,22 +367,48 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
         maxAmount: BigInt(creditsToVerify),
       })
     } catch (error) {
+      await vspan.end(error)
       throw new PaymentRequiredError(
         `Payment verification failed: ${error instanceof Error ? error.message : String(error)}`,
         paymentRequired,
       )
     }
 
+    // Augment span metadata with verification results + timing (both span and
+    // parent), then close the verify span. Best-effort: a metadata failure must
+    // not mask the PaymentRequiredError that may follow.
+    const verifyMd = buildVerifyMetadata({
+      planIds,
+      scheme: resolvedScheme,
+      network: resolvedNetwork,
+      agentId,
+      verification,
+      durationMs: Date.now() - verifyStarted,
+      token: abbreviatedToken,
+    })
+    vspan.addMetadata(verifyMd)
+    addMetadata(parentRunTree, verifyMd)
+
     if (!verification.isValid) {
+      await vspan.end(new Error(verification.invalidReason || 'verification failed'))
       throw new PaymentRequiredError(
         `Payment verification failed: ${verification.invalidReason || 'Insufficient credits or invalid token'}`,
         paymentRequired,
       )
     }
 
-    // Store payment context
+    await vspan.end()
+
+    // Store payment context. The `token` field carries the ABBREVIATED
+    // reference, never the raw credential: `payment_context` is written into
+    // `config.configurable`, which LangChain can capture into span metadata, so
+    // persisting the full token here would reopen the very leak the parent-tree
+    // `redactMetadataKeys('payment_token')` calls close — and a child run opened
+    // *during* the tool body would capture it before any post-hoc redaction
+    // could run. `abbreviatedToken` is always defined past the `!token` guard
+    // above; `?? ''` is a belt-and-suspenders that can never fall back to raw.
     const paymentContext: PaymentContext = {
-      token,
+      token: abbreviatedToken ?? '',
       paymentRequired,
       creditsToSettle: creditsToVerify,
       verified: true,
@@ -254,17 +426,52 @@ export function requiresPayment<TArgs extends Record<string, unknown>, TResult>(
         ? credits({ args: args as Record<string, unknown>, result })
         : credits
 
-    // Settle credits
+    // Settle credits, wrapped in an nvm:settlement span (mirrors Python's
+    // settlement_span around settle_permissions).
+    //
+    // Re-fetch the active run tree: `fn()` may have opened nested traced runs, so
+    // `activeRunTree()` can now return a different RunTree than the verify-side
+    // redaction at the top of this function scrubbed. We already removed
+    // `payment_token` from `config.configurable` before `fn()` ran, so newly
+    // opened child runs can no longer re-promote the raw credential — this
+    // re-redaction is now defense-in-depth, covering any RunTree whose metadata
+    // was populated before that removal took effect. Redact BEFORE opening the
+    // settlement span so the credential never rides into the settle child span or
+    // the (possibly new) parent tree.
+    const settleParentRunTree = await activeRunTree()
+    redactMetadataKeys(settleParentRunTree, 'payment_token')
+    const settleStarted = Date.now()
+    const sspan = await settlementSpan({ planIds, agentId })
     try {
       const settlement = await payments.facilitator.settlePermissions({
         paymentRequired,
         x402AccessToken: token,
-        maxAmount: BigInt(finalCredits),
+        // A dynamic `credits` callable can return a float (e.g. length/100).
+        // `BigInt(1.5)` throws RangeError, which the surrounding try/catch
+        // swallows — credits are never burned and the caller is never told.
+        // Floor to keep the settle on the money path.
+        maxAmount: BigInt(Math.floor(finalCredits)),
         agentRequestId: paymentContext.agentRequestId,
       })
       storeInConfigurable(config, 'payment_settlement', settlement)
+      // Also publish to the module-level slot so lastSettlement() can recover
+      // the receipt — LangGraph copies config.configurable per node, hiding the
+      // line above from the buyer's outer scope.
+      lastSettlementReceipt = settlement
+
+      const settleMd = buildSettleMetadata({
+        settlement,
+        planIds,
+        agentId,
+        durationMs: Date.now() - settleStarted,
+        token: abbreviatedToken,
+      })
+      sspan.addMetadata(settleMd)
+      addMetadata(settleParentRunTree, settleMd)
+      await sspan.end()
     } catch (settleError) {
       console.error('Payment settlement failed:', settleError)
+      await sspan.end(settleError)
       // Still return result even if settlement fails
     }
 
