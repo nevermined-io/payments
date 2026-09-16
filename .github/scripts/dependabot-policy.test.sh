@@ -25,7 +25,11 @@ cat > "$FIXTURES/package.json" <<'JSON'
 }
 JSON
 cat > "$FIXTURES/cli/package.json" <<'JSON'
-{ "dependencies": { "inquirer": "^9.0.0" }, "devDependencies": { "ts-morph": "^22.0.0" } }
+{
+  "dependencies": { "inquirer": "^9.0.0" },
+  "devDependencies": { "ts-morph": "^22.0.0" },
+  "optionalDependencies": { "fsevents": "^2.3.0" }
+}
 JSON
 cat > "$FIXTURES/openclaw/package.json" <<'JSON'
 { "devDependencies": { "jest": "^30.0.0" } }
@@ -72,12 +76,15 @@ check "@types/node major holds"       false "toolchain"          version-update:
 check "toolchain in a group holds"    false "toolchain"          version-update:semver-major "jest, typescript"  "/"
 check "cli major holds"               false "not a required"     version-update:semver-major "ts-morph"          "/cli"
 check "openclaw major holds"          false "not a required"     version-update:semver-major "jest"              "/openclaw"
-check "runtime major holds"           false "runtime"            version-update:semver-major "axios"             "/"
-check "peer major holds"              false "runtime"            version-update:semver-major "@langchain/core"   "/"
+check "runtime major holds"           false "root/dependencies"  version-update:semver-major "axios"             "/"
+check "peer major holds"              false "peerDependencies"   version-update:semver-major "@langchain/core"   "/"
+check "optional major holds"          false "optionalDependencies" version-update:semver-major "fsevents"        "/"
 check "undeclared major holds"        false "undeclared"         version-update:semver-major "nobody-declares-me" "/"
 check "empty update-type holds"       false "not one this policy" ""                         "jest"              "/"
 check "unknown update-type holds"     false "not one this policy" version-update:semver-weird "jest"             "/"
 check "major with no names holds"     false "named no dependency" version-update:semver-major ""                 "/"
+check "empty directory holds"         false "named no directory" version-update:semver-major "jest"              ""
+check "name with trailing space"      true  "every package dev"  version-update:semver-major "jest , @types/jest" "/"
 
 echo "dependabot-policy: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

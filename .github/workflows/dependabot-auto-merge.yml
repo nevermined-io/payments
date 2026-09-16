@@ -58,7 +58,7 @@ jobs:
       # question. `base.sha` pins this to what is already on main, and no
       # credentials are persisted since nothing here pushes.
       - name: Checkout the base branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 1
@@ -77,15 +77,23 @@ jobs:
       # 2. Every package it bumps is declared *only* under `devDependencies` —
       #    `dependencies`, `peerDependencies` and `optionalDependencies` all
       #    count as runtime, because a peer or optional major changes what a
-      #    consumer resolves just as surely as a direct one does.
+      #    consumer resolves just as surely as a direct one does — and it is not
+      #    `typescript` or `@types/node`. Those two are dev and still shape what
+      #    ships: `build` is `tsc`, so a compiler major shapes `dist/` and every
+      #    emitted `.d.ts`, and `@types/node` is the floor the SDK is
+      #    typechecked against. CI proves the build compiles, not that the
+      #    declarations still parse for a consumer on an older TypeScript.
       # 3. `update-type` is explicitly `version-update:semver-major`. Anything
       #    else — an empty string, a value this action has not shipped yet — is
       #    not a category to approve on: unknown means a human.
       #
       # The names are read off the base branch's manifests rather than
-      # `dependency-type`, because fetch-metadata does not document what that
-      # output reports when a PR bumps several packages at once, and a grouped
-      # PR is exactly where a runtime package could ride along with dev ones.
+      # `dependency-type`. That output's grouped-PR behaviour is undocumented
+      # rather than unknown — `output.ts` resolves it as
+      # `direct:production` > `direct:development` > `indirect` across all names
+      # — but reading the manifests does not depend on an implementation detail
+      # staying put, and a grouped PR is exactly where a runtime package could
+      # ride along with dev ones.
       - name: Decide whether this PR may be approved
         id: policy
         env:
