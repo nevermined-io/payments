@@ -34,6 +34,12 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # The Dependabot approval policy only executes on Dependabot PRs, so no
+      # ordinary run reaches it: without this, deleting one of its guards
+      # leaves every check green and silently restores automatic approval.
+      - name: Test the Dependabot approval policy
+        run: .github/scripts/dependabot-policy.test.sh
+
       # `pnpm build` compiles src only — tsconfig.json excludes `tests`, and
       # ts-jest transpiles without checking (the root `isolatedModules: true`),
       # so nothing else in CI ever typechecks a test file.
