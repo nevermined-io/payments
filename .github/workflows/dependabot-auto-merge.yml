@@ -95,9 +95,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          # A held PR is the case a person has to pick up, and nothing else in
+          # this run says so: the job is green either way and the decision lives
+          # in a step output nobody opens. Put the reason where the Actions tab
+          # and the run summary both show it without a click.
           hold() {
             echo "reason=$1" >> "$GITHUB_OUTPUT"
             echo "approve=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Dependabot PR held for review::$1"
+            echo "**Held for review:** $1" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           }
 
@@ -147,11 +153,37 @@ jobs:
 
           [ -n "$runtime" ] && hold "major touching runtime or undeclared packages:$runtime"
 
+          # Two devDependencies that are not like the others: `typescript` is the
+          # compiler every workspace builds and type-checks with, and
+          # `@types/node` types the runtime surface the published `.d.ts` files
+          # are emitted against. A major in either changes what ships even though
+          # neither ships itself — #326 needed a `moduleResolution` change to
+          # take TypeScript 6, and ts-jest's peer range still excludes 7. Both
+          # get a human.
+          toolchain=""
+          IFS=','
+          for name in $NAMES; do
+            name="${name#"${name%%[![:space:]]*}"}"
+            case "$name" in
+              typescript|@types/node) toolchain="$toolchain $name";;
+            esac
+          done
+          unset IFS
+
+          [ -n "$toolchain" ] && hold "major on the toolchain:$toolchain"
+
           echo "reason=major in the root, every package dev-only" >> "$GITHUB_OUTPUT"
           echo "approve=true" >> "$GITHUB_OUTPUT"
 
+      # Through `env:`, not `${{ }}` in the script: `reason` is assembled from
+      # fetch-metadata's `directory` and `dependency-names`, both of which come
+      # off the PR, and an expression interpolated into `run:` is substituted
+      # before the shell ever sees it.
       - name: Report the decision
-        run: echo "approve=${{ steps.policy.outputs.approve }} (${{ steps.policy.outputs.reason }})"
+        env:
+          APPROVE: ${{ steps.policy.outputs.approve }}
+          REASON: ${{ steps.policy.outputs.reason }}
+        run: echo "approve=$APPROVE ($REASON)"
 
       - name: Approve PR
         if: steps.policy.outputs.approve == 'true'
