@@ -43,8 +43,9 @@ export type OAuthTier = (typeof OAUTH_TIERS)[number]
  * `cli/src/utils/widget-redirect-flow.ts` `resolveEmbedNetwork` matches `live` as a dot/slash-bounded
  * segment anywhere in `NVM_BACKEND_URL` and DEFAULTS to `sandbox`; nvm-monorepo
  * `apps/mcp/src/config.ts` `deriveEmbedNetwork` needs a `nevermined.{app,dev}` suffix AND a tier
- * segment, and refuses otherwise. Reconciling the three onto one rule is a product decision, tracked
- * separately — do not derive a fourth rule here.
+ * segment, and refuses otherwise. Decided 2026-09-18: all three converge on THIS rule (the `api.<tier>`
+ * pair, never guessing) — the CLI in payments#456, the monorepo in nvm-monorepo#3638. Do not derive a
+ * fourth rule here.
  */
 export function resolveOAuthTier(
   environment: EnvironmentName,

@@ -33,8 +33,9 @@ export type EmbedNetwork = 'sandbox' | 'live'
  * NOTE: the SDK's `resolveOAuthTier` (`src/mcp/http/oauth-metadata.ts`) classifies the SAME
  * `custom` backend for the same `network` value with a DIFFERENT rule — the `api.<tier>` label pair,
  * omitting when unmatched instead of defaulting to `sandbox` — and the two disagree on hosts such as
- * `https://live.example.com` or `https://live.api.sandbox.nevermined.app`. Reconciling them onto one
- * rule is tracked separately; do not add a third rule here.
+ * `https://live.example.com` or `https://live.api.sandbox.nevermined.app`. Decided 2026-09-18: this
+ * function converges on the SDK's rule and drops the `sandbox` default — payments#456. Do not add a
+ * third rule here.
  */
 export function resolveEmbedNetwork(environment: EnvironmentName): EmbedNetwork {
   switch (environment) {
