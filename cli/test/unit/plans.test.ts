@@ -112,7 +112,23 @@ describe('plans commands', () => {
 
       expect(parsed.planName).toBe('Test Plan 1')
       expect(parsed.isSubscriber).toBe(true)
-      expect(BigInt(parsed.balance)).toBe(BigInt(1000))
+      expect(parsed.balance).toBe('1000')
+    })
+
+    // The drift this file exists to catch (#440/#441: the mock said `bigint`, the
+    // wire says decimal string) cannot be pinned through the JSON output above —
+    // OutputFormatter's replacer serialises a bigint to a string, so `parsed.balance`
+    // is a string either way and any assertion on it is vacuous against that
+    // regression. Two guards, neither of which goes through the formatter:
+    //   1. `MockPlanBalance.balance: string` + ts-jest diagnostics — a bare
+    //      `BigInt(1000)` in the mock fails to COMPILE (TS2322, 0 tests run).
+    //   2. This test reads the mock's return directly, which also catches a cast
+    //      that would get past the type (`as any`).
+    test('the mock reports balance as the wire type — a decimal string, never bigint', async () => {
+      const { Payments } = jest.requireMock('@nevermined-io/payments') as any
+      const { balance } = await Payments.getInstance().plans.getPlanBalance('did:nvm:test-plan-1')
+      expect(typeof balance).toBe('string')
+      expect(balance).toMatch(/^\d+$/)
     })
 
     test('should fail with non-existent plan', async () => {
