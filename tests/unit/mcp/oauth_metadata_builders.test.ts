@@ -467,6 +467,94 @@ describe('OAuth Metadata Builders', () => {
     })
   })
 
+  describe('tier warnings are loud exactly once (#455 review)', () => {
+    // Both warn-once flags are module-level (the `environmentOptionDeprecationWarned` pattern), so
+    // each case reloads the module to start from "not yet warned" — and asserts a SECOND call in the
+    // same module stays silent, which is the half a fresh module cannot show.
+    const saved = { backend: process.env.NVM_BACKEND_URL, frontend: process.env.NVM_FRONTEND_URL }
+    let warn: jest.SpyInstance
+    beforeEach(() => {
+      warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    })
+    afterEach(() => {
+      warn.mockRestore()
+      if (saved.backend === undefined) delete process.env.NVM_BACKEND_URL
+      else process.env.NVM_BACKEND_URL = saved.backend
+      if (saved.frontend === undefined) delete process.env.NVM_FRONTEND_URL
+      else process.env.NVM_FRONTEND_URL = saved.frontend
+      jest.resetModules()
+    })
+
+    const fresh = async (backend = 'https://api.sandbox.nevermined.app') => {
+      jest.resetModules()
+      process.env.NVM_BACKEND_URL = backend
+      process.env.NVM_FRONTEND_URL = 'https://nevermined.app'
+      return import('../../../src/mcp/http/oauth-metadata.js')
+    }
+
+    test('custom + unclassifiable backend: bare URL, ONE warning naming the host and the remedy', async () => {
+      const mod = await fresh('http://localhost:3001')
+      expect(mod.getOAuthUrls('custom').authorizationUri).toBe('https://nevermined.app/oauth/authorize')
+      expect(warn).toHaveBeenCalledTimes(1)
+      const msg = String(warn.mock.calls[0][0])
+      expect(msg).toContain("'localhost:3001'")
+      expect(msg).toContain('without ?network=')
+      expect(msg).toContain('oauthUrls.authorizationUri')
+      // Discovery documents are rebuilt per request — the second build must not warn again.
+      mod.getOAuthUrls('custom')
+      mod.buildAuthorizationServerMetadata({ ...baseConfig, environment: 'custom' })
+      expect(warn).toHaveBeenCalledTimes(1)
+    })
+
+    test('custom + malformed backend: still exactly one warning, never a throw', async () => {
+      const mod = await fresh('not a url')
+      expect(mod.getOAuthUrls('custom').authorizationUri).not.toContain('network=')
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(String(warn.mock.calls[0][0])).toContain("'not a url'")
+    })
+
+    test('custom + classifiable backend: no warning', async () => {
+      const mod = await fresh('https://api.live.nevermined.app')
+      expect(mod.getOAuthUrls('custom').authorizationUri).toContain('network=live')
+      expect(warn).not.toHaveBeenCalled()
+    })
+
+    test.each([
+      ['sandbox', 'https://api.live.nevermined.app/oauth/token', 'sandbox', 'live'],
+      ['staging_sandbox', 'https://api.live.nevermined.dev/oauth/token', 'sandbox', 'live'],
+      ['live', 'https://api.sandbox.nevermined.app/oauth/token', 'live', 'sandbox'],
+    ] as const)(
+      'named %s + cross-tier tokenUri %s: the ENVIRONMENT tier wins (%s), and it warns once',
+      async (environment, tokenUri, envTier, overrideTier) => {
+        const mod = await fresh()
+        const urls = mod.getOAuthUrls(environment, { tokenUri })
+        // Precedence is deliberate, not incidental: the named environment's tier is published.
+        expect(new URL(urls.authorizationUri).searchParams.get('network')).toBe(envTier)
+        expect(urls.tokenUri).toBe(tokenUri)
+        expect(warn).toHaveBeenCalledTimes(1)
+        const msg = String(warn.mock.calls[0][0])
+        expect(msg).toContain(`points at the ${overrideTier} API`)
+        expect(msg).toContain(`'${environment}' (${envTier})`)
+        expect(msg).toContain(`?network=${envTier}`)
+        mod.getOAuthUrls(environment, { tokenUri })
+        expect(warn).toHaveBeenCalledTimes(1)
+      },
+    )
+
+    test('named environment + same-tier or unclassifiable proxy override: tier kept, NO warning', async () => {
+      const mod = await fresh()
+      // A corporate gateway in front of the sandbox API classifies to nothing — the tier it has stays.
+      const proxied = mod.getOAuthUrls('sandbox', { tokenUri: 'https://gw.corp.com/oauth/token' })
+      expect(new URL(proxied.authorizationUri).searchParams.get('network')).toBe('sandbox')
+      // Same tier spelled out is not a mismatch either.
+      const same = mod.getOAuthUrls('sandbox', {
+        tokenUri: 'https://acme.api.sandbox.nevermined.app/oauth/token',
+      })
+      expect(new URL(same.authorizationUri).searchParams.get('network')).toBe('sandbox')
+      expect(warn).not.toHaveBeenCalled()
+    })
+  })
+
   describe('custom via NVM_BACKEND_URL (module reload, #447)', () => {
     // `Environments.custom` reads the env at module load, so the public `getOAuthUrls('custom')`
     // path is exercised by reloading the module under each value — the repo's pattern

@@ -35,7 +35,16 @@ export type OAuthTier = (typeof OAUTH_TIERS)[number]
  * so that label pair is what is matched, never a bare `sandbox` anywhere in the host. When the host
  * cannot be classified (a `localhost` stack, a proxy/CNAME in front of the API) the tier is
  * **omitted**, not guessed: the URL stays the pre-#3430 bare one, and the operator sets
- * `oauthUrls.authorizationUri` (with `?network=` on it) to say which tier that deployment is.
+ * `oauthUrls.authorizationUri` (with `?network=` on it) to say which tier that deployment is —
+ * `getOAuthUrlsForEnvironment` warns once when that happens, so the degradation is never silent.
+ *
+ * ⚠️ This is not the only classifier of a `custom` backend for the `network` value. Two siblings
+ * apply DIFFERENT rules to the same input and can disagree on real hosts (payments#455 review):
+ * `cli/src/utils/widget-redirect-flow.ts` `resolveEmbedNetwork` matches `live` as a dot/slash-bounded
+ * segment anywhere in `NVM_BACKEND_URL` and DEFAULTS to `sandbox`; nvm-monorepo
+ * `apps/mcp/src/config.ts` `deriveEmbedNetwork` needs a `nevermined.{app,dev}` suffix AND a tier
+ * segment, and refuses otherwise. Reconciling the three onto one rule is a product decision, tracked
+ * separately — do not derive a fourth rule here.
  */
 export function resolveOAuthTier(
   environment: EnvironmentName,
@@ -48,22 +57,40 @@ export function resolveOAuthTier(
     case 'live':
     case 'staging_live':
       return 'live'
-    default: {
-      let labels: string[]
-      try {
-        // WHATWG `hostname` is lowercased and carries no port/credentials/path.
-        labels = new URL(backendUrl).hostname.split('.')
-      } catch {
-        return undefined
-      }
-      const tierAfterApi = labels[labels.indexOf('api') + 1]
-      if (labels.includes('api') && (OAUTH_TIERS as readonly string[]).includes(tierAfterApi)) {
-        return tierAfterApi as OAuthTier
-      }
-      return undefined
-    }
+    default:
+      return tierFromHost(backendUrl)
   }
 }
+
+/** The `api.<tier>` label-pair match behind {@link resolveOAuthTier}'s `custom` branch. */
+function tierFromHost(url: string): OAuthTier | undefined {
+  let labels: string[]
+  try {
+    // WHATWG `hostname` is lowercased and carries no port/credentials/path.
+    labels = new URL(url).hostname.split('.')
+  } catch {
+    return undefined
+  }
+  const tierAfterApi = labels[labels.indexOf('api') + 1]
+  if (labels.includes('api') && (OAUTH_TIERS as readonly string[]).includes(tierAfterApi)) {
+    return tierAfterApi as OAuthTier
+  }
+  return undefined
+}
+
+/** Best-effort host for a warning line; never throws on a malformed URL. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
+// Warn-once flags, module-level like `environmentOptionDeprecationWarned` in `base-payments.ts`:
+// discovery documents are rebuilt per request, and a warning per request is noise nobody reads.
+let tierlessWarned = false
+let crossTierWarned = false
 
 /**
  * Append `?network=<tier>` to the authorize URL. Goes through the URL API so the result is a
@@ -121,7 +148,12 @@ function buildOAuthUrls(
  *   the environment's, or an `oauthUrls.tokenUri` override. The tier follows THAT under `custom`,
  *   exactly as `resolveAuthorizationServer` derives the AS origin from it: a `custom` server whose
  *   `tokenUri` is overridden to `api.sandbox.…` must not publish a sandbox token endpoint next to a
- *   tier-blind authorize URL (payments#455 review).
+ *   tier-blind authorize URL (payments#455 review). Under a NAMED environment the environment's tier
+ *   takes precedence over the override — deliberately: a same-tier proxy (`sandbox` +
+ *   `tokenUri: https://gw.corp.com/…`) classifies to nothing and must keep the tier it has. When the
+ *   override's host classifies to the OTHER tier the combination is always a misconfiguration (the
+ *   consent screen on one tier, the token endpoint on the other, and the code exchange failing as a
+ *   "bad or expired code"), so it is warned once rather than silently honoured.
  * @returns OAuth URLs configuration
  */
 function getOAuthUrlsForEnvironment(
@@ -131,11 +163,35 @@ function getOAuthUrlsForEnvironment(
   const known = environment in Environments
   const effective: EnvironmentName = known ? environment : 'sandbox'
   const envConfig = Environments[effective]
-  return buildOAuthUrls(
-    envConfig.frontend,
-    envConfig.backend,
-    resolveOAuthTier(effective, backendForTier || envConfig.backend),
-  )
+  const backend = backendForTier || envConfig.backend
+  const tier = resolveOAuthTier(effective, backend)
+
+  if (effective === 'custom' && !tier && !tierlessWarned) {
+    // Omitting beats guessing, but never silently: the document is served 200 and cached for an
+    // hour, and the operator's first evidence would otherwise be a user on the wrong consent screen.
+    tierlessWarned = true
+    console.warn(
+      `[Nevermined] Could not derive the API tier from backend host '${hostOf(backend)}' — ` +
+        `authorization_endpoint will be advertised without ?${OAUTH_TIER_PARAM}=. Set ` +
+        `oauthUrls.authorizationUri to the Nevermined web app URL including ` +
+        `?${OAUTH_TIER_PARAM}=sandbox|live for this deployment.`,
+    )
+  }
+  if (effective !== 'custom' && backendForTier && !crossTierWarned) {
+    const overrideTier = tierFromHost(backendForTier)
+    if (overrideTier && overrideTier !== tier) {
+      crossTierWarned = true
+      console.warn(
+        `[Nevermined] oauthUrls.tokenUri points at the ${overrideTier} API ` +
+          `('${hostOf(backendForTier)}') but the environment is '${effective}' (${tier}); ` +
+          `authorization_endpoint keeps ?${OAUTH_TIER_PARAM}=${tier} from the environment, so the ` +
+          `consent screen and the token endpoint would sit on different tiers. Use the same tier ` +
+          `for both.`,
+      )
+    }
+  }
+
+  return buildOAuthUrls(envConfig.frontend, envConfig.backend, tier)
 }
 
 /**
