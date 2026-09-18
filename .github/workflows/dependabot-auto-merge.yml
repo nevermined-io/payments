@@ -52,19 +52,71 @@ jobs:
       # already did — and `required_approving_review_count` stays 1, so this
       # step's approval is what satisfies it. If bumps ever stall at
       # REVIEW_REQUIRED again, read that setting first.
+      # The policy is read from the BASE branch, never from the PR's own head:
+      # a Dependabot branch is untrusted content, and reading a manifest it
+      # carries to decide whether to approve it would let the PR answer its own
+      # question. `base.sha` pins this to what is already on main, and no
+      # credentials are persisted since nothing here pushes.
+      - name: Checkout the base branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Patch and minor are approved as before. A major is approved only when
+      # all three of these hold:
+      #
+      # 1. It updates the ROOT manifest. Branch protection requires exactly
+      #    three contexts — `E2E`, `Lint & Build`, `Unit & Integration` — and
+      #    all three run against the root package. `CLI Sync Check` and
+      #    `OpenClaw Plugin Check` are NOT required, so a major in /cli or
+      #    /openclaw could auto-merge on root-only green, with the suites that
+      #    would actually exercise it never gating anything. Until those two are
+      #    required contexts, a major outside the root gets a human.
+      # 2. Every package it bumps is declared *only* under `devDependencies` —
+      #    `dependencies`, `peerDependencies` and `optionalDependencies` all
+      #    count as runtime, because a peer or optional major changes what a
+      #    consumer resolves just as surely as a direct one does — and it is not
+      #    `typescript` or `@types/node`. Those two are dev and still shape what
+      #    ships: `build` is `tsc`, so a compiler major shapes `dist/` and every
+      #    emitted `.d.ts`, and `@types/node` is the floor the SDK is
+      #    typechecked against. CI proves the build compiles, not that the
+      #    declarations still parse for a consumer on an older TypeScript.
+      # 3. `update-type` is explicitly `version-update:semver-major`. Anything
+      #    else — an empty string, a value this action has not shipped yet — is
+      #    not a category to approve on: unknown means a human.
+      #
+      # The names are read off the base branch's manifests rather than
+      # `dependency-type`. That output's grouped-PR behaviour is undocumented
+      # rather than unknown — `output.ts` resolves it as
+      # `direct:production` > `direct:development` > `indirect` across all names
+      # — but reading the manifests does not depend on an implementation detail
+      # staying put, and a grouped PR is exactly where a runtime package could
+      # ride along with dev ones.
+      - name: Decide whether this PR may be approved
+        id: policy
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          DIRECTORY: ${{ steps.metadata.outputs.directory }}
+        run: .github/scripts/dependabot-policy.sh
+
+      - name: Report the decision
+        env:
+          APPROVE: ${{ steps.policy.outputs.approve }}
+          REASON: ${{ steps.policy.outputs.reason }}
+        run: echo "approve=$APPROVE ($REASON)"
+
       - name: Approve PR
-        if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: steps.policy.outputs.approve == 'true'
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
 
       - name: Enable auto-merge
-        if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: steps.policy.outputs.approve == 'true'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
