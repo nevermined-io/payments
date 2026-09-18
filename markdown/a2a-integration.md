@@ -247,7 +247,7 @@ keys to the same `metadata` object:
 
 | key | meaning |
 | --- | --- |
-| `txHash` | The settlement transaction. A chain tx hash on the crypto rails; on fiat it is the **PSP transaction id** (a Stripe PaymentIntent, `pi_...`), so do not assume it is a hash. **Absent when the settle did not succeed** — the key is omitted rather than published blank, so its presence means a settlement really happened. |
+| `txHash` | The settlement transaction. A chain tx hash on the crypto rails; on fiat it is the **PSP transaction id** (a Stripe PaymentIntent, `pi_...`), so do not assume it is a hash. **Absent unless the settle both succeeded and reported a `transaction`** — the key is omitted rather than published blank, so its presence means a settlement really happened. Absence does not by itself mean failure: fiat rails report the charge in the receipt's `orderTx`, not here. |
 | `creditsCharged` | The credits the settle **actually redeemed**. |
 
 ⚠️ **Where they land depends on the transport, so do not assume `task.metadata`.**

@@ -143,10 +143,12 @@ export interface PaymentMetadata {
    * A chain tx hash on the crypto rails; the PSP transaction id on fiat (a
    * Stripe PaymentIntent `pi_...`), so do not assume it is a hash.
    *
-   * ABSENT when the settle did not succeed. The wire's `transaction` is an
-   * empty string there, and publishing that put a blank id on a completed task
-   * — so the key is omitted instead, and its PRESENCE means a settlement really
-   * happened. Same rule as `creditsCharged` below.
+   * ABSENT unless the settle both succeeded AND reported a `transaction`. The
+   * wire's `transaction` is an empty string on a failed settle, and publishing
+   * that put a blank id on a completed task — so the key is omitted instead,
+   * and its PRESENCE means a settlement really happened. Absence does not by
+   * itself mean failure: a successful fiat charge is referenced by the receipt's
+   * `orderTx` and can carry an empty `transaction`. Same rule as `creditsCharged`.
    */
   txHash?: string
   /**

@@ -695,13 +695,19 @@ describe('PaymentsRequestHandler', () => {
         expect(event.metadata).not.toHaveProperty('creditsCharged')
       })
 
-      test('a failed settle publishes no txHash on the streaming path either', async () => {
-        const { event } = await finalizeStreaming({
-          success: false,
-          errorReason: 'INSUFFICIENT',
-          transaction: '',
-          network: 'eip155:84532',
-        } as any)
+      /**
+       * Mirrors the non-streaming pair above, and the second row is the one that
+       * matters: with only a `transaction: ''` fixture the streaming test exercised
+       * the truthiness conjunct alone, so `response.success === true &&` could be
+       * deleted from the streaming writer with the suite fully green (caught by
+       * mutation on review). A malformed response is exactly when `transaction`
+       * cannot be trusted to be empty.
+       */
+      test.each([
+        ['a failed settle', { success: false, errorReason: 'INSUFFICIENT', transaction: '' }],
+        ['a settle with no success field', { transaction: '0xdead' } as any],
+      ])('%s publishes no txHash on the streaming path either', async (_label, settle) => {
+        const { event } = await finalizeStreaming({ network: 'eip155:84532', ...settle } as any)
         expect(event.metadata).not.toHaveProperty('txHash')
       })
 
