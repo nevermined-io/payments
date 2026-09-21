@@ -421,6 +421,15 @@ describe('OAuth Metadata Builders', () => {
       // Every host shape the API actually serves: branded per-org subdomains and the Commerce MCP.
       expect(resolveOAuthTier('custom', 'https://acme.api.sandbox.nevermined.app')).toBe('sandbox')
       expect(resolveOAuthTier('custom', 'https://mcp.api.live.nevermined.dev')).toBe('live')
+      // An org slugged `api` (legal today): the match is the first `api` label a TIER follows, not
+      // the first `api` label — `indexOf('api') + 1` read `api` here and refused (payments#468).
+      expect(resolveOAuthTier('custom', 'https://api.api.live.nevermined.app')).toBe('live')
+      // The pair wins over a stray tier label that precedes it; the FIRST pair wins over a later one.
+      expect(resolveOAuthTier('custom', 'https://live.api.sandbox.nevermined.app')).toBe('sandbox')
+      expect(resolveOAuthTier('custom', 'https://api.live.api.sandbox.nevermined.app')).toBe('live')
+      // `api` as the LAST label has nothing after it — no index-out-of-range read, no tier.
+      expect(resolveOAuthTier('custom', 'https://x.api')).toBeUndefined()
+      expect(resolveOAuthTier('custom', 'https://api')).toBeUndefined()
       // WHATWG hostname lowercases and strips port/credentials.
       expect(resolveOAuthTier('custom', 'https://API.Sandbox.nevermined.app:8443/x')).toBe(
         'sandbox',
