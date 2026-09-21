@@ -367,6 +367,8 @@ describe('MCP OAuth E2E Tests', () => {
       // "expected undefined".
       expect(expectedIssuer[servedEnvironment]).toBeDefined()
       expect(data.issuer).toBe(expectedIssuer[servedEnvironment])
+      // #466: a named environment's document advertises RFC 9207 iss support, like the API's own.
+      expect(data.authorization_response_iss_parameter_supported).toBe(true)
       expect(data.authorization_endpoint).toBeDefined()
       // #447: the served document names the API tier on the authorize URL. Derived locally from
       // TEST_ENVIRONMENT so this does not simply mirror `resolveOAuthTier`.
@@ -486,6 +488,12 @@ describe('MCP OAuth E2E Tests', () => {
       // resource document points at, so a client that discovers either way lands on one identifier.
       expect(authServerData.issuer).toBe(oidcData.issuer)
       expect(prm.authorization_servers).toEqual([authServerData.issuer])
+      // #466: the OIDC document carries the same RFC 9207 iss-support verdict as the AS document
+      // (whatever it is — the absolute `true` for a named environment is pinned once, above, behind
+      // the served-environment guard). Kills an "OIDC ignores the flag" mutant on any environment.
+      expect(oidcData.authorization_response_iss_parameter_supported).toBe(
+        authServerData.authorization_response_iss_parameter_supported,
+      )
 
       // Endpoints should also be consistent
       expect(authServerData.authorization_endpoint).toBe(oidcData.authorization_endpoint)

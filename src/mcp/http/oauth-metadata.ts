@@ -368,7 +368,61 @@ export function getOAuthUrls(
     clean.tokenUri,
     clean.issuer !== undefined,
   )
+  if (environment !== 'custom' && clean.issuer !== undefined && clean.issuer !== baseUrls.issuer) {
+    // A NAMED environment's issuer is not configurable in fact: the web app returns the canonical
+    // origin as RFC 9207 `iss` from its own fixed per-tier config, and these documents advertise
+    // `authorization_response_iss_parameter_supported`, so a client compares `iss` with THIS value
+    // and rejects every code. The override is still published — the operator's word is honoured —
+    // but the failure must not arrive as an unexplained client-side rejection (#466 review). Keyed
+    // on the value, like the other issuer warnings, so a corrected typo re-alerts.
+    warnIssuerOnce(
+      `override:${clean.issuer}`,
+      `[Nevermined] oauthUrls.issuer '${clean.issuer}' differs from the canonical issuer of the ` +
+        `'${environment}' environment, '${baseUrls.issuer}' — the iss the Nevermined consent page ` +
+        `returns on every authorization response. An RFC 9207 client compares the two and will ` +
+        `reject every authorization code. Remove oauthUrls.issuer, or set it to '${baseUrls.issuer}'.`,
+    )
+  }
   return { ...baseUrls, ...clean }
+}
+
+/**
+ * RFC 9207 §3: an authorization server that returns the `iss` parameter on every authorization
+ * response advertises `authorization_response_iss_parameter_supported: true`; §2.4 then has a client
+ * REJECT any response lacking `iss`. An omitted flag DEFAULTS to `false` (§3), so the SDK publishes it
+ * only where it is true and omits it everywhere else — never an explicit `false`, which would say the
+ * same thing louder. True where: the consent page is the Nevermined web app, which has returned `iss`
+ * (= the canonical API origin these documents publish as `issuer`) on every response since
+ * nvm-monorepo#3532 — the API's own document advertises the same flag. That is every NAMED
+ * environment (the decision, payments#466). Omitted for `custom` — its frontend may be an older or
+ * self-hosted web app, and this SDK cannot tell (a `custom` server on a Nevermined backend AND
+ * frontend is deliberately still omitted: the decision drew the line at the environment name, not at
+ * a host guess) — and whenever `oauthUrls.authorizationUri` is overridden, since the consent page is
+ * then an AS this SDK cannot vouch for, even when the value happens to point at the Nevermined web
+ * app. The override predicate is the same "non-empty string" rule `getOAuthUrls` applies.
+ *
+ * Two limits of the omission, so nobody widens or narrows it for the wrong reason (#466 review):
+ *  - It is a TRADE, not a neutral default. §2.4's other half has a client SHOULD-discard a response
+ *    that carries `iss` from a server that did not advertise — exactly the state an override that
+ *    still points at the Nevermined web app (which returns `iss` unconditionally) lands in. Omitting
+ *    swaps the MUST-reject for the SHOULD-discard; the operator docs say so.
+ *  - It reaches only a client that discovers DIRECTLY against this server. One that follows the
+ *    protected-resource document's `authorization_servers` reads the Nevermined API's own metadata,
+ *    which advertises the flag unconditionally (`apps/api/src/well-known/well-known.service.ts`) —
+ *    so a `custom` deployment on a Nevermined backend with an older frontend is not shielded on
+ *    that route, whatever this document says.
+ */
+function issParameterSupport(
+  environment: EnvironmentName,
+  overrides: Partial<OAuthUrls> | undefined,
+): { authorization_response_iss_parameter_supported: true } | Record<string, never> {
+  const consentOverridden =
+    typeof overrides?.authorizationUri === 'string' && overrides.authorizationUri.length > 0
+  // An unknown environment name is served the sandbox documents by `getOAuthUrls`, and is not
+  // `custom` — so the only name that omits is `custom` itself.
+  return environment !== 'custom' && !consentOverridden
+    ? { authorization_response_iss_parameter_supported: true }
+    : {}
 }
 
 /**
@@ -485,6 +539,7 @@ export function buildAuthorizationServerMetadata(config: OAuthConfig): Authoriza
     scopes_supported: scopes,
     token_endpoint_auth_methods_supported: ['client_secret_post'],
     subject_types_supported: ['public'],
+    ...issParameterSupport(config.environment, config.oauthUrls),
   }
 }
 
@@ -524,6 +579,7 @@ export function buildOidcConfiguration(config: OAuthConfig): OidcConfiguration {
     id_token_signing_alg_values_supported: ['RS256', 'HS256'],
     scopes_supported: allScopes,
     claims_supported: ['sub', 'iss', 'aud', 'exp', 'iat', 'name', 'email'],
+    ...issParameterSupport(config.environment, config.oauthUrls),
   }
 }
 
