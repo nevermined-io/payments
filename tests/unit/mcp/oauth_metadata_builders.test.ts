@@ -814,7 +814,30 @@ describe('OAuth Metadata Builders', () => {
       expect(buildAuthorizationServerMetadata(config)).not.toHaveProperty(
         'authorization_response_iss_parameter_supported',
       )
-      // Other overrides leave the consent page on the Nevermined web app — still advertised.
+      expect(buildOidcConfiguration(config)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+      // …even when the override points AT the Nevermined web app (the documented remedy for an
+      // unclassifiable custom host): the SDK did not choose that AS, so it does not vouch for it.
+      const atWebapp: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { authorizationUri: 'https://nevermined.app/oauth/authorize?network=sandbox' },
+      }
+      expect(buildAuthorizationServerMetadata(atWebapp)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+      // `{ authorizationUri: undefined }` (an unset env var) is no override.
+      const unset: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { authorizationUri: undefined },
+      }
+      expect(
+        buildAuthorizationServerMetadata(unset).authorization_response_iss_parameter_supported,
+      ).toBe(true)
+      // Other overrides leave the consent page on the Nevermined web app — still advertised, on
+      // BOTH documents.
       const tokenOnly: OAuthConfig = {
         ...baseConfig,
         environment: 'sandbox',
@@ -823,6 +846,9 @@ describe('OAuth Metadata Builders', () => {
       expect(
         buildAuthorizationServerMetadata(tokenOnly).authorization_response_iss_parameter_supported,
       ).toBe(true)
+      expect(buildOidcConfiguration(tokenOnly).authorization_response_iss_parameter_supported).toBe(
+        true,
+      )
       // An empty override is no override.
       const empty: OAuthConfig = {
         ...baseConfig,
@@ -841,7 +867,36 @@ describe('OAuth Metadata Builders', () => {
       ).toBe(true)
     })
 
-    test('the served field is exactly `true`, never `false`', () => {
+    test('custom on a Nevermined backend AND frontend still omits the flag — the line is the environment name (#466)', async () => {
+      const saved = { backend: process.env.NVM_BACKEND_URL, frontend: process.env.NVM_FRONTEND_URL }
+      try {
+        jest.resetModules()
+        process.env.NVM_BACKEND_URL = 'https://api.sandbox.nevermined.app'
+        process.env.NVM_FRONTEND_URL = 'https://nevermined.app'
+        const mod = await import('../../../src/mcp/http/oauth-metadata.js')
+        const cfg: OAuthConfig = { ...baseConfig, environment: 'custom' }
+        // The consent page really is the Nevermined web app here…
+        expect(mod.getOAuthUrls('custom').authorizationUri).toBe(
+          'https://nevermined.app/oauth/authorize?network=sandbox',
+        )
+        // …and the flag is still omitted: the decision drew the line at the environment name, not
+        // at a host guess. Pinned so a "helpful" widening is a deliberate change.
+        expect(mod.buildAuthorizationServerMetadata(cfg)).not.toHaveProperty(
+          'authorization_response_iss_parameter_supported',
+        )
+        expect(mod.buildOidcConfiguration(cfg)).not.toHaveProperty(
+          'authorization_response_iss_parameter_supported',
+        )
+      } finally {
+        if (saved.backend === undefined) delete process.env.NVM_BACKEND_URL
+        else process.env.NVM_BACKEND_URL = saved.backend
+        if (saved.frontend === undefined) delete process.env.NVM_FRONTEND_URL
+        else process.env.NVM_FRONTEND_URL = saved.frontend
+        jest.resetModules()
+      }
+    })
+
+    test('the served field is exactly `true`, or omitted (RFC 9207 §3: omitted means false)', () => {
       for (const environment of ['sandbox', 'custom'] as const) {
         const value = buildAuthorizationServerMetadata({
           ...baseConfig,

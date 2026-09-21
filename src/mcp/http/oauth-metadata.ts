@@ -374,25 +374,27 @@ export function getOAuthUrls(
 /**
  * RFC 9207 §3: an authorization server that returns the `iss` parameter on every authorization
  * response advertises `authorization_response_iss_parameter_supported: true`; §2.4 then has a client
- * REJECT any response lacking `iss`. So the flag is published only where it is true: for the four
- * named environments the consent page is the Nevermined web app, which has returned `iss` (= the
- * canonical API origin, the `issuer` these documents publish) on every response since
- * nvm-monorepo#3532 — the API's own document advertises the same flag. It is OMITTED for `custom`
- * (the frontend may be an older or self-hosted web app that does not return `iss`) and whenever
- * `oauthUrls.authorizationUri` is overridden (the consent page is then an AS this SDK knows nothing
- * about). Absent, not `false`: a client that sees no advertisement skips the check rather than
- * failing it. payments#466.
+ * REJECT any response lacking `iss`. An omitted flag DEFAULTS to `false` (§3), so the SDK publishes it
+ * only where it is true and omits it everywhere else — never an explicit `false`, which would say the
+ * same thing louder. True where: the consent page is the Nevermined web app, which has returned `iss`
+ * (= the canonical API origin these documents publish as `issuer`) on every response since
+ * nvm-monorepo#3532 — the API's own document advertises the same flag. That is the four NAMED
+ * environments (the decision, payments#466). Omitted for `custom` — its frontend may be an older or
+ * self-hosted web app, and this SDK cannot tell (a `custom` server on a Nevermined backend AND
+ * frontend is deliberately still omitted: the decision drew the line at the environment name, not at
+ * a host guess) — and whenever `oauthUrls.authorizationUri` is overridden, since the consent page is
+ * then an AS this SDK cannot vouch for, even when the value happens to point at the Nevermined web
+ * app. The override predicate is the same "non-empty string" rule `getOAuthUrls` applies.
  */
 function issParameterSupport(
   environment: EnvironmentName,
   overrides: Partial<OAuthUrls> | undefined,
 ): { authorization_response_iss_parameter_supported: true } | Record<string, never> {
-  // Same effective-environment rule as `getOAuthUrlsForEnvironment`: an unknown name serves the
-  // sandbox documents, so it advertises what sandbox advertises.
-  const effective: EnvironmentName = environment in Environments ? environment : 'sandbox'
   const consentOverridden =
     typeof overrides?.authorizationUri === 'string' && overrides.authorizationUri.length > 0
-  return effective !== 'custom' && !consentOverridden
+  // An unknown environment name is served the sandbox documents by `getOAuthUrls`, and is not
+  // `custom` — so the only name that omits is `custom` itself.
+  return environment !== 'custom' && !consentOverridden
     ? { authorization_response_iss_parameter_supported: true }
     : {}
 }

@@ -488,6 +488,9 @@ describe('MCP OAuth E2E Tests', () => {
       // resource document points at, so a client that discovers either way lands on one identifier.
       expect(authServerData.issuer).toBe(oidcData.issuer)
       expect(prm.authorization_servers).toEqual([authServerData.issuer])
+      // #466: both AS-style documents advertise RFC 9207 iss support for a named environment.
+      expect(oidcData.authorization_response_iss_parameter_supported).toBe(true)
+      expect(authServerData.authorization_response_iss_parameter_supported).toBe(true)
 
       // Endpoints should also be consistent
       expect(authServerData.authorization_endpoint).toBe(oidcData.authorization_endpoint)
