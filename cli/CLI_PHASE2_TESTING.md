@@ -29,7 +29,7 @@ Phase 2 successfully established a comprehensive testing infrastructure for the 
 ```
 cli/test/
 ├── helpers/
-│   ├── mock-payments.ts       # Mock Payments SDK
+│   ├── (SDK mock: test/__mocks__/@nevermined-io/payments.ts — see note below)
 │   └── test-utils.ts          # Test utilities
 ├── unit/
 │   ├── simple.test.ts         # ✅ 3 passing tests
@@ -95,7 +95,7 @@ cli/test/
 
 #### Mock Payments SDK
 
-**File**: `test/helpers/mock-payments.ts`
+**File**: `test/__mocks__/@nevermined-io/payments.ts` — the copy `jest.mock('@nevermined-io/payments')` resolves. (A second, unimported copy at `test/helpers/mock-payments.ts` was deleted in #448: a drift fix had landed in it while the live mock kept the defect.)
 
 ```typescript
 export class MockPayments {
@@ -385,7 +385,7 @@ jobs:
 ### New Files (15+)
 
 - `cli/jest.config.js`
-- `cli/test/helpers/mock-payments.ts`
+- `cli/test/__mocks__/@nevermined-io/payments.ts`
 - `cli/test/helpers/test-utils.ts`
 - `cli/test/unit/simple.test.ts`
 - `cli/test/unit/commands-structure.test.ts`

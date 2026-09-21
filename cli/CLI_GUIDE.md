@@ -393,7 +393,7 @@ test/
 │   ├── cli-basic.test.ts     # Core CLI functionality
 │   └── generated-commands.test.ts # Generated commands
 └── helpers/                  # Test utilities
-    ├── mock-payments.ts      # SDK mocks
+    ├── (SDK mock lives in test/__mocks__/@nevermined-io/payments.ts — the one jest.mock() resolves)
     └── test-utils.ts         # Test helpers
 ```
 
