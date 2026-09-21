@@ -63,7 +63,14 @@ export function resolveOAuthTier(
   }
 }
 
-/** The `api.<tier>` label-pair match behind {@link resolveOAuthTier}'s `custom` branch. */
+/**
+ * The `api.<tier>` label-pair match behind {@link resolveOAuthTier}'s `custom` branch: the FIRST
+ * `api` label that a tier label FOLLOWS — not the first `api` label, full stop. The two differ on
+ * one served shape: an org slugged `api` (legal today) gets the branded host
+ * `api.api.live.nevermined.app`, which `labels[indexOf('api') + 1]` read as `api` and refused.
+ * Same rule as nvm-monorepo's shared `oauthTierFromHostname` (`@nevermined-io/commons`), so the
+ * SDK, the Commerce MCP and the API classify a host identically (payments#468).
+ */
 function tierFromHost(url: string): OAuthTier | undefined {
   let labels: string[]
   try {
@@ -72,9 +79,10 @@ function tierFromHost(url: string): OAuthTier | undefined {
   } catch {
     return undefined
   }
-  const tierAfterApi = labels[labels.indexOf('api') + 1]
-  if (labels.includes('api') && (OAUTH_TIERS as readonly string[]).includes(tierAfterApi)) {
-    return tierAfterApi as OAuthTier
+  for (let i = 0; i + 1 < labels.length; i++) {
+    if (labels[i] === 'api' && (OAUTH_TIERS as readonly string[]).includes(labels[i + 1])) {
+      return labels[i + 1] as OAuthTier
+    }
   }
   return undefined
 }

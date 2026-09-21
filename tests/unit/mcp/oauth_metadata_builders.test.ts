@@ -421,6 +421,23 @@ describe('OAuth Metadata Builders', () => {
       // Every host shape the API actually serves: branded per-org subdomains and the Commerce MCP.
       expect(resolveOAuthTier('custom', 'https://acme.api.sandbox.nevermined.app')).toBe('sandbox')
       expect(resolveOAuthTier('custom', 'https://mcp.api.live.nevermined.dev')).toBe('live')
+      // An org slugged `api` (legal today): the match is the first `api` label a TIER follows, not
+      // the first `api` label — `indexOf('api') + 1` read `api` here and refused (payments#468).
+      expect(resolveOAuthTier('custom', 'https://api.api.live.nevermined.app')).toBe('live')
+      // The pair wins over a stray tier label that precedes it; the FIRST pair wins over a later one.
+      expect(resolveOAuthTier('custom', 'https://live.api.sandbox.nevermined.app')).toBe('sandbox')
+      expect(resolveOAuthTier('custom', 'https://api.live.api.sandbox.nevermined.app')).toBe('live')
+      // `api` as the LAST label has nothing after it — no index-out-of-range read, no tier.
+      expect(resolveOAuthTier('custom', 'https://x.api')).toBeUndefined()
+      expect(resolveOAuthTier('custom', 'https://api')).toBeUndefined()
+      // The anchor is the EXACT label `api`, IMMEDIATELY before the tier. The old `indexOf` form
+      // pinned this by accident (`indexOf === -1` made `labels[0]` the candidate); the loop needs
+      // rows with the stray tier label AFTER a non-`api` label, or "any label followed by a tier"
+      // and "`api` anywhere + a tier anywhere later" both pass (self-review panel).
+      expect(resolveOAuthTier('custom', 'https://apix.live.nevermined.app')).toBeUndefined()
+      expect(resolveOAuthTier('custom', 'https://api.foo.live.nevermined.app')).toBeUndefined()
+      // A two-label host is the shortest pair — pins the loop's upper bound from the other side.
+      expect(resolveOAuthTier('custom', 'https://api.live')).toBe('live')
       // WHATWG hostname lowercases and strips port/credentials.
       expect(resolveOAuthTier('custom', 'https://API.Sandbox.nevermined.app:8443/x')).toBe(
         'sandbox',
@@ -578,6 +595,8 @@ describe('OAuth Metadata Builders', () => {
       ['sandbox', 'https://api.live.nevermined.app/oauth/token', 'sandbox', 'live'],
       ['staging_sandbox', 'https://api.live.nevermined.dev/oauth/token', 'sandbox', 'live'],
       ['live', 'https://api.sandbox.nevermined.app/oauth/token', 'live', 'sandbox'],
+      // An org slugged `api` classifies since payments#468 — so it now warns like any branded host.
+      ['sandbox', 'https://api.api.live.nevermined.app/oauth/token', 'sandbox', 'live'],
     ] as const)(
       'named %s + cross-tier tokenUri %s: the ENVIRONMENT tier wins (%s), and it warns once',
       async (environment, tokenUri, envTier, overrideTier) => {
@@ -637,6 +656,11 @@ describe('OAuth Metadata Builders', () => {
         tokenUri: 'https://acme.api.sandbox.nevermined.app/oauth/token',
       })
       expect(new URL(same.authorizationUri).searchParams.get('network')).toBe('sandbox')
+      // …including an org slugged `api`, which classifies since payments#468.
+      const apiSlug = mod.getOAuthUrls('sandbox', {
+        tokenUri: 'https://api.api.sandbox.nevermined.app/oauth/token',
+      })
+      expect(new URL(apiSlug.authorizationUri).searchParams.get('network')).toBe('sandbox')
       expect(warn).not.toHaveBeenCalled()
     })
   })
@@ -759,6 +783,9 @@ describe('OAuth Metadata Builders', () => {
       // canonical origin, so that is the only value that passes the RFC 9207 compare.
       const cases: Array<[string, string]> = [
         ['https://acme.api.live.nevermined.app/oauth/token', 'https://api.live.nevermined.app'],
+        // An org slugged `api`: the SERVED effect of payments#468 — before it, this published the
+        // branded origin as `issuer` (which no RFC 9207 client's compare accepts) plus a warning.
+        ['https://api.api.live.nevermined.app/oauth/token', 'https://api.live.nevermined.app'],
         [
           'https://mcp.api.sandbox.nevermined.dev/oauth/token',
           'https://api.sandbox.nevermined.dev',
