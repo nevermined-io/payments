@@ -94,7 +94,7 @@
 ```
 cli/test/
 ├── helpers/
-│   ├── mock-payments.ts           # Mock Payments SDK
+│   ├── (SDK mock: test/__mocks__/@nevermined-io/payments.ts)
 │   └── test-utils.ts              # Test utilities
 ├── unit/
 │   ├── simple.test.ts             # ✅ 3 passing

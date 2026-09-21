@@ -76,7 +76,7 @@ cli/
 │   └── index.ts                  # ✅
 ├── test/
 │   ├── helpers/
-│   │   ├── mock-payments.ts      # ✅
+│   │   └── (SDK mock: test/__mocks__/@nevermined-io/payments.ts)
 │   │   └── test-utils.ts         # ✅
 │   ├── unit/
 │   │   └── simple.test.ts        # ✅ 3 passing

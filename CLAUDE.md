@@ -253,7 +253,11 @@ Key files to check:
 - `openclaw/src/index.ts` — auto-pay flow, `getX402AccessToken()` calls
 - `openclaw/tests/plugin.test.ts` — mock assertions for `getX402AccessToken`
 - `cli/src/commands/x402token/get-x402-access-token.ts` — CLI command flags and call
-- `cli/test/helpers/mock-payments.ts` — mock `getX402AccessToken` signature
+- `cli/test/__mocks__/@nevermined-io/payments.ts` — the CLI's payments mock. This is the
+  one `jest.mock('@nevermined-io/payments')` resolves, so it is the only one that can
+  affect a test. A second copy at `cli/test/helpers/mock-payments.ts` was imported by
+  nothing and was deleted in #448 — a drift fix had already landed in it while the live
+  mock kept the defect. **Before "fixing a mock", confirm something imports it.**
 
 Both CI workflows build the root SDK first, then symlink it into the consumer's `node_modules/` so they compile against the local source (not the published npm package).
 

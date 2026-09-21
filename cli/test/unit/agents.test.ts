@@ -3,7 +3,7 @@
  */
 
 import { expect, test, describe, beforeEach, afterEach, jest } from '@jest/globals'
-import AgentsGet from '../../src/commands/agents/get.js'
+import AgentsGet from '../../src/commands/agents/get-agent.js'
 import { createTestConfig, cleanupTestConfig, OutputCapture } from '../helpers/test-utils.js'
 
 // Use manual mock for Payments SDK
