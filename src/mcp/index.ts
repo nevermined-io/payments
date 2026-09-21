@@ -137,6 +137,10 @@ export type {
 // Re-export HTTP module components for advanced usage
 export {
   getOAuthUrls,
+  resolveOAuthTier,
+  OAUTH_TIER_PARAM,
+  OAUTH_TIERS,
+  type OAuthTier,
   buildProtectedResourceMetadata,
   buildMcpProtectedResourceMetadata,
   buildAuthorizationServerMetadata,

@@ -14,22 +14,124 @@ import type {
 } from '../types/http.types.js'
 
 /**
+ * The query parameter that tells the Nevermined web app WHICH API tier an OAuth ceremony belongs
+ * to, and its two values. Each tier (sandbox / live) is its own authorization server, but ONE web
+ * app serves the consent screens for both and boots on whatever tier the user's browser last chose
+ * — Live by default. A bare `https://nevermined.app/oauth/authorize` therefore sends a sandbox MCP
+ * server's users to the LIVE consent screen, where the connector is not registered ("Connector not
+ * authorized"). The tier is stated on the URL instead; RFC 6749 §3.1 obliges clients to retain the
+ * query component when they add their own parameters. Same name and values as the Nevermined API's
+ * own RFC 8414 document and the embed widget (nvm-monorepo#3430 / #1787).
+ */
+export const OAUTH_TIER_PARAM = 'network'
+export const OAUTH_TIERS = ['sandbox', 'live'] as const
+export type OAuthTier = (typeof OAUTH_TIERS)[number]
+
+/**
+ * The API tier an environment belongs to. The four named environments map directly. `custom` is
+ * derived from the host of the backend it will publish as `token_endpoint`: a Nevermined API host has
+ * an `api` label immediately followed by the tier label — `api.sandbox.nevermined.app`,
+ * `<slug>.api.live.nevermined.app` (branded per-org subdomains), `mcp.api.sandbox.nevermined.dev` —
+ * so that label pair is what is matched, never a bare `sandbox` anywhere in the host. When the host
+ * cannot be classified (a `localhost` stack, a proxy/CNAME in front of the API) the tier is
+ * **omitted**, not guessed: the URL stays the pre-#3430 bare one, and the operator sets
+ * `oauthUrls.authorizationUri` (with `?network=` on it) to say which tier that deployment is —
+ * `getOAuthUrlsForEnvironment` warns once when that happens, so the degradation is never silent.
+ *
+ * ⚠️ This is not the only classifier of a `custom` backend for the `network` value. Two siblings
+ * apply DIFFERENT rules to the same input and can disagree on real hosts (payments#455 review):
+ * `cli/src/utils/widget-redirect-flow.ts` `resolveEmbedNetwork` matches `live` as a dot/slash-bounded
+ * segment anywhere in `NVM_BACKEND_URL` and DEFAULTS to `sandbox`; nvm-monorepo
+ * `apps/mcp/src/config.ts` `deriveEmbedNetwork` needs a `nevermined.{app,dev}` suffix AND a tier
+ * segment, and refuses otherwise. Decided 2026-09-18: all three converge on THIS rule (the `api.<tier>`
+ * pair, never guessing) — the CLI in payments#456, the monorepo in nvm-monorepo#3638. Do not derive a
+ * fourth rule here.
+ */
+export function resolveOAuthTier(
+  environment: EnvironmentName,
+  backendUrl: string,
+): OAuthTier | undefined {
+  switch (environment) {
+    case 'sandbox':
+    case 'staging_sandbox':
+      return 'sandbox'
+    case 'live':
+    case 'staging_live':
+      return 'live'
+    default:
+      return tierFromHost(backendUrl)
+  }
+}
+
+/** The `api.<tier>` label-pair match behind {@link resolveOAuthTier}'s `custom` branch. */
+function tierFromHost(url: string): OAuthTier | undefined {
+  let labels: string[]
+  try {
+    // WHATWG `hostname` is lowercased and carries no port/credentials/path.
+    labels = new URL(url).hostname.split('.')
+  } catch {
+    return undefined
+  }
+  const tierAfterApi = labels[labels.indexOf('api') + 1]
+  if (labels.includes('api') && (OAUTH_TIERS as readonly string[]).includes(tierAfterApi)) {
+    return tierAfterApi as OAuthTier
+  }
+  return undefined
+}
+
+/** Best-effort host for a warning line; never throws on a malformed URL. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
+// Warn-once flags, module-level like `environmentOptionDeprecationWarned` in `base-payments.ts`:
+// discovery documents are rebuilt per request, and a warning per request is noise nobody reads.
+let tierlessWarned = false
+let crossTierWarned = false
+
+/**
+ * Append `?network=<tier>` to the authorize URL. Goes through the URL API so the result is a
+ * canonical absolute URL with one query string; a frontend that is not an absolute URL (a relative
+ * `NVM_FRONTEND_URL` such as `/webapp`) cannot be parsed, and falls back to plain concatenation —
+ * the same shape the tier-less URL always had for that misconfiguration.
+ */
+function withTierParam(authorizeUrl: string, tier: OAuthTier | undefined): string {
+  if (!tier) return authorizeUrl
+  try {
+    const url = new URL(authorizeUrl)
+    url.searchParams.set(OAUTH_TIER_PARAM, tier)
+    return url.toString()
+  } catch {
+    return `${authorizeUrl}${authorizeUrl.includes('?') ? '&' : '?'}${OAUTH_TIER_PARAM}=${tier}`
+  }
+}
+
+/**
  * Build OAuth URLs from frontend and backend URLs.
- * - issuer and authorizationUri use the frontend (user-facing)
+ * - issuer and authorizationUri use the frontend (user-facing); authorizationUri carries the tier
  * - tokenUri, jwksUri, userinfoUri use the backend (API)
  *
  * @param frontendUrl - The frontend URL (e.g., https://nevermined.app)
  * @param backendUrl - The backend URL (e.g., https://api.sandbox.nevermined.app)
+ * @param tier - The API tier to stamp on the authorize URL (see {@link resolveOAuthTier})
  * @returns OAuth URLs configuration
  */
-function buildOAuthUrls(frontendUrl: string, backendUrl: string): OAuthUrls {
+function buildOAuthUrls(
+  frontendUrl: string,
+  backendUrl: string,
+  tier: OAuthTier | undefined,
+): OAuthUrls {
   // Remove trailing slashes
   const frontend = frontendUrl.replace(/\/$/, '')
   const backend = backendUrl.replace(/\/$/, '')
 
   return {
     issuer: frontend,
-    authorizationUri: `${frontend}/oauth/authorize`,
+    authorizationUri: withTierParam(`${frontend}/oauth/authorize`, tier),
     tokenUri: `${backend}/oauth/token`,
     jwksUri: `${backend}/.well-known/jwks.json`,
     userinfoUri: `${backend}/oauth/userinfo`,
@@ -38,14 +140,59 @@ function buildOAuthUrls(frontendUrl: string, backendUrl: string): OAuthUrls {
 
 /**
  * Get OAuth URLs for an environment.
- * Uses frontend and backend URLs from Environments configuration.
+ * Uses frontend and backend URLs from Environments configuration. An unknown environment name (a
+ * JS caller / cast — `EnvironmentName` is closed) falls back to `sandbox`, as it always did; the
+ * fallback is now internally consistent (a sandbox `token_endpoint` AND a sandbox-tagged authorize).
  *
  * @param environment - The Nevermined environment name
+ * @param backendForTier - The backend the document will actually publish as `token_endpoint` —
+ *   the environment's, or an `oauthUrls.tokenUri` override. The tier follows THAT under `custom`,
+ *   exactly as `resolveAuthorizationServer` derives the AS origin from it: a `custom` server whose
+ *   `tokenUri` is overridden to `api.sandbox.…` must not publish a sandbox token endpoint next to a
+ *   tier-blind authorize URL (payments#455 review). Under a NAMED environment the environment's tier
+ *   takes precedence over the override — deliberately: a same-tier proxy (`sandbox` +
+ *   `tokenUri: https://gw.corp.com/…`) classifies to nothing and must keep the tier it has. When the
+ *   override's host classifies to the OTHER tier the combination is always a misconfiguration (the
+ *   consent screen on one tier, the token endpoint on the other, and the code exchange failing as a
+ *   "bad or expired code"), so it is warned once rather than silently honoured.
  * @returns OAuth URLs configuration
  */
-function getOAuthUrlsForEnvironment(environment: EnvironmentName): OAuthUrls {
-  const envConfig = Environments[environment] || Environments.sandbox
-  return buildOAuthUrls(envConfig.frontend, envConfig.backend)
+function getOAuthUrlsForEnvironment(
+  environment: EnvironmentName,
+  backendForTier?: string,
+): OAuthUrls {
+  const known = environment in Environments
+  const effective: EnvironmentName = known ? environment : 'sandbox'
+  const envConfig = Environments[effective]
+  const backend = backendForTier || envConfig.backend
+  const tier = resolveOAuthTier(effective, backend)
+
+  if (effective === 'custom' && !tier && !tierlessWarned) {
+    // Omitting beats guessing, but never silently: the document is served 200 and cached for an
+    // hour, and the operator's first evidence would otherwise be a user on the wrong consent screen.
+    tierlessWarned = true
+    console.warn(
+      `[Nevermined] Could not derive the API tier from backend host '${hostOf(backend)}' — ` +
+        `authorization_endpoint will be advertised without ?${OAUTH_TIER_PARAM}=. Set ` +
+        `oauthUrls.authorizationUri to the Nevermined web app URL including ` +
+        `?${OAUTH_TIER_PARAM}=sandbox|live for this deployment.`,
+    )
+  }
+  if (effective !== 'custom' && backendForTier && !crossTierWarned) {
+    const overrideTier = tierFromHost(backendForTier)
+    if (overrideTier && overrideTier !== tier) {
+      crossTierWarned = true
+      console.warn(
+        `[Nevermined] oauthUrls.tokenUri points at the ${overrideTier} API ` +
+          `('${hostOf(backendForTier)}') but the environment is '${effective}' (${tier}); ` +
+          `authorization_endpoint keeps ?${OAUTH_TIER_PARAM}=${tier} from the environment, so the ` +
+          `consent screen and the token endpoint would sit on different tiers. Use the same tier ` +
+          `for both.`,
+      )
+    }
+  }
+
+  return buildOAuthUrls(envConfig.frontend, envConfig.backend, tier)
 }
 
 /**
@@ -71,7 +218,10 @@ export function getOAuthUrls(
   environment: EnvironmentName,
   overrides?: Partial<OAuthUrls>,
 ): OAuthUrls {
-  const baseUrls = getOAuthUrlsForEnvironment(environment)
+  // An overridden `authorizationUri` is passed through verbatim — the SDK cannot know whether it is
+  // the Nevermined webapp or a foreign AS, so an operator who points it at the webapp includes
+  // `?network=` themselves (documented on `OAuthUrls.authorizationUri`).
+  const baseUrls = getOAuthUrlsForEnvironment(environment, overrides?.tokenUri)
   return { ...baseUrls, ...overrides }
 }
 
