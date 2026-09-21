@@ -353,6 +353,17 @@ describe('MCP OAuth E2E Tests', () => {
 
       // Required fields per RFC 8414
       expect(data.issuer).toBeDefined()
+      // #463: the issuer is the API ORIGIN of the tier this server runs against — the value the
+      // web app returns as RFC 9207 `iss`, which clients string-compare against this field.
+      // Spelled out from TEST_ENVIRONMENT rather than read back from the SDK.
+      expect(data.issuer).toBe(
+        {
+          sandbox: 'https://api.sandbox.nevermined.app',
+          live: 'https://api.live.nevermined.app',
+          staging_sandbox: 'https://api.sandbox.nevermined.dev',
+          staging_live: 'https://api.live.nevermined.dev',
+        }[TEST_ENVIRONMENT as 'sandbox' | 'live' | 'staging_sandbox' | 'staging_live'],
+      )
       expect(data.authorization_endpoint).toBeDefined()
       // #447: the served document names the API tier on the authorize URL. Derived locally from
       // TEST_ENVIRONMENT so this does not simply mirror `resolveOAuthTier`.
@@ -466,8 +477,12 @@ describe('MCP OAuth E2E Tests', () => {
       const authServerData = await authServerRes.json()
       const oidcData = await oidcRes.json()
 
-      // Issuer should be consistent across endpoints
+      // Issuer should be consistent across endpoints — and (#463) it is the AS the protected
+      // resource document points at, so a client that discovers either way lands on one identifier.
       expect(authServerData.issuer).toBe(oidcData.issuer)
+      const prmRes = await fetch(`${serverUrl}/.well-known/oauth-protected-resource`)
+      const prm = await prmRes.json()
+      expect(prm.authorization_servers).toEqual([authServerData.issuer])
 
       // Endpoints should also be consistent
       expect(authServerData.authorization_endpoint).toBe(oidcData.authorization_endpoint)

@@ -111,26 +111,54 @@ function withTierParam(authorizeUrl: string, tier: OAuthTier | undefined): strin
 }
 
 /**
+ * The RFC 8414 issuer identifier of the authorization server a document describes: the ORIGIN of
+ * the backend whose `token_endpoint` it publishes. The Nevermined API's own document uses exactly
+ * this (`well-known.service.ts` reduces `API_HOST` to its origin), and since nvm-monorepo#3532 the
+ * web app returns RFC 9207 `iss` = that origin on every authorization response — which an RFC 9207
+ * client compares with the `issuer` it discovered by SIMPLE STRING comparison and rejects on any
+ * difference. So the value has to be the origin, byte for byte: no trailing slash, no path, host
+ * lower-cased — `new URL(...).origin` gives all three. A backend that cannot be parsed keeps the
+ * pre-existing "strip the trailing slash" shape rather than crashing a metadata endpoint.
+ */
+function issuerOf(backendUrl: string): string {
+  try {
+    return new URL(backendUrl).origin
+  } catch {
+    return backendUrl.replace(/\/$/, '')
+  }
+}
+
+/**
  * Build OAuth URLs from frontend and backend URLs.
- * - issuer and authorizationUri use the frontend (user-facing); authorizationUri carries the tier
- * - tokenUri, jwksUri, userinfoUri use the backend (API)
+ * - authorizationUri uses the frontend (user-facing consent page) and carries the tier
+ * - issuer, tokenUri, jwksUri, userinfoUri use the backend (the API is the authorization server)
+ *
+ * `issuer` used to be the FRONTEND origin — identical for both tiers, since one web app serves both
+ * consent screens — while `authorization_servers` (RFC 9728), `token_endpoint` and the API's own
+ * RFC 8414 document all named the backend. That was a tier-blind identifier, and once the web app
+ * started returning RFC 9207 `iss` = the API origin (nvm-monorepo#3532) it made every client that
+ * discovers via THIS server's well-known reject its authorization responses. payments#463.
  *
  * @param frontendUrl - The frontend URL (e.g., https://nevermined.app)
  * @param backendUrl - The backend URL (e.g., https://api.sandbox.nevermined.app)
  * @param tier - The API tier to stamp on the authorize URL (see {@link resolveOAuthTier})
+ * @param issuerBackendUrl - The backend the document will actually publish as `token_endpoint`
+ *   (an `oauthUrls.tokenUri` override, else `backendUrl`); the issuer is its origin, exactly as
+ *   `resolveAuthorizationServer` derives `authorization_servers` from it, so the two never disagree.
  * @returns OAuth URLs configuration
  */
 function buildOAuthUrls(
   frontendUrl: string,
   backendUrl: string,
   tier: OAuthTier | undefined,
+  issuerBackendUrl: string = backendUrl,
 ): OAuthUrls {
   // Remove trailing slashes
   const frontend = frontendUrl.replace(/\/$/, '')
   const backend = backendUrl.replace(/\/$/, '')
 
   return {
-    issuer: frontend,
+    issuer: issuerOf(issuerBackendUrl),
     authorizationUri: withTierParam(`${frontend}/oauth/authorize`, tier),
     tokenUri: `${backend}/oauth/token`,
     jwksUri: `${backend}/.well-known/jwks.json`,
@@ -192,7 +220,7 @@ function getOAuthUrlsForEnvironment(
     }
   }
 
-  return buildOAuthUrls(envConfig.frontend, envConfig.backend, tier)
+  return buildOAuthUrls(envConfig.frontend, envConfig.backend, tier, backend)
 }
 
 /**

@@ -9,7 +9,13 @@ import type { EnvironmentName } from '../../environments.js'
  * These URLs are used to build the OAuth discovery metadata.
  */
 export interface OAuthUrls {
-  /** The issuer identifier (e.g., https://nevermined.app) */
+  /**
+   * The RFC 8414 issuer identifier — the ORIGIN of the Nevermined API this server's document
+   * publishes as `token_endpoint` (e.g. `https://api.sandbox.nevermined.app`), one per tier, the
+   * same value the API's own discovery document and the web app's RFC 9207 `iss` use. It was the
+   * frontend origin before payments#463 (tier-blind, and rejected by RFC 9207 clients once the
+   * web app started returning `iss`). An explicit override is passed through unchanged.
+   */
   issuer: string
   /**
    * OAuth authorization endpoint URL — the Nevermined webapp's consent page, **tier-qualified**

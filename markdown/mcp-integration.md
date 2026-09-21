@@ -33,6 +33,8 @@ These endpoints are generated automatically—no manual configuration required.
 
 The `authorization_endpoint` they advertise names the API tier your server runs against — `https://nevermined.app/oauth/authorize?network=sandbox` for `sandbox`, `?network=live` for `live` — because one Nevermined web app serves the consent screens for both tiers and boots on whatever tier the user's browser last chose. Clients keep that query string when they add their own parameters (RFC 6749 §3.1); if you configure a client by hand, copy the endpoint from your server's discovery document, query string included. A `custom` environment derives the tier from its backend host (`api.sandbox.…` / `api.live.…`, branded subdomains included); behind a host the SDK cannot classify — `localhost`, a proxy — no tier is stamped, so set `oauthUrls.authorizationUri` to the webapp URL **with** `?network=<tier>` yourself.
 
+Their `issuer` is the **API origin of that tier** — `https://api.sandbox.nevermined.app` for `sandbox`, `https://api.live.nevermined.app` for `live` — the same identifier the Nevermined API's own discovery document publishes and the value the consent page returns as the RFC 9207 `iss` parameter on every authorization response. It is also what `authorization_servers` names in the protected-resource document, so a client that discovers through either route sees one authorization server. (Earlier releases published the web app's origin here, identical for both tiers; a client that cached that identifier re-discovers once.)
+
 ## Configure MCP
 
 Initialize the MCP integration with your plan details:
