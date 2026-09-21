@@ -33,13 +33,12 @@ describe('OAuth Metadata Builders', () => {
       expect(metadata).toBeDefined()
       expect(metadata.resource).toBe('http://localhost:3000')
       // The AS is the BACKEND API origin (it serves the RFC 8414 AS metadata),
-      // NOT this MCP server (baseUrl) and NOT the frontend SPA (getOAuthUrls().issuer,
-      // which 200s HTML on every path). Hardcoded so it can't drift silently.
+      // NOT this MCP server (baseUrl) and NOT the frontend SPA (which 200s HTML on every
+      // path). Hardcoded so it can't drift silently. (#463: `issuer` IS that origin now, so the
+      // frontend is named literally rather than through `getOAuthUrls().issuer`.)
       expect(metadata.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
       expect(metadata.authorization_servers).not.toContain(baseConfig.baseUrl)
-      expect(metadata.authorization_servers).not.toContain(
-        getOAuthUrls(baseConfig.environment).issuer,
-      )
+      expect(metadata.authorization_servers).not.toContain('https://nevermined.dev')
       expect(metadata.bearer_methods_supported).toEqual(['header'])
       expect(metadata.resource_documentation).toBe('http://localhost:3000/')
     })
@@ -76,9 +75,7 @@ describe('OAuth Metadata Builders', () => {
       // Same as the base builder: the AS is the backend API origin.
       expect(metadata.authorization_servers).toEqual(['https://api.sandbox.nevermined.dev'])
       expect(metadata.authorization_servers).not.toContain(baseConfig.baseUrl)
-      expect(metadata.authorization_servers).not.toContain(
-        getOAuthUrls(baseConfig.environment).issuer,
-      )
+      expect(metadata.authorization_servers).not.toContain('https://nevermined.dev')
       expect(metadata.bearer_methods_supported).toEqual(['header'])
     })
 
@@ -425,7 +422,9 @@ describe('OAuth Metadata Builders', () => {
       expect(resolveOAuthTier('custom', 'https://acme.api.sandbox.nevermined.app')).toBe('sandbox')
       expect(resolveOAuthTier('custom', 'https://mcp.api.live.nevermined.dev')).toBe('live')
       // WHATWG hostname lowercases and strips port/credentials.
-      expect(resolveOAuthTier('custom', 'https://API.Sandbox.nevermined.app:8443/x')).toBe('sandbox')
+      expect(resolveOAuthTier('custom', 'https://API.Sandbox.nevermined.app:8443/x')).toBe(
+        'sandbox',
+      )
       // Anchored on the `api.<tier>` label pair — a bare `sandbox` label elsewhere is NOT a tier.
       expect(resolveOAuthTier('custom', 'https://sandbox.nevermined.app')).toBeUndefined()
       expect(resolveOAuthTier('custom', 'https://api.nevermined.app/sandbox')).toBeUndefined()
@@ -441,7 +440,9 @@ describe('OAuth Metadata Builders', () => {
         tokenUri: 'https://api.sandbox.nevermined.app/oauth/token',
       })
       expect(new URL(sandbox.authorizationUri).searchParams.get('network')).toBe('sandbox')
-      const live = getOAuthUrls('custom', { tokenUri: 'https://api.live.nevermined.app/oauth/token' })
+      const live = getOAuthUrls('custom', {
+        tokenUri: 'https://api.live.nevermined.app/oauth/token',
+      })
       expect(new URL(live.authorizationUri).searchParams.get('network')).toBe('live')
       // A local backend override keeps the bare URL — no guessed tier.
       const local = getOAuthUrls('custom', { tokenUri: 'http://localhost:3001/oauth/token' })
@@ -494,7 +495,9 @@ describe('OAuth Metadata Builders', () => {
 
     test('custom + unclassifiable backend: bare URL, ONE warning naming the host and the remedy', async () => {
       const mod = await fresh('http://localhost:3001')
-      expect(mod.getOAuthUrls('custom').authorizationUri).toBe('https://nevermined.app/oauth/authorize')
+      expect(mod.getOAuthUrls('custom').authorizationUri).toBe(
+        'https://nevermined.app/oauth/authorize',
+      )
       expect(warn).toHaveBeenCalledTimes(1)
       const msg = String(warn.mock.calls[0][0])
       expect(msg).toContain("'localhost:3001'")
@@ -506,11 +509,63 @@ describe('OAuth Metadata Builders', () => {
       expect(warn).toHaveBeenCalledTimes(1)
     })
 
-    test('custom + malformed backend: still exactly one warning, never a throw', async () => {
+    test('custom + malformed backend: one tier warning AND one issuer warning, never a throw', async () => {
       const mod = await fresh('not a url')
-      expect(mod.getOAuthUrls('custom').authorizationUri).not.toContain('network=')
-      expect(warn).toHaveBeenCalledTimes(1)
-      expect(String(warn.mock.calls[0][0])).toContain("'not a url'")
+      const urls = mod.getOAuthUrls('custom')
+      expect(urls.authorizationUri).not.toContain('network=')
+      // #464: the issuer falls back to the raw string (no origin anywhere) and says so once.
+      expect(urls.issuer).toBe('not a url')
+      const messages = warn.mock.calls.map((c) => String(c[0]))
+      expect(messages).toHaveLength(2)
+      expect(messages.find((m) => m.includes('without ?network='))).toContain("'not a url'")
+      expect(messages.find((m) => m.includes('Could not derive an OAuth issuer'))).toContain(
+        'oauthUrls.issuer',
+      )
+      mod.getOAuthUrls('custom')
+      expect(warn).toHaveBeenCalledTimes(2)
+    })
+
+    test('custom on a non-Nevermined host: issuer published AND warned once per value, unless overridden', async () => {
+      // `api.live.example.com` classifies to a tier but has no canonical form; it is the right
+      // issuer for a foreign API and the WRONG one for a proxy in front of the real API — the SDK
+      // cannot tell, so it says what it derived and names `oauthUrls.issuer`.
+      const mod = await fresh('https://api.live.example.com')
+      expect(mod.getOAuthUrls('custom').issuer).toBe('https://api.live.example.com')
+      mod.getOAuthUrls('custom')
+      const proxyWarnings = () =>
+        warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('proxy or gateway'))
+      expect(proxyWarnings()).toHaveLength(1)
+      expect(proxyWarnings()[0]).toContain("'api.live.example.com'")
+      expect(proxyWarnings()[0]).toContain('oauthUrls.issuer')
+      // A DIFFERENT non-canonical value warns again (a changed typo re-alerts) …
+      mod.getOAuthUrls('custom', { tokenUri: 'https://gw.corp.com/oauth/token' })
+      expect(proxyWarnings()).toHaveLength(2)
+      // … an operator who already set `oauthUrls.issuer` is not told to set it …
+      mod.getOAuthUrls('custom', {
+        tokenUri: 'https://other.example.com/oauth/token',
+        issuer: 'https://api.live.nevermined.app',
+      })
+      expect(proxyWarnings()).toHaveLength(2)
+      // … and a loopback stack is not a proxy: it keeps only the tier warning it already had.
+      mod.getOAuthUrls('custom', { tokenUri: 'http://localhost:3001/oauth/token' })
+      expect(proxyWarnings()).toHaveLength(2)
+    })
+
+    test('custom + scheme-less host:port: opaque origin is NOT published as "null"', async () => {
+      // `new URL('localhost:3001')` parses (scheme `localhost:`) with `.origin === 'null'`; that must
+      // take the fallback path, not be served as an issuer.
+      const mod = await fresh('localhost:3001')
+      const urls = mod.getOAuthUrls('custom')
+      expect(urls.issuer).toBe('localhost:3001')
+      expect(urls.issuer).not.toBe('null')
+      const config: OAuthConfig = { ...baseConfig, environment: 'custom' }
+      // …and the PRM no longer throws on it either — one derivation, one answer.
+      expect(mod.buildProtectedResourceMetadata(config).authorization_servers).toEqual([
+        'localhost:3001',
+      ])
+      expect(
+        warn.mock.calls.some((c) => String(c[0]).includes('Could not derive an OAuth issuer')),
+      ).toBe(true)
     })
 
     test('custom + classifiable backend: no warning', async () => {
@@ -555,6 +610,173 @@ describe('OAuth Metadata Builders', () => {
     })
   })
 
+  // payments#463: `issuer` used to be the frontend origin — the same string for both tiers — while
+  // `authorization_servers`, `token_endpoint` and the API's own RFC 8414 document all named the
+  // backend. Since nvm-monorepo#3532 the web app returns RFC 9207 `iss` = the API origin, which an
+  // RFC 9207 client compares with the discovered `issuer` by simple string comparison — so the
+  // frontend value made every RFC 9207 direct-discovery client reject its codes. Hardcoded per environment
+  // so a regression to the frontend cannot pass by mirroring the implementation.
+  describe('issuer is the API origin per tier (#463)', () => {
+    test.each([
+      ['sandbox', 'https://api.sandbox.nevermined.app', 'https://nevermined.app'],
+      ['staging_sandbox', 'https://api.sandbox.nevermined.dev', 'https://nevermined.dev'],
+      ['live', 'https://api.live.nevermined.app', 'https://nevermined.app'],
+      ['staging_live', 'https://api.live.nevermined.dev', 'https://nevermined.dev'],
+    ] as const)('%s → issuer %s, never the frontend %s', (environment, backend, frontend) => {
+      const urls = getOAuthUrls(environment)
+      expect(urls.issuer).toBe(backend)
+      expect(urls.issuer).not.toBe(frontend)
+      // Every document that describes this AS agrees on its identifier.
+      const config: OAuthConfig = { ...baseConfig, environment }
+      expect(buildAuthorizationServerMetadata(config).issuer).toBe(backend)
+      expect(buildOidcConfiguration(config).issuer).toBe(backend)
+      expect(buildProtectedResourceMetadata(config).authorization_servers).toEqual([backend])
+    })
+
+    test('the two tiers now publish DIFFERENT issuers (the whole point)', () => {
+      expect(getOAuthUrls('sandbox').issuer).not.toBe(getOAuthUrls('live').issuer)
+      expect(getOAuthUrls('staging_sandbox').issuer).not.toBe(getOAuthUrls('staging_live').issuer)
+    })
+
+    test('issuer === authorization_servers[0], including under a tokenUri override', () => {
+      // The invariant an RFC 9207 client relies on: the identifier it discovered is the AS that
+      // answers. Both sides derive from the backend the document PUBLISHES, so an override moves
+      // them together.
+      for (const environment of ['sandbox', 'live', 'staging_sandbox', 'staging_live'] as const) {
+        const config: OAuthConfig = { ...baseConfig, environment }
+        expect(buildAuthorizationServerMetadata(config).issuer).toBe(
+          buildProtectedResourceMetadata(config).authorization_servers[0],
+        )
+      }
+      const overridden: OAuthConfig = {
+        ...baseConfig,
+        environment: 'custom',
+        oauthUrls: { tokenUri: 'https://api.live.nevermined.app/oauth/token' },
+      }
+      expect(buildAuthorizationServerMetadata(overridden).issuer).toBe(
+        'https://api.live.nevermined.app',
+      )
+      expect(buildAuthorizationServerMetadata(overridden).issuer).toBe(
+        buildProtectedResourceMetadata(overridden).authorization_servers[0],
+      )
+    })
+
+    test('issuer is an ORIGIN: no path, no trailing slash, host lower-cased', () => {
+      // RFC 9207 §2.4 is a simple string comparison against the `iss` the web app returns, which is
+      // `new URL(backendUrl).origin` — so this side must reduce the same way.
+      const urls = getOAuthUrls('custom', {
+        tokenUri: 'HTTPS://API.Sandbox.Nevermined.app/oauth/token',
+      })
+      expect(urls.issuer).toBe('https://api.sandbox.nevermined.app')
+      expect(getOAuthUrls('custom', { tokenUri: 'https://api.live.nevermined.app/' }).issuer).toBe(
+        'https://api.live.nevermined.app',
+      )
+      // Credentials never reach a public document; a non-default port is part of the origin.
+      expect(
+        getOAuthUrls('custom', { tokenUri: 'https://user:pw@gw.example.com/oauth/token' }).issuer,
+      ).toBe('https://gw.example.com')
+      expect(
+        getOAuthUrls('custom', { tokenUri: 'https://gw.example.com:8443/oauth/token' }).issuer,
+      ).toBe('https://gw.example.com:8443')
+    })
+
+    test('an explicit issuer override is passed through — and authorization_servers follows it', () => {
+      const urls = getOAuthUrls('sandbox', { issuer: 'https://custom-issuer.com' })
+      expect(urls.issuer).toBe('https://custom-issuer.com')
+      expect(urls.tokenUri).toBe('https://api.sandbox.nevermined.app/oauth/token')
+      // RFC 9728 §2: `authorization_servers` entries ARE issuer identifiers. Naming a foreign AS as
+      // the issuer means that is also where clients are sent — one derivation, by construction.
+      const config: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { issuer: 'https://custom-issuer.com' },
+      }
+      expect(buildProtectedResourceMetadata(config).authorization_servers).toEqual([
+        'https://custom-issuer.com',
+      ])
+    })
+
+    test('a NAMED environment keeps its canonical issuer under any tokenUri override (proxy, cross-tier, malformed)', () => {
+      // The environment IS the identity: the web app returns `iss` for that tier from fixed config,
+      // so a proxy in front of the token endpoint must not move the issuer — and neither may a
+      // cross-tier or malformed override. `authorization_servers` follows the issuer on every row.
+      for (const [environment, canonical] of [
+        ['sandbox', 'https://api.sandbox.nevermined.app'],
+        ['live', 'https://api.live.nevermined.app'],
+        ['staging_sandbox', 'https://api.sandbox.nevermined.dev'],
+        ['staging_live', 'https://api.live.nevermined.dev'],
+      ] as const) {
+        for (const tokenUri of [
+          'https://gw.corp.com/oauth/token',
+          'https://api.live.nevermined.app/oauth/token',
+          'api.sandbox.nevermined.app/oauth/token',
+          '/oauth/token',
+        ]) {
+          const config: OAuthConfig = { ...baseConfig, environment, oauthUrls: { tokenUri } }
+          const urls = getOAuthUrls(environment, { tokenUri })
+          expect(urls.issuer).toBe(canonical)
+          expect(urls.tokenUri).toBe(tokenUri)
+          expect(buildAuthorizationServerMetadata(config).issuer).toBe(canonical)
+          expect(buildProtectedResourceMetadata(config).authorization_servers).toEqual([canonical])
+        }
+      }
+    })
+
+    test('custom on a Nevermined host publishes the CANONICAL tier origin, not the request host', () => {
+      // A branded per-org subdomain and the Commerce MCP host serve the same API as
+      // `api.<tier>.nevermined.<tld>`; the API's own document and the web app's `iss` both say the
+      // canonical origin, so that is the only value that passes the RFC 9207 compare.
+      const cases: Array<[string, string]> = [
+        ['https://acme.api.live.nevermined.app/oauth/token', 'https://api.live.nevermined.app'],
+        [
+          'https://mcp.api.sandbox.nevermined.dev/oauth/token',
+          'https://api.sandbox.nevermined.dev',
+        ],
+        ['https://mcp.api.live.nevermined.dev/oauth/token', 'https://api.live.nevermined.dev'],
+        // A trailing-dot FQDN is the same host to DNS — canonicalised, never one byte off.
+        ['https://api.sandbox.nevermined.app./oauth/token', 'https://api.sandbox.nevermined.app'],
+        [
+          'https://API.Sandbox.Nevermined.app:443/oauth/token',
+          'https://api.sandbox.nevermined.app',
+        ],
+        // A foreign host that happens to classify keeps its OWN origin — no canonical form exists.
+        ['https://api.live.example.com/oauth/token', 'https://api.live.example.com'],
+        ['https://x.api.live.example.com:8443/oauth/token', 'https://x.api.live.example.com:8443'],
+      ]
+      for (const [tokenUri, issuer] of cases) {
+        const config: OAuthConfig = {
+          ...baseConfig,
+          environment: 'custom',
+          oauthUrls: { tokenUri },
+        }
+        expect(getOAuthUrls('custom', { tokenUri }).issuer).toBe(issuer)
+        expect(buildProtectedResourceMetadata(config).authorization_servers).toEqual([issuer])
+      }
+    })
+
+    test('override hygiene: undefined / empty values never replace the computed issuer', () => {
+      expect(getOAuthUrls('sandbox', { issuer: undefined }).issuer).toBe(
+        'https://api.sandbox.nevermined.app',
+      )
+      expect(getOAuthUrls('sandbox', { issuer: '' }).issuer).toBe(
+        'https://api.sandbox.nevermined.app',
+      )
+      expect(getOAuthUrls('sandbox', { tokenUri: undefined }).tokenUri).toBe(
+        'https://api.sandbox.nevermined.app/oauth/token',
+      )
+      // The served document keeps its REQUIRED field.
+      const config: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { issuer: undefined },
+      }
+      expect(buildAuthorizationServerMetadata(config)).toHaveProperty(
+        'issuer',
+        'https://api.sandbox.nevermined.app',
+      )
+    })
+  })
+
   describe('custom via NVM_BACKEND_URL (module reload, #447)', () => {
     // `Environments.custom` reads the env at module load, so the public `getOAuthUrls('custom')`
     // path is exercised by reloading the module under each value — the repo's pattern
@@ -578,11 +800,22 @@ describe('OAuth Metadata Builders', () => {
     }
 
     test.each([
-      ['https://api.sandbox.nevermined.app', 'https://nevermined.app/oauth/authorize?network=sandbox'],
-      ['https://api.live.nevermined.app/', 'https://nevermined.app/oauth/authorize?network=live'],
-      ['http://localhost:3001', 'https://nevermined.app/oauth/authorize'],
-    ])('NVM_BACKEND_URL=%s → %s', async (backend, expected) => {
-      expect((await load(backend)).authorizationUri).toBe(expected)
+      [
+        'https://api.sandbox.nevermined.app',
+        'https://nevermined.app/oauth/authorize?network=sandbox',
+        'https://api.sandbox.nevermined.app',
+      ],
+      [
+        'https://api.live.nevermined.app/',
+        'https://nevermined.app/oauth/authorize?network=live',
+        'https://api.live.nevermined.app',
+      ],
+      ['http://localhost:3001', 'https://nevermined.app/oauth/authorize', 'http://localhost:3001'],
+    ])('NVM_BACKEND_URL=%s → %s, issuer %s', async (backend, expected, issuer) => {
+      const urls = await load(backend)
+      expect(urls.authorizationUri).toBe(expected)
+      // #463: a custom deployment's issuer is ITS backend's origin — a local stack included.
+      expect(urls.issuer).toBe(issuer)
     })
   })
 })

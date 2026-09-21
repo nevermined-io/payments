@@ -9,7 +9,16 @@ import type { EnvironmentName } from '../../environments.js'
  * These URLs are used to build the OAuth discovery metadata.
  */
 export interface OAuthUrls {
-  /** The issuer identifier (e.g., https://nevermined.app) */
+  /**
+   * The RFC 8414 issuer identifier — the CANONICAL origin of the Nevermined API this server runs
+   * against (e.g. `https://api.sandbox.nevermined.app`), one per tier: the value the API's own
+   * discovery document publishes and the web app returns as RFC 9207 `iss`. A named environment
+   * publishes its own canonical origin whatever `tokenUri` proxy sits in front of it; `custom`
+   * follows the backend it publishes, canonicalised for a Nevermined host. It was the frontend
+   * origin until #463 was fixed (payments#464): tier-blind, and rejected by RFC 9207 clients once
+   * the web app started returning `iss`. A non-empty explicit override is passed through unchanged
+   * and also becomes the protected-resource document's `authorization_servers` entry.
+   */
   issuer: string
   /**
    * OAuth authorization endpoint URL — the Nevermined webapp's consent page, **tier-qualified**
@@ -18,7 +27,15 @@ export interface OAuthUrls {
    * environment behind a host the SDK cannot classify), include `?network=<tier>` in the value.
    */
   authorizationUri: string
-  /** OAuth token endpoint URL */
+  /**
+   * OAuth token endpoint URL (`${backend}/oauth/token`).
+   *
+   * ⚠️ An override here is honoured only by a client that discovers against THIS server's own
+   * document. The protected-resource document's `authorization_servers` names the issuer (the
+   * canonical API origin), so an RFC 9728 client fetches the Nevermined API's own metadata and
+   * exchanges its code at `${API origin}/oauth/token` — around any proxy set here — and sees no
+   * `registration_endpoint` there (the API offers no DCR; this server does). payments#464.
+   */
   tokenUri: string
   /** JSON Web Key Set endpoint URL */
   jwksUri: string
