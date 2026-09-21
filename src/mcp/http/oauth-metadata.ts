@@ -372,6 +372,32 @@ export function getOAuthUrls(
 }
 
 /**
+ * RFC 9207 §3: an authorization server that returns the `iss` parameter on every authorization
+ * response advertises `authorization_response_iss_parameter_supported: true`; §2.4 then has a client
+ * REJECT any response lacking `iss`. So the flag is published only where it is true: for the four
+ * named environments the consent page is the Nevermined web app, which has returned `iss` (= the
+ * canonical API origin, the `issuer` these documents publish) on every response since
+ * nvm-monorepo#3532 — the API's own document advertises the same flag. It is OMITTED for `custom`
+ * (the frontend may be an older or self-hosted web app that does not return `iss`) and whenever
+ * `oauthUrls.authorizationUri` is overridden (the consent page is then an AS this SDK knows nothing
+ * about). Absent, not `false`: a client that sees no advertisement skips the check rather than
+ * failing it. payments#466.
+ */
+function issParameterSupport(
+  environment: EnvironmentName,
+  overrides: Partial<OAuthUrls> | undefined,
+): { authorization_response_iss_parameter_supported: true } | Record<string, never> {
+  // Same effective-environment rule as `getOAuthUrlsForEnvironment`: an unknown name serves the
+  // sandbox documents, so it advertises what sandbox advertises.
+  const effective: EnvironmentName = environment in Environments ? environment : 'sandbox'
+  const consentOverridden =
+    typeof overrides?.authorizationUri === 'string' && overrides.authorizationUri.length > 0
+  return effective !== 'custom' && !consentOverridden
+    ? { authorization_response_iss_parameter_supported: true }
+    : {}
+}
+
+/**
  * Build Protected Resource Metadata (RFC 9728).
  * This metadata tells OAuth clients about the protected resource.
  *
@@ -485,6 +511,7 @@ export function buildAuthorizationServerMetadata(config: OAuthConfig): Authoriza
     scopes_supported: scopes,
     token_endpoint_auth_methods_supported: ['client_secret_post'],
     subject_types_supported: ['public'],
+    ...issParameterSupport(config.environment, config.oauthUrls),
   }
 }
 
@@ -524,6 +551,7 @@ export function buildOidcConfiguration(config: OAuthConfig): OidcConfiguration {
     id_token_signing_alg_values_supported: ['RS256', 'HS256'],
     scopes_supported: allScopes,
     claims_supported: ['sub', 'iss', 'aud', 'exp', 'iat', 'name', 'email'],
+    ...issParameterSupport(config.environment, config.oauthUrls),
   }
 }
 

@@ -777,6 +777,81 @@ describe('OAuth Metadata Builders', () => {
     })
   })
 
+  // payments#466 / RFC 9207 §3: advertise `authorization_response_iss_parameter_supported` only
+  // where it is TRUE. §2.4 has a client that sees it REJECT any response lacking `iss`, so a false
+  // advertisement is worse than none: named environments (the Nevermined web app returns `iss` since
+  // nvm-monorepo#3532) advertise it; `custom` and an overridden consent endpoint do not.
+  describe('authorization_response_iss_parameter_supported (#466)', () => {
+    test.each(['sandbox', 'live', 'staging_sandbox', 'staging_live'] as const)(
+      "%s: both AS-style documents advertise iss support, as the API's own document does",
+      (environment) => {
+        const config: OAuthConfig = { ...baseConfig, environment }
+        expect(
+          buildAuthorizationServerMetadata(config).authorization_response_iss_parameter_supported,
+        ).toBe(true)
+        expect(buildOidcConfiguration(config).authorization_response_iss_parameter_supported).toBe(
+          true,
+        )
+      },
+    )
+
+    test('custom: the key is ABSENT (not false) — the frontend may not return iss', () => {
+      const config: OAuthConfig = { ...baseConfig, environment: 'custom' }
+      expect(buildAuthorizationServerMetadata(config)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+      expect(buildOidcConfiguration(config)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+    })
+
+    test('an overridden authorizationUri is an AS this SDK knows nothing about — no advertisement', () => {
+      const config: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { authorizationUri: 'https://custom-issuer.com/oauth/authorize' },
+      }
+      expect(buildAuthorizationServerMetadata(config)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+      // Other overrides leave the consent page on the Nevermined web app — still advertised.
+      const tokenOnly: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { tokenUri: 'https://gw.corp.com/oauth/token' },
+      }
+      expect(
+        buildAuthorizationServerMetadata(tokenOnly).authorization_response_iss_parameter_supported,
+      ).toBe(true)
+      // An empty override is no override.
+      const empty: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { authorizationUri: '' },
+      }
+      expect(
+        buildAuthorizationServerMetadata(empty).authorization_response_iss_parameter_supported,
+      ).toBe(true)
+    })
+
+    test('an unknown environment name serves the sandbox documents, flag included', () => {
+      const config = { ...baseConfig, environment: 'bogus' as EnvironmentName }
+      expect(
+        buildAuthorizationServerMetadata(config).authorization_response_iss_parameter_supported,
+      ).toBe(true)
+    })
+
+    test('the served field is exactly `true`, never `false`', () => {
+      for (const environment of ['sandbox', 'custom'] as const) {
+        const value = buildAuthorizationServerMetadata({
+          ...baseConfig,
+          environment,
+        }).authorization_response_iss_parameter_supported
+        expect(value === true || value === undefined).toBe(true)
+      }
+    })
+  })
+
   describe('custom via NVM_BACKEND_URL (module reload, #447)', () => {
     // `Environments.custom` reads the env at module load, so the public `getOAuthUrls('custom')`
     // path is exercised by reloading the module under each value — the repo's pattern

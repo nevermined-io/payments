@@ -367,6 +367,8 @@ describe('MCP OAuth E2E Tests', () => {
       // "expected undefined".
       expect(expectedIssuer[servedEnvironment]).toBeDefined()
       expect(data.issuer).toBe(expectedIssuer[servedEnvironment])
+      // #466: a named environment's document advertises RFC 9207 iss support, like the API's own.
+      expect(data.authorization_response_iss_parameter_supported).toBe(true)
       expect(data.authorization_endpoint).toBeDefined()
       // #447: the served document names the API tier on the authorize URL. Derived locally from
       // TEST_ENVIRONMENT so this does not simply mirror `resolveOAuthTier`.

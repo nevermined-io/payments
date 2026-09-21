@@ -162,6 +162,12 @@ export interface AuthorizationServerMetadata {
   scopes_supported: string[]
   token_endpoint_auth_methods_supported: string[]
   subject_types_supported: string[]
+  /**
+   * RFC 9207: present and `true` when every authorization response carries `iss` — the four named
+   * environments (the Nevermined web app returns it; nvm-monorepo#3532). Absent for `custom` and
+   * when `authorizationUri` is overridden; never `false`.
+   */
+  authorization_response_iss_parameter_supported?: true
 }
 
 /**
