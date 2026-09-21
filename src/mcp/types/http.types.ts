@@ -11,7 +11,12 @@ import type { EnvironmentName } from '../../environments.js'
 export interface OAuthUrls {
   /** The issuer identifier (e.g., https://nevermined.app) */
   issuer: string
-  /** OAuth authorization endpoint URL */
+  /**
+   * OAuth authorization endpoint URL — the Nevermined webapp's consent page, **tier-qualified**
+   * (`https://nevermined.app/oauth/authorize?network=sandbox|live`; nvm-monorepo#3430). An override
+   * is published verbatim: if you point it at the Nevermined webapp yourself (e.g. a `custom`
+   * environment behind a host the SDK cannot classify), include `?network=<tier>` in the value.
+   */
   authorizationUri: string
   /** OAuth token endpoint URL */
   tokenUri: string

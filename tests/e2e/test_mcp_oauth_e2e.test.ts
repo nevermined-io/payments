@@ -11,7 +11,12 @@ import type {
 } from '../../src/common/types.js'
 import { Payments } from '../../src/payments.js'
 import { retryWithBackoff } from '../utils.js'
-import { createPaymentsBuilder, createPaymentsSubscriber, ERC20_ADDRESS } from './fixtures.js'
+import {
+  createPaymentsBuilder,
+  createPaymentsSubscriber,
+  ERC20_ADDRESS,
+  TEST_ENVIRONMENT,
+} from './fixtures.js'
 
 // Test configuration
 const TEST_TIMEOUT = 30000
@@ -349,6 +354,11 @@ describe('MCP OAuth E2E Tests', () => {
       // Required fields per RFC 8414
       expect(data.issuer).toBeDefined()
       expect(data.authorization_endpoint).toBeDefined()
+      // #447: the served document names the API tier on the authorize URL. Derived locally from
+      // TEST_ENVIRONMENT so this does not simply mirror `resolveOAuthTier`.
+      expect(new URL(data.authorization_endpoint).searchParams.get('network')).toBe(
+        TEST_ENVIRONMENT.includes('live') ? 'live' : 'sandbox',
+      )
       expect(data.token_endpoint).toBeDefined()
 
       // Response types and grant types
