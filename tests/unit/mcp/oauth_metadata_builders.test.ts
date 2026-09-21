@@ -596,6 +596,37 @@ describe('OAuth Metadata Builders', () => {
       },
     )
 
+    test('named environment + an issuer override that is not the canonical origin: published, and ONE warning naming both and the remedy (#466 review)', async () => {
+      const mod = await fresh()
+      const urls = mod.getOAuthUrls('sandbox', { issuer: 'https://custom-issuer.com' })
+      // Honoured — the operator's word is published…
+      expect(urls.issuer).toBe('https://custom-issuer.com')
+      // …and said to be unredeemable: the consent page returns the canonical origin as `iss`.
+      expect(warn).toHaveBeenCalledTimes(1)
+      const msg = String(warn.mock.calls[0][0])
+      expect(msg).toContain(`oauthUrls.issuer 'https://custom-issuer.com'`)
+      expect(msg).toContain(`'sandbox' environment, 'https://api.sandbox.nevermined.app'`)
+      expect(msg).toContain(`set it to 'https://api.sandbox.nevermined.app'`)
+      mod.getOAuthUrls('sandbox', { issuer: 'https://custom-issuer.com' })
+      expect(warn).toHaveBeenCalledTimes(1)
+      // A corrected value that is still wrong is a DISTINCT value — it re-alerts.
+      mod.getOAuthUrls('sandbox', { issuer: 'https://api.sandbox.nevermined.app/' })
+      expect(warn).toHaveBeenCalledTimes(2)
+      expect(String(warn.mock.calls[1][0])).toContain(`'https://api.sandbox.nevermined.app/'`)
+    })
+
+    test('named environment + an issuer override EQUAL to the canonical origin, or any override on custom: NO warning', async () => {
+      const mod = await fresh()
+      expect(mod.getOAuthUrls('live', { issuer: 'https://api.live.nevermined.app' }).issuer).toBe(
+        'https://api.live.nevermined.app',
+      )
+      // `custom` has its own issuer arms (`issuerFor`); this one is the named environments' only.
+      expect(mod.getOAuthUrls('custom', { issuer: 'https://custom-issuer.com' }).issuer).toBe(
+        'https://custom-issuer.com',
+      )
+      expect(warn).not.toHaveBeenCalled()
+    })
+
     test('named environment + same-tier or unclassifiable proxy override: tier kept, NO warning', async () => {
       const mod = await fresh()
       // A corporate gateway in front of the sandbox API classifies to nothing — the tier it has stays.
@@ -774,6 +805,136 @@ describe('OAuth Metadata Builders', () => {
         'issuer',
         'https://api.sandbox.nevermined.app',
       )
+    })
+  })
+
+  // payments#466 / RFC 9207 §3: advertise `authorization_response_iss_parameter_supported` only
+  // where it is TRUE. §2.4 has a client that sees it REJECT any response lacking `iss`, so a false
+  // advertisement is worse than none: named environments (the Nevermined web app returns `iss` since
+  // nvm-monorepo#3532) advertise it; `custom` and an overridden consent endpoint do not.
+  describe('authorization_response_iss_parameter_supported (#466)', () => {
+    test.each(['sandbox', 'live', 'staging_sandbox', 'staging_live'] as const)(
+      "%s: both AS-style documents advertise iss support, as the API's own document does",
+      (environment) => {
+        const config: OAuthConfig = { ...baseConfig, environment }
+        expect(
+          buildAuthorizationServerMetadata(config).authorization_response_iss_parameter_supported,
+        ).toBe(true)
+        expect(buildOidcConfiguration(config).authorization_response_iss_parameter_supported).toBe(
+          true,
+        )
+      },
+    )
+
+    test('custom: the key is ABSENT (not false) — the frontend may not return iss', () => {
+      const config: OAuthConfig = { ...baseConfig, environment: 'custom' }
+      expect(buildAuthorizationServerMetadata(config)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+      expect(buildOidcConfiguration(config)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+    })
+
+    test('an overridden authorizationUri is an AS this SDK knows nothing about — no advertisement', () => {
+      const config: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { authorizationUri: 'https://custom-issuer.com/oauth/authorize' },
+      }
+      expect(buildAuthorizationServerMetadata(config)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+      expect(buildOidcConfiguration(config)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+      // …even when the override points AT the Nevermined web app (the documented remedy for an
+      // unclassifiable custom host): the SDK did not choose that AS, so it does not vouch for it.
+      const atWebapp: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { authorizationUri: 'https://nevermined.app/oauth/authorize?network=sandbox' },
+      }
+      expect(buildAuthorizationServerMetadata(atWebapp)).not.toHaveProperty(
+        'authorization_response_iss_parameter_supported',
+      )
+      // `{ authorizationUri: undefined }` (an unset env var) is no override.
+      const unset: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { authorizationUri: undefined },
+      }
+      expect(
+        buildAuthorizationServerMetadata(unset).authorization_response_iss_parameter_supported,
+      ).toBe(true)
+      // Other overrides leave the consent page on the Nevermined web app — still advertised, on
+      // BOTH documents.
+      const tokenOnly: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { tokenUri: 'https://gw.corp.com/oauth/token' },
+      }
+      expect(
+        buildAuthorizationServerMetadata(tokenOnly).authorization_response_iss_parameter_supported,
+      ).toBe(true)
+      expect(buildOidcConfiguration(tokenOnly).authorization_response_iss_parameter_supported).toBe(
+        true,
+      )
+      // An empty override is no override.
+      const empty: OAuthConfig = {
+        ...baseConfig,
+        environment: 'sandbox',
+        oauthUrls: { authorizationUri: '' },
+      }
+      expect(
+        buildAuthorizationServerMetadata(empty).authorization_response_iss_parameter_supported,
+      ).toBe(true)
+    })
+
+    test('an unknown environment name serves the sandbox documents, flag included', () => {
+      const config = { ...baseConfig, environment: 'bogus' as EnvironmentName }
+      expect(
+        buildAuthorizationServerMetadata(config).authorization_response_iss_parameter_supported,
+      ).toBe(true)
+    })
+
+    test('custom on a Nevermined backend AND frontend still omits the flag — the line is the environment name (#466)', async () => {
+      const saved = { backend: process.env.NVM_BACKEND_URL, frontend: process.env.NVM_FRONTEND_URL }
+      try {
+        jest.resetModules()
+        process.env.NVM_BACKEND_URL = 'https://api.sandbox.nevermined.app'
+        process.env.NVM_FRONTEND_URL = 'https://nevermined.app'
+        const mod = await import('../../../src/mcp/http/oauth-metadata.js')
+        const cfg: OAuthConfig = { ...baseConfig, environment: 'custom' }
+        // The consent page really is the Nevermined web app here…
+        expect(mod.getOAuthUrls('custom').authorizationUri).toBe(
+          'https://nevermined.app/oauth/authorize?network=sandbox',
+        )
+        // …and the flag is still omitted: the decision drew the line at the environment name, not
+        // at a host guess. Pinned so a "helpful" widening is a deliberate change.
+        expect(mod.buildAuthorizationServerMetadata(cfg)).not.toHaveProperty(
+          'authorization_response_iss_parameter_supported',
+        )
+        expect(mod.buildOidcConfiguration(cfg)).not.toHaveProperty(
+          'authorization_response_iss_parameter_supported',
+        )
+      } finally {
+        if (saved.backend === undefined) delete process.env.NVM_BACKEND_URL
+        else process.env.NVM_BACKEND_URL = saved.backend
+        if (saved.frontend === undefined) delete process.env.NVM_FRONTEND_URL
+        else process.env.NVM_FRONTEND_URL = saved.frontend
+        jest.resetModules()
+      }
+    })
+
+    test('the served field is exactly `true`, or omitted (RFC 9207 §3: omitted means false)', () => {
+      for (const environment of ['sandbox', 'custom'] as const) {
+        const value = buildAuthorizationServerMetadata({
+          ...baseConfig,
+          environment,
+        }).authorization_response_iss_parameter_supported
+        expect(value === true || value === undefined).toBe(true)
+      }
     })
   })
 

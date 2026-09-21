@@ -25,6 +25,12 @@ export interface OAuthUrls {
    * (`https://nevermined.app/oauth/authorize?network=sandbox|live`; nvm-monorepo#3430). An override
    * is published verbatim: if you point it at the Nevermined webapp yourself (e.g. a `custom`
    * environment behind a host the SDK cannot classify), include `?network=<tier>` in the value.
+   * Overriding it also withdraws the RFC 9207 `authorization_response_iss_parameter_supported`
+   * advertisement from the discovery documents — the SDK cannot vouch that an AS it did not choose
+   * returns `iss`. That is a trade, not a non-event: RFC 9207 §2.4 has a client REJECT an `iss`-less
+   * response from a server that advertises support, and SHOULD DISCARD a response that carries
+   * `iss` from one that does not — so if the override still points at the Nevermined web app, which
+   * returns `iss` on every response, a strict client may discard its responses (payments#466).
    */
   authorizationUri: string
   /**
@@ -162,6 +168,13 @@ export interface AuthorizationServerMetadata {
   scopes_supported: string[]
   token_endpoint_auth_methods_supported: string[]
   subject_types_supported: string[]
+  /**
+   * RFC 9207 §3 — present (and `true`) when every authorization response carries `iss`: the four
+   * named environments (the Nevermined web app returns it; nvm-monorepo#3532). Omitted — which the
+   * RFC defines as `false` — for `custom` and when `authorizationUri` is overridden. The wire type is
+   * a boolean; this SDK never publishes an explicit `false`.
+   */
+  authorization_response_iss_parameter_supported?: boolean
 }
 
 /**
