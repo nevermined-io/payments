@@ -596,6 +596,37 @@ describe('OAuth Metadata Builders', () => {
       },
     )
 
+    test('named environment + an issuer override that is not the canonical origin: published, and ONE warning naming both and the remedy (#466 review)', async () => {
+      const mod = await fresh()
+      const urls = mod.getOAuthUrls('sandbox', { issuer: 'https://custom-issuer.com' })
+      // Honoured — the operator's word is published…
+      expect(urls.issuer).toBe('https://custom-issuer.com')
+      // …and said to be unredeemable: the consent page returns the canonical origin as `iss`.
+      expect(warn).toHaveBeenCalledTimes(1)
+      const msg = String(warn.mock.calls[0][0])
+      expect(msg).toContain(`oauthUrls.issuer 'https://custom-issuer.com'`)
+      expect(msg).toContain(`'sandbox' environment, 'https://api.sandbox.nevermined.app'`)
+      expect(msg).toContain(`set it to 'https://api.sandbox.nevermined.app'`)
+      mod.getOAuthUrls('sandbox', { issuer: 'https://custom-issuer.com' })
+      expect(warn).toHaveBeenCalledTimes(1)
+      // A corrected value that is still wrong is a DISTINCT value — it re-alerts.
+      mod.getOAuthUrls('sandbox', { issuer: 'https://api.sandbox.nevermined.app/' })
+      expect(warn).toHaveBeenCalledTimes(2)
+      expect(String(warn.mock.calls[1][0])).toContain(`'https://api.sandbox.nevermined.app/'`)
+    })
+
+    test('named environment + an issuer override EQUAL to the canonical origin, or any override on custom: NO warning', async () => {
+      const mod = await fresh()
+      expect(mod.getOAuthUrls('live', { issuer: 'https://api.live.nevermined.app' }).issuer).toBe(
+        'https://api.live.nevermined.app',
+      )
+      // `custom` has its own issuer arms (`issuerFor`); this one is the named environments' only.
+      expect(mod.getOAuthUrls('custom', { issuer: 'https://custom-issuer.com' }).issuer).toBe(
+        'https://custom-issuer.com',
+      )
+      expect(warn).not.toHaveBeenCalled()
+    })
+
     test('named environment + same-tier or unclassifiable proxy override: tier kept, NO warning', async () => {
       const mod = await fresh()
       // A corporate gateway in front of the sandbox API classifies to nothing — the tier it has stays.

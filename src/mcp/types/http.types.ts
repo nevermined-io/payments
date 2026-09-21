@@ -27,7 +27,10 @@ export interface OAuthUrls {
    * environment behind a host the SDK cannot classify), include `?network=<tier>` in the value.
    * Overriding it also withdraws the RFC 9207 `authorization_response_iss_parameter_supported`
    * advertisement from the discovery documents — the SDK cannot vouch that an AS it did not choose
-   * returns `iss` — so clients fall back to not requiring `iss` (payments#466).
+   * returns `iss`. That is a trade, not a non-event: RFC 9207 §2.4 has a client REJECT an `iss`-less
+   * response from a server that advertises support, and SHOULD DISCARD a response that carries
+   * `iss` from one that does not — so if the override still points at the Nevermined web app, which
+   * returns `iss` on every response, a strict client may discard its responses (payments#466).
    */
   authorizationUri: string
   /**
