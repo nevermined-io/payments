@@ -10,11 +10,14 @@ import type { EnvironmentName } from '../../environments.js'
  */
 export interface OAuthUrls {
   /**
-   * The RFC 8414 issuer identifier — the ORIGIN of the Nevermined API this server's document
-   * publishes as `token_endpoint` (e.g. `https://api.sandbox.nevermined.app`), one per tier, the
-   * same value the API's own discovery document and the web app's RFC 9207 `iss` use. It was the
-   * frontend origin before payments#463 (tier-blind, and rejected by RFC 9207 clients once the
-   * web app started returning `iss`). An explicit override is passed through unchanged.
+   * The RFC 8414 issuer identifier — the CANONICAL origin of the Nevermined API this server runs
+   * against (e.g. `https://api.sandbox.nevermined.app`), one per tier: the value the API's own
+   * discovery document publishes and the web app returns as RFC 9207 `iss`. A named environment
+   * publishes its own canonical origin whatever `tokenUri` proxy sits in front of it; `custom`
+   * follows the backend it publishes, canonicalised for a Nevermined host. It was the frontend
+   * origin until #463 was fixed (payments#464): tier-blind, and rejected by RFC 9207 clients once
+   * the web app started returning `iss`. A non-empty explicit override is passed through unchanged
+   * and also becomes the protected-resource document's `authorization_servers` entry.
    */
   issuer: string
   /**

@@ -111,21 +111,86 @@ function withTierParam(authorizeUrl: string, tier: OAuthTier | undefined): strin
 }
 
 /**
- * The RFC 8414 issuer identifier of the authorization server a document describes: the ORIGIN of
- * the backend whose `token_endpoint` it publishes. The Nevermined API's own document uses exactly
- * this (`well-known.service.ts` reduces `API_HOST` to its origin), and since nvm-monorepo#3532 the
- * web app returns RFC 9207 `iss` = that origin on every authorization response — which an RFC 9207
- * client compares with the `issuer` it discovered by SIMPLE STRING comparison and rejects on any
- * difference. So the value has to be the origin, byte for byte: no trailing slash, no path, host
- * lower-cased — `new URL(...).origin` gives all three. A backend that cannot be parsed keeps the
- * pre-existing "strip the trailing slash" shape rather than crashing a metadata endpoint.
+ * The ORIGIN of a URL — `new URL(u).origin` — or `undefined` when the string does not parse or
+ * parses to an opaque origin: `new URL('localhost:3001')` succeeds (scheme `localhost:`) with
+ * `.origin === 'null'`, which can never be an RFC 8414 issuer.
  */
-function issuerOf(backendUrl: string): string {
+function originOf(url: string): string | undefined {
   try {
-    return new URL(backendUrl).origin
+    const origin = new URL(url).origin
+    return origin === 'null' ? undefined : origin
   } catch {
-    return backendUrl.replace(/\/$/, '')
+    return undefined
   }
+}
+
+/**
+ * The canonical Nevermined API origin a backend host stands for, or `undefined` for a host that
+ * is not a Nevermined API. `<slug>.api.live.nevermined.app` (a branded per-org subdomain) and
+ * `mcp.api.sandbox.nevermined.dev` both serve the same API as `api.<tier>.nevermined.<tld>` — and
+ * that canonical origin is what the two parties an issuer must agree with actually use: the API's
+ * own RFC 8414 document anchors `issuer` on `API_HOST`, never the request host, and the web app
+ * returns RFC 9207 `iss` from its fixed per-tier config. Publishing the branded origin as `issuer`
+ * would fail every RFC 9207 client's simple-string compare (payments#464 review). The suffix
+ * requirement is deliberate: it derives a HOST, and only a Nevermined host has a canonical form.
+ */
+function canonicalNeverminedOrigin(backendUrl: string): string | undefined {
+  const tier = tierFromHost(backendUrl)
+  if (!tier) return undefined
+  let hostname: string
+  try {
+    hostname = new URL(backendUrl).hostname
+  } catch {
+    return undefined
+  }
+  let environment: EnvironmentName | undefined
+  if (hostname.endsWith('.nevermined.app')) environment = tier
+  else if (hostname.endsWith('.nevermined.dev'))
+    environment = tier === 'live' ? 'staging_live' : 'staging_sandbox'
+  return environment ? originOf(Environments[environment].backend) : undefined
+}
+
+let issuerFallbackWarned = false
+
+/**
+ * The RFC 8414 issuer identifier of the authorization server a document describes.
+ *
+ * It is the ORIGIN of the Nevermined API the document points at — the value the API's own
+ * document publishes and the web app returns as RFC 9207 `iss` on every authorization response,
+ * which an RFC 9207 client compares with the discovered `issuer` by SIMPLE STRING comparison and
+ * rejects on any difference. So it has to be the canonical origin, byte for byte:
+ *  - a NAMED environment is that identity — its canonical backend origin, whatever `tokenUri`
+ *    override sits in front of it (a same-tier proxy is still the same authorization server; a
+ *    cross-tier override is a misconfiguration `getOAuthUrlsForEnvironment` already warns about);
+ *  - `custom` follows the backend the document PUBLISHES (a `tokenUri` override, else its own):
+ *    the canonical Nevermined origin when that host classifies, else the host's own origin, else —
+ *    unparsable or opaque — the environment backend's origin, else the raw string minus its
+ *    trailing slash, warned once. A metadata endpoint never throws.
+ */
+function issuerFor(
+  effective: EnvironmentName,
+  publishedBackend: string,
+  envBackend: string,
+): string {
+  if (effective !== 'custom') {
+    // Every named environment's backend is a canonical absolute URL (`src/environments.ts`).
+    return originOf(envBackend) ?? envBackend.replace(/\/$/, '')
+  }
+  const issuer =
+    canonicalNeverminedOrigin(publishedBackend) ??
+    originOf(publishedBackend) ??
+    originOf(envBackend)
+  if (issuer) return issuer
+  const raw = publishedBackend.replace(/\/$/, '')
+  if (!issuerFallbackWarned) {
+    issuerFallbackWarned = true
+    console.warn(
+      `[Nevermined] Could not derive an OAuth issuer from backend '${publishedBackend}' — ` +
+        `publishing '${raw}'. Set oauthUrls.issuer (and oauthUrls.tokenUri) to the API origin ` +
+        `of this deployment's tier.`,
+    )
+  }
+  return raw
 }
 
 /**
@@ -136,29 +201,27 @@ function issuerOf(backendUrl: string): string {
  * `issuer` used to be the FRONTEND origin — identical for both tiers, since one web app serves both
  * consent screens — while `authorization_servers` (RFC 9728), `token_endpoint` and the API's own
  * RFC 8414 document all named the backend. That was a tier-blind identifier, and once the web app
- * started returning RFC 9207 `iss` = the API origin (nvm-monorepo#3532) it made every client that
- * discovers via THIS server's well-known reject its authorization responses. payments#463.
+ * started returning RFC 9207 `iss` = the API origin (nvm-monorepo#3532) it made every RFC 9207
+ * client that discovers via THIS server's well-known reject its authorization responses. payments#464.
  *
  * @param frontendUrl - The frontend URL (e.g., https://nevermined.app)
  * @param backendUrl - The backend URL (e.g., https://api.sandbox.nevermined.app)
  * @param tier - The API tier to stamp on the authorize URL (see {@link resolveOAuthTier})
- * @param issuerBackendUrl - The backend the document will actually publish as `token_endpoint`
- *   (an `oauthUrls.tokenUri` override, else `backendUrl`); the issuer is its origin, exactly as
- *   `resolveAuthorizationServer` derives `authorization_servers` from it, so the two never disagree.
+ * @param issuer - The issuer identifier (see {@link issuerFor})
  * @returns OAuth URLs configuration
  */
 function buildOAuthUrls(
   frontendUrl: string,
   backendUrl: string,
   tier: OAuthTier | undefined,
-  issuerBackendUrl: string = backendUrl,
+  issuer: string,
 ): OAuthUrls {
   // Remove trailing slashes
   const frontend = frontendUrl.replace(/\/$/, '')
   const backend = backendUrl.replace(/\/$/, '')
 
   return {
-    issuer: issuerOf(issuerBackendUrl),
+    issuer,
     authorizationUri: withTierParam(`${frontend}/oauth/authorize`, tier),
     tokenUri: `${backend}/oauth/token`,
     jwksUri: `${backend}/.well-known/jwks.json`,
@@ -182,7 +245,8 @@ function buildOAuthUrls(
  *   `tokenUri: https://gw.corp.com/…`) classifies to nothing and must keep the tier it has. When the
  *   override's host classifies to the OTHER tier the combination is always a misconfiguration (the
  *   consent screen on one tier, the token endpoint on the other, and the code exchange failing as a
- *   "bad or expired code"), so it is warned once rather than silently honoured.
+ *   "bad or expired code"), so it is warned once rather than silently honoured. The ISSUER of a
+ *   named environment never follows the override at all — see {@link issuerFor}.
  * @returns OAuth URLs configuration
  */
 function getOAuthUrlsForEnvironment(
@@ -220,7 +284,12 @@ function getOAuthUrlsForEnvironment(
     }
   }
 
-  return buildOAuthUrls(envConfig.frontend, envConfig.backend, tier, backend)
+  return buildOAuthUrls(
+    envConfig.frontend,
+    envConfig.backend,
+    tier,
+    issuerFor(effective, backend, envConfig.backend),
+  )
 }
 
 /**
@@ -249,8 +318,16 @@ export function getOAuthUrls(
   // An overridden `authorizationUri` is passed through verbatim — the SDK cannot know whether it is
   // the Nevermined webapp or a foreign AS, so an operator who points it at the webapp includes
   // `?network=` themselves (documented on `OAuthUrls.authorizationUri`).
-  const baseUrls = getOAuthUrlsForEnvironment(environment, overrides?.tokenUri)
-  return { ...baseUrls, ...overrides }
+  //
+  // Only a NON-EMPTY string overrides. `{ issuer: process.env.OAUTH_ISSUER }` with the variable unset
+  // type-checks (exactOptionalPropertyTypes is off) and used to spread `undefined` over the computed
+  // value, so `res.json` served the AS and OIDC documents WITHOUT their required `issuer` — for an
+  // hour, under `Cache-Control: public` (payments#464 review). Same for `''`.
+  const clean = Object.fromEntries(
+    Object.entries(overrides ?? {}).filter(([, v]) => typeof v === 'string' && v.length > 0),
+  ) as Partial<OAuthUrls>
+  const baseUrls = getOAuthUrlsForEnvironment(environment, clean.tokenUri)
+  return { ...baseUrls, ...clean }
 }
 
 /**
@@ -285,28 +362,16 @@ export function buildProtectedResourceMetadata(config: OAuthConfig): ProtectedRe
 /**
  * Resolve the authorization-server identifier for `authorization_servers`.
  *
- * RFC 9728 §2 requires each entry to be an AS issuer identifier — a URL from
- * which `/.well-known/oauth-authorization-server` (RFC 8414) actually resolves.
- * For Nevermined that is the **backend** API origin (which serves the AS
- * metadata and whose own published `issuer` is the backend URL), NOT:
- *   - `config.baseUrl` — that is this MCP server, the protected *resource*; and
- *   - `OAuthUrls.issuer` — that is the *frontend* (a client-routed SPA that 200s
- *     on every path, so an RFC 8414 fetch there silently returns HTML).
- * The backend origin is derived from `tokenUri` (`${backend}/oauth/token`), which
- * respects any `config.oauthUrls.tokenUri` override.
+ * RFC 9728 §2 defines each entry as an AS **issuer identifier**, so it is, by construction, the
+ * `issuer` this server's own AS document publishes — one derivation (`issuerFor` via `getOAuthUrls`),
+ * so the two can never disagree: not on a `tokenUri` override, not on an `issuer` override (a
+ * foreign AS named there is then also where clients are sent), not on malformed input. It used to be
+ * derived separately from `tokenUri` with its own fallback, which put `issuer` and
+ * `authorization_servers` on different values for a malformed override (payments#464 review).
+ * It is NOT `config.baseUrl` — that is this MCP server, the protected *resource*.
  */
 function resolveAuthorizationServer(config: OAuthConfig): string {
-  const { tokenUri } = getOAuthUrls(config.environment, config.oauthUrls)
-  const envTokenUri = getOAuthUrls(config.environment).tokenUri
-  // Guard both a falsy `{ tokenUri: undefined }` override (slips through the
-  // `{...baseUrls, ...overrides}` spread — exactOptionalPropertyTypes is off) AND
-  // a malformed non-falsy one — fall back to the environment default rather than
-  // crash the metadata endpoint with `new URL(...)`.
-  try {
-    return new URL(tokenUri || envTokenUri).origin
-  } catch {
-    return new URL(envTokenUri).origin
-  }
+  return getOAuthUrls(config.environment, config.oauthUrls).issuer
 }
 
 /**
@@ -333,8 +398,8 @@ export function buildMcpProtectedResourceMetadata(
 
   return {
     resource: `${config.baseUrl}/mcp`,
-    // See resolveAuthorizationServer: the AS is the backend API origin, not this
-    // MCP server (baseUrl) nor the frontend SPA (OAuthUrls.issuer).
+    // See resolveAuthorizationServer: the AS is the issuer this server's own AS document
+    // publishes (the backend API origin), never this MCP server (baseUrl).
     authorization_servers: [resolveAuthorizationServer(config)],
     scopes_supported: scopes,
     scopes_required: scopes,

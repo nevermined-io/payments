@@ -4,19 +4,17 @@
  */
 
 import { z } from 'zod'
-import type {
-  Address,
-  AgentAPIAttributes,
-  AgentMetadata
-} from '../../src/common/types.js'
+import type { Address, AgentAPIAttributes, AgentMetadata } from '../../src/common/types.js'
 import { Payments } from '../../src/payments.js'
 import { retryWithBackoff } from '../utils.js'
 import {
+  BUILDER_API_KEY,
   createPaymentsBuilder,
   createPaymentsSubscriber,
   ERC20_ADDRESS,
   TEST_ENVIRONMENT,
 } from './fixtures.js'
+import { getEnvironmentFromApiKey } from '../../src/environments.js'
 
 // Test configuration
 const TEST_TIMEOUT = 30000
@@ -353,16 +351,19 @@ describe('MCP OAuth E2E Tests', () => {
 
       // Required fields per RFC 8414
       expect(data.issuer).toBeDefined()
-      // #463: the issuer is the API ORIGIN of the tier this server runs against — the value the
-      // web app returns as RFC 9207 `iss`, which clients string-compare against this field.
-      // Spelled out from TEST_ENVIRONMENT rather than read back from the SDK.
+      // #463: the issuer is the canonical API ORIGIN of the tier this server runs against — the
+      // value the web app returns as RFC 9207 `iss`, which clients string-compare against this
+      // field. The served environment comes from the builder's API-KEY PREFIX (the server was
+      // started without an explicit `environment`), so the expectation is keyed on that — spelled
+      // out as literals rather than read back from the SDK's URL builders.
+      const servedEnvironment = getEnvironmentFromApiKey(BUILDER_API_KEY) ?? TEST_ENVIRONMENT
       expect(data.issuer).toBe(
         {
           sandbox: 'https://api.sandbox.nevermined.app',
           live: 'https://api.live.nevermined.app',
           staging_sandbox: 'https://api.sandbox.nevermined.dev',
           staging_live: 'https://api.live.nevermined.dev',
-        }[TEST_ENVIRONMENT as 'sandbox' | 'live' | 'staging_sandbox' | 'staging_live'],
+        }[servedEnvironment as 'sandbox' | 'live' | 'staging_sandbox' | 'staging_live'],
       )
       expect(data.authorization_endpoint).toBeDefined()
       // #447: the served document names the API tier on the authorize URL. Derived locally from
@@ -469,19 +470,19 @@ describe('MCP OAuth E2E Tests', () => {
       const serverUrl = mcpServerInfo.baseUrl
 
       // Fetch all three endpoints
-      const [authServerRes, oidcRes] = await Promise.all([
+      const [authServerRes, oidcRes, prmRes] = await Promise.all([
         fetch(`${serverUrl}/.well-known/oauth-authorization-server`),
         fetch(`${serverUrl}/.well-known/openid-configuration`),
+        fetch(`${serverUrl}/.well-known/oauth-protected-resource`),
       ])
 
       const authServerData = await authServerRes.json()
       const oidcData = await oidcRes.json()
+      const prm = await prmRes.json()
 
       // Issuer should be consistent across endpoints — and (#463) it is the AS the protected
       // resource document points at, so a client that discovers either way lands on one identifier.
       expect(authServerData.issuer).toBe(oidcData.issuer)
-      const prmRes = await fetch(`${serverUrl}/.well-known/oauth-protected-resource`)
-      const prm = await prmRes.json()
       expect(prm.authorization_servers).toEqual([authServerData.issuer])
 
       // Endpoints should also be consistent
@@ -568,7 +569,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream',
+          Accept: 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -610,7 +611,7 @@ describe('MCP OAuth E2E Tests', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json, text/event-stream',
+            Accept: 'application/json, text/event-stream',
             Authorization: `Bearer ${subscriberAccessToken}`,
           },
           body: JSON.stringify({
@@ -626,7 +627,9 @@ describe('MCP OAuth E2E Tests', () => {
 
         if (!response.ok) {
           const errorText = await response.text()
-          console.error(`[E2E] Tool ${tool} call failed with status ${response.status}: ${errorText}`)
+          console.error(
+            `[E2E] Tool ${tool} call failed with status ${response.status}: ${errorText}`,
+          )
         }
         expect(response.ok).toBe(true)
         const data = await response.json()
@@ -647,7 +650,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream',
+          Accept: 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -692,7 +695,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream',
+          Accept: 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -730,7 +733,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream',
+          Accept: 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -743,7 +746,9 @@ describe('MCP OAuth E2E Tests', () => {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error(`[E2E] Resource templates list failed with status ${response.status}: ${errorText}`)
+        console.error(
+          `[E2E] Resource templates list failed with status ${response.status}: ${errorText}`,
+        )
       }
       expect(response.ok).toBe(true)
       const data = await response.json()
@@ -767,7 +772,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream',
+          Accept: 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
@@ -804,7 +809,7 @@ describe('MCP OAuth E2E Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream',
+          Accept: 'application/json, text/event-stream',
           Authorization: `Bearer ${subscriberAccessToken}`,
         },
         body: JSON.stringify({
