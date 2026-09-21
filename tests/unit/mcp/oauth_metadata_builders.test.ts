@@ -525,6 +525,32 @@ describe('OAuth Metadata Builders', () => {
       expect(warn).toHaveBeenCalledTimes(2)
     })
 
+    test('custom on a non-Nevermined host: issuer published AND warned once per value, unless overridden', async () => {
+      // `api.live.example.com` classifies to a tier but has no canonical form; it is the right
+      // issuer for a foreign API and the WRONG one for a proxy in front of the real API — the SDK
+      // cannot tell, so it says what it derived and names `oauthUrls.issuer`.
+      const mod = await fresh('https://api.live.example.com')
+      expect(mod.getOAuthUrls('custom').issuer).toBe('https://api.live.example.com')
+      mod.getOAuthUrls('custom')
+      const proxyWarnings = () =>
+        warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('proxy or gateway'))
+      expect(proxyWarnings()).toHaveLength(1)
+      expect(proxyWarnings()[0]).toContain("'api.live.example.com'")
+      expect(proxyWarnings()[0]).toContain('oauthUrls.issuer')
+      // A DIFFERENT non-canonical value warns again (a changed typo re-alerts) …
+      mod.getOAuthUrls('custom', { tokenUri: 'https://gw.corp.com/oauth/token' })
+      expect(proxyWarnings()).toHaveLength(2)
+      // … an operator who already set `oauthUrls.issuer` is not told to set it …
+      mod.getOAuthUrls('custom', {
+        tokenUri: 'https://other.example.com/oauth/token',
+        issuer: 'https://api.live.nevermined.app',
+      })
+      expect(proxyWarnings()).toHaveLength(2)
+      // … and a loopback stack is not a proxy: it keeps only the tier warning it already had.
+      mod.getOAuthUrls('custom', { tokenUri: 'http://localhost:3001/oauth/token' })
+      expect(proxyWarnings()).toHaveLength(2)
+    })
+
     test('custom + scheme-less host:port: opaque origin is NOT published as "null"', async () => {
       // `new URL('localhost:3001')` parses (scheme `localhost:`) with `.origin === 'null'`; that must
       // take the fallback path, not be served as an issuer.
@@ -676,6 +702,8 @@ describe('OAuth Metadata Builders', () => {
       // cross-tier or malformed override. `authorization_servers` follows the issuer on every row.
       for (const [environment, canonical] of [
         ['sandbox', 'https://api.sandbox.nevermined.app'],
+        ['live', 'https://api.live.nevermined.app'],
+        ['staging_sandbox', 'https://api.sandbox.nevermined.dev'],
         ['staging_live', 'https://api.live.nevermined.dev'],
       ] as const) {
         for (const tokenUri of [
@@ -704,6 +732,9 @@ describe('OAuth Metadata Builders', () => {
           'https://mcp.api.sandbox.nevermined.dev/oauth/token',
           'https://api.sandbox.nevermined.dev',
         ],
+        ['https://mcp.api.live.nevermined.dev/oauth/token', 'https://api.live.nevermined.dev'],
+        // A trailing-dot FQDN is the same host to DNS — canonicalised, never one byte off.
+        ['https://api.sandbox.nevermined.app./oauth/token', 'https://api.sandbox.nevermined.app'],
         [
           'https://API.Sandbox.Nevermined.app:443/oauth/token',
           'https://api.sandbox.nevermined.app',

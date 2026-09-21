@@ -139,7 +139,9 @@ function canonicalNeverminedOrigin(backendUrl: string): string | undefined {
   if (!tier) return undefined
   let hostname: string
   try {
-    hostname = new URL(backendUrl).hostname
+    // A trailing-dot FQDN (`api.sandbox.nevermined.app.`) is the same host to DNS; keep the suffix
+    // checks from missing it and republishing a one-byte-off issuer.
+    hostname = new URL(backendUrl).hostname.replace(/\.$/, '')
   } catch {
     return undefined
   }
@@ -150,7 +152,24 @@ function canonicalNeverminedOrigin(backendUrl: string): string | undefined {
   return environment ? originOf(Environments[environment].backend) : undefined
 }
 
-let issuerFallbackWarned = false
+// Warned once per DISTINCT value (a changed typo re-alerts), and never when the operator has
+// already set `oauthUrls.issuer` — the remedy the warning names.
+const issuerWarned = new Set<string>()
+
+function isLoopback(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname
+    return host === 'localhost' || host === '127.0.0.1' || host === '[::1]'
+  } catch {
+    return false
+  }
+}
+
+function warnIssuerOnce(key: string, message: string): void {
+  if (issuerWarned.has(key)) return
+  issuerWarned.add(key)
+  console.warn(message)
+}
 
 /**
  * The RFC 8414 issuer identifier of the authorization server a document describes.
@@ -171,20 +190,37 @@ function issuerFor(
   effective: EnvironmentName,
   publishedBackend: string,
   envBackend: string,
+  issuerOverridden: boolean,
 ): string {
   if (effective !== 'custom') {
     // Every named environment's backend is a canonical absolute URL (`src/environments.ts`).
     return originOf(envBackend) ?? envBackend.replace(/\/$/, '')
   }
-  const issuer =
-    canonicalNeverminedOrigin(publishedBackend) ??
-    originOf(publishedBackend) ??
-    originOf(envBackend)
-  if (issuer) return issuer
+  const canonical = canonicalNeverminedOrigin(publishedBackend)
+  if (canonical) return canonical
+  const own = originOf(publishedBackend) ?? originOf(envBackend)
+  if (own) {
+    // The right value for a genuinely foreign API — and the WRONG one for a proxy/CNAME in front
+    // of the real Nevermined API (`https://api.live.example.com` → the web app still returns
+    // `iss = https://api.live.nevermined.app`, so every RFC 9207 client rejects the code). The SDK
+    // cannot tell the two apart, so it says what it derived and names the remedy (#464 review).
+    // A loopback host is a local stack, not a proxy for the real API, and already gets the tier
+    // warning — no second line there.
+    if (!issuerOverridden && !isLoopback(own)) {
+      warnIssuerOnce(
+        own,
+        `[Nevermined] OAuth issuer derived from backend host '${hostOf(publishedBackend)}' as ` +
+          `'${own}'. If that host is a proxy or gateway in front of a Nevermined API rather than ` +
+          `the API itself, set oauthUrls.issuer (and oauthUrls.tokenUri) to that API's real origin — ` +
+          `otherwise the issuer will not match the iss the authorization server returns.`,
+      )
+    }
+    return own
+  }
   const raw = publishedBackend.replace(/\/$/, '')
-  if (!issuerFallbackWarned) {
-    issuerFallbackWarned = true
-    console.warn(
+  if (!issuerOverridden) {
+    warnIssuerOnce(
+      raw,
       `[Nevermined] Could not derive an OAuth issuer from backend '${publishedBackend}' — ` +
         `publishing '${raw}'. Set oauthUrls.issuer (and oauthUrls.tokenUri) to the API origin ` +
         `of this deployment's tier.`,
@@ -252,6 +288,7 @@ function buildOAuthUrls(
 function getOAuthUrlsForEnvironment(
   environment: EnvironmentName,
   backendForTier?: string,
+  issuerOverridden = false,
 ): OAuthUrls {
   const known = environment in Environments
   const effective: EnvironmentName = known ? environment : 'sandbox'
@@ -288,7 +325,7 @@ function getOAuthUrlsForEnvironment(
     envConfig.frontend,
     envConfig.backend,
     tier,
-    issuerFor(effective, backend, envConfig.backend),
+    issuerFor(effective, backend, envConfig.backend, issuerOverridden),
   )
 }
 
@@ -326,7 +363,11 @@ export function getOAuthUrls(
   const clean = Object.fromEntries(
     Object.entries(overrides ?? {}).filter(([, v]) => typeof v === 'string' && v.length > 0),
   ) as Partial<OAuthUrls>
-  const baseUrls = getOAuthUrlsForEnvironment(environment, clean.tokenUri)
+  const baseUrls = getOAuthUrlsForEnvironment(
+    environment,
+    clean.tokenUri,
+    clean.issuer !== undefined,
+  )
   return { ...baseUrls, ...clean }
 }
 

@@ -357,14 +357,16 @@ describe('MCP OAuth E2E Tests', () => {
       // started without an explicit `environment`), so the expectation is keyed on that — spelled
       // out as literals rather than read back from the SDK's URL builders.
       const servedEnvironment = getEnvironmentFromApiKey(BUILDER_API_KEY) ?? TEST_ENVIRONMENT
-      expect(data.issuer).toBe(
-        {
-          sandbox: 'https://api.sandbox.nevermined.app',
-          live: 'https://api.live.nevermined.app',
-          staging_sandbox: 'https://api.sandbox.nevermined.dev',
-          staging_live: 'https://api.live.nevermined.dev',
-        }[servedEnvironment as 'sandbox' | 'live' | 'staging_sandbox' | 'staging_live'],
-      )
+      const expectedIssuer: Record<string, string> = {
+        sandbox: 'https://api.sandbox.nevermined.app',
+        live: 'https://api.live.nevermined.app',
+        staging_sandbox: 'https://api.sandbox.nevermined.dev',
+        staging_live: 'https://api.live.nevermined.dev',
+      }
+      // A bare key or `custom` has no canonical issuer to pin — say so, rather than failing as
+      // "expected undefined".
+      expect(expectedIssuer[servedEnvironment]).toBeDefined()
+      expect(data.issuer).toBe(expectedIssuer[servedEnvironment])
       expect(data.authorization_endpoint).toBeDefined()
       // #447: the served document names the API tier on the authorize URL. Derived locally from
       // TEST_ENVIRONMENT so this does not simply mirror `resolveOAuthTier`.

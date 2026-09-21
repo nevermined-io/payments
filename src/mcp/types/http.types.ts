@@ -27,7 +27,15 @@ export interface OAuthUrls {
    * environment behind a host the SDK cannot classify), include `?network=<tier>` in the value.
    */
   authorizationUri: string
-  /** OAuth token endpoint URL */
+  /**
+   * OAuth token endpoint URL (`${backend}/oauth/token`).
+   *
+   * ⚠️ An override here is honoured only by a client that discovers against THIS server's own
+   * document. The protected-resource document's `authorization_servers` names the issuer (the
+   * canonical API origin), so an RFC 9728 client fetches the Nevermined API's own metadata and
+   * exchanges its code at `${API origin}/oauth/token` — around any proxy set here — and sees no
+   * `registration_endpoint` there (the API offers no DCR; this server does). payments#464.
+   */
   tokenUri: string
   /** JSON Web Key Set endpoint URL */
   jwksUri: string
