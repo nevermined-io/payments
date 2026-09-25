@@ -1,6 +1,6 @@
 ---
 name: Nevermined Payments
-description: Pay-per-use payments and access control for AI agents — x402 access tokens, MCP/A2A bridges, and credit plans for OpenClaw.
+description: Pay-per-use payments for AI agents in OpenClaw — buy Nevermined plans and get x402 access tokens (crypto or card), query paid agents, check credit balances, and register agents and payment plans.
 metadata:
   clawdis:
     author: Nevermined AG
@@ -9,7 +9,7 @@ metadata:
     links:
       homepage: https://nevermined.io
       repository: https://github.com/nevermined-io/payments
-      documentation: https://docs.nevermined.io/docs/api-reference/openclaw-plugin
+      documentation: https://nevermined.ai/docs/api-reference/openclaw-plugin
       changelog: https://github.com/nevermined-io/payments/releases
     requires:
       env:
@@ -65,7 +65,7 @@ Log out from Nevermined and remove the stored API key.
 
 ## API versioning
 
-Every Nevermined-backend call this plugin makes goes through the `@nevermined-io/payments` SDK, which **pins the backend API version** (the platform `MAJOR.MINOR`) via the `Nevermined-Version` header automatically — so OpenClaw-orchestrated agents keep getting a stable wire shape across platform releases without any per-call work. The pinned version is the one the bundled SDK release was built and tested against; it moves only when the plugin upgrades its SDK dependency.
+Every Nevermined-backend call this plugin makes goes through the `@nevermined-io/payments` SDK (a peer dependency — the host's installed copy is used). From SDK 1.7.0 the SDK **pins the backend API version** (the platform `MAJOR.MINOR`) via the `Nevermined-Version` header automatically — so OpenClaw-orchestrated agents keep getting a stable wire shape across platform releases without any per-call work. The pinned version is the one the installed SDK release was built and tested against; it moves only when that SDK is upgraded. An older SDK sends no pin, so the key's stored version applies.
 
 If an agent makes a **direct** REST call to the Nevermined API (outside these tools), send `Nevermined-Version: <MAJOR.MINOR>`, default it to the `current` from `GET /api/v1/meta/versions`, and never silently change a key's stored pin. See <https://nevermined.ai/docs/development-guide/api-versioning>.
 
@@ -83,6 +83,8 @@ Get an x402 access token for authenticating agent requests. Supports crypto and 
 - `paymentMethodId` (optional) — Stripe payment method ID for fiat. Auto-selects first enrolled card if omitted.
 - `spendingLimitCents` (optional) — max spend in cents for fiat (default: 1000)
 - `delegationDurationSecs` (optional) — delegation duration in seconds for fiat (default: 3600)
+- `tokenVersion` (optional) — `2` (backend default, reusable) or `3` (single-use, bound to `resourceUrl` + `httpVerb`)
+- `resourceUrl`, `httpVerb` (optional) — the protected resource the token is for; used only with `tokenVersion: 3` and must match what the seller advertises
 
 The returned token is a bearer credential. Treat it like an API key — never log it, never embed it in URLs, and pass it only over HTTPS.
 
@@ -110,15 +112,19 @@ End-to-end agent query — acquires a token, calls the agent, returns the respon
 - `paymentMethodId` (optional) — Stripe payment method ID for fiat
 - `spendingLimitCents` (optional) — max spend in cents for fiat
 - `delegationDurationSecs` (optional) — delegation duration in seconds for fiat
+- `tokenVersion` (optional) — `3` requests a single-use token bound to this agent's path; defaults to the backend default (`2`)
+
+Returns `{ response, tokenVersion }` — the agent's body untouched under `response`.
 
 ## Builder Tools
 
 ### `nevermined_registerAgent`
 Register a new AI agent with a payment plan.
 - `name` (required) — agent name
+- `description` (optional) — agent description
 - `agentUrl` (required) — agent endpoint
 - `planName` (required) — plan name
-- `priceAmounts` (required) — comma-separated prices in wei (crypto) or cents (fiat)
+- `priceAmounts` (required) — comma-separated prices: dollar notation (`"$0.10"`, auto-converted for the `pricingType`) or raw smallest-unit amounts (`"1000000"` = 1 USDC, `"100"` = $1.00 fiat)
 - `priceReceivers` (optional) — comma-separated receiver addresses. Defaults to authenticated user's wallet (or `BUILDER_ADDRESS` env var if set).
 - `creditsAmount` (required) — number of credits
 - `tokenAddress` (optional) — ERC20 token address (e.g. USDC). Omit for native token.
@@ -127,7 +133,8 @@ Register a new AI agent with a payment plan.
 ### `nevermined_createPlan`
 Create a standalone payment plan. Supports fiat (Stripe), ERC20 tokens (USDC), and native crypto pricing.
 - `name` (required) — plan name
-- `priceAmount` (required) — price in cents for fiat (e.g. "100" = $1.00), in token smallest unit for crypto (e.g. "1000000" = 1 USDC)
+- `description` (optional) — plan description
+- `priceAmount` (required) — dollar notation (`"$0.10"`, auto-converted for the `pricingType`), or raw: cents for fiat (e.g. "100" = $1.00), token smallest unit for crypto (e.g. "1000000" = 1 USDC)
 - `receiver` (optional) — receiver wallet address (0x...). Defaults to authenticated user's wallet (or `BUILDER_ADDRESS` env var if set).
 - `creditsAmount` (required) — number of credits
 - `pricingType` (optional) — `"fiat"` for Stripe/USD, `"erc20"` for ERC20 tokens like USDC, `"crypto"` for native token (default: crypto)
