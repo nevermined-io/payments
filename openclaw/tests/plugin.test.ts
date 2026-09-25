@@ -1077,6 +1077,22 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(result!.prependContext).toContain('Test Plan')
     })
 
+    test('states both configured costs and only instructions the payment hook can honour', async () => {
+      const { hooks } = registerWithMock({ ...validConfig, creditsPerMinute: 2, creditsPerRequest: 5 })
+
+      const result = await hooks.get('before_prompt_build')![0]() as { prependContext: string }
+      const text = result.prependContext
+
+      expect(text).toContain('2 credit(s) per minute of meeting duration')
+      expect(text).toContain('5 credit(s) for any other tool call')
+      expect(text).toContain('book only after they confirm')
+      // The hook charges the first plan that verifies, settles after the call without reporting
+      // back, and its block message points at the order tools — the context must not contradict that.
+      expect(text).not.toMatch(/which (plan|option) (they|do you) prefer/i)
+      expect(text).not.toMatch(/processed successfully/i)
+      expect(text).not.toMatch(/do not call nevermined_order/i)
+    })
+
     test('returns undefined when not authenticated', async () => {
       const { hooks } = registerWithMock({ environment: 'sandbox' })
 
