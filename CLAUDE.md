@@ -47,13 +47,14 @@ pnpm doc
 ### Initialization
 
 ```typescript
-import { Payments, EnvironmentName } from '@nevermined-io/payments'
+import { Payments } from '@nevermined-io/payments'
 
 const payments = Payments.getInstance({
   nvmApiKey: process.env.NVM_API_KEY!,
-  environment: process.env.NVM_ENVIRONMENT as EnvironmentName,
 })
 ```
+
+The environment is derived from the API key's prefix (`getEnvironmentFromApiKey` in `src/environments.ts`). The `environment` option is deprecated: it is only a fallback for keys without a recognised prefix (local/`custom` setups). A value that differs from the key-derived environment is ignored with a one-time deprecation warning; a matching value is silent. Leave it out of examples.
 
 ### Main APIs
 
@@ -100,8 +101,6 @@ When writing examples or documentation:
 
 ## Validating Changes
 
-**IMPORTANT**: Always run tests after any code change to ensure nothing is broken.
-
 Before submitting changes, run these checks:
 
 ```bash
@@ -130,9 +129,9 @@ whether that fixture still matches the model.
 
 ### Test doubles must be constrained to a model type imported from `src/`
 
-`PaymentsMock` used to take `settleResult?: any`, which let every settle/verify double drift
-from `SettlePermissionsResult` unnoticed (#433). Doubles now either narrow the *parameter*
-(`PaymentsMock(settleResult: SettlePermissionsResult)`) or `satisfies` the literal. Two rules:
+Settle/verify doubles either narrow the *parameter*
+(`PaymentsMock(settleResult: SettlePermissionsResult)`) or `satisfies` the literal, so a double
+cannot drift from `SettlePermissionsResult` unnoticed. Two rules:
 
 - **Constrain against the model, never a shape written next to the fixture.** A
   `Promise<{ success: boolean; transaction: string; … }>` annotation is not a check; it is the
@@ -154,7 +153,7 @@ You MUST:
    anything under `tests/` — `pnpm build` cannot see those files (see above)
 2. Run `pnpm test:unit` to verify unit tests pass
 3. If modifying E2E-related code, run `pnpm test:e2e`
-4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. Validate with `./scripts/generate-docs.sh`. On merge to main, the `update-docs.yml` workflow runs `generate-docs.sh` and auto-creates a PR with any changes. On tag push, `publish-docs.yml` publishes to docs_mintlify. However, `generate-docs.sh` only validates structure — it does NOT auto-update code examples, so those must be updated manually.
+4. If changing public interfaces (function signatures, options, types, response fields), update the corresponding documentation in `markdown/` to reflect the changes. Validate with `./scripts/generate-docs.sh`. On merge to main, the `update-docs.yml` workflow runs `generate-docs.sh` and auto-creates a PR with any changes. On tag push, the `publish-documentation` job in `release.yml` publishes to docs_mintlify. However, `generate-docs.sh` only validates structure — it does NOT auto-update code examples, so those must be updated manually.
 5. When modifying `openclaw/` or `cli/` source files, check that they use the same function signatures as the core SDK (`src/`). The openclaw plugin and CLI are in-tree consumers that can silently break if signatures change.
 
 ### Updating Mock Tokens in Tests
@@ -235,7 +234,7 @@ See [TESTING.md](./TESTING.md) for testing patterns when building applications w
 
 E2E tests run directly against the **staging environment**. When making changes:
 
-1. Ensure E2E tests pass after code changes: `pnpm test:e2e`
+1. Run `pnpm test:e2e` when a change touches E2E-covered flows (see "After Modifying Source Files"); it needs the `TEST_*` API keys
 2. If E2E tests fail after backend API changes (in `nvm-monorepo`), the staging environment may need to be redeployed with those changes before the SDK E2E tests will pass
 3. E2E test failures due to pending backend deployments are expected - coordinate with the team to deploy backend changes to staging first
 
@@ -243,7 +242,7 @@ E2E tests run directly against the **staging environment**. When making changes:
 
 This repo contains two in-tree consumers of the SDK that import directly from `src/`:
 
-- **`openclaw/`** — OpenClaw plugin for LLM tool-use (tools, auto-pay, MCP bridge). CI: `.github/workflows/openclaw-sync-and-test.yml`
+- **`openclaw/`** — OpenClaw plugin for LLM tool-use (tools, auto-pay). CI: `.github/workflows/openclaw-sync-and-test.yml`
 - **`cli/`** — CLI tool (`nevermined` command). CI: `.github/workflows/cli-sync-and-test.yml`
 
 **CRITICAL:** When changing public SDK interfaces (function signatures, types, options), you MUST also update `openclaw/` and `cli/` source files, tests, and mocks. The openclaw and CLI CI workflows build and test independently — they will fail if call sites don't match the new signatures.
@@ -255,9 +254,8 @@ Key files to check:
 - `cli/src/commands/x402token/get-x402-access-token.ts` — CLI command flags and call
 - `cli/test/__mocks__/@nevermined-io/payments.ts` — the CLI's payments mock. This is the
   one `jest.mock('@nevermined-io/payments')` resolves, so it is the only one that can
-  affect a test. A second copy at `cli/test/helpers/mock-payments.ts` was imported by
-  nothing and was deleted in #448 — a drift fix had already landed in it while the live
-  mock kept the defect. **Before "fixing a mock", confirm something imports it.**
+  affect a test. **Before "fixing a mock", confirm something imports it** — an unimported
+  copy can take a fix while the live mock keeps the defect.
 
 Both CI workflows build the root SDK first, then symlink it into the consumer's `node_modules/` so they compile against the local source (not the published npm package).
 
@@ -280,6 +278,11 @@ import { foo } from './bar.js'
 
 - `@nevermined-io/payments` - Main SDK
 - `@nevermined-io/payments/mcp` - MCP-specific exports
+- `@nevermined-io/payments/express` - Express middleware (`paymentMiddleware`)
+- `@nevermined-io/payments/langchain` - LangChain integration (`requiresPayment`, `createPaidReactAgent`)
+- `@nevermined-io/payments/langsmith` - LangSmith `nvm:verify` / `nvm:settlement` spans
+
+The authoritative list is the `exports` map in `package.json`.
 
 ## Documentation
 
@@ -287,17 +290,7 @@ The SDK has two types of documentation:
 
 ### 1. Markdown Documentation (LLM-Friendly)
 
-Located in `markdown/` directory with 11 comprehensive guides:
-
-- **Installation & Setup**: Getting started with the SDK
-- **Payment Plans & Agents**: Core API usage
-- **Static Resources**: Publishing static content
-- **Payments & Balance**: Making payments and checking credits
-- **Querying Agents**: Using X402 access tokens
-- **Request Validation**: Verifying and settling permissions
-- **MCP Integration**: Model Context Protocol setup
-- **A2A Integration**: Agent-to-Agent protocol setup
-- **X402 Protocol**: Complete payment protocol specification
+Hand-written guides in the `markdown/` directory, one file per topic (installation, plans, agents, orders, payments and balance, querying, request validation, MCP, A2A, MPP, x402, CLI card setup, static resources). `markdown/README.md` is the index.
 
 **Automated Updates:**
 - Documentation is automatically updated on push to main/develop
@@ -313,7 +306,7 @@ Located in `markdown/` directory with 11 comprehensive guides:
 
 # Check workflow status
 gh run list --workflow=update-docs.yml
-gh run list --workflow=publish-docs.yml
+gh run list --workflow=release.yml     # publish-documentation job
 ```
 
 **Full Documentation:**

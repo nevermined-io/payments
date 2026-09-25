@@ -167,7 +167,7 @@ const neverminedPlugin = {
             }),
           )
 
-          const text = formatPlanCatalog(balances, config.creditsPerMinute)
+          const text = formatPlanCatalog(balances, config.creditsPerMinute, config.creditsPerRequest)
           catalogCache = { text, fetchedAt: now }
           return { prependContext: text }
         } catch {
@@ -398,10 +398,14 @@ interface PlanBalance extends PlanEntry {
   isSubscriber: boolean
 }
 
-function formatPlanCatalog(plans: PlanBalance[], creditsPerMinute: number): string {
+function formatPlanCatalog(
+  plans: PlanBalance[],
+  creditsPerMinute: number,
+  creditsPerRequest: number,
+): string {
   const lines = [
     `[Nevermined Payment Plans]`,
-    `Cost: ${creditsPerMinute} credit per minute of meeting duration.`,
+    `Cost: ${creditsPerMinute} credit(s) per minute of meeting duration for a meeting booking, and ${creditsPerRequest} credit(s) for any other tool call outside the Nevermined tools.`,
     ``,
     `Available plans:`,
   ]
@@ -419,19 +423,21 @@ function formatPlanCatalog(plans: PlanBalance[], creditsPerMinute: number): stri
   }
 
   lines.push('')
-  lines.push('MANDATORY WORKFLOW — You MUST follow these steps for EVERY meeting booking:')
-  lines.push('1. Calculate the cost: credits = meeting duration in minutes × ' + creditsPerMinute)
-  lines.push('2. Present ALL available payment plans to the user with their prices')
-  lines.push('3. Ask the user which plan they prefer and get explicit confirmation')
-  lines.push('   Example: "This 30-min meeting costs 30 credits. Here are the payment options:')
-  lines.push('   - Fiat Meetings (USD): $1 via credit card (auto-charged)')
-  lines.push('   - Meeting Credits 30 (USDC): 2 USDC via crypto')
-  lines.push('   Which option do you prefer?"')
-  lines.push('4. After the user confirms, proceed to book the meeting. Payment is processed automatically.')
-  lines.push('5. After booking, inform the user that the payment was processed successfully.')
+  lines.push(
+    'Charges are automatic: when a paid tool runs, the system takes the cost from the first plan above that can cover it, in the order listed. It does not take a plan choice from you or the user, so do not offer one.',
+  )
+  lines.push(
+    'A meeting booking charges the user, so before booking tell them what the meeting will cost (minutes × ' +
+      creditsPerMinute +
+      ' credits) and that it is charged automatically to the plans above, and book only after they confirm.',
+  )
+  lines.push(
+    'Settlement runs after the booking and its outcome is not reported back to you: say the meeting is booked and what it costs, not that the payment succeeded.',
+  )
   lines.push('')
-  lines.push('IMPORTANT: Do NOT call nevermined_orderFiatPlan or nevermined_orderPlan. Payments are handled automatically by the system when tools are used.')
-  lines.push('IMPORTANT: NEVER book a meeting without first presenting the payment options and getting user confirmation.')
+  lines.push(
+    'Buying a plan is not part of booking: tools are paid from the plans above automatically. Only when a tool call is blocked for insufficient credits does the block message say how to top up (a plan to buy, or a card to enroll); offer that to the user and act on it only after they agree.',
+  )
 
   return lines.join('\n')
 }
