@@ -624,7 +624,6 @@ export function buildServerInfoResponse(
       options?.description || 'MCP server with Nevermined OAuth integration via Streamable HTTP',
     endpoints: {
       mcp: `${config.baseUrl}/mcp`,
-      health: `${config.baseUrl}/health`,
       register: `${config.baseUrl}/register`,
     },
     oauth: {
