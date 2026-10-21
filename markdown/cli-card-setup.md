@@ -113,6 +113,13 @@ All three accept:
 
 Pre-requisite: run `nevermined login` first to authenticate against the target environment.
 
+> **Custom backends.** The embed card flow must know its tier (`sandbox` or `live`). For the named
+> environments it is implied; for a `custom` backend the CLI derives it from the `api.<sandbox|live>`
+> label pair in `NVM_BACKEND_URL` (e.g. `https://api.live.nevermined.app`). A host that does not
+> carry that pair — a local stack or a proxy in front of the API — cannot be classified, so set
+> `NVM_EMBED_NETWORK=sandbox|live` to state it explicitly. The CLI never guesses the tier: an
+> unresolved network fails fast rather than sending a `live` session to the sandbox backend.
+
 ```bash
 $ nevermined cards setup
 ℹ Using organization: Acme AI (org-abc-123)
