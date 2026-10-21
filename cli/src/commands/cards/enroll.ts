@@ -53,14 +53,18 @@ export default class CardsEnroll extends BaseCommand {
       const { flags } = await this.parse(CardsEnroll)
       const payments = await this.initPayments()
 
+      // Resolve the embed network before the interactive org prompt so an
+      // unclassifiable `custom` backend fails fast (#490 review).
+      const environment = this.resolvedEnvironment!
+      const nvmApiKey = this.resolvedNvmApiKey!
+      const network = resolveEmbedNetwork(environment)
+
       const { orgId } = await resolveOrgIdInteractive({
         payments,
         flagOrgId: flags.org,
         log: (msg: string) => this.log(msg),
       })
 
-      const environment = this.resolvedEnvironment!
-      const nvmApiKey = this.resolvedNvmApiKey!
       const env = Environments[environment]
       if (!env) {
         this.error(`Unknown environment: ${String(environment)}`, { exit: 1 })
@@ -69,7 +73,7 @@ export default class CardsEnroll extends BaseCommand {
       const result = await runWidgetRedirectFlow({
         embedUrl: env.embed,
         embedPath: '/cards/enroll',
-        network: resolveEmbedNetwork(environment),
+        network,
         mintSession: async ({ returnUrl }) => {
           const session = await mintSelfWidgetSession({
             backendUrl: env.backend,

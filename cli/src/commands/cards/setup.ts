@@ -55,6 +55,17 @@ export default class CardsSetup extends BaseCommand {
       const { flags } = await this.parse(CardsSetup)
       const payments = await this.initPayments()
 
+      // initPayments() has already resolved env+key with the canonical
+      // env-var-first precedence (NVM_API_KEY / NVM_ENVIRONMENT → config
+      // file → defaults). Re-using its decision here keeps the SDK
+      // instance and the direct `mintSelfWidgetSession` call targeting
+      // the same backend + user. Resolve the embed network HERE, before the
+      // interactive org prompt, so an unclassifiable `custom` backend fails
+      // fast rather than after the user has already picked an org (#490 review).
+      const environment = this.resolvedEnvironment!
+      const nvmApiKey = this.resolvedNvmApiKey!
+      const network = resolveEmbedNetwork(environment)
+
       // Resolve which org the session should be scoped to. Throws (and
       // we fall through to handleError) on the no-membership / multi-org
       // non-interactive paths.
@@ -69,13 +80,6 @@ export default class CardsSetup extends BaseCommand {
         this.formatter.info(`Using organization: ${orgId}`)
       }
 
-      // initPayments() has already resolved env+key with the canonical
-      // env-var-first precedence (NVM_API_KEY / NVM_ENVIRONMENT → config
-      // file → defaults). Re-using its decision here keeps the SDK
-      // instance and the direct `mintSelfWidgetSession` call targeting
-      // the same backend + user.
-      const environment = this.resolvedEnvironment!
-      const nvmApiKey = this.resolvedNvmApiKey!
       const env = Environments[environment]
       if (!env) {
         this.error(`Unknown environment: ${String(environment)}`, { exit: 1 })
@@ -84,7 +88,7 @@ export default class CardsSetup extends BaseCommand {
       const result = await runWidgetRedirectFlow({
         embedUrl: env.embed,
         embedPath: '/cards/setup',
-        network: resolveEmbedNetwork(environment),
+        network,
         // Mint AFTER the local server binds — `runWidgetRedirectFlow`
         // gives us the actual returnUrl so the backend can validate it
         // at session-creation time (per the documented `isReturnUrlAllowed`
