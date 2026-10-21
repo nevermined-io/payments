@@ -85,6 +85,10 @@ export NVM_API_KEY=nvm-your-api-key
 export NVM_ENVIRONMENT=sandbox
 ```
 
+For a `custom` backend, point `NVM_BACKEND_URL` at your API host. The card flows derive their tier
+from that host's `api.<sandbox|live>` label pair; if the host does not carry one (a local stack or a
+proxy), set `NVM_EMBED_NETWORK=sandbox|live` to state it explicitly — the CLI never guesses.
+
 ### Using Configuration Profiles
 
 Support for multiple profiles:
