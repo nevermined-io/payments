@@ -38,14 +38,12 @@ export type OAuthTier = (typeof OAUTH_TIERS)[number]
  * `oauthUrls.authorizationUri` (with `?network=` on it) to say which tier that deployment is —
  * `getOAuthUrlsForEnvironment` warns once when that happens, so the degradation is never silent.
  *
- * ⚠️ This is not the only classifier of a `custom` backend for the `network` value. Two siblings
- * apply DIFFERENT rules to the same input and can disagree on real hosts (payments#455 review):
- * `cli/src/utils/widget-redirect-flow.ts` `resolveEmbedNetwork` matches `live` as a dot/slash-bounded
- * segment anywhere in `NVM_BACKEND_URL` and DEFAULTS to `sandbox`; nvm-monorepo
- * `apps/mcp/src/config.ts` `deriveEmbedNetwork` needs a `nevermined.{app,dev}` suffix AND a tier
- * segment, and refuses otherwise. Decided 2026-09-18: all three converge on THIS rule (the `api.<tier>`
- * pair, never guessing) — the CLI in payments#456, the monorepo in nvm-monorepo#3638. Do not derive a
- * fourth rule here.
+ * ⚠️ This is not the only classifier of a `custom` backend for the `network` value — the CLI's
+ * `resolveEmbedNetwork` (`cli/src/utils/widget-redirect-flow.ts`) and nvm-monorepo's
+ * `deriveEmbedNetwork` (`apps/mcp/src/config.ts`) classify the same input. All three now apply THIS
+ * rule — the `api.<tier>` label pair, never guessing (the CLI ports it verbatim, payments#456; the
+ * monorepo via the shared `oauthTierFromHostname`, nvm-monorepo#3638). Keep them in sync; do not
+ * derive a fourth rule here.
  */
 export function resolveOAuthTier(
   environment: EnvironmentName,

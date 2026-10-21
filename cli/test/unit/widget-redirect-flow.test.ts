@@ -216,6 +216,16 @@ describe('runWidgetRedirectFlow', () => {
 })
 
 describe('resolveEmbedNetwork', () => {
+  const originalBackend = process.env.NVM_BACKEND_URL
+  const originalEmbed = process.env.NVM_EMBED_NETWORK
+
+  afterEach(() => {
+    if (originalBackend === undefined) delete process.env.NVM_BACKEND_URL
+    else process.env.NVM_BACKEND_URL = originalBackend
+    if (originalEmbed === undefined) delete process.env.NVM_EMBED_NETWORK
+    else process.env.NVM_EMBED_NETWORK = originalEmbed
+  })
+
   test('maps sandbox/staging_sandbox to sandbox and live/staging_live to live', () => {
     expect(resolveEmbedNetwork('sandbox')).toBe('sandbox')
     expect(resolveEmbedNetwork('staging_sandbox')).toBe('sandbox')
@@ -223,21 +233,57 @@ describe('resolveEmbedNetwork', () => {
     expect(resolveEmbedNetwork('staging_live')).toBe('live')
   })
 
-  test('custom sniffs NVM_BACKEND_URL (live host → live, otherwise sandbox)', () => {
-    const original = process.env.NVM_BACKEND_URL
-    try {
-      process.env.NVM_BACKEND_URL = 'https://api.live.nevermined.app/'
-      expect(resolveEmbedNetwork('custom')).toBe('live')
-      process.env.NVM_BACKEND_URL = 'https://api.sandbox.nevermined.app/'
-      expect(resolveEmbedNetwork('custom')).toBe('sandbox')
-      process.env.NVM_BACKEND_URL = 'http://localhost:3001'
-      expect(resolveEmbedNetwork('custom')).toBe('sandbox')
-      // "live" only matches as a host segment, never inside another word.
-      process.env.NVM_BACKEND_URL = 'https://api.alive.example.com/'
-      expect(resolveEmbedNetwork('custom')).toBe('sandbox')
-    } finally {
-      if (original === undefined) delete process.env.NVM_BACKEND_URL
-      else process.env.NVM_BACKEND_URL = original
-    }
+  // The six NVM_BACKEND_URL rows measured in payments#456, now classified by the shared
+  // `api.<tier>` rule ported from the SDK. Unmatched is REFUSED, never guessed — the old
+  // `sandbox` default sent a `live` custom deployment's card flows to the sandbox backend.
+  describe('custom: the shared api.<tier> classifier (payments#456)', () => {
+    beforeEach(() => {
+      delete process.env.NVM_EMBED_NETWORK
+    })
+    const rows: Array<[string, 'sandbox' | 'live' | 'refuse']> = [
+      ['https://api.sandbox.nevermined.app', 'sandbox'],
+      ['https://api.live.nevermined.app', 'live'],
+      ['http://localhost:3001', 'refuse'],
+      ['https://live.example.com', 'refuse'],
+      ['https://api-live.example.com', 'refuse'],
+      ['https://live.api.sandbox.nevermined.app', 'sandbox'],
+    ]
+    test.each(rows)('%s → %s', (url, expected) => {
+      process.env.NVM_BACKEND_URL = url
+      if (expected === 'refuse') {
+        expect(() => resolveEmbedNetwork('custom')).toThrow(/NVM_EMBED_NETWORK/)
+      } else {
+        expect(resolveEmbedNetwork('custom')).toBe(expected)
+      }
+    })
+  })
+
+  test('custom: the refusal names both remedies (NVM_EMBED_NETWORK and a conforming host)', () => {
+    delete process.env.NVM_EMBED_NETWORK
+    process.env.NVM_BACKEND_URL = 'http://localhost:3001'
+    expect(() => resolveEmbedNetwork('custom')).toThrow(/NVM_EMBED_NETWORK=sandbox\|live/)
+    expect(() => resolveEmbedNetwork('custom')).toThrow(/NVM_BACKEND_URL/)
+  })
+
+  test('custom: NVM_EMBED_NETWORK overrides an unclassifiable host', () => {
+    process.env.NVM_BACKEND_URL = 'http://localhost:3001'
+    process.env.NVM_EMBED_NETWORK = 'live'
+    expect(resolveEmbedNetwork('custom')).toBe('live')
+    process.env.NVM_EMBED_NETWORK = 'sandbox'
+    expect(resolveEmbedNetwork('custom')).toBe('sandbox')
+  })
+
+  test('custom: an invalid NVM_EMBED_NETWORK is an error, not a default', () => {
+    process.env.NVM_BACKEND_URL = 'http://localhost:3001'
+    process.env.NVM_EMBED_NETWORK = 'prod'
+    expect(() => resolveEmbedNetwork('custom')).toThrow(
+      /NVM_EMBED_NETWORK must be "sandbox" or "live"/,
+    )
+  })
+
+  test('custom: a conforming host wins over NVM_EMBED_NETWORK (the override is only a fallback)', () => {
+    process.env.NVM_BACKEND_URL = 'https://api.live.nevermined.app'
+    process.env.NVM_EMBED_NETWORK = 'sandbox'
+    expect(resolveEmbedNetwork('custom')).toBe('live')
   })
 })
