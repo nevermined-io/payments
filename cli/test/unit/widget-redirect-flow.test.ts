@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   resolveEmbedNetwork,
   runWidgetRedirectFlow,
@@ -285,5 +287,43 @@ describe('resolveEmbedNetwork', () => {
     process.env.NVM_BACKEND_URL = 'https://api.live.nevermined.app'
     process.env.NVM_EMBED_NETWORK = 'sandbox'
     expect(resolveEmbedNetwork('custom')).toBe('live')
+  })
+})
+
+describe('tierFromHost parity with the SDK', () => {
+  // The bug #456 fixed was two copies of this rule drifting apart; the CLI copy is held to
+  // the SDK's by a "keep in sync" comment, and this test makes that enforceable so the next
+  // edit to either side goes red. A runtime import of the SDK's `resolveOAuthTier` is NOT
+  // hermetic here — the published npm surface the CLI installs does not export it, and a
+  // relative cross-package import drags the SDK type graph through the CLI's jest type-gate.
+  // So compare the two function bodies at the source level: per the port comment they are
+  // identical except the constant (`OAUTH_TIERS`/`EMBED_NETWORKS`) and type name
+  // (`OAuthTier`/`EmbedNetwork`). Any other change to either body fails this test.
+  const extractFn = (src: string, name: string): string => {
+    const start = src.indexOf(`function ${name}(`)
+    if (start === -1) throw new Error(`function ${name} not found`)
+    const open = src.indexOf('{', start)
+    let depth = 0
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '{') depth++
+      else if (src[i] === '}' && --depth === 0) return src.slice(start, i + 1)
+    }
+    throw new Error(`unbalanced braces for ${name}`)
+  }
+  const normalize = (body: string): string =>
+    body
+      .replace(/\/\/.*$/gm, '') // line comments
+      .replace(/\/\*[\s\S]*?\*\//g, '') // block comments
+      .replace(/\s+/g, ' ')
+      .trim()
+
+  test('the ported tierFromHost is byte-identical to the SDK, modulo the rename', () => {
+    const sdkSrc = readFileSync(join(__dirname, '../../../src/mcp/http/oauth-metadata.ts'), 'utf8')
+    const cliSrc = readFileSync(join(__dirname, '../../src/utils/widget-redirect-flow.ts'), 'utf8')
+    const sdkBody = normalize(extractFn(sdkSrc, 'tierFromHost'))
+      .replace(/OAUTH_TIERS/g, 'EMBED_NETWORKS')
+      .replace(/OAuthTier/g, 'EmbedNetwork')
+    const cliBody = normalize(extractFn(cliSrc, 'tierFromHost'))
+    expect(cliBody).toBe(sdkBody)
   })
 })
