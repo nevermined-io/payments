@@ -20,22 +20,17 @@ export type EmbedNetwork = 'sandbox' | 'live'
  * only by the backend the session is validated against — so the embed
  * app cannot infer the network from the origin and we must pass it.
  *
- * `custom` has no fixed tier, so we sniff `NVM_BACKEND_URL`: a backend
- * host containing `live` selects `live`, otherwise we fall back to
- * `sandbox` (matching the embed app's own default).
+ * The four named environments map directly. `custom` has no fixed tier,
+ * so it is classified from `NVM_BACKEND_URL` by the shared `api.<tier>`
+ * rule ({@link tierFromHost}). When the host does not conform, the tier
+ * is NEVER guessed: resolution refuses unless the operator states it via
+ * `NVM_EMBED_NETWORK` ({@link readEmbedNetworkOverride}) — the CLI twin
+ * of the monorepo's `MCP_EMBED_NETWORK`.
  *
- * NOTE: `live` is only matched as a dot/slash-bounded segment (the
- * `api.live.<host>` convention), so a hyphenated host like
- * `https://api-live.example.com` would fall through to `sandbox`. That's
- * intentional given the naming convention; a `custom` deployment that
- * doesn't follow it should set `NVM_BACKEND_URL` to a conforming host.
- *
- * NOTE: the SDK's `resolveOAuthTier` (`src/mcp/http/oauth-metadata.ts`) classifies the SAME
- * `custom` backend for the same `network` value with a DIFFERENT rule — the `api.<tier>` label pair,
- * omitting when unmatched instead of defaulting to `sandbox` — and the two disagree on hosts such as
- * `https://live.example.com` or `https://live.api.sandbox.nevermined.app`. Decided 2026-09-18: this
- * function converges on the SDK's rule and drops the `sandbox` default — payments#456. Do not add a
- * third rule here.
+ * The old `sandbox` default is gone on purpose: it sent a `live` custom
+ * deployment's card flows to the sandbox backend, which surfaced only as
+ * `Invalid or expired widget session token`, naming nothing about the
+ * tier (payments#456).
  */
 export function resolveEmbedNetwork(environment: EnvironmentName): EmbedNetwork {
   switch (environment) {
@@ -45,11 +40,70 @@ export function resolveEmbedNetwork(environment: EnvironmentName): EmbedNetwork 
     case 'sandbox':
     case 'staging_sandbox':
       return 'sandbox'
-    case 'custom':
-      return /(^|[.\/])live([.\/]|$)/.test((process.env.NVM_BACKEND_URL || '').toLowerCase())
-        ? 'live'
-        : 'sandbox'
+    case 'custom': {
+      const backendUrl = process.env.NVM_BACKEND_URL || ''
+      const classified = tierFromHost(backendUrl)
+      if (classified) return classified
+      // Unclassifiable host: the operator says which tier, or points at a
+      // conforming one. Never default — that is the bug this converges away.
+      const override = readEmbedNetworkOverride()
+      if (override) return override
+      throw new Error(
+        `Could not derive the embed network from NVM_BACKEND_URL ` +
+          `(${backendUrl ? `'${backendUrl}'` : 'unset'}): a Nevermined API host carries an ` +
+          `'api.<sandbox|live>' label pair (e.g. https://api.live.nevermined.app). ` +
+          `Set NVM_EMBED_NETWORK=sandbox|live, or point NVM_BACKEND_URL at a conforming host.`,
+      )
+    }
   }
+}
+
+/**
+ * The embed networks as a runtime array (same values as the SDK's `OAUTH_TIERS`),
+ * for {@link tierFromHost}.
+ */
+const EMBED_NETWORKS = ['sandbox', 'live'] as const
+
+/**
+ * The `api.<tier>` label-pair classifier: the FIRST `api` label a tier label FOLLOWS
+ * classifies; anything else is never guessed.
+ *
+ * PORTED VERBATIM from the SDK's `tierFromHost` (`src/mcp/http/oauth-metadata.ts`), itself
+ * the same rule as nvm-monorepo's shared `oauthTierFromHostname` (`@nevermined-io/commons`)
+ * and `deriveEmbedNetwork` (`apps/mcp/src/config.ts`), so the SDK, the CLI, the Commerce MCP
+ * and the API classify one host identically. `cli/` installs `@nevermined-io/payments` from
+ * npm and that export is not on the published consumer surface, so the rule is copied here
+ * rather than imported. Keep it in sync with that source — do not derive a separate rule
+ * (payments#456, #468).
+ */
+function tierFromHost(url: string): EmbedNetwork | undefined {
+  let labels: string[]
+  try {
+    // WHATWG `hostname` is lowercased and carries no port/credentials/path.
+    labels = new URL(url).hostname.split('.')
+  } catch {
+    return undefined
+  }
+  for (let i = 0; i + 1 < labels.length; i++) {
+    if (labels[i] === 'api' && (EMBED_NETWORKS as readonly string[]).includes(labels[i + 1])) {
+      return labels[i + 1] as EmbedNetwork
+    }
+  }
+  return undefined
+}
+
+/**
+ * The explicit embed-network override `NVM_EMBED_NETWORK` — the CLI twin of the monorepo's
+ * `MCP_EMBED_NETWORK` (`apps/mcp/src/config.ts`). Returns `undefined` when unset; an invalid
+ * value is an error, never a silent default (payments#456).
+ */
+function readEmbedNetworkOverride(): EmbedNetwork | undefined {
+  const raw = process.env.NVM_EMBED_NETWORK?.trim()
+  if (!raw) return undefined
+  if (raw !== 'sandbox' && raw !== 'live') {
+    throw new Error(`NVM_EMBED_NETWORK must be "sandbox" or "live", got: ${raw}`)
+  }
+  return raw
 }
 
 const SELF_MINT_FETCH_TIMEOUT_MS = 15_000
