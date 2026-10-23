@@ -1376,6 +1376,7 @@ export function paymentMiddleware(
         // without emitting the payment-response receipt header (#1728).
         const originalEnd = res.end.bind(res) as (...args: Parameters<Response['end']>) => Response
         let settlementStarted = false
+        let settlementFailure: unknown = null
 
         // Armed before next() for the same reason as the MPP path: it captures
         // a byte baseline. A route declared `{ planId, credits, mpp: true }`
@@ -1401,6 +1402,14 @@ export function paymentMiddleware(
                   agentRequestId: paymentContext.agentRequestId,
                 })
                 .then((settlement) => {
+                  if (settlement.success !== true) {
+                    settlementFailure = new Error(
+                      settlement.errorReason || 'Payment settlement was not completed',
+                    )
+                    console.error('Payment settlement failed:', settlementFailure)
+                    return undefined
+                  }
+
                   // Only attach the receipt header if headers haven't flushed
                   // yet — streaming responses fire writeHead on the first
                   // chunk and may have already sent them by the time we land
@@ -1432,6 +1441,7 @@ export function paymentMiddleware(
                 markX402TokenSpent(token)
                 spentTokenRefusal = settleError
               }
+              settlementFailure = settleError
               console.error('Payment settlement failed:', settleError)
             })
         }
@@ -1477,19 +1487,27 @@ export function paymentMiddleware(
           // and so a settlement refused as already-spent can still withhold the
           // body the handler produced.
           runSettlement().finally(() => {
-            if (spentTokenRefusal && !res.headersSent) {
+            if (settlementFailure && !res.headersSent) {
               // The handler already ran, so the work is done and wasted; what
-              // must not happen is delivering it. Replace the body with the
-              // 402 the buyer would have got had `verify` been able to see the
-              // spent nonce.
-              const payload = JSON.stringify({
-                error:
-                  'This x402 access token was already used. Single-use (v3) tokens are consumed ' +
-                  'by their first settlement — mint a new token for this request.',
-                code: X402_TOKEN_ALREADY_USED_CODE,
-              })
+              // must not happen is delivering it. Replace the body with a safe
+              // payment error that does not expose the protected result or
+              // backend details.
+              const payload = JSON.stringify(
+                spentTokenRefusal
+                  ? {
+                      error:
+                        'This x402 access token was already used. Single-use (v3) tokens are consumed ' +
+                        'by their first settlement — mint a new token for this request.',
+                      code: X402_TOKEN_ALREADY_USED_CODE,
+                    }
+                  : {
+                      error: 'Payment settlement failed',
+                      message: 'The protected response was withheld because payment could not settle.',
+                    },
+              )
               res.statusCode = 402
               res.removeHeader('ETag')
+              res.removeHeader(X402_HEADERS.PAYMENT_RESPONSE)
               res.setHeader('Content-Type', 'application/json')
               res.setHeader('Content-Length', Buffer.byteLength(payload))
               // `originalEnd` is Express's overloaded `end`; the 3-arg form
