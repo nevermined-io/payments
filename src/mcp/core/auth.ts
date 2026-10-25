@@ -101,6 +101,7 @@ export class PaywallAuthenticator {
         agentId,
         logicalUrl,
         httpUrl,
+        verifiedEndpoint: logicalUrl,
         planId: result.planId,
         subscriberAddress: result.subscriberAddress,
         agentRequest: result.agentRequest,
@@ -123,6 +124,7 @@ export class PaywallAuthenticator {
           agentId,
           logicalUrl,
           httpUrl,
+          verifiedEndpoint: httpUrl,
           planId: result.planId,
           subscriberAddress: result.subscriberAddress,
           agentRequest: result.agentRequest,
@@ -135,7 +137,12 @@ export class PaywallAuthenticator {
     // Both attempts failed — surface a spec-shaped PaymentRequired error
     // (converted in-band to a tool-result error for tools; propagates as a
     // JSON-RPC error for resources/prompts).
-    throw await this.buildPaymentRequiredError(agentId, logicalUrl, 'Payment required.', planIdOverride)
+    throw await this.buildPaymentRequiredError(
+      agentId,
+      logicalUrl,
+      'Payment required.',
+      planIdOverride,
+    )
   }
 
   /**

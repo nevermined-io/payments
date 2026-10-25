@@ -225,17 +225,11 @@ export class PaywallDecorator {
               credits,
               options,
               authResult.agentId,
-              authResult.logicalUrl,
-              authResult.httpUrl,
+              authResult.verifiedEndpoint ?? authResult.logicalUrl,
               'POST',
             )
           }
-          return wrapAsyncIterable(
-            result,
-            onFinally,
-            effectivePlanId,
-            authResult.subscriberAddress,
-          )
+          return wrapAsyncIterable(result, onFinally, effectivePlanId, authResult.subscriberAddress)
         }
 
         // 7. Non-streaming: redeem immediately
@@ -246,10 +240,7 @@ export class PaywallDecorator {
           credits,
           options,
           authResult.agentId,
-          authResult.logicalUrl,
-          // fix: pre-existing arg order — fallbackEndpoint=httpUrl, httpVerb='POST'
-          // (matches the streaming site above)
-          authResult.httpUrl,
+          authResult.verifiedEndpoint ?? authResult.logicalUrl,
           'POST',
         )
 
@@ -343,7 +334,6 @@ export class PaywallDecorator {
     options: PaywallOptions,
     agentId?: string,
     endpoint?: string,
-    fallbackEndpoint?: string,
     httpVerb?: string,
   ): Promise<SettlePermissionsResult | undefined> {
     // No settlement for free / no-credit calls — signalled to the caller as
@@ -370,31 +360,12 @@ export class PaywallDecorator {
         x402AccessToken: token,
         maxAmount: credits,
       })
-    } catch (primaryError) {
-      // If logical URL fails and we have an HTTP URL fallback, retry with it
-      let lastError: unknown = primaryError
-      if (fallbackEndpoint) {
-        try {
-          const paymentRequired: X402PaymentRequired = buildPaymentRequired(planId, {
-            endpoint: fallbackEndpoint,
-            agentId,
-            httpVerb,
-            scheme,
-            environment: this.payments.getEnvironmentName(),
-          })
-
-          return await this.payments.facilitator.settlePermissions({
-            paymentRequired,
-            x402AccessToken: token,
-            maxAmount: credits,
-          })
-        } catch (fallbackError) {
-          // Fallback also failed, use fallback error as the reported error
-          lastError = fallbackError
-        }
-      }
-
-      const errorReason = lastError instanceof Error ? lastError.message : String(lastError)
+    } catch (error) {
+      // Verification may fall back to an HTTP URL, but settlement must only be
+      // attempted once, against the verified endpoint. A lost response or an
+      // unreadable body does not establish whether the first attempt charged
+      // the buyer; retrying against another URL could submit a second charge.
+      const errorReason = error instanceof Error ? error.message : String(error)
       console.error(`[x402] settle failed: ${errorReason}`)
       if (options.onRedeemError === 'propagate') {
         throw createRpcError(
