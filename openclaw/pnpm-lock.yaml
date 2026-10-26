@@ -23,7 +23,7 @@ importers:
     devDependencies:
       '@nevermined-io/payments':
         specifier: ^1.1.0
-        version: 1.13.0(@grpc/grpc-js@1.14.5)(@langchain/core@0.3.80(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)))(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(langsmith@0.10.5(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)))(openai@5.23.2(zod@3.25.76))
+        version: 1.13.0(@grpc/grpc-js@1.14.5)(@langchain/core@0.3.80(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)))(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(langsmith@0.11.0(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)))(openai@5.23.2(zod@3.25.76))
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0
@@ -41,7 +41,7 @@ importers:
         version: 30.5.2(@types/node@26.6.2)
       ts-jest:
         specifier: ^29.1.0
-        version: 29.4.13(@babel/core@7.29.7)(@jest/transform@30.5.2)(@jest/types@30.5.1)(babel-jest@30.5.2(@babel/core@7.29.7))(jest-util@30.5.1)(jest@30.5.2(@types/node@26.6.2))(typescript@6.0.3)
+        version: 29.4.15(@babel/core@7.29.7)(@jest/transform@30.5.2)(@jest/types@30.5.1)(babel-jest@30.5.2(@babel/core@7.29.7))(jest-util@30.5.1)(jest@30.5.2(@types/node@26.6.2))(typescript@6.0.3)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -626,6 +626,7 @@ packages:
   '@opentelemetry/propagator-jaeger@2.11.0':
     resolution: {integrity: sha512-RUOqgoIqXOPQTOhpBrs07Y8sBlxVoLY5Fka6ueZ0prW+k6fWQsba/nHDY4gm+gmfuwtRqbX5Y9YKhDvktjbIqQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Package no longer supported. See https://github.com/open-telemetry/opentelemetry-js/pull/7077
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -674,18 +675,21 @@ packages:
   '@opentelemetry/sdk-trace-base@2.11.0':
     resolution: {integrity: sha512-H19x/TX/LZdqiYOjM7fqtSxwlplC5pgelavqbQdHbhdq0q/AI/TGkM2dfGuuynTXmJPeF2HoZVoPDu+TGoW78A==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-base@2.7.0':
     resolution: {integrity: sha512-Yg9zEXJB50DLVLpsKPk7NmNqlPlS+OvqhJGh0A8oawIOTPOwlm4eXs9BMJV7L79lvEwI+dWtAj+YjTyddV336A==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@2.11.0':
     resolution: {integrity: sha512-CuvCMJmZxswhNLlM2LfuLOW3h3fZujA4hsG4B+Sz4dX2zvaXO8Ng74cnDHWD64gLszTlhiG3c0iNUjj4g+0/sA==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -1766,8 +1770,8 @@ packages:
     resolution: {integrity: sha512-pCcEwRi+TKpMlxAQObHDQ56KawURgyAf6jtIY046fJ5tIv3zDe/LEIubckAO8fj6JnAxLdmWkUfNyulQ2iKdEw==}
     engines: {node: '>=14.0.0'}
 
-  handlebars@4.7.9:
-    resolution: {integrity: sha512-4E71E0rpOaQuJR2A3xDZ+GM1HyWYv1clR58tC8emQNeQe3RH7MAzSbat+V0wG78LQBo6m6bzSG/L4pBuCsgnUQ==}
+  handlebars@4.7.10:
+    resolution: {integrity: sha512-P5VJMVM7qgBn6vjXMw8WG9uVI+ncf2pi72j4de4yz5ZULLj2RGqLYaKOYGsgyrViQ0tePOVlN1tDCCXXtFqXKg==}
     engines: {node: '>=0.4.7'}
     hasBin: true
 
@@ -2083,8 +2087,8 @@ packages:
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
-  langsmith@0.10.5:
-    resolution: {integrity: sha512-VUh6LQYGb+wjmMz5Ulazqx1rUHLbWi2XZvVkSHfxDjz6V7u9TJOB6jW5CC84xcpffu7Jr1MZpBbEz3gg972HbA==}
+  langsmith@0.11.0:
+    resolution: {integrity: sha512-NMyaEhfHKAVPdXR8jqP1in4BAr2RhJTmBsH+ZzhvBDTxWUsuaprnJxkRe/3NY5d2+wCaPtzbDK2Myhh6vg2q7w==}
     peerDependencies:
       '@opentelemetry/api': '*'
       '@opentelemetry/exporter-trace-otlp-proto': '*'
@@ -2434,8 +2438,8 @@ packages:
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
-  react-is@19.3.0:
-    resolution: {integrity: sha512-UpMYezM4v5/18F28aC66AEsjXIgE02kyEMH6yLdgLXu/UTfa1Ntwck/nNLrbqJsEXW7gPb0coNO9FQse9WTovA==}
+  react-is@19.3.1:
+    resolution: {integrity: sha512-RRieF6IyxQBkcK6pP8xOHprLTPW6QjRkbGdImtqNme+/hYVwCZkLQLdlZGOhUqXwkS9IEynaGvPJtv6XB/cz0Q==}
 
   readable-stream@3.6.2:
     resolution: {integrity: sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==}
@@ -2620,8 +2624,8 @@ packages:
     peerDependencies:
       typescript: '>=4.2.0'
 
-  ts-jest@29.4.13:
-    resolution: {integrity: sha512-rUQG+Ar95cNQf//KvsSjvabLpCTbwk+vKGWkAgiKFugqVwmOpGR7n7xa3S68/AB21Wn0KNhIAVxmxrUsz0L1AQ==}
+  ts-jest@29.4.15:
+    resolution: {integrity: sha512-s2qmEUYFRqbjz1wv0EmccNPVOb45HOFpFuhzQJLKShYVisuTbCFPIIAIV2EuK5rIxb4BejLDbH7dnBZfYjybUQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || ^18.0.0 || >=20.0.0}
     hasBin: true
     peerDependencies:
@@ -3304,7 +3308,7 @@ snapshots:
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.10.5(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76))
+      langsmith: 0.11.0(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76))
       mustache: 4.2.0
       p-queue: 6.6.2
       p-retry: 4.6.2
@@ -3325,7 +3329,7 @@ snapshots:
       '@tybys/wasm-util': 0.10.4
     optional: true
 
-  '@nevermined-io/payments@1.13.0(@grpc/grpc-js@1.14.5)(@langchain/core@0.3.80(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)))(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(langsmith@0.10.5(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)))(openai@5.23.2(zod@3.25.76))':
+  '@nevermined-io/payments@1.13.0(@grpc/grpc-js@1.14.5)(@langchain/core@0.3.80(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)))(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(langsmith@0.11.0(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)))(openai@5.23.2(zod@3.25.76))':
     dependencies:
       '@a2a-js/sdk': 0.3.14(@grpc/grpc-js@1.14.5)
       '@helicone/helpers': 1.8.3(openai@5.23.2(zod@3.25.76))
@@ -3340,7 +3344,7 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.6.5)
     optionalDependencies:
       '@langchain/core': 0.3.80(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76))
-      langsmith: 0.10.5(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76))
+      langsmith: 0.11.0(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76))
     transitivePeerDependencies:
       - '@bufbuild/protobuf'
       - '@grpc/grpc-js'
@@ -4890,7 +4894,7 @@ snapshots:
       - encoding
       - supports-color
 
-  handlebars@4.7.9:
+  handlebars@4.7.10:
     dependencies:
       minimist: 1.2.8
       neo-async: 2.6.2
@@ -5411,7 +5415,7 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
-  langsmith@0.10.5(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)):
+  langsmith@0.11.0(@opentelemetry/api@1.9.1)(@opentelemetry/exporter-trace-otlp-proto@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(openai@5.23.2(zod@3.25.76)):
     dependencies:
       p-queue: 6.6.2
     optionalDependencies:
@@ -5653,7 +5657,7 @@ snapshots:
   pretty-format@30.5.1:
     dependencies:
       '@jest/react-is-18': react-is@18.3.1
-      '@jest/react-is-19': react-is@19.3.0
+      '@jest/react-is-19': react-is@19.3.1
       '@jest/schemas': 30.5.0
       ansi-styles: 5.2.0
 
@@ -5689,7 +5693,7 @@ snapshots:
 
   react-is@18.3.1: {}
 
-  react-is@19.3.0: {}
+  react-is@19.3.1: {}
 
   readable-stream@3.6.2:
     dependencies:
@@ -5864,11 +5868,11 @@ snapshots:
     dependencies:
       typescript: 6.0.3
 
-  ts-jest@29.4.13(@babel/core@7.29.7)(@jest/transform@30.5.2)(@jest/types@30.5.1)(babel-jest@30.5.2(@babel/core@7.29.7))(jest-util@30.5.1)(jest@30.5.2(@types/node@26.6.2))(typescript@6.0.3):
+  ts-jest@29.4.15(@babel/core@7.29.7)(@jest/transform@30.5.2)(@jest/types@30.5.1)(babel-jest@30.5.2(@babel/core@7.29.7))(jest-util@30.5.1)(jest@30.5.2(@types/node@26.6.2))(typescript@6.0.3):
     dependencies:
       bs-logger: 0.2.6
       fast-json-stable-stringify: 2.1.0
-      handlebars: 4.7.9
+      handlebars: 4.7.10
       jest: 30.5.2(@types/node@26.6.2)
       json5: 2.2.3
       lodash.memoize: 4.1.2
