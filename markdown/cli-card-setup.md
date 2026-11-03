@@ -8,7 +8,7 @@ icon: "browser"
 
 Nevermined ships a standalone embed app (served at `embed.<tier>` — e.g. `embed.nevermined.app`) with a chromeless **card setup** page at `/cards/setup` that walks a user through:
 
-1. Enrolling a credit / debit card (via Stripe Elements — sensitive data never touches your servers).
+1. Enrolling a credit / debit card (in a VGS Collect form — sensitive data never touches your servers).
 2. Creating a spending delegation against that card (a per-card budget the user pre-authorises for agent spend).
 
 This guide explains how a **CLI or any other non-iframe integrator** can drive that page in a top-level browser tab and receive `paymentMethodId` + `delegationId` back at a localhost HTTP callback. The pattern mirrors `nevermined login`: print a URL, the user clicks it, the browser redirects back to a one-shot port on the user's machine, your process resolves with the result.
@@ -68,9 +68,8 @@ Card setup is **organization-scoped**. Self-mint callers must be members of at l
    │                                      │──────────────────────────────────────────▶│                                     │
    │                                      │                                           │                                     │
    │                                      │ Step 1: Enroll card                      │                                     │
-   │                                      │   Stripe Elements + SetupIntent          │                                     │
-   │                                      │   POST /delegation/setup-intent          │                                     │
-   │                                      │   POST /delegation/finalize-enrollment   │                                     │
+   │                                      │   VGS Collect card form                  │                                     │
+   │                                      │   POST /delegation/enroll                │                                     │
    │                                      │   → paymentMethodId                      │                                     │
    │                                      │                                           │                                     │
    │                                      │ Step 2: Create delegation                │                                     │
