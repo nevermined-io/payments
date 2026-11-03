@@ -102,7 +102,7 @@ nevermined cards enroll
 
 # Single-purpose: only create a delegation against an already-enrolled card.
 # Returns delegationId.
-nevermined cards delegate --card pm_1234
+nevermined cards delegate --card 0b7f3c2e-5a1d-4e8f-9c6b-2d4a8e1f7b90
 ```
 
 All three accept:
@@ -125,7 +125,7 @@ $ nevermined cards setup
 Opening browser...
 Waiting for completion...
 ✓ Card setup complete!
-  paymentMethodId: pm_1ABCD…
+  paymentMethodId: 0b7f3c2e-…
   delegationId:    9719d8b5-…
   organization:    org-abc-123
 ```
