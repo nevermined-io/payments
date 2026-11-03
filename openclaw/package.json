@@ -37,7 +37,7 @@
     "@typescript-eslint/parser": "^7.0.0"
   },
   "dependencies": {
-    "zod": "^3.23.0"
+    "zod": "^4.6.6"
   },
   "license": "Apache-2.0",
   "author": {
