@@ -336,7 +336,7 @@ describe('x402 in-band: paywall wrapper', () => {
     expect(metaChunk._meta[NEVERMINED_CREDITS_META_KEY].errorReason).toBe('no funds')
   })
 
-  test('settle fallback uses httpUrl, not the verb (regression: fallbackEndpoint/httpVerb order)', async () => {
+  test('does not retry settlement for an AuthResult without a verified endpoint', async () => {
     const { decorator, payments, authenticator } = makeDecorator({})
     authenticator.authenticate = jest.fn(async () => ({
       token: 'tok-abc',
@@ -349,7 +349,7 @@ describe('x402 in-band: paywall wrapper', () => {
     let calls = 0
     payments.facilitator.settlePermissions = jest.fn(async () => {
       calls += 1
-      if (calls === 1) throw new Error('primary settle failed')
+      if (calls === 1) throw new Error('primary settlement response lost')
       return {
         success: true,
         transaction: '0xok',
@@ -362,13 +362,15 @@ describe('x402 in-band: paywall wrapper', () => {
 
     const out = await wrapped({}, { _meta: { [X402_PAYMENT_META_KEY]: SAMPLE_PAYLOAD } })
 
-    expect(payments.facilitator.settlePermissions).toHaveBeenCalledTimes(2)
-    // The fallback must build paymentRequired from the httpUrl endpoint — under the
-    // old transposed arg order (fallbackEndpoint='POST') it would be the literal "POST".
-    const fallbackArg = payments.facilitator.settlePermissions.mock.calls[1][0]
-    expect(fallbackArg.paymentRequired.resource.url).toBe('https://srv.example/http')
-    expect(fallbackArg.paymentRequired.resource.url).not.toBe('POST')
-    expect(out._meta[X402_PAYMENT_RESPONSE_META_KEY].success).toBe(true)
+    expect(payments.facilitator.settlePermissions).toHaveBeenCalledTimes(1)
+    // Older/custom authenticators can omit verifiedEndpoint. Keep their logical
+    // endpoint, but never replay a settlement whose result may have been lost.
+    const settleArg = payments.facilitator.settlePermissions.mock.calls[0][0]
+    expect(settleArg.paymentRequired.resource.url).toBe('mcp://srv/logical')
+    expect(settleArg.paymentRequired.accepts[0].extra.httpVerb).toBe('POST')
+    expect(out.isError).toBe(true)
+    expect(out._meta?.[X402_PAYMENT_RESPONSE_META_KEY]).toBeUndefined()
+    expect(JSON.stringify(out)).not.toContain('0xok')
   })
 
   test('onRedeemError "propagate" surfaces a Misconfiguration (-32002) when settlement errors', async () => {

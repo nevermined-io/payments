@@ -522,6 +522,15 @@ Payment-required is signaled **in band** as an error tool result (see above) —
 
 `onRedeemError` controls only the _error type_ surfaced when settlement fails **after** the tool executed — it no longer controls whether content is returned. Per the spec, a paid result is never delivered without settlement landing, so the executed tool's content is always suppressed on settlement failure. `'ignore'` (default) surfaces the in-band payment error; `'propagate'` throws a JSON-RPC misconfiguration error.
 
+Verification tries the logical MCP resource URL first, then the HTTP endpoint if
+needed. The successful endpoint is recorded as `AuthResult.verifiedEndpoint` and
+used for a single settlement attempt, for both buffered and streaming handlers.
+The SDK does not retry settlement against another URL after a network error,
+unreadable response or HTTP error: the first attempt may already have charged the
+buyer. Such an error does not prove that nothing was charged; check payment
+records before retrying the application call. Custom authenticators that omit
+the optional `verifiedEndpoint` field settle once against their `logicalUrl`.
+
 ```typescript
 payments.mcp.registerTool('premium_tool', toolConfig, handler, {
   credits: 5n,

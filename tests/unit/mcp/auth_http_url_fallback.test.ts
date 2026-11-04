@@ -101,6 +101,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     // Logical URL is always returned (fallback only changes verification origin)
     expect(result.logicalUrl).toBe('mcp://test-server/tools/tool1?city=London')
+    expect(result.verifiedEndpoint).toBe('https://localhost:3000/mcp')
   })
 
   test('should use logical URL if it succeeds (no fallback)', async () => {
@@ -136,6 +137,7 @@ describe('PaywallAuthenticator - HTTP URL Fallback', () => {
 
     // Result should use logical URL
     expect(result.logicalUrl).toContain('mcp://test-server')
+    expect(result.verifiedEndpoint).toBe(result.logicalUrl)
   })
 
   test('should fail with plans message when both URLs fail', async () => {
