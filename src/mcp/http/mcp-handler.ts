@@ -123,6 +123,19 @@ export function createPostMcpHandler(config: McpHandlerConfig) {
 
       const transport = await sessionManager.getOrCreateSession(sessionId)
 
+      // A stateless transport belongs to this response, even when another POST
+      // echoes the same session id. Release it only after delivery/disconnect.
+      const closeTransport = () => {
+        void sessionManager.closeTransport(sessionId, transport).catch((error: unknown) => {
+          log?.(`Failed to close MCP transport: ${String(error)}`)
+        })
+      }
+      res.once('close', closeTransport)
+      if (res.destroyed) {
+        closeTransport()
+        return
+      }
+
       // Run transport handling within AsyncLocalStorage context
       // This makes headers available to tool handlers via getCurrentRequestContext()
       await requestContextStorage.run(requestContext, async () => {

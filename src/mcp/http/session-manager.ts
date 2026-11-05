@@ -48,13 +48,29 @@ export interface SessionManagerConfig {
   log?: (message: string) => void
 }
 
+interface RequestContextOwner {
+  context?: RequestContext
+}
+
+interface TransportSession {
+  server: any
+  transport: any
+  contextOwner: RequestContextOwner
+  closing?: Promise<void>
+}
+
 /**
  * Manages MCP transport sessions.
  */
 export class SessionManager {
-  private sessions: Map<string, any> = new Map()
+  private sessions: Map<string, Set<TransportSession>> = new Map()
   private requestContexts: Map<string, RequestContext> = new Map()
+  // Arrival order includes requests still awaiting their factory or connect().
+  private contextOwners: Map<string, Set<RequestContextOwner>> = new Map()
   private mcpServer: any = null
+  private mcpServerFactory: (() => any | Promise<any>) | null = null
+  private closing: Set<Promise<void>> = new Set()
+  private generation = 0
   private config: SessionManagerConfig
 
   constructor(config: SessionManagerConfig = {}) {
@@ -62,10 +78,19 @@ export class SessionManager {
   }
 
   /**
-   * Set the MCP server that transports will connect to.
+   * Set a single MCP server for sequential requests (legacy integration).
+   * Use setMcpServerFactory for overlapping requests: a Protocol instance can
+   * own only one transport at a time.
    */
   setMcpServer(server: any): void {
     this.mcpServer = server
+    this.mcpServerFactory = null
+  }
+
+  /** Supply a fresh, fully registered MCP server for each POST request. */
+  setMcpServerFactory(factory: () => any | Promise<any>): void {
+    this.mcpServerFactory = factory
+    this.mcpServer = null
   }
 
   /**
@@ -86,7 +111,8 @@ export class SessionManager {
    * Get an existing session's transport.
    */
   getSession(sessionId: string): any | undefined {
-    return this.sessions.get(sessionId)
+    const sessions = this.sessions.get(sessionId)
+    return sessions ? Array.from(sessions).pop()?.transport : undefined
   }
 
   /**
@@ -118,92 +144,146 @@ export class SessionManager {
    * path. Rebuilding per request keeps the echoed-id path working exactly like the
    * no-header path.
    *
-   * The session map still records the latest transport per id so DELETE can
-   * terminate it and requests for an unknown id can be rejected. This managed
+   * The session map tracks every active request, including requests echoing the
+   * same id, so DELETE and shutdown can close all of them. This managed
    * server runs in stateless JSON-response mode (`enableJsonResponse: true`) and
    * does NOT support standalone GET/SSE streams — the stateless transport rejects
    * them — so there is no long-lived stream for a later POST to disrupt.
    *
-   * ponytail: one shared McpServer that every request `close()`s and reconnects —
-   * two in-flight requests still race (tracked in #424). Per-session server+transport
-   * pairs are the upgrade if concurrency ever matters.
+   * Managed servers use a factory: each request owns both its McpServer and its
+   * transport. Closing one connection cannot abort another request (#424).
    */
   async getOrCreateSession(sessionId: string): Promise<any> {
-    if (!this.mcpServer) {
-      throw new Error('MCP server not set. Call setMcpServer() first.')
+    if (!this.mcpServerFactory && !this.mcpServer) {
+      throw new Error('MCP server not set. Call setMcpServerFactory() or setMcpServer() first.')
     }
 
-    // In stateless mode (sessionIdGenerator: undefined), each request gets a new transport
-    // but McpServer can only have one transport at a time. Close the existing connection
-    // before connecting the new transport so Protocol._transport is reset to undefined.
-    // The StreamableHTTPServerTransport with enableJsonResponse does not auto-close after
-    // sending a JSON response, so we must close it explicitly before each new connection.
+    const generation = this.generation
+    const contextOwner = { context: this.requestContexts.get(sessionId) }
+    const owners = this.contextOwners.get(sessionId) ?? new Set<RequestContextOwner>()
+    owners.add(contextOwner)
+    this.contextOwners.set(sessionId, owners)
+    let server: any
+    let session: TransportSession | undefined
     try {
-      await this.mcpServer.close()
-    } catch (_e) {
-      // Ignore close errors — server may not have been connected yet
+      server = this.mcpServerFactory ? await this.mcpServerFactory() : this.mcpServer
+      if (!this.mcpServerFactory) {
+        // Preserve the legacy single-server setup for sequential callers.
+        await server.close()
+      }
+      const TransportClass = await getTransportClass()
+
+      // Use stateless mode (sessionIdGenerator: undefined) to avoid requiring
+      // Mcp-Session-Id header on every request. This allows clients to make
+      // direct JSON-RPC calls without the full MCP initialization handshake.
+      const transport = new TransportClass({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      })
+      session = { server, transport, contextOwner }
+      const currentSession = session
+
+      // Set onclose BEFORE connect() so the SDK chains it with its own handler.
+      // When the transport closes, both our cleanup and the SDK's cleanup run.
+      let closed = false
+      transport.onclose = () => {
+        closed = true
+        this.removeTransport(sessionId, currentSession)
+      }
+
+      await server.connect(transport)
+      if (closed) throw new Error('MCP transport closed while connecting.')
+      if (generation !== this.generation) {
+        throw new Error('MCP sessions were destroyed while the transport was being created.')
+      }
+
+      // Force _initialized to true to allow requests without requiring initialize first.
+      // This maintains backward compatibility with clients that don't send initialize.
+      // The SDK sets _initialized = true only after processing an initialize request,
+      // but we want to accept tool/resource/prompt calls directly.
+      if (transport._initialized === false) {
+        transport._initialized = true
+      }
+
+      const sessions = this.sessions.get(sessionId) ?? new Set<TransportSession>()
+      sessions.add(session)
+      this.sessions.set(sessionId, sessions)
+
+      this.log?.(`Created new transport for session ${sessionId}`)
+      this.config.onSessionCreated?.(sessionId)
+
+      return transport
+    } catch (error) {
+      try {
+        await server?.close()
+      } catch (closeError) {
+        this.log?.(`Failed to close MCP transport after setup failed: ${String(closeError)}`)
+      }
+      if (session) this.removeTransport(sessionId, session)
+      this.releaseRequestContext(sessionId, contextOwner)
+      throw error
     }
+  }
 
-    const TransportClass = await getTransportClass()
-
-    // Use stateless mode (sessionIdGenerator: undefined) to avoid requiring
-    // Mcp-Session-Id header on every request. This allows clients to make
-    // direct JSON-RPC calls without the full MCP initialization handshake.
-    const transport = new TransportClass({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    })
-
-    // Set onclose BEFORE connect() so the SDK chains it with its own handler.
-    // When the transport closes, both our cleanup and the SDK's cleanup run.
-    transport.onclose = () => {
+  /** Remove only the connection that closed, preserving overlapping requests. */
+  private removeTransport(sessionId: string, session: TransportSession): void {
+    const sessions = this.sessions.get(sessionId)
+    if (!sessions?.delete(session)) return
+    if (sessions.size === 0) {
       this.sessions.delete(sessionId)
-      this.requestContexts.delete(sessionId)
-      this.config.onSessionDestroyed?.(sessionId)
-      this.log?.(`Transport closed for session ${sessionId}`)
     }
+    this.releaseRequestContext(sessionId, session.contextOwner)
+    this.config.onSessionDestroyed?.(sessionId)
+    this.log?.(`Transport closed for session ${sessionId}`)
+  }
 
-    await this.mcpServer.connect(transport)
+  /** Restore the newest remaining owner, whether connected or still connecting. */
+  private releaseRequestContext(sessionId: string, owner: RequestContextOwner): void {
+    const owners = this.contextOwners.get(sessionId)
+    if (!owners?.delete(owner)) return
+    if (owners.size === 0) this.contextOwners.delete(sessionId)
+    // A later setRequestContext() may belong to a request not yet in this registry.
+    if (this.requestContexts.get(sessionId) !== owner.context) return
+    const latest = Array.from(owners).pop()
+    if (latest?.context) this.requestContexts.set(sessionId, latest.context)
+    else this.requestContexts.delete(sessionId)
+  }
 
-    // Force _initialized to true to allow requests without requiring initialize first.
-    // This maintains backward compatibility with clients that don't send initialize.
-    // The SDK sets _initialized = true only after processing an initialize request,
-    // but we want to accept tool/resource/prompt calls directly.
-    if (transport._initialized === false) {
-      transport._initialized = true
+  /** Close the server/transport owned by one completed or disconnected POST. */
+  async closeTransport(sessionId: string, transport: any): Promise<void> {
+    const session = Array.from(this.sessions.get(sessionId) ?? []).find(
+      (candidate) => candidate.transport === transport,
+    )
+    if (!session) return
+    if (session.closing) return session.closing
+    const closing = (async () => {
+      try {
+        await session.server.close()
+      } finally {
+        this.removeTransport(sessionId, session)
+      }
+    })()
+    session.closing = closing
+    this.closing.add(closing)
+    try {
+      await closing
+    } finally {
+      this.closing.delete(closing)
     }
-
-    this.sessions.set(sessionId, transport)
-
-    this.log?.(`Created new transport for session ${sessionId}`)
-    this.config.onSessionCreated?.(sessionId)
-
-    return transport
   }
 
   /**
    * Destroy a session.
    */
   destroySession(sessionId: string): boolean {
-    if (this.sessions.has(sessionId)) {
-      const transport = this.sessions.get(sessionId)
-      this.sessions.delete(sessionId)
-      this.requestContexts.delete(sessionId) // Clean up request context
-      this.log?.(`Destroyed session ${sessionId}`)
-      this.config.onSessionDestroyed?.(sessionId)
-
-      // Try to close the transport if it has a close method
-      if (transport && typeof transport.close === 'function') {
-        try {
-          transport.close()
-        } catch {
-          // Ignore close errors
-        }
-      }
-
-      return true
+    const sessions = this.sessions.get(sessionId)
+    if (!sessions) return false
+    for (const { transport } of Array.from(sessions)) {
+      void this.closeTransport(sessionId, transport).catch((error: unknown) => {
+        this.log?.(`Failed to close MCP transport: ${String(error)}`)
+      })
     }
-    return false
+    return true
   }
 
   /**
@@ -223,11 +303,17 @@ export class SessionManager {
   /**
    * Destroy all sessions.
    */
-  destroyAllSessions(): void {
+  async destroyAllSessions(): Promise<void> {
+    this.generation++
     const sessionIds = this.getActiveSessions()
     for (const sessionId of sessionIds) {
       this.destroySession(sessionId)
     }
+    this.requestContexts.clear()
+    this.contextOwners.clear()
+    // destroySession reports close failures through the logger. Still await the
+    // remaining connections so a failed close cannot strand HTTP shutdown.
+    await Promise.allSettled(Array.from(this.closing))
     this.log?.(`Destroyed all ${sessionIds.length} sessions`)
   }
 
