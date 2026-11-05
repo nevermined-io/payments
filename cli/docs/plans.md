@@ -143,6 +143,29 @@ nevermined plans register-credits-plan \
 }
 ```
 
+### Exact integer amounts in JSON
+
+For both inline JSON flags and `.json` files, quote large integer amounts as
+decimal strings. Unquoted payment numbers must be safe integers (between
+`-9007199254740991` and `9007199254740991`); the CLI rejects unsafe numbers before
+calling the SDK and explains how to supply an exact value.
+
+Fractional values are rejected even when JavaScript would round them to an
+integer, such as `1.0000000000000001` or `1e-400`. Exactly integral decimal and
+scientific notation, such as `1.0` and `1e3`, remains supported within the safe
+integer range. A fractional payment literal is rejected even if a later duplicate
+property would replace it; use unique field names in payment configurations.
+
+For example, a price of `1000000000000000001` native-token minor units must use
+`"amounts": ["1000000000000000001"]`, rather than an unquoted JSON number. The
+same rule applies to `amount`, `minAmount`, `maxAmount`, `durationSecs`, `price`
+and `amountOfCredits`. The CLI converts decimal strings and safe integer numbers
+in these fields, including `amounts[]`, to the SDK's `bigint` values. This also
+accepts the decimal strings emitted by the CLI's JSON output.
+
+Other JSON fields keep their usual types. Plan-specific constraints such as
+non-negative prices are still validated by the SDK or backend.
+
 ### Time-Based Plan
 
 Create a subscription plan with time-limited access:

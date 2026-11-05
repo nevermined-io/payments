@@ -170,14 +170,14 @@ To charge a fixed crypto price instead, set `amounts` to the price in the token'
 
 ### Config schemas
 
-`register-agent-and-plan` (and `nevermined plans register-credits-plan`) accept these JSON shapes. They match the SDK types exactly — the easiest way to produce a valid file is to run the matching `nevermined plans get-*-config` command and save its output, rather than hand-crafting the JSON.
+`register-agent-and-plan` (and `nevermined plans register-credits-plan`) accept these JSON representations of the SDK configuration types. Integer fields are converted to `bigint` before the SDK call. The easiest way to produce a valid file is to run the matching `nevermined plans get-*-config` command and save its output, rather than hand-crafting the JSON.
 
 #### `--price-config` (`PlanPriceConfig`)
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `isCrypto` | boolean | `true` for crypto/native/ERC-20 payments, `false` for fiat (Stripe/Braintree). Required. |
-| `amounts` | number[] | Price(s) in the token's smallest unit (6-decimal units for USDC/EURC; `2000000` = $2.00). Empty `[]` for a free plan. |
+| `amounts` | (number or string)[] | Price(s) in the token's smallest unit (6-decimal units for USDC/EURC; `2000000` = $2.00). Quote large integers as decimal strings, e.g. `["1000000000000000001"]`. Unquoted numbers must be safe integers. Empty `[]` for a free plan. |
 | `receivers` | string[] | Wallet address(es) that collect the payment. Empty `[]` for a free plan. Same length as `amounts`. |
 | `tokenAddress` | string | ERC-20 token address, or the zero address (`0x0000…0000`) for the native token / free / fiat plans. |
 | `contractAddress` | string | Price-calculator contract. Zero address unless using a smart-contract price. |
@@ -195,10 +195,10 @@ Generators that emit this shape: `nevermined plans get-free-price-config`, `get-
 | `isRedemptionAmountFixed` | boolean | `true` when every request burns a fixed number of credits (`minAmount == maxAmount`), `false` for a dynamic range. |
 | `redemptionType` | number | Who may redeem credits: `0` = global burner role, `1` = plan owner, `2` = plan role, `4` = subscriber. SDK helpers use `4` (`ONLY_SUBSCRIBER`). |
 | `onchainMirror` | boolean | `false` keeps the credit ledger off-chain (default). `true` mirrors each burn to the on-chain `NFT1155Credits` contract. |
-| `durationSecs` | number | Plan lifetime in seconds. `0` = non-expirable (credit-limited). `> 0` makes it a time-limited plan. |
-| `amount` | number | Credits granted when the plan is purchased. |
-| `minAmount` | number | Minimum credits burned per request. |
-| `maxAmount` | number | Maximum credits burned per request (equal to `minAmount` for fixed plans). |
+| `durationSecs` | number or string | Plan lifetime in seconds. `0` = non-expirable (credit-limited). `> 0` makes it a time-limited plan. Quote integers outside the safe numeric range. |
+| `amount` | number or string | Credits granted when the plan is purchased. Use a quoted decimal string for large integers. |
+| `minAmount` | number or string | Minimum credits burned per request. Use a quoted decimal string for large integers. |
+| `maxAmount` | number or string | Maximum credits burned per request (equal to `minAmount` for fixed plans). Use a quoted decimal string for large integers. |
 | `nftAddress` | string | Optional: NFT contract representing the plan's credits. Normally omitted — assigned by the backend. |
 
 Generators that emit this shape: `nevermined plans get-fixed-credits-config`, `get-dynamic-credits-config`, `get-expirable-duration-config`, `get-non-expirable-duration-config`, `get-pay-as-you-go-credits-config`.
