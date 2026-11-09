@@ -1,5 +1,4 @@
 import { EnvironmentName } from '../environments.js'
-import type { DelegationProvider } from '../x402/delegation-api.js'
 
 /**
  * The payment scheme to use.
@@ -304,24 +303,33 @@ export interface APIOutputData {
   [key: string]: any
 }
 
+/** Status of a Stripe PaymentIntent. */
+export type StripePaymentIntentStatus =
+  | 'requires_payment_method'
+  | 'requires_confirmation'
+  | 'requires_action'
+  | 'processing'
+  | 'requires_capture'
+  | 'canceled'
+  | 'succeeded'
+
 /**
  * The Stripe PaymentIntent `POST /api/v1/fiat/stripe/payment` creates for a fiat plan,
  * returned by `PlansAPI.orderFiatPlan`. Confirm it client-side with Stripe.js and
- * its `client_secret`. Only the fields callers need are typed; the body is Stripe's
- * PaymentIntent object as is.
+ * its `client_secret`. These fields are what callers can rely on; do not depend on
+ * any other field of the response.
  */
 export interface StripePaymentIntent {
   /** PaymentIntent id (`pi_…`) */
   id: string
-  /** Secret Stripe.js confirms the payment with */
+  /** Secret Stripe.js confirms the payment with. Pass it to Stripe.js only; never log or store it. */
   client_secret: string | null
-  /** PaymentIntent status (e.g. `requires_payment_method`, `succeeded`) */
-  status: string
+  /** PaymentIntent status */
+  status: StripePaymentIntentStatus
   /** Amount in the currency's smallest unit (e.g. cents) */
   amount: number
   /** Three-letter ISO currency code, lowercase */
   currency: string
-  [key: string]: unknown
 }
 
 /**
@@ -669,6 +677,22 @@ export interface DelegationConfig {
   /** NVM API Key ID to scope the delegation to. Active (non-deprecated). */
   apiKeyId?: string
 }
+
+/**
+ * Card-delegation providers exposed by the SDK. Use this when you want to
+ * restrict to card-shape entries only (e.g., filtering the heterogeneous
+ * list returned by `DelegationAPI.listPaymentMethods`).
+ */
+export type CardProvider = 'stripe' | 'braintree' | 'visa'
+
+/**
+ * All delegation providers, including the crypto path. Matches the
+ * server-side union and types {@link CreateDelegationPayload.provider}.
+ * `vgs` = a card enrolled through the credit/debit card form: vaulted at VGS
+ * and charged through the PSP the paid plan selects. (Visa Agentic cards are
+ * `visa`.)
+ */
+export type DelegationProvider = CardProvider | 'vgs' | 'erc4337'
 
 /**
  * Payload for creating a new delegation via POST /api/v1/delegation/create.

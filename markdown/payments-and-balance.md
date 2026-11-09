@@ -100,8 +100,10 @@ For plans priced in fiat currency through Stripe, use `orderFiatPlan`. It create
 ```typescript
 const paymentIntent = await subscriberPayments.plans.orderFiatPlan(planId)
 
-// Confirm it client-side with Stripe.js (e.g. stripe.confirmPayment) using its client secret.
-console.log(paymentIntent.id, paymentIntent.client_secret)
+console.log(paymentIntent.id, paymentIntent.status)
+
+// Pass the client secret straight to Stripe.js in the customer's browser; never log or store it.
+await stripe.confirmPayment({ elements, clientSecret: paymentIntent.client_secret!, confirmParams: { return_url } })
 ```
 
 #### CLI

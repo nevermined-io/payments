@@ -94,7 +94,7 @@ Purchase a crypto payment plan. **Two-step flow:** the first call returns a quot
 - `confirm` (optional, default `false`) — set to `true` to execute the on-chain purchase. Without `confirm: true` the tool returns the plan summary (price, credits, paymentType, environment) plus the literal string `"Re-call with confirm: true to proceed."`.
 
 ### `nevermined_orderFiatPlan`
-Order a fiat payment plan — creates a Stripe PaymentIntent for the plan and returns it; the plan is paid once the PaymentIntent is confirmed client-side with Stripe.js. **Two-step flow:** the first call returns a quote; pass `confirm: true` on the second call to create the PaymentIntent.
+Order a fiat payment plan — creates a Stripe PaymentIntent for the plan and returns its id, status, amount and currency; the agent cannot complete it, the user confirms the payment with their card. **Two-step flow:** the first call returns a quote; pass `confirm: true` on the second call to create the PaymentIntent.
 - `planId` (optional if set in config)
 - `confirm` (optional, default `false`) — set to `true` to create the Stripe PaymentIntent. Without `confirm: true` the tool returns the plan summary plus the literal string `"Re-call with confirm: true to proceed."`.
 

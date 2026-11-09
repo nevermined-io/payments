@@ -216,7 +216,7 @@ The Claw calls `nevermined_listPaymentMethods` and returns the enrolled cards wi
 
 > Order the fiat plan `<plan-id>`
 
-The Claw calls `nevermined_orderFiatPlan`, which creates a Stripe PaymentIntent for the plan. The plan is paid once the PaymentIntent is confirmed client-side with Stripe.js.
+The Claw calls `nevermined_orderFiatPlan`, which creates a Stripe PaymentIntent for the plan. The agent cannot complete it: the user confirms the payment with their card.
 
 ### 4. Query an agent with fiat
 

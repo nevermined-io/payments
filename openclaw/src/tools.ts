@@ -127,7 +127,7 @@ export function createTools(
     {
       name: 'nevermined_orderFiatPlan',
       label: 'Nevermined Order Fiat Plan',
-      description: 'Order a fiat payment plan — creates a Stripe PaymentIntent for the plan and returns it; the plan is paid once the PaymentIntent is confirmed client-side with Stripe.js. Two-step: returns a quote until called again with confirm:true.',
+      description: 'Order a fiat payment plan — creates a Stripe PaymentIntent for the plan and returns its id, status, amount and currency. The agent cannot complete it: the user must confirm the payment with their card. Two-step: returns a quote until called again with confirm:true.',
       parameters: {
         type: 'object' as const,
         properties: {
@@ -143,8 +143,16 @@ export function createTools(
           return result(await buildOrderQuote(getPayments, planId, 'fiat', config))
         }
 
-        const res = await getPayments().plans.orderFiatPlan(planId)
-        return result(res)
+        // Never hand the client_secret to the agent: it is a payment credential, and an
+        // agent cannot confirm the PaymentIntent anyway.
+        const { id, status, amount, currency } = await getPayments().plans.orderFiatPlan(planId)
+        return result({
+          id,
+          status,
+          amount,
+          currency,
+          message: 'Payment intent created. The user must complete the payment with their card.',
+        })
       },
     },
 

@@ -689,11 +689,7 @@ export class PlansAPI extends BasePaymentsAPI {
    * ```
    */
   public async orderFiatPlan(planId: string): Promise<StripePaymentIntent> {
-    const body = {
-      sessionType: 'embedded',
-      planId,
-    }
-    const options = this.getBackendHTTPOptions('POST', body)
+    const options = this.getBackendHTTPOptions('POST', { planId })
     const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {

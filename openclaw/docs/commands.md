@@ -120,7 +120,7 @@ Use this for plans priced in native tokens (ETH, MATIC) or ERC-20 tokens (USDC).
 
 ### Purchase a Fiat Plan — `nevermined_orderFiatPlan`
 
-Purchase a payment plan using fiat currency (USD). Instead of executing an on-chain transaction, this tool creates a Stripe PaymentIntent for the plan's price and returns it. The plan is paid once the PaymentIntent is confirmed client-side with Stripe.js and its `client_secret`; credits are then added to your account.
+Purchase a payment plan using fiat currency (USD). Instead of executing an on-chain transaction, this tool creates a Stripe PaymentIntent for the plan's price and returns its id, status, amount and currency. The agent cannot complete the payment: the user confirms it with their card, and credits are then added to their account.
 
 Use this for plans that have been created with `pricingType: fiat`. For crypto-priced plans, use `nevermined_orderPlan` instead.
 
@@ -137,14 +137,13 @@ Use this for plans that have been created with `pricingType: fiat`. For crypto-p
 **Returns:**
 - Without `confirm: true`: `{ planId, name, price, credits, paymentType: "fiat", environment, requiresConfirmation: true, message: "Re-call with confirm: true to proceed." }`
 - With `confirm: true`:
-the Stripe PaymentIntent object, for example:
 ```json
 {
   "id": "pi_3O4KfNBYvSRKcV42",
-  "client_secret": "pi_3O4KfNBYvSRKcV42_secret_...",
   "status": "requires_payment_method",
   "amount": 1000,
-  "currency": "usd"
+  "currency": "usd",
+  "message": "Payment intent created. The user must complete the payment with their card."
 }
 ```
 

@@ -10,23 +10,11 @@ import { PaymentsError } from '../common/payments.error.js'
 import {
   CreateDelegationPayload,
   CreateDelegationResponse,
+  DelegationProvider,
   PaymentOptions,
 } from '../common/types.js'
 
-/**
- * Card-delegation providers exposed by the SDK. Use this when you want to
- * restrict to card-shape entries only (e.g., filtering the heterogeneous
- * list returned by {@link DelegationAPI.listPaymentMethods}).
- */
-export type CardProvider = 'stripe' | 'braintree' | 'visa'
-
-/**
- * All delegation providers, including the crypto path. Matches the
- * server-side union and aligns with {@link CreateDelegationPayload.provider}.
- * `vgs` = a card tokenised in the VGS vault (e.g. Visa Agentic), surfaced by
- * {@link DelegationAPI.listPaymentMethods}.
- */
-export type DelegationProvider = CardProvider | 'vgs' | 'erc4337'
+export type { CardProvider, DelegationProvider } from '../common/types.js'
 
 /**
  * Summary of a user's enrolled payment method.
@@ -56,7 +44,7 @@ export interface PaymentMethodSummary {
   expYear: number
   /** Human-readable alias, if set */
   alias?: string | null
-  /** One of 'stripe' | 'braintree' | 'visa' | 'erc4337' */
+  /** One of 'vgs' | 'stripe' | 'braintree' | 'visa' | 'erc4337' */
   provider?: DelegationProvider
   /** Current status ('Active' or 'Revoked') */
   status?: string
