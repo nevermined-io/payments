@@ -21,7 +21,7 @@ The plugin adds 9 payment tools and 2 slash commands to your OpenClaw gateway:
 | `nevermined_checkBalance` | Check remaining credits on a plan |
 | `nevermined_getAccessToken` | Get an x402 token for authenticating requests (crypto or fiat) |
 | `nevermined_orderPlan` | Purchase a crypto payment plan |
-| `nevermined_orderFiatPlan` | Purchase a fiat payment plan (returns Stripe checkout URL) |
+| `nevermined_orderFiatPlan` | Purchase a fiat payment plan (returns a Stripe PaymentIntent) |
 | `nevermined_listPaymentMethods` | List enrolled credit cards for fiat payments |
 | `nevermined_queryAgent` | Send a paid query to an agent (crypto or fiat) |
 
@@ -216,7 +216,7 @@ The Claw calls `nevermined_listPaymentMethods` and returns the enrolled cards wi
 
 > Order the fiat plan `<plan-id>`
 
-The Claw calls `nevermined_orderFiatPlan`, which returns a Stripe checkout URL. The user completes payment in a browser.
+The Claw calls `nevermined_orderFiatPlan`, which creates a Stripe PaymentIntent for the plan. The plan is paid once the PaymentIntent is confirmed client-side with Stripe.js.
 
 ### 4. Query an agent with fiat
 

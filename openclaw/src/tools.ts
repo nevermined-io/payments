@@ -127,12 +127,12 @@ export function createTools(
     {
       name: 'nevermined_orderFiatPlan',
       label: 'Nevermined Order Fiat Plan',
-      description: 'Order a fiat payment plan — returns a Stripe checkout URL. Two-step: returns a quote until called again with confirm:true.',
+      description: 'Order a fiat payment plan — creates a Stripe PaymentIntent for the plan and returns it; the plan is paid once the PaymentIntent is confirmed client-side with Stripe.js. Two-step: returns a quote until called again with confirm:true.',
       parameters: {
         type: 'object' as const,
         properties: {
           planId: { type: 'string', description: 'The payment plan ID to order' },
-          confirm: { type: 'boolean', description: 'Set to true to receive the Stripe checkout URL. Without confirm:true the tool returns the plan summary only.' },
+          confirm: { type: 'boolean', description: 'Set to true to create the Stripe PaymentIntent. Without confirm:true the tool returns the plan summary only.' },
         },
       },
       async execute(_id: string, params: Record<string, unknown>) {

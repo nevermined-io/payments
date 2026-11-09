@@ -1,4 +1,5 @@
 import { EnvironmentName } from '../environments.js'
+import type { DelegationProvider } from '../x402/delegation-api.js'
 
 /**
  * The payment scheme to use.
@@ -303,6 +304,30 @@ export interface APIOutputData {
   [key: string]: any
 }
 
+/**
+ * The Stripe PaymentIntent `POST /api/v1/fiat/stripe/payment` creates for a fiat plan,
+ * returned by `PlansAPI.orderFiatPlan`. Confirm it client-side with Stripe.js and
+ * its `client_secret`. Only the fields callers need are typed; the body is Stripe's
+ * PaymentIntent object as is.
+ */
+export interface StripePaymentIntent {
+  /** PaymentIntent id (`pi_…`) */
+  id: string
+  /** Secret Stripe.js confirms the payment with */
+  client_secret: string | null
+  /** PaymentIntent status (e.g. `requires_payment_method`, `succeeded`) */
+  status: string
+  /** Amount in the currency's smallest unit (e.g. cents) */
+  amount: number
+  /** Three-letter ISO currency code, lowercase */
+  currency: string
+  [key: string]: unknown
+}
+
+/**
+ * @deprecated Not returned by any SDK method: `PlansAPI.orderFiatPlan` returns a
+ * {@link StripePaymentIntent}.
+ */
 export interface StripeCheckoutResult {
   stripeCheckoutSessionId: string
   checkoutLink: string
@@ -649,9 +674,12 @@ export interface DelegationConfig {
  * Payload for creating a new delegation via POST /api/v1/delegation/create.
  */
 export interface CreateDelegationPayload {
-  /** Delegation provider: 'stripe' | 'braintree' | 'visa' for card, 'erc4337' for crypto */
-  provider: 'stripe' | 'braintree' | 'visa' | 'erc4337'
-  /** Payment method ID from the provider (Stripe 'pm_...', Braintree vault token, or Visa Agentic token id). Required for card providers. */
+  /**
+   * Delegation provider: 'vgs' for a card enrolled through the credit/debit card form,
+   * 'stripe' | 'braintree' | 'visa' for the other card rails, 'erc4337' for crypto.
+   */
+  provider: DelegationProvider
+  /** Payment method ID from the provider (the card's 'CRD…' id for 'vgs', Stripe 'pm_...', Braintree vault token, or Visa Agentic token id). Required for card providers. */
   providerPaymentMethodId?: string
   /** Maximum spending limit in cents */
   spendingLimitCents: number
