@@ -275,7 +275,7 @@ To keep the SDK's Visa consume-side surface exercisable against the real backend
 
 | Step | Asserted? | Notes |
 |---|---|---|
-| Plan creation | ❌ | Plan must pre-exist: the suite mints the access token against the fixture's `NVM_TEST_VISA_PLAN_ID`. The delegation itself is plan-agnostic (the backend no longer binds a Visa delegation to a plan); keeping one fixed plan is the fixture's choice, so each run verifies against the same seller. |
+| Plan creation | ❌ | Plan must pre-exist: the suite mints and verifies the access token against the fixture's `NVM_TEST_VISA_PLAN_ID` rather than registering a plan per run like the Stripe suite. The backend does not require this: a Visa delegation no longer needs a plan, and the webapp dialog creates it without one. |
 | `listPaymentMethods` returns the visa PM | ✅ | |
 | `getX402AccessToken` mints against `delegationId` + `planId` | ✅ | |
 | `verifyPermissions` returns `isValid=true`, `network='visa'` | ✅ | Read-only — does not charge the card |
@@ -291,7 +291,7 @@ To keep the SDK's Visa consume-side surface exercisable against the real backend
 
 2. **Enrol the Visa card** — open the Nevermined webapp against staging (`https://nevermined.dev`) and sign in as the SDK test subscriber. On `/payment-methods`, click **Enroll with Visa** and enter a VTS-registered sandbox PAN — e.g. `4622943123121387`, CVC `123`, expiry `12/27`. Capture the `paymentMethodId` (`vat_…`) from `POST /api/v1/delegation/enroll-visa` in the network panel.
 
-3. **Create the delegation** — from the same card row, click **Create delegation** (the dialog asks for no plan: Visa delegations are plan-agnostic), set any spending limit and a duration of at most 7 days (Visa's mandate limit, `BCK.VISA.0025`), so the fixture has to be re-created at least weekly, then complete the WebAuthn ceremony with sandbox OTP `456789`. Capture the `delegationId` (UUID) from `POST /api/v1/delegation/create`.
+3. **Create the delegation** — from the same card row, click **Create delegation** (the dialog asks for no plan: Visa delegations are plan-agnostic), set any spending limit and a duration of at most 7 days (Visa's mandate limit, `BCK.VISA.0025`), then complete the WebAuthn ceremony with sandbox OTP `456789`. Capture the `delegationId` (UUID) from `POST /api/v1/delegation/create`. The delegation has to be re-created at least weekly (see Refreshing the fixture).
 
 4. **Export all three**:
 

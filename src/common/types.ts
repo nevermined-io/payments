@@ -657,7 +657,8 @@ export interface DelegationConfig {
    */
   currency?: DelegationCurrency
   /**
-   * Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId).
+   * Merchant account ID (Stripe Connect acct_…). Ignored by the backend: the
+   * seller's Connect account is resolved at settle time.
    * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
    */
   merchantAccountId?: string
@@ -667,9 +668,9 @@ export interface DelegationConfig {
    */
   maxTransactions?: number
   /**
-   * Plan ID to scope a newly-created delegation to. Optional for every
-   * provider, and additive: delegations are plan-agnostic by default;
-   * supplying `planId` opts into a plan-bound delegation.
+   * Ignored by the backend: an inline-created delegation is always
+   * plan-agnostic. To bind a delegation to one plan, create it with
+   * `createDelegation({ planId })` and pass its `delegationId`.
    * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
    */
   planId?: string
@@ -699,10 +700,11 @@ export type DelegationProvider = CardProvider | 'vgs' | 'erc4337'
 export interface CreateDelegationPayload {
   /**
    * Delegation provider: 'vgs' for a card enrolled through the credit/debit card form,
-   * 'stripe' | 'braintree' | 'visa' for the other card rails, 'erc4337' for crypto.
+   * 'stripe' | 'visa' for the other card rails, 'erc4337' for crypto. 'braintree' is
+   * refused at create.
    */
   provider: DelegationProvider
-  /** Payment method ID from the provider (the card's 'CRD…' id for 'vgs', Stripe 'pm_...', Braintree vault token, or Visa Agentic token id). Required for card providers. */
+  /** Payment method ID from the provider (the card's 'CRD…' id for 'vgs', Stripe 'pm_...', or Visa Agentic token id). Required for card providers. */
   providerPaymentMethodId?: string
   /** Maximum spending limit in cents */
   spendingLimitCents: number
@@ -717,6 +719,7 @@ export interface CreateDelegationPayload {
    */
   planId?: string
   /**
+   * Merchant account ID (Stripe Connect acct_…).
    * @deprecated Ignored by the backend: the seller's Connect account is
    * resolved at settle time, never taken from the caller.
    */
