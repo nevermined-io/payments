@@ -303,6 +303,39 @@ export interface APIOutputData {
   [key: string]: any
 }
 
+/** Status of a Stripe PaymentIntent. */
+export type StripePaymentIntentStatus =
+  | 'requires_payment_method'
+  | 'requires_confirmation'
+  | 'requires_action'
+  | 'processing'
+  | 'requires_capture'
+  | 'canceled'
+  | 'succeeded'
+
+/**
+ * The Stripe PaymentIntent `POST /api/v1/fiat/stripe/payment` creates for a fiat plan,
+ * returned by `PlansAPI.orderFiatPlan`. Confirm it client-side with Stripe.js and
+ * its `client_secret`. These fields are what callers can rely on; do not depend on
+ * any other field of the response.
+ */
+export interface StripePaymentIntent {
+  /** PaymentIntent id (`pi_…`) */
+  id: string
+  /** Secret Stripe.js confirms the payment with. Pass it to Stripe.js only; never log or store it. */
+  client_secret: string | null
+  /** PaymentIntent status */
+  status: StripePaymentIntentStatus
+  /** Amount in the currency's smallest unit (e.g. cents) */
+  amount: number
+  /** Three-letter ISO currency code, lowercase */
+  currency: string
+}
+
+/**
+ * @deprecated Not returned by any SDK method: `PlansAPI.orderFiatPlan` returns a
+ * {@link StripePaymentIntent}.
+ */
 export interface StripeCheckoutResult {
   stripeCheckoutSessionId: string
   checkoutLink: string
@@ -646,12 +679,31 @@ export interface DelegationConfig {
 }
 
 /**
+ * Card-delegation providers exposed by the SDK. Use this when you want to
+ * restrict to card-shape entries only (e.g., filtering the heterogeneous
+ * list returned by `DelegationAPI.listPaymentMethods`).
+ */
+export type CardProvider = 'stripe' | 'braintree' | 'visa'
+
+/**
+ * All delegation providers, including the crypto path. Matches the
+ * server-side union and types {@link CreateDelegationPayload.provider}.
+ * `vgs` = a card enrolled through the credit/debit card form: vaulted at VGS
+ * and charged through the PSP the paid plan selects. (Visa Agentic cards are
+ * `visa`.)
+ */
+export type DelegationProvider = CardProvider | 'vgs' | 'erc4337'
+
+/**
  * Payload for creating a new delegation via POST /api/v1/delegation/create.
  */
 export interface CreateDelegationPayload {
-  /** Delegation provider: 'stripe' | 'braintree' | 'visa' for card, 'erc4337' for crypto */
-  provider: 'stripe' | 'braintree' | 'visa' | 'erc4337'
-  /** Payment method ID from the provider (Stripe 'pm_...', Braintree vault token, or Visa Agentic token id). Required for card providers. */
+  /**
+   * Delegation provider: 'vgs' for a card enrolled through the credit/debit card form,
+   * 'stripe' | 'braintree' | 'visa' for the other card rails, 'erc4337' for crypto.
+   */
+  provider: DelegationProvider
+  /** Payment method ID from the provider (the card's 'CRD…' id for 'vgs', Stripe 'pm_...', Braintree vault token, or Visa Agentic token id). Required for card providers. */
   providerPaymentMethodId?: string
   /** Maximum spending limit in cents */
   spendingLimitCents: number
