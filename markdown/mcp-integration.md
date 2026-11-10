@@ -426,7 +426,7 @@ import { decodeAccessToken } from '@nevermined-io/payments'
 // Mint a token against a delegation (create one first). `agentId` (2nd arg) is
 // optional, but `delegationConfig` is required.
 const { delegationId } = await payments.delegation.createDelegation({
-  provider: 'erc4337', // 'stripe' | 'braintree' | 'visa' for fiat plans
+  provider: 'erc4337', // 'vgs' | 'stripe' (+ providerPaymentMethodId) for fiat plans
   spendingLimitCents: 10000,
   durationSecs: 604800,
   currency: 'usdc', // 'usd' for fiat plans
