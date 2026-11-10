@@ -12,12 +12,10 @@
  *
  * Visa card enrolment and Visa delegation creation both require a real
  * browser, so the SDK cannot do either step programmatically. The plan
- * itself also has to exist beforehand — the backend binds each Visa
- * delegation to a single plan at creation time (BCK.VISA.0015) and
- * rejects a mismatch between delegation.planId and the planId used to
- * mint or verify the access token. So the suite creates nothing: it
- * exercises only the *consume* side of an already-provisioned plan +
- * card + delegation triple:
+ * the token is minted against also has to exist beforehand (the
+ * delegation is plan-agnostic; a fixed plan keeps each run on the same
+ * seller). So the suite creates nothing: it exercises only the *consume*
+ * side of an already-provisioned plan + card + delegation triple:
  *
  *   1. listPaymentMethods → find the visa-provider card.
  *   2. getX402AccessToken using the pre-created delegationId + planId.

@@ -275,7 +275,7 @@ To keep the SDK's Visa consume-side surface exercisable against the real backend
 
 | Step | Asserted? | Notes |
 |---|---|---|
-| Plan creation | ❌ | Plan must pre-exist. A Visa delegation is bound to a single plan at creation time (backend rejects with `BCK.VISA.0015` otherwise), so creating a fresh plan per run would mint the access token against a planId the delegation isn't bound to and the verify step would fail. |
+| Plan creation | ❌ | Plan must pre-exist: the suite mints the access token against the fixture's `NVM_TEST_VISA_PLAN_ID`. The delegation itself is plan-agnostic (the backend no longer binds a Visa delegation to a plan); keeping one fixed plan is the fixture's choice, so each run verifies against the same seller. |
 | `listPaymentMethods` returns the visa PM | ✅ | |
 | `getX402AccessToken` mints against `delegationId` + `planId` | ✅ | |
 | `verifyPermissions` returns `isValid=true`, `network='visa'` | ✅ | Read-only — does not charge the card |
@@ -283,7 +283,7 @@ To keep the SDK's Visa consume-side surface exercisable against the real backend
 
 ### One-time provisioning
 
-> All three of plan, card, and delegation are committed to a single `(subscriber, planId)` pair on the backend, so the accounts and ordering matter:
+> The plan, card and delegation form one fixture, so the accounts matter:
 > - **Plan** must be created by the builder whose key is set as `TEST_BUILDER_API_KEY` in `tests/e2e/fixtures.ts` (or via the env var override). That builder ends up as the seller of the plan and is also the account the e2e's `verifyPermissions` runs as.
 > - **Card + delegation** must be enrolled by the subscriber whose key is `TEST_SUBSCRIBER_API_KEY`.
 
@@ -291,7 +291,7 @@ To keep the SDK's Visa consume-side surface exercisable against the real backend
 
 2. **Enrol the Visa card** — open the Nevermined webapp against staging (`https://nevermined.dev`) and sign in as the SDK test subscriber. On `/payment-methods`, click **Enroll with Visa** and enter a VTS-registered sandbox PAN — e.g. `4622943123121387`, CVC `123`, expiry `12/27`. Capture the `paymentMethodId` (`vat_…`) from `POST /api/v1/delegation/enroll-visa` in the network panel.
 
-3. **Create the delegation** — from the same card row, click **Create delegation**, pick the plan from step 1 (the dropdown lists the subscriber's accessible plans), set any spending limit + a duration that matches how long you intend to keep the fixture alive, then complete the WebAuthn ceremony with sandbox OTP `456789`. Capture the `delegationId` (UUID) from `POST /api/v1/delegation/create`.
+3. **Create the delegation** — from the same card row, click **Create delegation** (the dialog asks for no plan: Visa delegations are plan-agnostic), set any spending limit and a duration of at most 7 days (Visa's mandate limit, `BCK.VISA.0025`), so the fixture has to be re-created at least weekly, then complete the WebAuthn ceremony with sandbox OTP `456789`. Capture the `delegationId` (UUID) from `POST /api/v1/delegation/create`.
 
 4. **Export all three**:
 

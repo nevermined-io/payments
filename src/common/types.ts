@@ -667,9 +667,9 @@ export interface DelegationConfig {
    */
   maxTransactions?: number
   /**
-   * Plan ID to scope a newly-created delegation to. Optional and additive:
-   * delegations are plan-agnostic by default; supplying `planId` opts into a
-   * plan-bound delegation. Optional for every provider, Visa included.
+   * Plan ID to scope a newly-created delegation to. Optional for every
+   * provider, and additive: delegations are plan-agnostic by default;
+   * supplying `planId` opts into a plan-bound delegation.
    * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
    */
   planId?: string
@@ -711,12 +711,15 @@ export interface CreateDelegationPayload {
   /** Currency code (e.g., 'usd' for card providers, 'usdc' for erc4337). Required by the backend — no silent default. */
   currency: DelegationCurrency
   /**
-   * Plan ID to scope the delegation to. Optional and additive: delegations are
-   * plan-agnostic by default; supplying `planId` opts into a plan-bound
-   * delegation. Optional for every provider, Visa included.
+   * Plan ID to scope the delegation to. Optional for every provider, and
+   * additive: delegations are plan-agnostic by default; supplying `planId` opts
+   * into a plan-bound delegation.
    */
   planId?: string
-  /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
+  /**
+   * @deprecated Ignored by the backend: the seller's Connect account is
+   * resolved at settle time, never taken from the caller.
+   */
   merchantAccountId?: string
   /** Maximum number of transactions allowed */
   maxTransactions?: number
