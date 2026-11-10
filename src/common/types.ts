@@ -620,11 +620,11 @@ export type DelegationCurrency = 'usd' | 'eur' | 'usdc' | 'eurc'
  *
  * @remarks
  * The inline create-on-the-fly fields (`providerPaymentMethodId`,
- * `spendingLimitCents`, `durationSecs`, `currency`, `merchantAccountId`,
- * `maxTransactions`, `cardId`) are individually deprecated. Calling
+ * `spendingLimitCents`, `durationSecs`, `currency`, `maxTransactions`,
+ * `cardId`) are individually deprecated. Calling
  * {@link X402TokenAPI.getX402AccessToken} with a `delegationConfig` that lacks
- * `delegationId` but carries one of those fields emits a runtime deprecation
- * warning; create the delegation first and pass only `delegationId` (optionally
+ * `delegationId` but carries `cardId`, `providerPaymentMethodId`,
+ * `spendingLimitCents` or `durationSecs` emits a runtime deprecation warning; create the delegation first and pass only `delegationId` (optionally
  * `apiKeyId`) here. The interface itself is NOT deprecated — the
  * `{ delegationId }` reuse path is the supported way to configure a token request.
  */
@@ -657,9 +657,9 @@ export interface DelegationConfig {
    */
   currency?: DelegationCurrency
   /**
-   * Merchant account ID (Stripe Connect acct_…). Ignored by the backend: the
-   * seller's Connect account is resolved at settle time.
-   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   * Merchant account ID (Stripe Connect acct_…).
+   * @deprecated Ignored by the backend (the seller's Connect account is
+   * resolved at settle time); drop it.
    */
   merchantAccountId?: string
   /**
