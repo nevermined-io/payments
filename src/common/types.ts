@@ -669,8 +669,7 @@ export interface DelegationConfig {
   /**
    * Plan ID to scope a newly-created delegation to. Optional and additive:
    * delegations are plan-agnostic by default; supplying `planId` opts into a
-   * plan-bound delegation. (Visa delegations are always plan-specific and
-   * require it server-side.)
+   * plan-bound delegation. Optional for every provider, Visa included.
    * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
    */
   planId?: string
@@ -714,7 +713,7 @@ export interface CreateDelegationPayload {
   /**
    * Plan ID to scope the delegation to. Optional and additive: delegations are
    * plan-agnostic by default; supplying `planId` opts into a plan-bound
-   * delegation. (Visa delegations are always plan-specific and require it.)
+   * delegation. Optional for every provider, Visa included.
    */
   planId?: string
   /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
