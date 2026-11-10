@@ -12,7 +12,7 @@ import {
   PlanRedemptionType,
   PlanMetadata,
   PlanPriceConfig,
-  StripeCheckoutResult,
+  StripePaymentIntent,
 } from '../common/types.js'
 import { ZeroAddress } from '../environments.js'
 import { getRandomBigInt, isEthereumAddress } from '../utils.js'
@@ -668,28 +668,28 @@ export class PlansAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Initiates the purchase of a Plan requiring the payment in Fiat. This method will return a URL where the user can complete the payment.
+   * Initiates the purchase of a Plan requiring the payment in Fiat. This method creates a
+   * Stripe PaymentIntent for the plan's price and returns it.
    *
    * @remarks
-   * The payment is completed using a credit card in a external website (Stripe).
+   * The payment is completed by confirming the PaymentIntent client-side with Stripe.js and
+   * its `client_secret`.
    * @remarks
-   * This method is only valid for plans with price in Fiat.
+   * This method is only valid for plans priced in Fiat through Stripe.
    *
    * @param planId - The unique identifier of the plan.
-   * @returns A promise that resolves indicating the URL to complete the payment.
+   * @returns A promise that resolves to the Stripe PaymentIntent created for the plan.
    * @throws PaymentsError if unable to order the plan.
    *
    * @example
    * ```
-   * const result = await payments.plans.orderFiatPlan(planId)
+   * const paymentIntent = await payments.plans.orderFiatPlan(planId)
+   * // paymentIntent.id            -> 'pi_…'
+   * // paymentIntent.client_secret -> confirm with Stripe.js
    * ```
    */
-  public async orderFiatPlan(planId: string): Promise<{ result: StripeCheckoutResult }> {
-    const body = {
-      sessionType: 'embedded',
-      planId,
-    }
-    const options = this.getBackendHTTPOptions('POST', body)
+  public async orderFiatPlan(planId: string): Promise<StripePaymentIntent> {
+    const options = this.getBackendHTTPOptions('POST', { planId })
     const url = new URL(API_URL_STRIPE_CHECKOUT, this.environment.backend)
     const response = await fetch(url, options)
     if (!response.ok) {
