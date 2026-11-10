@@ -624,7 +624,8 @@ export type DelegationCurrency = 'usd' | 'eur' | 'usdc' | 'eurc'
  * `cardId`) are individually deprecated. Calling
  * {@link X402TokenAPI.getX402AccessToken} with a `delegationConfig` that lacks
  * `delegationId` but carries `cardId`, `providerPaymentMethodId`,
- * `spendingLimitCents` or `durationSecs` emits a runtime deprecation warning; create the delegation first and pass only `delegationId` (optionally
+ * `spendingLimitCents` or `durationSecs` emits a runtime deprecation warning;
+ * create the delegation first and pass only `delegationId` (optionally
  * `apiKeyId`) here. The interface itself is NOT deprecated — the
  * `{ delegationId }` reuse path is the supported way to configure a token request.
  */
