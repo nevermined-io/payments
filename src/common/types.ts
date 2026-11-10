@@ -303,6 +303,39 @@ export interface APIOutputData {
   [key: string]: any
 }
 
+/** Status of a Stripe PaymentIntent. */
+export type StripePaymentIntentStatus =
+  | 'requires_payment_method'
+  | 'requires_confirmation'
+  | 'requires_action'
+  | 'processing'
+  | 'requires_capture'
+  | 'canceled'
+  | 'succeeded'
+
+/**
+ * The Stripe PaymentIntent `POST /api/v1/fiat/stripe/payment` creates for a fiat plan,
+ * returned by `PlansAPI.orderFiatPlan`. Confirm it client-side with Stripe.js and
+ * its `client_secret`. These fields are what callers can rely on; do not depend on
+ * any other field of the response.
+ */
+export interface StripePaymentIntent {
+  /** PaymentIntent id (`pi_…`) */
+  id: string
+  /** Secret Stripe.js confirms the payment with. Pass it to Stripe.js only; never log or store it. */
+  client_secret: string | null
+  /** PaymentIntent status */
+  status: StripePaymentIntentStatus
+  /** Amount in the currency's smallest unit (e.g. cents) */
+  amount: number
+  /** Three-letter ISO currency code, lowercase */
+  currency: string
+}
+
+/**
+ * @deprecated Not returned by any SDK method: `PlansAPI.orderFiatPlan` returns a
+ * {@link StripePaymentIntent}.
+ */
 export interface StripeCheckoutResult {
   stripeCheckoutSessionId: string
   checkoutLink: string
@@ -587,11 +620,12 @@ export type DelegationCurrency = 'usd' | 'eur' | 'usdc' | 'eurc'
  *
  * @remarks
  * The inline create-on-the-fly fields (`providerPaymentMethodId`,
- * `spendingLimitCents`, `durationSecs`, `currency`, `merchantAccountId`,
- * `maxTransactions`, `cardId`) are individually deprecated. Calling
+ * `spendingLimitCents`, `durationSecs`, `currency`, `maxTransactions`,
+ * `cardId`) are individually deprecated. Calling
  * {@link X402TokenAPI.getX402AccessToken} with a `delegationConfig` that lacks
- * `delegationId` but carries one of those fields emits a runtime deprecation
- * warning; create the delegation first and pass only `delegationId` (optionally
+ * `delegationId` but carries `cardId`, `providerPaymentMethodId`,
+ * `spendingLimitCents` or `durationSecs` emits a runtime deprecation warning;
+ * create the delegation first and pass only `delegationId` (optionally
  * `apiKeyId`) here. The interface itself is NOT deprecated — the
  * `{ delegationId }` reuse path is the supported way to configure a token request.
  */
@@ -624,8 +658,9 @@ export interface DelegationConfig {
    */
   currency?: DelegationCurrency
   /**
-   * Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId).
-   * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
+   * Merchant account ID (Stripe Connect acct_…).
+   * @deprecated Ignored by the backend (the seller's Connect account is
+   * resolved at settle time); drop it.
    */
   merchantAccountId?: string
   /**
@@ -634,10 +669,9 @@ export interface DelegationConfig {
    */
   maxTransactions?: number
   /**
-   * Plan ID to scope a newly-created delegation to. Optional and additive:
-   * delegations are plan-agnostic by default; supplying `planId` opts into a
-   * plan-bound delegation. (Visa delegations are always plan-specific and
-   * require it server-side.)
+   * Ignored by the backend: an inline-created delegation is always
+   * plan-agnostic. To bind a delegation to one plan, create it with
+   * `createDelegation({ planId })` and pass its `delegationId`.
    * @deprecated Inline create-on-the-fly. Create the delegation first and pass `delegationId`.
    */
   planId?: string
@@ -646,12 +680,32 @@ export interface DelegationConfig {
 }
 
 /**
+ * Card-delegation providers exposed by the SDK. Use this when you want to
+ * restrict to card-shape entries only (e.g., filtering the heterogeneous
+ * list returned by `DelegationAPI.listPaymentMethods`).
+ */
+export type CardProvider = 'stripe' | 'braintree' | 'visa'
+
+/**
+ * All delegation providers, including the crypto path. Matches the
+ * server-side union and types {@link CreateDelegationPayload.provider}.
+ * `vgs` = a card enrolled through the credit/debit card form: vaulted at VGS
+ * and charged through the PSP the paid plan selects. (Visa Agentic cards are
+ * `visa`.)
+ */
+export type DelegationProvider = CardProvider | 'vgs' | 'erc4337'
+
+/**
  * Payload for creating a new delegation via POST /api/v1/delegation/create.
  */
 export interface CreateDelegationPayload {
-  /** Delegation provider: 'stripe' | 'braintree' | 'visa' for card, 'erc4337' for crypto */
-  provider: 'stripe' | 'braintree' | 'visa' | 'erc4337'
-  /** Payment method ID from the provider (Stripe 'pm_...', Braintree vault token, or Visa Agentic token id). Required for card providers. */
+  /**
+   * Delegation provider: 'vgs' for a card enrolled through the credit/debit card form,
+   * 'stripe' | 'visa' for the other card rails, 'erc4337' for crypto. 'braintree' is
+   * refused at create.
+   */
+  provider: DelegationProvider
+  /** Payment method ID from the provider (the card's 'CRD…' id for 'vgs', Stripe 'pm_...', or Visa Agentic token id). Required for card providers. */
   providerPaymentMethodId?: string
   /** Maximum spending limit in cents */
   spendingLimitCents: number
@@ -660,12 +714,16 @@ export interface CreateDelegationPayload {
   /** Currency code (e.g., 'usd' for card providers, 'usdc' for erc4337). Required by the backend — no silent default. */
   currency: DelegationCurrency
   /**
-   * Plan ID to scope the delegation to. Optional and additive: delegations are
-   * plan-agnostic by default; supplying `planId` opts into a plan-bound
-   * delegation. (Visa delegations are always plan-specific and require it.)
+   * Plan ID to scope the delegation to. Optional for every provider, and
+   * additive: delegations are plan-agnostic by default; supplying `planId` opts
+   * into a plan-bound delegation.
    */
   planId?: string
-  /** Merchant account ID (Stripe Connect acct_xxx or Braintree merchantId) */
+  /**
+   * Merchant account ID (Stripe Connect acct_…).
+   * @deprecated Ignored by the backend: the seller's Connect account is
+   * resolved at settle time, never taken from the caller.
+   */
   merchantAccountId?: string
   /** Maximum number of transactions allowed */
   maxTransactions?: number
