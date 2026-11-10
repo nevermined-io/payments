@@ -169,8 +169,8 @@ export class DelegationAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Create a new delegation for any supported provider (stripe, braintree,
-   * visa, or erc4337).
+   * Create a new delegation for any supported provider (vgs, stripe, visa,
+   * or erc4337).
    *
    * Note: Visa delegations require a per-delegation device-binding ceremony
    * (FIDO/passkey + assuranceData) that must be performed in the browser
