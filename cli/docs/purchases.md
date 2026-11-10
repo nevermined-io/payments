@@ -40,7 +40,7 @@ Status: Confirmed
 
 ### Fiat Payment
 
-Initiate a plan purchase with fiat. This returns a URL where you can complete the payment:
+Initiate a plan purchase with fiat. This creates a Stripe PaymentIntent for the plan and returns it; the payment is completed by confirming it with your card:
 
 ```bash
 nevermined plans order-fiat-plan <plan-id>

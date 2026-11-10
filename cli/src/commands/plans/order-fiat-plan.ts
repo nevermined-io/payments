@@ -2,10 +2,10 @@ import { Args, Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Initiates the purchase of a Plan requiring the payment in Fiat. This method will return a URL where the user can complete the payment.
+ * Initiates the purchase of a Plan requiring the payment in Fiat. This method creates a Stripe PaymentIntent for the plan's price and returns it.
  */
 export default class OrderFiatPlan extends BaseCommand {
-  static override description = "Initiates the purchase of a Plan requiring the payment in Fiat. This method will return a URL where the user can complete the payment."
+  static override description = "Initiates the purchase of a Plan requiring the payment in Fiat. This method creates a Stripe PaymentIntent for the plan's price and returns it."
 
   static override examples = [
     '$ nevermined plans order-fiat-plan <planId>'
