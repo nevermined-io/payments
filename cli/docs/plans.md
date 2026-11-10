@@ -204,7 +204,7 @@ nevermined plans order-plan <plan-id>
 
 ### Fiat Payment
 
-Initiate a plan purchase with fiat payment. Returns a URL where the user can complete the payment:
+Initiate a plan purchase with fiat payment. Creates a Stripe PaymentIntent for the plan and returns it; the user completes the payment by confirming it with their card:
 
 ```bash
 nevermined plans order-fiat-plan <plan-id>

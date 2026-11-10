@@ -120,11 +120,11 @@ Use this for plans priced in native tokens (ETH, MATIC) or ERC-20 tokens (USDC).
 
 ### Purchase a Fiat Plan — `nevermined_orderFiatPlan`
 
-Purchase a payment plan using fiat currency (USD). Instead of executing an on-chain transaction, this tool returns a Stripe checkout URL where you complete the payment in a browser. Once the payment is confirmed, credits are added to your account.
+Purchase a payment plan using fiat currency (USD). Instead of executing an on-chain transaction, this tool creates a Stripe PaymentIntent for the plan's price and returns its id, status, amount and currency. The agent cannot complete the payment: the user confirms it with their card, and credits are then added to their account.
 
 Use this for plans that have been created with `pricingType: fiat`. For crypto-priced plans, use `nevermined_orderPlan` instead.
 
-> ⚠️ **Two-step confirmation flow.** Same as `nevermined_orderPlan`: the first call returns a quote, the second call (with `confirm: true`) issues the Stripe checkout URL.
+> ⚠️ **Two-step confirmation flow.** Same as `nevermined_orderPlan`: the first call returns a quote, the second call (with `confirm: true`) creates the Stripe PaymentIntent.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
@@ -139,9 +139,11 @@ Use this for plans that have been created with `pricingType: fiat`. For crypto-p
 - With `confirm: true`:
 ```json
 {
-  "result": {
-    "checkoutUrl": "https://checkout.stripe.com/..."
-  }
+  "id": "pi_3O4KfNBYvSRKcV42",
+  "status": "requires_payment_method",
+  "amount": 1000,
+  "currency": "usd",
+  "message": "Payment intent created. The user must complete the payment with their card."
 }
 ```
 
