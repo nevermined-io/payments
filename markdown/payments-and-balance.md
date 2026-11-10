@@ -95,25 +95,24 @@ if (orderResult.success) {
 
 ### Fiat Payment (Stripe)
 
-For plans priced in fiat currency, use `orderFiatPlan` to get a Stripe checkout URL:
+For plans priced in fiat currency through Stripe, use `orderFiatPlan`. It creates a Stripe PaymentIntent for the plan's price and returns it:
 
 ```typescript
-const fiatResult = await subscriberPayments.plans.orderFiatPlan(planId)
+const paymentIntent = await subscriberPayments.plans.orderFiatPlan(planId)
 
-if (fiatResult.checkoutUrl) {
-  console.log(`Complete payment at: ${fiatResult.checkoutUrl}`)
-  // Redirect the user to the Stripe checkout page
-}
+console.log(paymentIntent.id, paymentIntent.status)
 ```
+
+`paymentIntent.client_secret` is what confirms the payment with the customer's card. Pass it only to the customer's browser; never log or store it.
 
 #### CLI
 
 ```bash
-# Order a fiat plan (returns a Stripe checkout URL)
+# Order a fiat plan (returns a Stripe PaymentIntent)
 nevermined plans order-fiat-plan <plan-id>
 ```
 
-> **Note**: When using X402 card-delegation tokens (`nvm:card-delegation` scheme), the payment is handled automatically through the delegated card — no separate checkout URL is needed. See [Querying an Agent](./querying-an-agent) for details on card-delegation tokens.
+> **Note**: When using X402 card-delegation tokens (`nvm:card-delegation` scheme), the payment is handled automatically through the delegated card — no separate payment step is needed. See [Querying an Agent](./querying-an-agent) for details on card-delegation tokens.
 
 ### Complete Purchase Flow
 
