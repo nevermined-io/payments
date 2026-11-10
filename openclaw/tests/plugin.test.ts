@@ -37,7 +37,7 @@ function createMockPayments() {
         },
       }),
       registerPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ planId: 'plan-new' }),
-      orderFiatPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } }),
+      orderFiatPlan: jest.fn<() => Promise<unknown>>().mockResolvedValue({ id: 'pi_test', client_secret: 'pi_test_secret', status: 'requires_payment_method', amount: 1000, currency: 'usd' }),
     },
     x402: {
       getX402AccessToken: jest.fn<() => Promise<unknown>>().mockResolvedValue({ accessToken: 'tok_test_123', tokenVersion: 2 }),
@@ -511,14 +511,21 @@ describe('OpenClaw Nevermined Plugin', () => {
       expect(result.planId).toBe('plan-fiat')
     })
 
-    test('nevermined_orderFiatPlan — with confirm:true, returns Stripe checkout URL', async () => {
+    test('nevermined_orderFiatPlan — with confirm:true, returns the PaymentIntent without its client_secret', async () => {
       const { tools, mockPayments } = registerWithMock()
 
       const tool = tools.get('nevermined_orderFiatPlan')!
       const result = parseResult(await tool.execute('call-1', { planId: 'plan-fiat', confirm: true }))
 
       expect(mockPayments.plans.orderFiatPlan).toHaveBeenCalledWith('plan-fiat')
-      expect(result).toEqual({ result: { checkoutUrl: 'https://checkout.stripe.com/test_session' } })
+      expect(result).toEqual({
+        id: 'pi_test',
+        status: 'requires_payment_method',
+        amount: 1000,
+        currency: 'usd',
+        message: 'Payment intent created. The user must complete the payment with their card.',
+      })
+      expect(JSON.stringify(result)).not.toContain('pi_test_secret')
     })
 
     test('nevermined_listPaymentMethods — returns enrolled cards', async () => {
