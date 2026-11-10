@@ -11,13 +11,11 @@
  * CI without the fixture stays green by default.
  *
  * Visa card enrolment and Visa delegation creation both require a real
- * browser, so the SDK cannot do either step programmatically. The plan
- * itself also has to exist beforehand — the backend binds each Visa
- * delegation to a single plan at creation time (BCK.VISA.0015) and
- * rejects a mismatch between delegation.planId and the planId used to
- * mint or verify the access token. So the suite creates nothing: it
- * exercises only the *consume* side of an already-provisioned plan +
- * card + delegation triple:
+ * browser, so the SDK cannot do either step programmatically. The plan is
+ * pre-provisioned too, by choice rather than necessity (the delegation is
+ * created without a plan), so the suite creates nothing: it exercises only
+ * the *consume* side of an already-provisioned plan + card + delegation
+ * triple:
  *
  *   1. listPaymentMethods → find the visa-provider card.
  *   2. getX402AccessToken using the pre-created delegationId + planId.
@@ -30,9 +28,9 @@
  * separately at the platform level.
  *
  * Required env vars:
- *   - NVM_TEST_VISA_PLAN_ID             (plan id the delegation is bound
- *                                        to, created by the builder
- *                                        whose key is TEST_BUILDER_API_KEY)
+ *   - NVM_TEST_VISA_PLAN_ID             (plan the token is minted and
+ *                                        verified against, created by the
+ *                                        builder whose key is TEST_BUILDER_API_KEY)
  *   - NVM_TEST_VISA_DELEGATION_ID       (uuid returned by /delegation/create)
  *   - NVM_TEST_VISA_PAYMENT_METHOD_ID   (Visa Agentic token id, format vat_…)
  *
