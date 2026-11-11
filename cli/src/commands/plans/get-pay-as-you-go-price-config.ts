@@ -2,10 +2,10 @@ import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Builds a Pay-As-You-Go price configuration using the template address from the API.
+ * Builds a CRYPTO Pay-As-You-Go price configuration (`isCrypto: true`) using the template address from the API.
  */
 export default class GetPayAsYouGoPriceConfig extends BaseCommand {
-  static override description = "Builds a Pay-As-You-Go price configuration using the template address from the API."
+  static override description = "Builds a CRYPTO Pay-As-You-Go price configuration (`isCrypto: true`) using the template address from the API."
 
   static override examples = [
     '$ nevermined plans get-pay-as-you-go-price-config'
