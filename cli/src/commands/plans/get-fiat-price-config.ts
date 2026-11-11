@@ -2,10 +2,10 @@ import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Price helpers
+ * Builds a Fiat price configuration for a plan. `amount` is in **6-decimal units** (USDC convention, NOT cents). To charge $2.00, pass `2_000_000n`. Minimum is `1_000_000n` ($1.00) — lower values are rejected server-side with `BCK.PROTOCOL.0047`.
  */
 export default class GetFiatPriceConfig extends BaseCommand {
-  static override description = "Price helpers"
+  static override description = "Builds a Fiat price configuration for a plan. `amount` is in **6-decimal units** (USDC convention, NOT cents). To charge $2.00, pass `2_000_000n`. Minimum is `1_000_000n` ($1.00) — lower values are rejected server-side with `BCK.PROTOCOL.0047`."
 
   static override examples = [
     '$ nevermined plans get-fiat-price-config'
