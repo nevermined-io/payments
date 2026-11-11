@@ -186,7 +186,7 @@ To charge a fixed crypto price instead, set `amounts` to the price in the token'
 | `templateAddress` | string | Template contract. Zero address except for pay-as-you-go plans. |
 | `currency` | string | Optional: `USD`, `EUR`, `USDC`, or `EURC`. When omitted, the backend infers it from the payment type. |
 
-Generators that emit this shape: `nevermined plans get-free-price-config`, `get-native-token-price-config`, `get-crypto-price-config`, `get-erc20-price-config`, `get-eurc-price-config`, `get-fiat-price-config`, `get-pay-as-you-go-price-config`.
+Generators that emit this shape: `nevermined plans get-free-price-config`, `get-native-token-price-config`, `get-crypto-price-config`, `get-erc20-price-config`, `get-eurc-price-config`, `get-fiat-price-config`, `get-pay-as-you-go-price-config`, `get-fiat-pay-as-you-go-price-config`.
 
 #### `--credits-config` (`PlanCreditsConfig`)
 

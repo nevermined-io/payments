@@ -197,9 +197,10 @@ export const setOnchainMirror = (
  * (`amount`, plus any organization fee) in that token on every request. Do not use it for a card plan.
  *
  * A CARD (fiat) pay-as-you-go price is {@link getFiatPriceConfig} registered on the
- * PayAsYouGoTemplate: `{ ...getFiatPriceConfig(amount, receiver), templateAddress }`. The template
- * is what makes a plan pay-as-you-go (`billingModel: 'pay-as-you-go'`); without it,
- * `getFiatPriceConfig` + {@link getPayAsYouGoCreditsConfig} registers a one-credit credits plan.
+ * PayAsYouGoTemplate: `{ ...getFiatPriceConfig(amount, receiver), templateAddress }`, or the
+ * {@link getFiatPayAsYouGoPriceConfig} shorthand. The template is what makes a plan pay-as-you-go
+ * (`billingModel: 'pay-as-you-go'`); without it, `getFiatPriceConfig` +
+ * {@link getPayAsYouGoCreditsConfig} registers a one-credit credits plan.
  *
  * Pair either price with {@link getPayAsYouGoCreditsConfig}.
  *
@@ -237,6 +238,54 @@ export const getPayAsYouGoPriceConfig = (
     externalPriceAddress: ZeroAddress,
     templateAddress,
     isCrypto: true,
+  }
+}
+
+/**
+ * Build a CARD (fiat) pay-as-you-go price configuration (`isCrypto: false`).
+ *
+ * @remarks
+ * Shorthand for the card pay-as-you-go recipe: {@link getFiatPriceConfig} registered on the
+ * PayAsYouGoTemplate — `{ ...getFiatPriceConfig(amount, receiver), templateAddress }`. The
+ * template is what makes the plan pay-as-you-go (`billingModel: 'pay-as-you-go'`); without it,
+ * `getFiatPriceConfig` + {@link getPayAsYouGoCreditsConfig} registers a one-credit credits plan.
+ *
+ * The plan is paid **per request** through an x402 card delegation and is not sold through
+ * checkout: `orderFiatPlan` rejects a card pay-as-you-go plan with `BCK.STRIPE.0041` (a crypto
+ * pay-as-you-go plan is rejected earlier, by the `isCrypto` guard, with `BCK.STRIPE.0010`). The
+ * per-request price keeps the fiat floor of **$1.00** (`1_000_000n`), below which registration
+ * fails with `BCK.PROTOCOL.0047`.
+ *
+ * Pair with {@link getPayAsYouGoCreditsConfig}. For a crypto pay-as-you-go price paid on-chain,
+ * use {@link getPayAsYouGoPriceConfig}.
+ *
+ * @param amount - Price per request, in 6-decimal units (e.g. `1_000_000n` for $1.00).
+ * @param receiver - Wallet address that will receive the settled funds.
+ * @param currency - Fiat currency recorded on the plan price (default: `USD`). It does not set
+ *   the currency the buyer's card is charged in — that is the card delegation's currency.
+ * @param templateAddress - The PayAsYouGoTemplate address (`ContractsAPI.getPayAsYouGoTemplateAddress()`).
+ *   Required: throws if omitted.
+ * @returns The PlanPriceConfig of a card pay-as-you-go plan.
+ */
+export const getFiatPayAsYouGoPriceConfig = (
+  amount: bigint,
+  receiver: Address,
+  currency: Currency | string = Currency.USD,
+  templateAddress?: Address,
+): PlanPriceConfig => {
+  // Validate the receiver first (inside getFiatPriceConfig), mirroring getPayAsYouGoPriceConfig,
+  // so both PAYG builders reject a bad receiver before the missing-template check.
+  const priceConfig = getFiatPriceConfig(amount, receiver, currency)
+
+  if (!templateAddress) {
+    throw new Error(
+      'templateAddress is required. Use ContractsAPI.getPayAsYouGoTemplateAddress() or Payments.plans.getFiatPayAsYouGoPriceConfig()',
+    )
+  }
+
+  return {
+    ...priceConfig,
+    templateAddress,
   }
 }
 
