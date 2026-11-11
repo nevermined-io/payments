@@ -134,7 +134,7 @@ credits up front. Its price builder decides **how** the subscriber pays, so pick
 | Rail | Price config | Credits config |
 |------|--------------|----------------|
 | Crypto | `await payments.plans.getPayAsYouGoPriceConfig(amount, receiver[, tokenAddress])` | `payments.plans.getPayAsYouGoCreditsConfig()` |
-| Card | `{ ...payments.plans.getFiatPriceConfig(amount, receiver[, currency]), templateAddress: await payments.contracts.getPayAsYouGoTemplateAddress() }` | `payments.plans.getPayAsYouGoCreditsConfig()` |
+| Card | `await payments.plans.getFiatPayAsYouGoPriceConfig(amount, receiver[, currency])` — or the manual `{ ...payments.plans.getFiatPriceConfig(amount, receiver[, currency]), templateAddress: await payments.contracts.getPayAsYouGoTemplateAddress() }` | `payments.plans.getPayAsYouGoCreditsConfig()` |
 
 > **`getPayAsYouGoPriceConfig` always builds a crypto price** (`isCrypto: true`), whatever token
 > you pass. Do not use it for a plan that subscribers pay by card.
@@ -172,6 +172,11 @@ const priceConfig = {
 }
 const creditsConfig = payments.plans.getPayAsYouGoCreditsConfig()
 ```
+
+> **Shorthand:** `await payments.plans.getFiatPayAsYouGoPriceConfig(amount, receiver[, currency])`
+> returns exactly this price config — it fetches the PayAsYouGoTemplate address for you. The manual
+> recipe above is the equivalent when you already hold the template address or want to stay
+> independent of this helper.
 
 A card pay-as-you-go plan:
 
