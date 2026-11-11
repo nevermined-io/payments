@@ -41,7 +41,7 @@ export class PlansAPI extends BasePaymentsAPI {
     super(options)
     this.contractsApi = new ContractsAPI(options)
   }
-  /** Price helpers */
+  // Price helpers
   /**
    * Builds a Fiat price configuration for a plan.
    *
@@ -63,7 +63,25 @@ export class PlansAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Builds a Pay-As-You-Go price configuration using the template address from the API.
+   * Builds a CRYPTO Pay-As-You-Go price configuration (`isCrypto: true`) using the template address from the API.
+   *
+   * @remarks
+   * The price is always crypto, whatever `tokenAddress` you pass: the subscriber pays the plan
+   * price (`amount`, plus any organization fee) in that token on every request. Do not use it for
+   * a card plan.
+   *
+   * A CARD (fiat) pay-as-you-go price is {@link getFiatPriceConfig} registered on the PayAsYouGoTemplate:
+   * `{ ...payments.plans.getFiatPriceConfig(amount, receiver), templateAddress: await payments.contracts.getPayAsYouGoTemplateAddress() }`,
+   * or the {@link getFiatPayAsYouGoPriceConfig} shorthand (it fetches the template for you).
+   * The template is what makes a plan pay-as-you-go (`billingModel: 'pay-as-you-go'`); without it,
+   * `getFiatPriceConfig` + {@link getPayAsYouGoCreditsConfig} registers a one-credit credits plan.
+   *
+   * Pair either price with {@link getPayAsYouGoCreditsConfig}.
+   *
+   * @param amount - Price per request, in the token's smallest unit (6 decimals for USDC) as bigint.
+   * @param receiver - Wallet address that will receive the payment.
+   * @param tokenAddress - ERC20 token address. Omit it (or pass `ZeroAddress`) for the native token.
+   * @returns The PlanPriceConfig of a crypto pay-as-you-go plan.
    */
   public async getPayAsYouGoPriceConfig(
     amount: bigint,
@@ -75,7 +93,36 @@ export class PlansAPI extends BasePaymentsAPI {
   }
 
   /**
+   * Builds a CARD (fiat) Pay-As-You-Go price configuration (`isCrypto: false`) using the template address from the API.
+   *
+   * @remarks
+   * Shorthand for the card pay-as-you-go recipe — {@link getFiatPriceConfig} registered on the
+   * PayAsYouGoTemplate, whose address this method fetches for you. The template is what makes the
+   * plan pay-as-you-go (`billingModel: 'pay-as-you-go'`); it is paid per request through an x402
+   * card delegation and cannot be bought through checkout (`orderFiatPlan` rejects it with
+   * `BCK.STRIPE.0041`). Pair with {@link getPayAsYouGoCreditsConfig}.
+   *
+   * @param amount - Price per request, in 6-decimal units (e.g. `1_000_000n` for $1.00) as bigint.
+   * @param receiver - Wallet address that will receive the settled funds.
+   * @param currency - Fiat currency recorded on the plan price (default: 'USD').
+   * @returns The PlanPriceConfig of a card pay-as-you-go plan.
+   */
+  public async getFiatPayAsYouGoPriceConfig(
+    amount: bigint,
+    receiver: Address,
+    currency: Currency | string = Currency.USD,
+  ): Promise<PlanPriceConfig> {
+    const templateAddress = await this.contractsApi.getPayAsYouGoTemplateAddress()
+    return Plans.getFiatPayAsYouGoPriceConfig(amount, receiver, currency, templateAddress)
+  }
+
+  /**
    * Builds a Pay-As-You-Go credits configuration.
+   *
+   * @remarks
+   * It pairs with either pay-as-you-go price: {@link getPayAsYouGoPriceConfig} for a crypto plan, or
+   * {@link getFiatPriceConfig} with the PayAsYouGoTemplate as its `templateAddress` for a card plan.
+   * It does not make a plan pay-as-you-go on its own: that is the price's template address.
    */
   public getPayAsYouGoCreditsConfig(): PlanCreditsConfig {
     return Plans.getPayAsYouGoCreditsConfig()
@@ -148,7 +195,7 @@ export class PlansAPI extends BasePaymentsAPI {
     return Plans.getNativeTokenPriceConfig(amount, receiver)
   }
 
-  /** Credits helpers */
+  // Credits helpers
   /**
    * Builds an EXPIRABLE credits configuration (time-based access).
    *

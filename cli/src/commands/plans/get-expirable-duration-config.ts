@@ -2,10 +2,10 @@ import { Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Credits helpers
+ * Builds an EXPIRABLE credits configuration (time-based access).
  */
 export default class GetExpirableDurationConfig extends BaseCommand {
-  static override description = "Credits helpers"
+  static override description = "Builds an EXPIRABLE credits configuration (time-based access)."
 
   static override examples = [
     '$ nevermined plans get-expirable-duration-config'
