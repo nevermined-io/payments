@@ -71,7 +71,8 @@ export class PlansAPI extends BasePaymentsAPI {
    * a card plan.
    *
    * A CARD (fiat) pay-as-you-go price is {@link getFiatPriceConfig} registered on the PayAsYouGoTemplate:
-   * `{ ...payments.plans.getFiatPriceConfig(amount, receiver), templateAddress: await payments.contracts.getPayAsYouGoTemplateAddress() }`.
+   * `{ ...payments.plans.getFiatPriceConfig(amount, receiver), templateAddress: await payments.contracts.getPayAsYouGoTemplateAddress() }`,
+   * or the {@link getFiatPayAsYouGoPriceConfig} shorthand (it fetches the template for you).
    * The template is what makes a plan pay-as-you-go (`billingModel: 'pay-as-you-go'`); without it,
    * `getFiatPriceConfig` + {@link getPayAsYouGoCreditsConfig} registers a one-credit credits plan.
    *
@@ -89,6 +90,30 @@ export class PlansAPI extends BasePaymentsAPI {
   ): Promise<PlanPriceConfig> {
     const templateAddress = await this.contractsApi.getPayAsYouGoTemplateAddress()
     return Plans.getPayAsYouGoPriceConfig(amount, receiver, tokenAddress, templateAddress)
+  }
+
+  /**
+   * Builds a CARD (fiat) Pay-As-You-Go price configuration (`isCrypto: false`) using the template address from the API.
+   *
+   * @remarks
+   * Shorthand for the card pay-as-you-go recipe — {@link getFiatPriceConfig} registered on the
+   * PayAsYouGoTemplate, whose address this method fetches for you. The template is what makes the
+   * plan pay-as-you-go (`billingModel: 'pay-as-you-go'`); it is paid per request through an x402
+   * card delegation and cannot be bought through checkout (`orderFiatPlan` rejects it with
+   * `BCK.STRIPE.0041`). Pair with {@link getPayAsYouGoCreditsConfig}.
+   *
+   * @param amount - Price per request, in 6-decimal units (e.g. `1_000_000n` for $1.00) as bigint.
+   * @param receiver - Wallet address that will receive the settled funds.
+   * @param currency - Fiat currency recorded on the plan price (default: 'USD').
+   * @returns The PlanPriceConfig of a card pay-as-you-go plan.
+   */
+  public async getFiatPayAsYouGoPriceConfig(
+    amount: bigint,
+    receiver: Address,
+    currency: Currency | string = Currency.USD,
+  ): Promise<PlanPriceConfig> {
+    const templateAddress = await this.contractsApi.getPayAsYouGoTemplateAddress()
+    return Plans.getFiatPayAsYouGoPriceConfig(amount, receiver, currency, templateAddress)
   }
 
   /**
