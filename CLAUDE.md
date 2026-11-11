@@ -259,6 +259,22 @@ Key files to check:
 
 Both CI workflows build the root SDK first, then symlink it into the consumer's `node_modules/` so they compile against the local source (not the published npm package).
 
+### CLI help text is generated from the SDK's JSDoc
+
+The command files under `cli/src/commands/**` are **generated** from the public `*API` class
+methods (`cli/src/generator`, `pnpm generate` in `cli/`; CI and `release.yml` both run it). A
+command's `description` is the text before the first tag of the method's **first** JSDoc block
+(`api-scanner.ts` `extractDescription` reads `jsDocs[0]`), joined into one line. So editing a
+public method's JSDoc changes CLI help:
+
+- run `pnpm generate` in `cli/` and commit the regenerated command alongside the JSDoc change
+  (on a clean `main` it produces no diff, so any diff it makes is yours);
+- keep the summary sentence short and put longer explanations under `@remarks`, which the
+  generator skips;
+- never put a section marker above a method as a `/** … */` block: it becomes that method's
+  first JSDoc block, so it *is* the CLI help. Use a `//` comment. (`/** Price helpers */` once
+  made `get-fiat-price-config`'s help read "Price helpers".)
+
 ## Running Agents
 
 See [RUN.md](./RUN.md) for complete examples:
