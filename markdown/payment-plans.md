@@ -35,7 +35,9 @@ Free plans with time limitations, perfect for demos and user onboarding.
 **Use cases**: Free trials, demonstrations, testing
 
 ### Pay-As-You-Go Plans
-Dynamic pricing where subscribers pay per request without pre-purchasing credits.
+Per-request pricing: subscribers pay a fixed price on every request instead of pre-purchasing
+credits. They pay either in crypto or by card; the two use different price configs (see
+[Pay-As-You-Go Pricing](#pay-as-you-go-pricing)).
 
 **Use cases**: Variable usage patterns, enterprise integrations
 
@@ -126,17 +128,70 @@ const priceConfig = payments.plans.getFreePriceConfig()
 
 ### Pay-As-You-Go Pricing
 
-```typescript
-// Get template address for PAYG plans
-const templateAddress = await payments.contracts.getPayAsYouGoTemplateAddress()
+A pay-as-you-go plan charges the subscriber on every request instead of selling a balance of
+credits up front. Its price builder decides **how** the subscriber pays, so pick it by rail:
 
-const priceConfig = payments.plans.getPayAsYouGoPriceConfig(
-  100n,              // Cost per request
-  builderAddress,
-  ZeroAddress,       // Token address (optional)
-  templateAddress
+| Rail | Price config | Credits config |
+|------|--------------|----------------|
+| Crypto | `await payments.plans.getPayAsYouGoPriceConfig(amount, receiver[, tokenAddress])` | `payments.plans.getPayAsYouGoCreditsConfig()` |
+| Card | `await payments.plans.getFiatPayAsYouGoPriceConfig(amount, receiver[, currency])` — or the manual `{ ...payments.plans.getFiatPriceConfig(amount, receiver[, currency]), templateAddress: await payments.contracts.getPayAsYouGoTemplateAddress() }` | `payments.plans.getPayAsYouGoCreditsConfig()` |
+
+> **`getPayAsYouGoPriceConfig` always builds a crypto price** (`isCrypto: true`), whatever token
+> you pass. Do not use it for a plan that subscribers pay by card.
+
+What makes either plan pay-as-you-go is the **PayAsYouGoTemplate** address in its price config:
+the API reports `billingModel: 'pay-as-you-go'` only for a plan registered on that template.
+`getPayAsYouGoPriceConfig` sets it for you; `getFiatPriceConfig` does not, so the card recipe adds
+it.
+
+#### Crypto pay-as-you-go
+
+```typescript
+const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' // USDC on Base Sepolia
+
+// Async: fetches the PayAsYouGoTemplate address from the API for you
+const priceConfig = await payments.plans.getPayAsYouGoPriceConfig(
+  1_000_000n,     // Price per request in the token's smallest unit (1 USDC, 6 decimals)
+  builderAddress, // Receiver address
+  USDC_ADDRESS    // ERC20 token (omit for the native token)
 )
+const creditsConfig = payments.plans.getPayAsYouGoCreditsConfig()
 ```
+
+#### Card pay-as-you-go
+
+```typescript
+const priceConfig = {
+  // A fiat price (isCrypto false): the subscriber's card is charged on every request
+  ...payments.plans.getFiatPriceConfig(
+    1_000_000n,     // Price per request in 6-decimal units ($1.00) — NOT cents
+    builderAddress  // Receiver address
+  ),
+  // The PayAsYouGoTemplate is what makes this fiat price pay-as-you-go
+  templateAddress: await payments.contracts.getPayAsYouGoTemplateAddress(),
+}
+const creditsConfig = payments.plans.getPayAsYouGoCreditsConfig()
+```
+
+> **Shorthand:** `await payments.plans.getFiatPayAsYouGoPriceConfig(amount, receiver[, currency])`
+> returns exactly this price config — it fetches the PayAsYouGoTemplate address for you. The manual
+> recipe above is the equivalent when you already hold the template address or want to stay
+> independent of this helper.
+
+A card pay-as-you-go plan:
+
+- is paid **per request through an x402 card delegation**: each settle charges the card the plan
+  price, and the settle reports `billingModel: 'pay-as-you-go'` with the charge in `orderTx` (see
+  [x402](./x402));
+- is **not sold through checkout**, by design: there is no balance to buy up front, so
+  `orderFiatPlan` fails with `BCK.STRIPE.0041`, and the Braintree checkout with
+  `BCK.BRAINTREE.0019`;
+- keeps the fiat price floor: the per-request price must be at least **$1.00** (`1_000_000n`),
+  otherwise registration fails with `BCK.PROTOCOL.0047`.
+
+> **`getFiatPriceConfig` + `getPayAsYouGoCreditsConfig` alone is NOT a pay-as-you-go plan.**
+> Without the template address it registers a one-credit **credits** plan: it reports
+> `billingModel: 'credits'`, and each purchase buys a single credit.
 
 ## Credits Configuration
 
