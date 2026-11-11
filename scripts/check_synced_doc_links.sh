@@ -7,7 +7,7 @@
 #
 # Why staged, not in-repo: the release pipeline (release.yml,
 # publish-documentation job) copies markdown/*.md (except README.md) VERBATIM
-# into the docs site at docs/api-reference/typescript/<name>.md. A plain in-repo
+# into the docs site at api-reference/typescript/<name>.md. A plain in-repo
 # link check would PASS and miss site-only breakage, because relative links
 # resolve differently once the files live under api-reference/typescript/ (this
 # class broke nevermined-io/docs#234). So we stage the files into that exact
@@ -28,7 +28,7 @@
 # UPGRADE PATH: if future TS pages add cross-tree site-relative links
 # (e.g. `[CLI](/api-reference/cli)`), this minimal mini-site will report them as
 # broken. At that point, switch to cloning nevermined-io/docs and staging into
-# docs/api-reference/typescript/ so the rest of the site resolves, and
+# api-reference/typescript/ so the rest of the site resolves, and
 # source-scope the results — exactly what payments-py's check_synced_doc_links.sh
 # already does; mirror it.
 #
@@ -67,8 +67,8 @@ STAGE_DIR="$(mktemp -d)"
 trap 'rm -rf "$STAGE_DIR"' EXIT
 
 # Replicate the release.yml sync transform: flat copy markdown/*.md into
-# docs/api-reference/typescript/, dropping README.md.
-TS_DIR="$STAGE_DIR/docs/api-reference/typescript"
+# api-reference/typescript/, dropping README.md.
+TS_DIR="$STAGE_DIR/api-reference/typescript"
 mkdir -p "$TS_DIR"
 cp "$MARKDOWN_DIR"/*.md "$TS_DIR/"
 rm -f "$TS_DIR/README.md"
