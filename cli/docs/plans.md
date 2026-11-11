@@ -302,9 +302,18 @@ nevermined plans get-erc20-price-config --amount 1000 --receiver "0x123..." --to
 # EURC (Euro stablecoin) price
 nevermined plans get-eurc-price-config --amount 1000 --receiver "0x123..."
 
-# Pay-as-you-go price
+# Pay-as-you-go price: CRYPTO only (isCrypto: true)
 nevermined plans get-pay-as-you-go-price-config --amount 1000 --receiver "0x123..."
 ```
+
+`get-pay-as-you-go-price-config` always builds a **crypto** price, whatever token you pass. For a
+**card** pay-as-you-go plan, take the `get-fiat-price-config` output and set its `templateAddress`
+to the PayAsYouGoTemplate address (the `templateAddress` that `get-pay-as-you-go-price-config`
+returns), then pair it with `get-pay-as-you-go-credits-config`. That template is what makes a plan
+pay-as-you-go: without it, a fiat price with the pay-as-you-go credits config registers a
+one-credit **credits** plan. A card pay-as-you-go plan is paid per request through an x402 card
+delegation and cannot be bought through checkout. Its per-request price must be at least $1.00
+(`--amount 1000000`, in 6-decimal units), otherwise registration fails with `BCK.PROTOCOL.0047`.
 
 ## Credits Configuration Helpers
 
