@@ -2,7 +2,7 @@ name: Docs link check
 
 # Catch docs link-rot BEFORE release. The release pipeline (release.yml,
 # publish-documentation job) copies markdown/**.md into the docs site's
-# docs/api-reference/typescript/**.md and opens a PR against nevermined-io/docs.
+# api-reference/typescript/**.md and opens a PR against nevermined-io/docs.
 # A link that resolves in this repo but is dead on the site (e.g.
 # `](../../payments_py/x402/README.md)`) only fails AFTER release, when the
 # bot's PR trips Mintlify link-rot — it bit nevermined-io/docs#234 (the Python
