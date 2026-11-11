@@ -154,7 +154,7 @@ gh workflow run publish-docs.yml -f version=v1.0.2
 # Option 3: Manual copy
 cd ../docs_mintlify
 git checkout -b update-typescript-docs-v1.0.2
-cp ../payments/markdown/*.md docs/api-reference/typescript/
+cp ../payments/markdown/*.md api-reference/typescript/
 git add . && git commit -m "docs: update TypeScript SDK v1.0.2"
 gh pr create
 ```
