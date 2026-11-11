@@ -148,7 +148,7 @@ case $OPTION in
     git checkout -b "$BRANCH_NAME" || git checkout "$BRANCH_NAME"
 
     # Create target directory
-    TARGET_DIR="$DOCS_REPO/docs/api-reference/typescript"
+    TARGET_DIR="$DOCS_REPO/api-reference/typescript"
     mkdir -p "$TARGET_DIR"
 
     # Copy files
@@ -171,7 +171,7 @@ case $OPTION in
 
     if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
       # Commit
-      git add docs/api-reference/typescript/
+      git add api-reference/typescript/
       git commit -m "docs: update TypeScript SDK documentation for v$CURRENT_VERSION
 
 - Updated from nevermined-io/payments

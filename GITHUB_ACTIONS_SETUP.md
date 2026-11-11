@@ -97,8 +97,8 @@ graph TD
 
 - **Skipped for pre-release tags** (`-rc`, `-alpha`, `-beta`)
 - Checks out `nevermined-io/docs_mintlify`
-- Updates SDK docs in `docs/api-reference/typescript/`
-- Updates CLI docs in `docs/api-reference/cli/`
+- Updates SDK docs in `api-reference/typescript/`
+- Updates CLI docs in `api-reference/cli/`
 - Adds version metadata to all files
 - Creates PR with auto-merge enabled
 
