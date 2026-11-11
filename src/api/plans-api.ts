@@ -41,7 +41,7 @@ export class PlansAPI extends BasePaymentsAPI {
     super(options)
     this.contractsApi = new ContractsAPI(options)
   }
-  /** Price helpers */
+  // Price helpers
   /**
    * Builds a Fiat price configuration for a plan.
    *
@@ -170,7 +170,7 @@ export class PlansAPI extends BasePaymentsAPI {
     return Plans.getNativeTokenPriceConfig(amount, receiver)
   }
 
-  /** Credits helpers */
+  // Credits helpers
   /**
    * Builds an EXPIRABLE credits configuration (time-based access).
    *
