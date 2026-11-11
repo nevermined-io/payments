@@ -312,7 +312,8 @@ to the PayAsYouGoTemplate address (the `templateAddress` that `get-pay-as-you-go
 returns), then pair it with `get-pay-as-you-go-credits-config`. That template is what makes a plan
 pay-as-you-go: without it, a fiat price with the pay-as-you-go credits config registers a
 one-credit **credits** plan. A card pay-as-you-go plan is paid per request through an x402 card
-delegation and cannot be bought through checkout.
+delegation and cannot be bought through checkout. Its per-request price must be at least $1.00
+(`--amount 1000000`, in 6-decimal units), otherwise registration fails with `BCK.PROTOCOL.0047`.
 
 ## Credits Configuration Helpers
 

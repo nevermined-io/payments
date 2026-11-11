@@ -193,23 +193,24 @@ export const setOnchainMirror = (
 /**
  * Build a CRYPTO pay-as-you-go price configuration (`isCrypto: true`).
  *
- * The price is always crypto, whatever `tokenAddress` you pass: the subscriber pays `amount` of
- * that token on every request. Do not use it for a card plan.
+ * The price is always crypto, whatever `tokenAddress` you pass: the subscriber pays the plan price
+ * (`amount`, plus any organization fee) in that token on every request. Do not use it for a card plan.
  *
- * A CARD (fiat) pay-as-you-go price is {@link getFiatPriceConfig} registered on the same template:
- * `{ ...getFiatPriceConfig(amount, receiver), templateAddress }`. The template is what makes a plan
- * pay-as-you-go (`billingModel: 'pay-as-you-go'`); without it, `getFiatPriceConfig` +
- * {@link getPayAsYouGoCreditsConfig} registers a one-credit credits plan.
+ * A CARD (fiat) pay-as-you-go price is {@link getFiatPriceConfig} registered on the
+ * PayAsYouGoTemplate: `{ ...getFiatPriceConfig(amount, receiver), templateAddress }`. The template
+ * is what makes a plan pay-as-you-go (`billingModel: 'pay-as-you-go'`); without it,
+ * `getFiatPriceConfig` + {@link getPayAsYouGoCreditsConfig} registers a one-credit credits plan.
  *
  * Pair either price with {@link getPayAsYouGoCreditsConfig}.
  *
  * For pay-as-you-go plans, the template address must come from the API deployment info:
- * `Payments.plans.getPayAsYouGoPriceConfig()` fetches it for you.
+ * `payments.plans.getPayAsYouGoPriceConfig(amount, receiver)` fetches it for you.
  *
  * @param amount - Price per request, in the token's smallest unit (6 decimals for USDC).
  * @param receiver - Wallet address that will receive the payment.
  * @param tokenAddress - ERC20 token address. Defaults to `ZeroAddress`, the native token.
  * @param templateAddress - The PayAsYouGoTemplate address (`ContractsAPI.getPayAsYouGoTemplateAddress()`).
+ *   Required: throws if omitted.
  * @returns The PlanPriceConfig of a crypto pay-as-you-go plan.
  */
 export const getPayAsYouGoPriceConfig = (
@@ -242,7 +243,8 @@ export const getPayAsYouGoPriceConfig = (
 /**
  * Build a pay-as-you-go credits configuration.
  *
- * Credits are not minted upfront; these values are required for validation only.
+ * On a plan registered on the PayAsYouGoTemplate, credits are not minted upfront; these values are
+ * required for validation only.
  *
  * It pairs with either pay-as-you-go price: {@link getPayAsYouGoPriceConfig} for a crypto plan, or
  * {@link getFiatPriceConfig} with the PayAsYouGoTemplate as its `templateAddress` for a card plan.

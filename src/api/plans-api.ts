@@ -66,10 +66,11 @@ export class PlansAPI extends BasePaymentsAPI {
    * Builds a CRYPTO Pay-As-You-Go price configuration (`isCrypto: true`) using the template address from the API.
    *
    * @remarks
-   * The price is always crypto, whatever `tokenAddress` you pass: the subscriber pays `amount`
-   * of that token on every request. Do not use it for a card plan.
+   * The price is always crypto, whatever `tokenAddress` you pass: the subscriber pays the plan
+   * price (`amount`, plus any organization fee) in that token on every request. Do not use it for
+   * a card plan.
    *
-   * A CARD (fiat) pay-as-you-go price is {@link getFiatPriceConfig} registered on the same template:
+   * A CARD (fiat) pay-as-you-go price is {@link getFiatPriceConfig} registered on the PayAsYouGoTemplate:
    * `{ ...payments.plans.getFiatPriceConfig(amount, receiver), templateAddress: await payments.contracts.getPayAsYouGoTemplateAddress() }`.
    * The template is what makes a plan pay-as-you-go (`billingModel: 'pay-as-you-go'`); without it,
    * `getFiatPriceConfig` + {@link getPayAsYouGoCreditsConfig} registers a one-credit credits plan.

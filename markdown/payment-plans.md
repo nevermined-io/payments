@@ -35,8 +35,8 @@ Free plans with time limitations, perfect for demos and user onboarding.
 **Use cases**: Free trials, demonstrations, testing
 
 ### Pay-As-You-Go Plans
-Dynamic pricing where subscribers pay per request without pre-purchasing credits. Subscribers pay
-either in crypto or by card; the two use different price configs (see
+Per-request pricing: subscribers pay a fixed price on every request instead of pre-purchasing
+credits. They pay either in crypto or by card; the two use different price configs (see
 [Pay-As-You-Go Pricing](#pay-as-you-go-pricing)).
 
 **Use cases**: Variable usage patterns, enterprise integrations
@@ -162,9 +162,9 @@ const creditsConfig = payments.plans.getPayAsYouGoCreditsConfig()
 
 ```typescript
 const priceConfig = {
-  // isCrypto: false: the subscriber's card is charged on every request
+  // A fiat price (isCrypto false): the subscriber's card is charged on every request
   ...payments.plans.getFiatPriceConfig(
-    1_000_000n,     // Price per request in 6-decimal units ($1.00): NOT cents
+    1_000_000n,     // Price per request in 6-decimal units ($1.00) — NOT cents
     builderAddress  // Receiver address
   ),
   // The PayAsYouGoTemplate is what makes this fiat price pay-as-you-go
@@ -179,7 +179,8 @@ A card pay-as-you-go plan:
   price, and the settle reports `billingModel: 'pay-as-you-go'` with the charge in `orderTx` (see
   [x402](./x402));
 - is **not sold through checkout**, by design: there is no balance to buy up front, so
-  `orderFiatPlan` fails with `BCK.STRIPE.0041` (`BCK.BRAINTREE.0019` on Braintree checkout);
+  `orderFiatPlan` fails with `BCK.STRIPE.0041`, and the Braintree checkout with
+  `BCK.BRAINTREE.0019`;
 - keeps the fiat price floor: the per-request price must be at least **$1.00** (`1_000_000n`),
   otherwise registration fails with `BCK.PROTOCOL.0047`.
 
