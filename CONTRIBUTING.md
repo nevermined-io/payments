@@ -18,7 +18,7 @@ User-facing SDK docs are hand-written under [`markdown/`](./markdown/). On
 release, the `publish-documentation` job in
 [`.github/workflows/release.yml`](./.github/workflows/release.yml) copies them
 **verbatim** into the docs site (`nevermined-io/docs`) at
-`docs/api-reference/typescript/<name>`, and opens a PR there.
+`api-reference/typescript/<name>`, and opens a PR there.
 
 When you change a public API, update the matching file in `markdown/` (see
 [`markdown/README.md`](./markdown/README.md) for which files map to which APIs)

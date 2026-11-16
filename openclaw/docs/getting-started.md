@@ -27,7 +27,7 @@ The plugin requires `@nevermined-io/payments@^1.1` as a peer dependency. Pin bot
 ## Authentication
 
 <Note>
-To interact with the Nevermined API, you need an API key. Follow the [Get Your API Key](/docs/getting-started/get-your-api-key) guide to create one.
+To interact with the Nevermined API, you need an API key. Follow the [Get Your API Key](/agents-guide/get-api-key) guide to create one.
 </Note>
 
 ### Option A: Browser login (recommended)
@@ -86,5 +86,5 @@ The plugin also supports fiat payments via credit card delegation. Enroll a card
 
 ## Next Steps
 
-- [Setup](/docs/api-reference/openclaw-plugin/setup) — full configuration reference
-- [Commands](/docs/api-reference/openclaw-plugin/commands) — all available tools and slash commands
+- [Setup](/api-reference/openclaw-plugin/setup) — full configuration reference
+- [Commands](/api-reference/openclaw-plugin/commands) — all available tools and slash commands
