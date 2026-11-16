@@ -121,7 +121,7 @@ Each file follows this structure:
 
 When a new version is tagged:
 
-1. GitHub Actions copies `markdown/*.md` to `docs_mintlify/docs/api-reference/typescript/`
+1. GitHub Actions copies `markdown/*.md` to `docs_mintlify/api-reference/typescript/`
 2. A pull request is created in the docs repository
 3. After PR approval and merge, documentation is published via Mintlify
 4. Documentation becomes available via MCP for LLM consumption
