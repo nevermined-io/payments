@@ -513,7 +513,7 @@ jobs:
 
       - name: Update SDK documentation
         run: |
-          TARGET_DIR="docs_mintlify/docs/api-reference/typescript"
+          TARGET_DIR="docs_mintlify/api-reference/typescript"
           mkdir -p "$TARGET_DIR"
           rm -f "$TARGET_DIR"/*.md
           cp payments/markdown/*.md "$TARGET_DIR/"
@@ -523,15 +523,15 @@ jobs:
 
       - name: Update CLI documentation
         run: |
-          mkdir -p docs_mintlify/docs/api-reference/cli
-          cp -r payments/cli/docs/* docs_mintlify/docs/api-reference/cli/ || echo "CLI docs not found, skipping"
-          cp payments/cli/README.md docs_mintlify/docs/api-reference/cli/index.md || echo "CLI README not found"
+          mkdir -p docs_mintlify/api-reference/cli
+          cp -r payments/cli/docs/* docs_mintlify/api-reference/cli/ || echo "CLI docs not found, skipping"
+          cp payments/cli/README.md docs_mintlify/api-reference/cli/index.md || echo "CLI README not found"
 
       - name: Update OpenClaw Plugin documentation
         run: |
-          mkdir -p docs_mintlify/docs/api-reference/openclaw-plugin
-          cp -r payments/openclaw/docs/* docs_mintlify/docs/api-reference/openclaw-plugin/ || echo "OpenClaw docs not found, skipping"
-          cp payments/openclaw/README.md docs_mintlify/docs/api-reference/openclaw-plugin/index.md || echo "OpenClaw README not found"
+          mkdir -p docs_mintlify/api-reference/openclaw-plugin
+          cp -r payments/openclaw/docs/* docs_mintlify/api-reference/openclaw-plugin/ || echo "OpenClaw docs not found, skipping"
+          cp payments/openclaw/README.md docs_mintlify/api-reference/openclaw-plugin/index.md || echo "OpenClaw README not found"
 
       # Release-time backstop for docs link-rot. Reuses the SAME self-contained
       # mini-site check the PR gate runs (scripts/check_synced_doc_links.sh, built
@@ -558,7 +558,7 @@ jobs:
           BRANCH_NAME="docs/payments-v${{ steps.version.outputs.version }}"
           git checkout -b "$BRANCH_NAME"
 
-          git add docs/api-reference/typescript docs/api-reference/cli docs/api-reference/openclaw-plugin
+          git add api-reference/typescript api-reference/cli api-reference/openclaw-plugin
 
           if git diff --cached --quiet; then
             echo "No documentation changes to publish for v${{ steps.version.outputs.version }}"
@@ -568,9 +568,9 @@ jobs:
           git commit -m "$(cat <<'EOF'
           docs: update Payments SDK, CLI and OpenClaw Plugin documentation for v${{ steps.version.outputs.version }}
 
-          - Updated SDK documentation in docs/api-reference/typescript/
-          - Updated CLI documentation in docs/api-reference/cli/
-          - Updated OpenClaw Plugin documentation in docs/api-reference/openclaw-plugin/
+          - Updated SDK documentation in api-reference/typescript/
+          - Updated CLI documentation in api-reference/cli/
+          - Updated OpenClaw Plugin documentation in api-reference/openclaw-plugin/
           - Version: ${{ steps.version.outputs.version }}
           - Auto-generated from nevermined-io/payments@${{ github.sha }}
 
@@ -588,9 +588,9 @@ jobs:
           This PR updates the documentation for Nevermined Payments SDK, CLI and OpenClaw Plugin to version **v${{ steps.version.outputs.version }}**.
 
           ### Changes
-          - SDK documentation in `docs/api-reference/typescript/`
-          - CLI documentation in `docs/api-reference/cli/`
-          - OpenClaw Plugin documentation in `docs/api-reference/openclaw-plugin/`
+          - SDK documentation in `api-reference/typescript/`
+          - CLI documentation in `api-reference/cli/`
+          - OpenClaw Plugin documentation in `api-reference/openclaw-plugin/`
           - Version metadata added to all files
 
           ### Source
@@ -620,6 +620,6 @@ jobs:
           echo "- **Version**: v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Source Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Repository**: nevermined-io/docs_mintlify" >> $GITHUB_STEP_SUMMARY
-          echo "- **SDK Docs**: docs/api-reference/typescript/" >> $GITHUB_STEP_SUMMARY
-          echo "- **CLI Docs**: docs/api-reference/cli/" >> $GITHUB_STEP_SUMMARY
-          echo "- **OpenClaw Plugin Docs**: docs/api-reference/openclaw-plugin/" >> $GITHUB_STEP_SUMMARY
+          echo "- **SDK Docs**: api-reference/typescript/" >> $GITHUB_STEP_SUMMARY
+          echo "- **CLI Docs**: api-reference/cli/" >> $GITHUB_STEP_SUMMARY
+          echo "- **OpenClaw Plugin Docs**: api-reference/openclaw-plugin/" >> $GITHUB_STEP_SUMMARY
