@@ -58,7 +58,7 @@ The plugin reads its configuration from the `plugins.openclaw-plugin` section of
 
 ## Authentication Flow
 
-The plugin supports a browser-based login flow identical to the [Nevermined CLI](/docs/api-reference/cli/getting-started):
+The plugin supports a browser-based login flow identical to the [Nevermined CLI](/api-reference/cli/getting-started):
 
 1. User sends `/nvm_login` in any chat channel
 2. The plugin starts a local HTTP server on a random port
