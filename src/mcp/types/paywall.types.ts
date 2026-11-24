@@ -76,6 +76,12 @@ export interface AuthResult {
   agentId?: string
   logicalUrl: string
   httpUrl?: string
+  /**
+   * Resource endpoint that passed verification; settlement uses this endpoint
+   * without retrying against another URL. Optional for custom authenticators
+   * returning the older shape, which continue to settle against logicalUrl.
+   */
+  verifiedEndpoint?: string
   planId: string
   subscriberAddress: Address
   agentRequest?: StartAgentRequest
