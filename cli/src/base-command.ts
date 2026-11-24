@@ -3,6 +3,10 @@ import { Payments, EnvironmentName } from '@nevermined-io/payments'
 import { ConfigManager } from './utils/config-manager.js'
 import { OutputFormatter, OutputFormat } from './utils/output-formatter.js'
 
+const BIG_INT_FIELDS = new Set([
+  'durationSecs', 'minAmount', 'maxAmount', 'amount', 'price', 'amountOfCredits',
+])
+
 export abstract class BaseCommand extends Command {
   static baseFlags = {
     profile: Flags.string({
@@ -170,17 +174,80 @@ export abstract class BaseCommand extends Command {
   }
 
   /**
-   * Reviver for JSON.parse that converts known numeric fields to BigInt.
-   * Fields like durationSecs, minAmount, maxAmount, amount, price, and
-   * amountOfCredits are used in plan/credit configurations and must be
-   * BigInt for the SDK to handle them correctly.
+   * Convert integer payment fields without promoting an already-rounded Number
+   * to BigInt. Large values must arrive as quoted decimal integers instead.
    */
-  private bigIntReviver(_key: string, value: any): any {
-    const bigIntFields = ['durationSecs', 'minAmount', 'maxAmount', 'amount', 'price', 'amountOfCredits']
-    if (bigIntFields.includes(_key) && typeof value === 'number') {
+  private parseBigIntValue(value: unknown, field: string): unknown {
+    if (typeof value === 'number') {
+      if (!Number.isSafeInteger(value)) {
+        throw new Error(
+          `Field "${field}" must be a safe integer; use a quoted decimal string for exact large amounts.`,
+        )
+      }
+      return BigInt(value)
+    }
+    if (typeof value === 'string' && /^-?\d+$/.test(value)) {
       return BigInt(value)
     }
     return value
+  }
+
+  /** Convert known scalar integer fields and PlanPriceConfig.amounts entries. */
+  private bigIntReviver(_key: string, value: any): any {
+    if (BIG_INT_FIELDS.has(_key)) {
+      return this.parseBigIntValue(value, _key)
+    }
+    if (_key === 'amounts' && Array.isArray(value)) {
+      return value.map((amount, index) => this.parseBigIntValue(amount, `amounts[${index}]`))
+    }
+    return value
+  }
+
+  /** Whether a JSON number denotes an integer before floating-point rounding. */
+  private isIntegerLiteral(source: string): boolean {
+    const [coefficient, exponent = '0'] = source.toLowerCase().split('e')
+    const digits = coefficient.replace(/[-.]/g, '')
+    // Zero stays exact even with an exponent too large for Number to represent.
+    if (!/[1-9]/.test(digits)) return true
+    const fractionLength = coefficient.split('.')[1]?.length ?? 0
+    const trailingZeros = digits.length - digits.replace(/0+$/, '').length
+    return Number(exponent) >= fractionLength - trailingZeros
+  }
+
+  private parsePaymentJson(source: string): unknown {
+    // Native parsing validates the grammar and rejects unsafe integer Numbers.
+    const parsed = JSON.parse(source, this.bigIntReviver.bind(this))
+    // Node 20 has no reviver context.source. Inspect tokens from the validated
+    // JSON to catch fractional literals rounded to safe integers (or to zero).
+    // Strings remain single tokens, so text containing JSON is never inspected.
+    const tokens = source.match(
+      /"(?:[^"\\]|\\[\s\S])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}[\]:,]|true|false|null/g,
+    ) ?? []
+    const stack: Array<{ kind: 'object' | 'array'; key?: string }> = []
+    for (let index = 0; index < tokens.length; index++) {
+      const token = tokens[index]
+      const parent = stack.at(-1)
+      if (token === '{') {
+        stack.push({ kind: 'object' })
+      } else if (token === '[') {
+        stack.push({ kind: 'array', key: parent?.kind === 'object' ? parent.key : undefined })
+      } else if (token === '}' || token === ']') {
+        stack.pop()
+      } else if (token.startsWith('"') && tokens[index + 1] === ':' && parent?.kind === 'object') {
+        parent.key = JSON.parse(token)
+      } else if (/^-?\d/.test(token)) {
+        const field = parent?.key ?? ''
+        const integerField = parent?.kind === 'object'
+          ? BIG_INT_FIELDS.has(field)
+          : parent?.kind === 'array' && field === 'amounts'
+        if (integerField && !this.isIntegerLiteral(token)) {
+          throw new Error(
+            `Field "${field}" must contain an exact integer; use a quoted decimal string for exact amounts.`,
+          )
+        }
+      }
+    }
+    return parsed
   }
 
   /**
@@ -196,11 +263,11 @@ export abstract class BaseCommand extends Command {
       if (input.endsWith('.json')) {
         const fs = await import('fs/promises')
         const content = await fs.readFile(input, 'utf-8')
-        return JSON.parse(content, this.bigIntReviver.bind(this))
+        return this.parsePaymentJson(content)
       }
 
       // Otherwise parse as JSON string
-      return JSON.parse(input, this.bigIntReviver.bind(this))
+      return this.parsePaymentJson(input)
     } catch (error: any) {
       this.error(`Failed to parse JSON input: ${error.message}`, { exit: 1 })
     }
