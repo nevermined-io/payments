@@ -437,6 +437,12 @@ A second settlement of the same token fails with **`BCK.X402.0059`** — which i
 neither a decline nor a forgery (`BCK.X402.0005`): the token was valid and has
 already been spent. Never retry it; the buyer must mint a new one.
 
+For buffered Express responses, `paymentMiddleware` withholds the handler body
+and returns a 402 when settlement throws or reports `success: false`. A streamed
+response cannot be recalled after its headers or chunks have been written, so
+routes that require strict settle-before-release semantics must buffer their
+protected output instead of writing it incrementally.
+
 ```typescript
 import { isAccessTokenAlreadyUsed } from '@nevermined-io/payments'
 
