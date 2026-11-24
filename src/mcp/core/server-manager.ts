@@ -72,6 +72,7 @@ export class McpServerManager {
   private tools: Map<string, ToolRegistration> = new Map()
   private resources: Map<string, ResourceRegistration> = new Map()
   private prompts: Map<string, PromptRegistration> = new Map()
+  // Prebuilt server for the first request; subsequent requests get fresh instances.
   private mcpServer: any = null
   private expressApp: Application | null = null
   private httpServer: Server | null = null
@@ -202,16 +203,8 @@ export class McpServerManager {
 
       const baseUrl = config.baseUrl || `http://localhost:${config.port}`
 
-      const McpServer = await getMcpServerClass()
-
-      // Create MCP server
-      this.mcpServer = new McpServer({
-        name: config.serverName,
-        version: config.version || '1.0.0',
-      })
-
-      // Register tools, resources, and prompts with paywall protection
-      await this.registerHandlersWithPaywall()
+      // Build the first server now so registration errors still fail startup.
+      this.mcpServer = await this.createMcpServer()
 
       this.expressApp = express()
 
@@ -252,7 +245,17 @@ export class McpServerManager {
       this.sessionManager = createSessionManager({
         log: this.log,
       })
-      this.sessionManager.setMcpServer(this.mcpServer)
+      this.sessionManager.setMcpServerFactory(() => {
+        if (this.state === ServerState.Stopping || this.state === ServerState.Idle) {
+          throw new Error('MCP server is not accepting requests.')
+        }
+        if (this.mcpServer) {
+          const server = this.mcpServer
+          this.mcpServer = null
+          return server
+        }
+        return this.createMcpServer()
+      })
 
       // Mount MCP handlers
       if (this.expressApp && this.sessionManager) {
@@ -326,7 +329,9 @@ export class McpServerManager {
     this.state = ServerState.Stopping
 
     // Destroy all sessions
-    this.sessionManager?.destroyAllSessions()
+    await this.sessionManager?.destroyAllSessions()
+    // The prebuilt instance is still unused if no POST has arrived.
+    await this.mcpServer?.close()
 
     // Close HTTP server
     const server = this.httpServer
@@ -346,10 +351,25 @@ export class McpServerManager {
     this.log?.('Server stopped')
   }
 
-  /**
-   * Register all tools, resources, and prompts with paywall protection.
-   */
-  private async registerHandlersWithPaywall(): Promise<void> {
+  /** Build an independent Protocol instance with the same paywalled registrations. */
+  private async createMcpServer(): Promise<any> {
+    if (!this.config) throw new Error('Server config not set')
+    const McpServer = await getMcpServerClass()
+    const server = new McpServer({
+      name: this.config.serverName,
+      version: this.config.version || '1.0.0',
+    })
+    try {
+      await this.registerHandlersWithPaywall(server)
+      return server
+    } catch (error) {
+      await server.close()
+      throw error
+    }
+  }
+
+  /** Register all tools, resources, and prompts with paywall protection. */
+  private async registerHandlersWithPaywall(server: any): Promise<void> {
     // Configure paywall with agent and server info
     if (!this.config) {
       throw new Error('Server config not set')
@@ -395,7 +415,7 @@ export class McpServerManager {
       )
 
       // Register with MCP server
-      this.mcpServer.registerTool(name, toolConfig, protectedHandler)
+      server.registerTool(name, toolConfig, protectedHandler)
     }
 
     // Register resources
@@ -441,10 +461,10 @@ export class McpServerManager {
         const templateInstance = new ResourceTemplateClass(uriOrTemplate, {
           list: async () => ({ resources: [] }),
         })
-        this.mcpServer.registerResource(name, templateInstance, resourceConfig, protectedHandler)
+        server.registerResource(name, templateInstance, resourceConfig, protectedHandler)
       } else {
         // For static resources: registerResource(name, uriString, config, handler)
-        this.mcpServer.registerResource(name, uriOrTemplate, resourceConfig, protectedHandler)
+        server.registerResource(name, uriOrTemplate, resourceConfig, protectedHandler)
       }
     }
 
@@ -511,7 +531,7 @@ export class McpServerManager {
         }
       }
 
-      this.mcpServer.registerPrompt(name, sdkPromptConfig, protectedHandler)
+      server.registerPrompt(name, sdkPromptConfig, protectedHandler)
     }
   }
 

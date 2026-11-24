@@ -420,6 +420,27 @@ The MCP transport follows the [x402 v2 MCP transport spec](https://github.com/co
 
 The client sends the x402 `PaymentPayload` in the request params `_meta["x402/payment"]` (plain JSON). Note this is the **payment** channel — separate from session auth: the MCP session is an OAuth-protected resource, so the client must also send an `Authorization: Bearer <accessToken>` header on the transport to establish the session (`initialize` returns `401` without it). For backwards compatibility the server also reads the payment from that header alone (no `_meta`) as a **deprecated fallback** for one release.
 
+The managed `payments.mcp.start()` server uses a fresh MCP server and stateless
+JSON-response transport for each POST. Paid calls can overlap, including calls
+that echo the same `Mcp-Session-Id`; each keeps its own authentication context,
+handler execution and settlement. All registered tools, resources and prompts
+are available on each request. A connection is closed when its response finishes
+or the client disconnects. Closing the connection does not undo application work
+or settlement that has already completed.
+
+`Mcp-Session-Id` correlates active requests rather than creating a persistent
+transport. DELETE closes all active requests carrying that id; after those
+requests finish, the id has no active session to delete. Standalone GET/SSE
+remains unsupported by this managed stateless transport. Server shutdown closes
+all active request transports.
+
+Low-level integrations using `SessionManager` should call
+`setMcpServerFactory(createRegisteredMcpServer)` for concurrent
+requests and release each POST with `closeTransport(sessionId, transport)` after
+the response closes. `mountMcpHandlers` does that cleanup automatically.
+`setMcpServer(server)` remains available for legacy sequential integrations.
+`destroyAllSessions()` returns a promise so shutdown can await connection cleanup.
+
 ```typescript
 import { decodeAccessToken } from '@nevermined-io/payments'
 
