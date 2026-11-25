@@ -154,7 +154,6 @@ Each environment has specific API endpoints:
 interface EnvironmentInfo {
   frontend: string   // Nevermined App URL
   backend: string    // API URL
-  proxy: string      // Proxy service URL
   heliconeUrl: string // Observability service URL
 }
 ```
