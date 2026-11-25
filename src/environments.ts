@@ -9,7 +9,6 @@ export interface EnvironmentInfo {
    */
   embed: string
   backend: string
-  proxy: string
   heliconeUrl: string
 }
 
@@ -59,14 +58,12 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     frontend: 'https://nevermined.dev',
     embed: 'https://embed.nevermined.dev',
     backend: 'https://api.sandbox.nevermined.dev/',
-    proxy: 'https://proxy.sandbox.nevermined.dev',
     heliconeUrl: 'https://helicone.nevermined.dev',
   },
   staging_live: {
     frontend: 'https://nevermined.dev',
     embed: 'https://embed.nevermined.dev',
     backend: 'https://api.live.nevermined.dev/',
-    proxy: 'https://proxy.live.nevermined.dev',
     heliconeUrl: 'https://helicone.nevermined.dev',
   },
   /**
@@ -76,7 +73,6 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     frontend: 'https://nevermined.app',
     embed: 'https://embed.nevermined.app',
     backend: 'https://api.sandbox.nevermined.app/',
-    proxy: 'https://proxy.sandbox.nevermined.app',
     heliconeUrl: 'https://helicone.nevermined.dev',
   },
   /**
@@ -86,7 +82,6 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     frontend: 'https://nevermined.app',
     embed: 'https://embed.nevermined.app',
     backend: 'https://api.live.nevermined.app/',
-    proxy: 'https://proxy.live.nevermined.app',
     heliconeUrl: 'https://helicone.nevermined.dev',
   },
   /**
@@ -101,7 +96,6 @@ export const Environments: Record<EnvironmentName, EnvironmentInfo> = {
     // override.
     embed: process.env.NVM_EMBED_URL || 'http://localhost:4250',
     backend: process.env.NVM_BACKEND_URL || 'http://localhost:3001',
-    proxy: process.env.NVM_PROXY_URL || 'https://localhost:443',
     heliconeUrl: process.env.HELICONE_URL || 'http://localhost:8585',
   },
 }
