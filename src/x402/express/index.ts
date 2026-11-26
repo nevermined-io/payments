@@ -4,6 +4,7 @@
 
 export {
   paymentMiddleware,
+  paywall,
   X402_HEADERS,
   type ExpressMiddleware,
   type RouteConfig,
