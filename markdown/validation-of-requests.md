@@ -452,6 +452,52 @@ try {
 }
 ```
 
+## Express Middleware
+
+For Express agents, `@nevermined-io/payments/express` runs the whole verify → handler → settle flow for you. Protect each paid route with `paywall`, mounted on the route itself:
+
+```typescript
+import express from 'express'
+import { Payments } from '@nevermined-io/payments'
+import { paywall } from '@nevermined-io/payments/express'
+
+const payments = Payments.getInstance({ nvmApiKey: process.env.NVM_API_KEY! })
+
+const app = express()
+app.use(express.json())
+
+app.post('/ask', paywall(payments, { planId: PLAN_ID, credits: 1 }), (req, res) => {
+  res.json({ answer: '...' })
+})
+```
+
+Express decides which requests reach the route, so every request the handler serves goes through the payment check, whatever your routing settings.
+
+You can also protect several routes from one place with `paymentMiddleware` and a map of `"METHOD /path"` keys:
+
+```typescript
+import { paymentMiddleware } from '@nevermined-io/payments/express'
+
+app.use(
+  paymentMiddleware(payments, {
+    'POST /ask': { planId: PLAN_ID, credits: 1 },
+    'GET /reports/:id': { planId: PLAN_ID, credits: 5 },
+  }),
+)
+```
+
+The map matches paths itself, with these rules:
+
+- The method is an HTTP method (`ALL` is not one), and each path segment is a literal (letters, digits and `-._~%@&=,;`) or a whole `:param`.
+- Paths match case-insensitively and ignore repeated and trailing slashes, so `POST /ASK`, `POST /ask/` and `POST //ask` pay like `POST /ask`.
+- A `GET` key also covers `HEAD`, which Express sends to `GET` handlers.
+- A literal key wins over a `:param` key for the same path.
+- Any other syntax (`*`, `?`, `(…)`, `{…}`, `$`, `:name.csv`) or two keys that match the same requests throw when the middleware is created.
+- The map is read once, when the middleware is created: keys added to it later are not protected.
+- Keys are relative to where the middleware is mounted: with `app.use('/api', paymentMiddleware(...))`, the key for `/api/ask` is `POST /ask`.
+
+A request that matches no key is not protected. Use `paywall` for routes the map cannot describe: wildcards, regex routes, routers mounted on a pattern, or Express 5 optional segments.
+
 ## Best Practices
 
 1. **Always Verify First**: Call `verifyPermissions` before executing tasks
