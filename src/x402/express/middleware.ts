@@ -31,6 +31,20 @@
  * app.post('/ask', (req, res) => res.json({ answer: '...' }))
  * ```
  *
+ * Route keys match case-insensitively, ignore repeated and trailing slashes, and
+ * only accept literal or whole `:param` segments. For routes those keys cannot
+ * express (wildcards, regex routes, routers mounted on a pattern), protect the route
+ * itself with `paywall`, so Express decides which requests must pay:
+ *
+ * @example Per-route protection
+ * ```typescript
+ * import { paywall } from '@nevermined-io/payments/express'
+ *
+ * app.post('/ask', paywall(payments, { planId: '123', credits: 1 }), (req, res) =>
+ *   res.json({ answer: '...' }),
+ * )
+ * ```
+ *
  * @example Client usage
  * ```typescript
  * const token = await payments.x402.getX402AccessToken(planId)
@@ -47,6 +61,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express'
+import { METHODS } from 'http'
 
 /**
  * Express middleware function type.
@@ -215,70 +230,117 @@ function extractToken(req: Request, headerNames: string | string[]): string | nu
   return null
 }
 
+/** A route key, parsed once when the middleware is created. */
+interface CompiledRoute {
+  key: string
+  method: string
+  /** Lower-cased literal segments, with {@link PARAM} for a `:param` segment. */
+  segments: string[]
+  hasParams: boolean
+  handler: ExpressMiddleware
+}
+
+const ROUTE_KEY = /^([A-Za-z]+) (\/\S*)$/
+const PARAM_SEGMENT = /^:[A-Za-z0-9_]+$/
+// An allowlist, not a blocklist: Express 4 compiles `$`, `|`, `^` and `\` in a
+// path as live regex, and Express 5 treats `\` as an escape, so any character
+// outside this set could make Express serve paths the key never matches.
+const LITERAL_SEGMENT = /^[\w\-.~%@&=,;]+$/
+const PARAM = ':'
+
 /**
- * Match a request to a route config.
- * Returns the config if found, null otherwise.
+ * Split a path into the segments the matcher compares: lower-cased, with empty
+ * segments (repeated and trailing slashes) dropped.
+ *
+ * A request that misses every key reaches its handler unpaid, so the matcher
+ * must match at least everything Express's router would send to a protected
+ * handler. Express matches case-insensitively and ignores a trailing slash by
+ * default, a router mounted at a prefix also swallows an extra slash after it
+ * (`/v1//ask` reaches `router.post('/ask')`), and an app or a `Router` can
+ * change these settings without this middleware seeing them. Matching broadly
+ * is safe: settlement only runs on a delivered 2xx, so a path matched here that
+ * Express then does not serve gets a 402 instead of a 404 and nobody is charged.
  */
-function matchRoute(req: Request, routes: RouteConfigMap): RouteConfig | null {
-  const method = req.method.toUpperCase()
-  const path = req.path
+function pathSegments(path: string): string[] {
+  return path.toLowerCase().split('/').filter(Boolean)
+}
 
-  // Try exact match first: "POST /ask"
-  const exactKey = `${method} ${path}`
-  if (routes[exactKey]) {
-    return routes[exactKey]
-  }
-
-  // Try pattern matching with path parameters
-  for (const [routeKey, config] of Object.entries(routes)) {
-    const [routeMethod, routePath] = routeKey.split(' ')
-    if (routeMethod !== method) continue
-
-    // Simple pattern matching: /users/:id -> /users/123
-    const routeParts = routePath.split('/')
-    const pathParts = path.split('/')
-
-    if (routeParts.length !== pathParts.length) continue
-
-    let match = true
-    for (let i = 0; i < routeParts.length; i++) {
-      if (routeParts[i].startsWith(':')) continue // Parameter - always matches
-      if (routeParts[i] !== pathParts[i]) {
-        match = false
-        break
-      }
-    }
-
-    if (match) return config
-  }
-
-  return null
+function unsupportedRouteKey(key: string, reason: string): Error {
+  return new Error(
+    `paymentMiddleware: unsupported route key "${key}": ${reason}. Keys are "METHOD /path" ` +
+      'whose segments are literals or whole ":param" segments. Protect this route with ' +
+      'paywall(payments, config) on the route itself instead.',
+  )
 }
 
 /**
- * Create an Express middleware that protects routes with Nevermined payments.
- *
- * The middleware:
- * 1. Checks if the request matches a protected route
- * 2. Extracts the x402 token from headers
- * 3. Verifies the subscriber has sufficient credits
- * 4. Lets the route handler execute
- * 5. Settles (burns) the credits after successful response
- *
- * @param payments - The Payments instance
- * @param routes - Map of routes to protect: \{ "METHOD \/path": \{ planId, credits \} \}
- * @param options - Optional middleware configuration
- * @returns Express middleware function
- *
- * @example
- * ```typescript
- * app.use(paymentMiddleware(payments, {
- *   'POST /ask': { planId: PLAN_ID, credits: 1 },
- *   'POST /generate': { planId: PLAN_ID, credits: 5 },
- *   'GET /status/:id': { planId: PLAN_ID, credits: 0 }, // Free but requires auth
- * }))
- * ```
+ * Parse every route key, refusing any the matcher cannot match. A key it
+ * cannot match would otherwise protect nothing, silently.
  */
+function compileRoutes(
+  routes: RouteConfigMap,
+  toHandler: (config: RouteConfig) => ExpressMiddleware,
+): CompiledRoute[] {
+  const keysBySignature = new Map<string, string>()
+  const compiled = Object.entries(routes).map(([key, config]): CompiledRoute => {
+    const parsed = ROUTE_KEY.exec(key)
+    if (!parsed) throw unsupportedRouteKey(key, 'expected a method, one space and a path')
+    const method = parsed[1].toUpperCase()
+    if (!METHODS.includes(method)) {
+      throw unsupportedRouteKey(key, `"${parsed[1]}" is not an HTTP method`)
+    }
+    const segments = pathSegments(parsed[2]).map((segment) => {
+      if (PARAM_SEGMENT.test(segment)) return PARAM
+      if (!LITERAL_SEGMENT.test(segment)) {
+        throw unsupportedRouteKey(key, `segment "${segment}" is not a literal or a whole :param`)
+      }
+      return segment
+    })
+
+    const signature = `${method} ${segments.join('/')}`
+    const clash = keysBySignature.get(signature)
+    if (clash) {
+      throw new Error(
+        `paymentMiddleware: route keys "${clash}" and "${key}" match the same requests ` +
+          '(paths are compared case-insensitively, ignoring repeated and trailing slashes).',
+      )
+    }
+    keysBySignature.set(signature, key)
+
+    return {
+      key,
+      method,
+      segments,
+      hasParams: segments.includes(PARAM),
+      handler: toHandler(config),
+    }
+  })
+  // Literal keys win over parameter keys, whatever their declaration order.
+  return [...compiled.filter((r) => !r.hasParams), ...compiled.filter((r) => r.hasParams)]
+}
+
+function segmentsMatch(route: string[], path: string[]): boolean {
+  return (
+    route.length === path.length &&
+    route.every((segment, i) => segment === path[i] || segment === PARAM)
+  )
+}
+
+/** Find the protected route a request belongs to, or null when it is unprotected. */
+function findRoute(req: Request, compiled: CompiledRoute[]): CompiledRoute | null {
+  const method = req.method.toUpperCase()
+  // Express runs a GET handler for HEAD when the route has no HEAD handler.
+  const methods = method === 'HEAD' ? ['HEAD', 'GET'] : [method]
+  const segments = pathSegments(req.path)
+  for (const candidate of methods) {
+    const route = compiled.find(
+      (r) => r.method === candidate && segmentsMatch(r.segments, segments),
+    )
+    if (route) return route
+  }
+  return null
+}
+
 /**
  * Whether a request carries a body, per RFC 9110 §6.4.1 / what `type-is`'s
  * `hasBody()` encodes: a `Transfer-Encoding` header (chunked, streamed —
@@ -1214,9 +1276,90 @@ async function handleMppRequest(args: {
   args.next()
 }
 
+/**
+ * Create an Express middleware that protects routes with Nevermined payments.
+ *
+ * @remarks
+ * The middleware:
+ * 1. Checks if the request matches a protected route
+ * 2. Extracts the x402 token from headers
+ * 3. Verifies the subscriber has sufficient credits
+ * 4. Lets the route handler execute
+ * 5. Settles (burns) the credits after successful response
+ *
+ * Route keys are `"METHOD /path"`, where METHOD is an HTTP method and each path
+ * segment is a literal (letters, digits and `-._~%@&=,;`) or a whole `:param`.
+ * Paths match case-insensitively and ignore repeated and trailing slashes, and
+ * a `GET` key also covers `HEAD`, so every request Express's default routing
+ * sends to the handler is checked. A key using any other syntax (`*`, `?`,
+ * `(…)`, `{…}`, `$`, `:name.ext`, `ALL`) throws when the middleware is created;
+ * protect those routes with {@link paywall} instead. The map is read once, when
+ * the middleware is created: keys added to it later are not protected.
+ *
+ * @param payments - The Payments instance
+ * @param routes - Map of routes to protect: \{ "METHOD \/path": \{ planId, credits \} \}
+ * @param options - Optional middleware configuration
+ * @returns Express middleware function
+ * @throws Error if a route key uses unsupported syntax or two keys match the same requests
+ *
+ * @example
+ * ```typescript
+ * app.use(paymentMiddleware(payments, {
+ *   'POST /ask': { planId: PLAN_ID, credits: 1 },
+ *   'POST /generate': { planId: PLAN_ID, credits: 5 },
+ *   'GET /status/:id': { planId: PLAN_ID, credits: 0 }, // Free but requires auth
+ * }))
+ * ```
+ */
 export function paymentMiddleware(
   payments: Payments,
   routes: RouteConfigMap,
+  options: PaymentMiddlewareOptions = {},
+): ExpressMiddleware {
+  const compiled = compileRoutes(routes, (config) => paywall(payments, config, options))
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const route = findRoute(req, compiled)
+    if (!route) {
+      // Route not protected - pass through
+      next()
+      return
+    }
+    route.handler(req, res, next)
+  }
+}
+
+/**
+ * Protect a single Express route with Nevermined payments.
+ *
+ * @remarks
+ * Mount it on the route itself, in front of the handler. Express decides which
+ * requests reach the route, so the payment check covers exactly the requests
+ * the handler serves, whatever the app's or router's routing settings
+ * (`case sensitive routing`, `strict routing`, mount paths, regex routes,
+ * wildcards). Prefer it over the {@link paymentMiddleware} route map for any
+ * route the map's key syntax cannot express.
+ *
+ * Runs the same verification and settlement flow as `paymentMiddleware`:
+ * verify before the handler, settle after a delivered 2xx response, and
+ * expose `req.paymentContext` to the handler.
+ *
+ * @param payments - The Payments instance
+ * @param routeConfig - The plan and credits that protect this route
+ * @param options - Optional middleware configuration
+ * @returns Express middleware function
+ *
+ * @example
+ * ```typescript
+ * import { paywall } from '@nevermined-io/payments/express'
+ *
+ * app.post('/ask', paywall(payments, { planId: PLAN_ID, credits: 1 }), (req, res) => {
+ *   res.json({ answer: '...' })
+ * })
+ * ```
+ */
+export function paywall(
+  payments: Payments,
+  routeConfig: RouteConfig,
   options: PaymentMiddlewareOptions = {},
 ): ExpressMiddleware {
   const {
@@ -1230,14 +1373,6 @@ export function paymentMiddleware(
   return (req: Request, res: Response, next: NextFunction): void => {
     // Wrap async logic to handle promises properly
     const handleRequest = async (): Promise<void> => {
-      // Check if this route requires payment
-      const routeConfig = matchRoute(req, routes)
-      if (!routeConfig) {
-        // Route not protected - pass through
-        next()
-        return
-      }
-
       const {
         planId,
         credits = 1,
