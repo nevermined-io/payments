@@ -170,18 +170,21 @@ nevermined organizations get-members --page 1 --offset 10
 
 ### Create Member
 
-Add a new member to your organization:
+Invite a member to your organization. The backend creates a pending invitation and emails it to
+`--user-email`; the invitee becomes a member when they accept it. The command prints the
+`invitation` (`id`, `email`, `role`, `status: pending`, `expiresAt`, …). An older backend
+provisioned the account instead and printed `nvmApiKey`, `userId`, `userWallet` and `alreadyMember`.
 
 ```bash
-nevermined organizations create-member <user-id>
+nevermined organizations create-member <user-id> --user-email "john@example.com"
 
-# With email and role
-nevermined organizations create-member <user-id> --user-email "john@example.com" --user-role "developer"
+# Invite as an admin
+nevermined organizations create-member <user-id> --user-email "john@example.com" --user-role "Admin"
 ```
 
 Flags:
-- `--user-email` — Member's email address (optional)
-- `--user-role` — Member's role (optional)
+- `--user-email` — Email to send the invitation to (the backend requires it)
+- `--user-role` — `Admin` or `Member` (default `Member`)
 
 ### Connect Stripe Account
 

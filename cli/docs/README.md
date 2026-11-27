@@ -144,7 +144,7 @@ nevermined x402token get-x402-access-token <plan-id>  # Get access token
 
 # Organizations
 nevermined organizations get-members                          # List members
-nevermined organizations create-member <user-id>              # Add member
+nevermined organizations create-member <user-id> --user-email "user@example.com"  # Invite member
 nevermined organizations connect-stripe-account \             # Connect Stripe
   --user-email "user@example.com" \
   --user-country-code "US" \
