@@ -9,7 +9,7 @@ import {
   API_URL_ORG_ACTIVITY,
 } from '../nvm-api.js'
 import {
-  CreateUserResponse,
+  CreateMemberResponse,
   CustomerOnboardingResponse,
   MyMembership,
   OrganizationActivityFilters,
@@ -25,17 +25,32 @@ export class OrganizationsAPI extends BasePaymentsAPI {
   }
 
   /**
-   * Create a new member in the organization
+   * Invite a member to the organization
+   *
+   * @remarks
+   * Since nvm-monorepo #5349 the backend creates a pending invitation and emails
+   * it to `userEmail`; the invitee becomes a member when they accept it, and the
+   * result is `{ invitation }`. An older backend provisioned the account at once
+   * and answered `{ nvmApiKey, userId, userWallet, alreadyMember }`. See
+   * {@link CreateMemberResponse}.
+   *
+   * A refused invitation throws a {@link PaymentsError} whose `code` is the
+   * backend's, e.g. `BCK.INVITATIONS.0002` (an invitation is already pending for
+   * this email), `BCK.ORGANIZATIONS.0008` (already a member),
+   * `BCK.INVITATIONS.0006` (organization below Premium), `BCK.INVITATIONS.0001`
+   * (no free seat) or `BCK.ORGANIZATIONS.0041` (the email was not accepted for
+   * delivery and nothing was created; retry with a backoff).
+   *
    * @param userId - The unique external ID of the new member
-   * @param userEmail - The email of the new member
-   * @param userRole - The role of the new member
-   * @returns The created member
+   * @param userEmail - The email to send the invitation to
+   * @param userRole - The role of the new member: Admin or Member (the default)
+   * @returns The pending invitation, or the provisioned account from an older backend
    */
   async createMember(
     userId: string,
     userEmail?: string,
     userRole?: OrganizationMemberRole,
-  ): Promise<CreateUserResponse> {
+  ): Promise<CreateMemberResponse> {
     const body = {
       uniqueExternalId: userId,
       email: userEmail,
@@ -49,10 +64,22 @@ export class OrganizationsAPI extends BasePaymentsAPI {
       throw PaymentsError.fromBackend('Unable to create user', error)
     }
 
-    const data = await response.json()
+    const wallet = (await response.json())?.walletResult ?? {}
+    if (wallet.invitation) {
+      return { invitation: wallet.invitation }
+    }
+    // An older backend that provisioned the account. A 2xx with neither shape is
+    // an unexpected payload: fail rather than return required fields as undefined.
+    if (!wallet.userId || !wallet.userWallet || !wallet.hash) {
+      throw PaymentsError.internal(
+        'Member creation returned neither an invitation nor an account (unexpected backend response)',
+      )
+    }
     return {
-      ...data.walletResult,
-      nvmApiKey: data.walletResult.hash,
+      nvmApiKey: wallet.hash,
+      userId: wallet.userId,
+      userWallet: wallet.userWallet,
+      alreadyMember: wallet.alreadyMember === true,
     }
   }
 
