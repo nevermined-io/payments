@@ -206,7 +206,7 @@ CI is configured in `.github/workflows/testing.yml` and runs on every push:
 | `cli_sync_check` | Build + test CLI against local SDK | lint_build |
 | `openclaw_check` | Build + test OpenClaw against local SDK | lint_build |
 | `unit_integration` | Unit + integration tests | lint_build |
-| `e2e` | End-to-end tests | unit_integration |
+| `e2e` | End-to-end tests against `staging_sandbox`, one at a time across all refs (job-level `concurrency` with `queue: max`) | unit_integration |
 
 Additionally, `openclaw-sync-and-test.yml` and `cli-sync-and-test.yml` run on PRs when `src/` changes. All three workflows use a symlink to compile against the local SDK build.
 
