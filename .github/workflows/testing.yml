@@ -181,7 +181,9 @@ jobs:
     # `queue: max` keeps up to 100 jobs waiting in FIFO order; the default
     # (`single`) would cancel every pending E2E but the newest, losing other
     # PRs' required check. Superseded pushes to the same ref are still
-    # cancelled by the workflow-level group above.
+    # cancelled by the workflow-level group above. `queue` is GA since
+    # https://github.blog/changelog/2026-05-07-github-actions-concurrency-groups-now-allow-larger-queues
+    # and must not be combined with `cancel-in-progress: true`.
     concurrency:
       group: payments-e2e-staging-sandbox
       queue: max
