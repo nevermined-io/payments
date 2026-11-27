@@ -1,1 +1,12 @@
-{}
+{
+  "OrganizationsAPI.createMember": {
+    "className": "OrganizationsAPI",
+    "methodName": "createMember",
+    "customizations": {
+      "examples": [
+        "$ nevermined organizations create-member <userId> --user-email colleague@example.com",
+        "$ nevermined organizations create-member <userId> --user-email colleague@example.com --user-role Admin"
+      ]
+    }
+  }
+}

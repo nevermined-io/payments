@@ -8,7 +8,8 @@ export default class CreateMember extends BaseCommand {
   static override description = "Invite a member to the organization"
 
   static override examples = [
-    '$ nevermined organizations create-member <userId>'
+    '$ nevermined organizations create-member <userId> --user-email colleague@example.com',
+    '$ nevermined organizations create-member <userId> --user-email colleague@example.com --user-role Admin'
   ]
 
   static override flags = {
