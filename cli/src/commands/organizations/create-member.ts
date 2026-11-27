@@ -2,10 +2,10 @@ import { Args, Flags } from '@oclif/core'
 import { BaseCommand } from '../../base-command.js'
 
 /**
- * Create a new member in the organization
+ * Invite a member to the organization
  */
 export default class CreateMember extends BaseCommand {
-  static override description = "Create a new member in the organization"
+  static override description = "Invite a member to the organization"
 
   static override examples = [
     '$ nevermined organizations create-member <userId>'

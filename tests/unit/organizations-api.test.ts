@@ -314,6 +314,124 @@ describe('OrganizationsAPI — workspace surface', () => {
     })
   })
 
+  describe('createMember (#5349)', () => {
+    const invitation = {
+      id: 'oi-123',
+      email: 'colleague@example.com',
+      name: null,
+      role: 'Admin',
+      status: 'pending',
+      expiresAt: '2026-12-04T12:00:00.000Z',
+      invitedByUserId: 'us-admin',
+      createdAt: '2026-11-27T12:00:00.000Z',
+    }
+
+    test('current backend: returns the pending invitation and nothing about an account', async () => {
+      const payments = makePayments()
+      const calls = installFetchStub(() => ({
+        ok: true,
+        status: 201,
+        body: { success: true, message: 'Invitation sent', walletResult: { invitation } },
+      }))
+
+      const result = await payments.organizations.createMember(
+        'ext-1',
+        'colleague@example.com',
+        OrganizationMemberRole.Admin,
+      )
+
+      expect(calls[0].url.pathname).toBe('/api/v1/organizations/account')
+      expect(calls[0].init.method).toBe('POST')
+      expect(JSON.parse(calls[0].init.body)).toEqual({
+        uniqueExternalId: 'ext-1',
+        email: 'colleague@example.com',
+        role: 'Admin',
+      })
+      expect(result).toStrictEqual({ invitation })
+      if (!('invitation' in result)) throw new Error('expected the invitation outcome')
+      expect(result.invitation.status).toBe('pending')
+    })
+
+    test('older backend: returns the provisioned account, hash surfaced as nvmApiKey', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 201,
+        body: {
+          success: true,
+          message: 'User created and login successful',
+          walletResult: {
+            hash: 'sandbox:revoked-key',
+            userId: 'us-123',
+            userWallet: '0xabc',
+            alreadyMember: false,
+          },
+        },
+      }))
+
+      const result = await payments.organizations.createMember('ext-1', 'colleague@example.com')
+
+      expect(result).toStrictEqual({
+        nvmApiKey: 'sandbox:revoked-key',
+        userId: 'us-123',
+        userWallet: '0xabc',
+        alreadyMember: false,
+      })
+    })
+
+    test('older backend: 200 already-member answer keeps alreadyMember', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 200,
+        body: {
+          success: true,
+          message: 'User already a member of the organization',
+          walletResult: {
+            hash: 'sandbox:revoked-key',
+            userId: 'us-123',
+            userWallet: '0xabc',
+            alreadyMember: true,
+          },
+        },
+      }))
+
+      const result = await payments.organizations.createMember('ext-1', 'colleague@example.com')
+
+      if ('invitation' in result) throw new Error('expected the account outcome')
+      expect(result.alreadyMember).toBe(true)
+    })
+
+    test('throws when a 2xx carries neither an invitation nor an account', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: true,
+        status: 201,
+        body: { success: true, walletResult: { alreadyMember: false } },
+      }))
+
+      await expect(
+        payments.organizations.createMember('ext-1', 'colleague@example.com'),
+      ).rejects.toThrow(/neither an invitation nor an account/)
+    })
+
+    test('surfaces the backend error code', async () => {
+      const payments = makePayments()
+      installFetchStub(() => ({
+        ok: false,
+        status: 409,
+        body: {
+          code: 'BCK.INVITATIONS.0002',
+          message: 'A pending invitation already exists for this email in the organization',
+        },
+      }))
+
+      await expect(
+        payments.organizations.createMember('ext-1', 'colleague@example.com'),
+      ).rejects.toMatchObject({ code: 'BCK.INVITATIONS.0002' })
+    })
+  })
+
   describe('onboardCustomer (#2418)', () => {
     test('new/returning customer: sends as=customer and returns hash as the Bearer', async () => {
       const payments = makePayments()
