@@ -1,5 +1,6 @@
-# actionlint 1.7.12 does not know `concurrency.queue` yet (rhysd/actionlint#657,
-# fix pending in #654). GitHub accepts it; drop this once actionlint does.
+# For local `actionlint` runs (CI does not run it). actionlint 1.7.12 does not
+# know `concurrency.queue` yet (rhysd/actionlint#657, fix pending in #654), so
+# it rejects a key GitHub accepts. Drop this once actionlint supports it.
 paths:
   .github/workflows/testing.yml:
     ignore:
