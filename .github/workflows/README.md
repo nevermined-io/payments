@@ -12,7 +12,7 @@ This directory contains automated workflows for the Nevermined Payments SDK and 
 **Jobs:**
 - `lint_build` - Lint and build the SDK
 - `unit_integration` - Run unit and integration tests
-- `e2e` - Run end-to-end tests
+- `e2e` - Run end-to-end tests against `staging_sandbox`, queued one at a time across all refs so concurrent runs do not trip the staging bundler rate limit
 
 **Required Secrets:**
 - `TEST_SUBSCRIBER_API_KEY` - Subscriber account API key
@@ -114,4 +114,4 @@ release.yml
 
 ---
 
-**Last Updated:** 2026-02-10
+**Last Updated:** 2026-11-27
