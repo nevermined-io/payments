@@ -22,12 +22,48 @@ export enum OrganizationType {
   Other = 'Other',
 }
 
-export type CreateUserResponse = {
-  nvmApiKey: string
-  userId: string
-  userWallet: string
-  alreadyMember: boolean
+/**
+ * A pending invitation to join an organization, as `createMember` returns it
+ * (nvm-monorepo #5349). Mirrors `InvitationResponseDto` in the Nevermined backend.
+ */
+export type OrganizationInvitation = {
+  /** Invitation id (e.g. `oi-…`). */
+  id: string
+  /** The address the invitation was emailed to. */
+  email: string
+  name: string | null
+  /** Role the invitee gets on acceptance. Only Admin and Member can be invited. */
+  role: OrganizationMemberRole.Admin | OrganizationMemberRole.Member
+  /** A just-created invitation is always pending. */
+  status: 'pending'
+  /** ISO-8601 time after which the invitation can no longer be accepted. */
+  expiresAt: string
+  invitedByUserId: string
+  /** ISO-8601 creation time. */
+  createdAt: string
 }
+
+/**
+ * Result of `OrganizationsAPI.createMember`. Narrow with `'invitation' in result`:
+ * - `{ invitation }` — the backend (nvm-monorepo #5349 and later) created a
+ *   pending invitation and emailed it. The invitee becomes a member when they
+ *   accept it; nothing about their account is returned.
+ * - `{ nvmApiKey, userId, userWallet, alreadyMember }` — an older backend
+ *   provisioned the invitee's account at invite time.
+ */
+export type CreateMemberResponse =
+  | { invitation: OrganizationInvitation }
+  | {
+      /**
+       * The key the older backend minted for the account. From nvm-monorepo
+       * v1.12.0 (#2501) it is revoked before the response, so it does not
+       * authenticate.
+       */
+      nvmApiKey: string
+      userId: string
+      userWallet: string
+      alreadyMember: boolean
+    }
 
 /**
  * Result of onboarding a white-label customer via
