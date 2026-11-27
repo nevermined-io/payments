@@ -175,6 +175,16 @@ jobs:
     name: E2E
     runs-on: ubuntu-latest
     needs: unit_integration
+    # One E2E at a time across every ref. The staging AA bundler answers 429
+    # when 5-6 runs overlap (a Dependabot update wave), and the API turns that
+    # into a non-retryable BCK.PROTOCOL.0059 (nvm-monorepo#5373, #5391).
+    # `queue: max` keeps up to 100 jobs waiting in FIFO order; the default
+    # (`single`) would cancel every pending E2E but the newest, losing other
+    # PRs' required check. Superseded pushes to the same ref are still
+    # cancelled by the workflow-level group above.
+    concurrency:
+      group: payments-e2e-staging-sandbox
+      queue: max
     continue-on-error: true
     timeout-minutes: 40
     env:

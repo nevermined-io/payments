@@ -1,0 +1,6 @@
+# actionlint 1.7.12 does not know `concurrency.queue` yet (rhysd/actionlint#657,
+# fix pending in #654). GitHub accepts it; drop this once actionlint does.
+paths:
+  .github/workflows/testing.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency" section'
