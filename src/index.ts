@@ -20,10 +20,12 @@ export {
   OrganizationActivityEventType,
 } from './api/organizations-api/types.js'
 export type {
+  CreateMemberResponse,
   MyMembership,
   OrganizationActivityEvent,
   OrganizationActivityFilters,
   OrganizationActivityPage,
+  OrganizationInvitation,
 } from './api/organizations-api/types.js'
 
 // x402 utilities and types
